@@ -1,17 +1,25 @@
+// whiteBoard.tsx
 import React, { useState, useRef } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
+import {
+  addShape,
+  updateShape,
+  removeShape,
+} from "../../features/whiteBoard/whiteBoardSlice";
 
 interface Shape {
+  type: string;
   x1: number;
   y1: number;
   x2: number;
   y2: number;
-  objectType: string;
   text?: string;
 }
 
 const WhiteBoard = () => {
-  const [shapes, setShapes] = useState<Shape[]>([]);
+  const dispatch = useDispatch();
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const [drawing, setDrawing] = useState(false);
   const [focusedShape, setFocusedShape] = useState<number | null>(null);
   const [currentTool, setCurrentTool] = useState("pointer");
@@ -42,9 +50,9 @@ const WhiteBoard = () => {
         y1: e.clientY,
         x2: e.clientX,
         y2: e.clientY,
-        objectType: "rectangle",
+        type: "rectangle",
       };
-      setShapes([...shapes, shape]);
+      dispatch(addShape(shape));
     }
     if (currentTool === "text") {
       const shape: Shape = {
@@ -52,10 +60,10 @@ const WhiteBoard = () => {
         y1: e.clientY,
         x2: e.clientX,
         y2: e.clientY,
-        objectType: "text",
+        type: "text",
         text: "",
       };
-      setShapes([...shapes, shape]);
+      dispatch(addShape(shape));
     }
   };
 
@@ -63,16 +71,26 @@ const WhiteBoard = () => {
     if (drawing) {
       if (currentTool === "rectangle") {
         const lastShape = shapes[shapes.length - 1];
-        lastShape.x2 = e.clientX;
-        lastShape.y2 = e.clientY;
-        setShapes([...shapes.slice(0, -1), lastShape]);
+        const updatedShape: Shape = {
+          ...lastShape,
+          x2: e.clientX,
+          y2: e.clientY,
+        };
+        dispatch(
+          updateShape({ index: shapes.length - 1, update: updatedShape })
+        );
       }
 
       if (currentTool === "text") {
         const lastShape = shapes[shapes.length - 1];
-        lastShape.x2 = e.clientX;
-        lastShape.y2 = e.clientY;
-        setShapes([...shapes.slice(0, -1), lastShape]);
+        const updatedShape: Shape = {
+          ...lastShape,
+          x2: e.clientX,
+          y2: e.clientY,
+        };
+        dispatch(
+          updateShape({ index: shapes.length - 1, update: updatedShape })
+        );
       }
     }
   };
@@ -87,11 +105,12 @@ const WhiteBoard = () => {
         }
       }, 0);
     }
+    setCurrentTool("pointer");
   };
 
   const handleBlur = (index: number) => {
     if (!shapes[index].text) {
-      setShapes(shapes.filter((_, i) => i !== index));
+      dispatch(removeShape(index));
     }
     setFocusedShape(null);
   };
@@ -100,9 +119,11 @@ const WhiteBoard = () => {
     index: number,
     e: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
-    const newShapes = [...shapes];
-    newShapes[index].text = e.target.value;
-    setShapes(newShapes);
+    const updatedShape: Shape = {
+      ...shapes[index],
+      text: e.target.value,
+    };
+    dispatch(updateShape({ index, update: updatedShape }));
   };
 
   return (
@@ -116,7 +137,7 @@ const WhiteBoard = () => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {shapes.map((shape, index) => (
+      {shapes.map((shape: Shape, index: number) => (
         <div
           key={index}
           style={{
@@ -130,12 +151,11 @@ const WhiteBoard = () => {
               shape.y1 > shape.y2 ? shape.y1 - shape.y2 : shape.y2 - shape.y1
             }px`,
             backgroundColor:
-              shape.objectType === "rectangle" ? "white" : "transparent",
-            border:
-              shape.objectType === "rectangle" ? "1px solid black" : "none",
+              shape.type === "rectangle" ? "white" : "transparent",
+            border: shape.type === "rectangle" ? "1px solid white" : "none",
           }}
         >
-          {shape.objectType === "text" ? (
+          {shape.type === "text" ? (
             <textarea
               ref={inputRef}
               style={{
@@ -144,40 +164,43 @@ const WhiteBoard = () => {
                 border: "1px solid white",
                 backgroundColor: "transparent",
                 resize: "none",
+                outline: "none",
+                padding: "0",
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
               }}
               value={shape.text}
               onChange={(e) => handleInputChange(index, e)}
               onBlur={() => handleBlur(index)}
             />
-          ) : (
-            <div />
-          )}
+          ) : null}
         </div>
       ))}
-      <button
-        style={{
-          backgroundColor: currentTool === "pointer" ? "lightblue" : "white",
-        }}
-        onClick={() => handleToolSwitch("pointer")}
-      >
-        pointer
-      </button>
-      <button
-        style={{
-          backgroundColor: currentTool === "rectangle" ? "lightblue" : "white",
-        }}
-        onClick={() => handleToolSwitch("rectangle")}
-      >
-        rectangle
-      </button>
-      <button
-        style={{
-          backgroundColor: currentTool === "text" ? "lightblue" : "white",
-        }}
-        onClick={() => handleToolSwitch("text")}
-      >
-        text
-      </button>
+      <div className={styles.tools}>
+        <button
+          onClick={() => handleToolSwitch("pointer")}
+          style={{
+            backgroundColor: currentTool === "pointer" ? "red" : "white",
+          }}
+        >
+          Pointer
+        </button>
+        <button
+          onClick={() => handleToolSwitch("rectangle")}
+          style={{
+            backgroundColor: currentTool === "rectangle" ? "red" : "white",
+          }}
+        >
+          Rectangle
+        </button>
+        <button
+          onClick={() => handleToolSwitch("text")}
+          style={{ backgroundColor: currentTool === "text" ? "red" : "white" }}
+        >
+          Text
+        </button>
+      </div>
     </div>
   );
 };

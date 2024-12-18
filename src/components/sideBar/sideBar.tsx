@@ -7,7 +7,6 @@ import Components from "../components/components";
 const SideBar = () => {
   const [width, setWidth] = useState(15); // initial width
   const [dragging, setDragging] = useState(false);
-  const [initialX, setInitialX] = useState(0);
   const componentRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState("auto");
 
@@ -18,7 +17,6 @@ const SideBar = () => {
         e.clientX >= componentRef.current.clientWidth - 5
       ) {
         setDragging(true);
-        setInitialX(e.clientX);
       }
     };
 
