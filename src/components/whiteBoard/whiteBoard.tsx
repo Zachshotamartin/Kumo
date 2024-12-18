@@ -1,145 +1,141 @@
 import React, { useState, useRef } from "react";
 import styles from "./whiteBoard.module.css";
 
+interface Shape {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  objectType: string;
+  text?: string;
+}
+
 const WhiteBoard = () => {
+  const [shapes, setShapes] = useState<Shape[]>([]);
   const [drawing, setDrawing] = useState(false);
-  const [shape, setShape] = useState("pointer");
-  const [rectangles, setRectangles] = useState<
-    { x1: number; y1: number; x2: number; y2: number }[]
-  >([]);
-  const [textBoxes, setTextBoxes] = useState<
-    { x1: number; y1: number; x2: number; y2: number; text: string }[]
-  >([]);
-  const [focusedTextBox, setFocusedTextBox] = useState<number | null>(null);
+  const [focusedShape, setFocusedShape] = useState<number | null>(null);
+  const [currentTool, setCurrentTool] = useState("pointer");
   const canvasRef = useRef(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const handlePointer = () => {
-    setShape("pointer");
-  };
-  const handleRectangle = () => {
-    setShape("rectangle");
-  };
-  const handleText = () => {
-    setShape("text");
-  };
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    setDrawing(true);
-    if (shape === "rectangle") {
-      const rect = {
-        x1: e.clientX,
-        y1: e.clientY,
-        x2: e.clientX,
-        y2: e.clientY,
-      };
-      setRectangles([...rectangles, rect]);
-    }
-    if (shape === "text") {
-      const text = {
-        x1: e.clientX,
-        y1: e.clientY,
-        x2: e.clientX,
-        y2: e.clientY,
-        text: "",
-      };
-      setTextBoxes([...textBoxes, text]);
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (drawing) {
-      if (shape === "rectangle") {
-        const lastRect = rectangles[rectangles.length - 1];
-        lastRect.x2 = e.clientX;
-        lastRect.y2 = e.clientY;
-        setRectangles([...rectangles.slice(0, -1), lastRect]);
-      }
-
-      if (shape === "text") {
-        const lastText = textBoxes[textBoxes.length - 1];
-        lastText.x2 = e.clientX;
-        lastText.y2 = e.clientY;
-        setTextBoxes([...textBoxes.slice(0, -1), lastText]);
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
+  const handleToolSwitch = (newTool: string) => {
     setDrawing(false);
-    if (shape === "text") {
-      setFocusedTextBox(textBoxes.length - 1);
+    setCurrentTool(newTool);
+    if (newTool === "text") {
+      setFocusedShape(shapes.length - 1);
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
         }
       }, 0);
     }
-    setShape("pointer");
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target instanceof HTMLButtonElement) {
+      return;
+    }
+    setDrawing(true);
+    if (currentTool === "rectangle") {
+      const shape: Shape = {
+        x1: e.clientX,
+        y1: e.clientY,
+        x2: e.clientX,
+        y2: e.clientY,
+        objectType: "rectangle",
+      };
+      setShapes([...shapes, shape]);
+    }
+    if (currentTool === "text") {
+      const shape: Shape = {
+        x1: e.clientX,
+        y1: e.clientY,
+        x2: e.clientX,
+        y2: e.clientY,
+        objectType: "text",
+        text: "",
+      };
+      setShapes([...shapes, shape]);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (drawing) {
+      if (currentTool === "rectangle") {
+        const lastShape = shapes[shapes.length - 1];
+        lastShape.x2 = e.clientX;
+        lastShape.y2 = e.clientY;
+        setShapes([...shapes.slice(0, -1), lastShape]);
+      }
+
+      if (currentTool === "text") {
+        const lastShape = shapes[shapes.length - 1];
+        lastShape.x2 = e.clientX;
+        lastShape.y2 = e.clientY;
+        setShapes([...shapes.slice(0, -1), lastShape]);
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDrawing(false);
+    if (currentTool === "text") {
+      setFocusedShape(shapes.length - 1);
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 0);
+    }
   };
 
   const handleBlur = (index: number) => {
-    if (!textBoxes[index].text) {
-      setTextBoxes(textBoxes.filter((_, i) => i !== index));
+    if (!shapes[index].text) {
+      setShapes(shapes.filter((_, i) => i !== index));
     }
-    setFocusedTextBox(null);
+    setFocusedShape(null);
   };
 
   const handleInputChange = (
     index: number,
     e: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
-    const newTextBoxes = [...textBoxes];
-    newTextBoxes[index].text = e.target.value;
-    setTextBoxes(newTextBoxes);
+    const newShapes = [...shapes];
+    newShapes[index].text = e.target.value;
+    setShapes(newShapes);
   };
 
   return (
     <div
       ref={canvasRef}
       style={{
-        cursor: "crosshair",
+        cursor: currentTool === "pointer" ? "crosshair" : "default",
       }}
       className={styles.whiteBoard}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {rectangles.map((rect, index) => (
+      {shapes.map((shape, index) => (
         <div
           key={index}
           style={{
             position: "absolute",
-            top: `${rect.y1 > rect.y2 ? rect.y2 : rect.y1}px`,
-            left: `${rect.x1 > rect.x2 ? rect.x2 : rect.x1}px`,
+            top: `${shape.y1 > shape.y2 ? shape.y2 : shape.y1}px`,
+            left: `${shape.x1 > shape.x2 ? shape.x2 : shape.x1}px`,
             width: `${
-              rect.x1 > rect.x2 ? rect.x1 - rect.x2 : rect.x2 - rect.x1
+              shape.x1 > shape.x2 ? shape.x1 - shape.x2 : shape.x2 - shape.x1
             }px`,
             height: `${
-              rect.y1 > rect.y2 ? rect.y1 - rect.y2 : rect.y2 - rect.y1
+              shape.y1 > shape.y2 ? shape.y1 - shape.y2 : shape.y2 - shape.y1
             }px`,
-            backgroundColor: "white",
-            border: "1px solid black",
-          }}
-        />
-      ))}
-      {textBoxes.map((text, index) => (
-        <div
-          key={index}
-          style={{
-            position: "absolute",
-            top: `${text.y1 > text.y2 ? text.y2 : text.y1}px`,
-            left: `${text.x1 > text.x2 ? text.x2 : text.x1}px`,
-            width: `${
-              text.x1 > text.x2 ? text.x1 - text.x2 : text.x2 - text.x1
-            }px`,
-            height: `${
-              text.y1 > text.y2 ? text.y1 - text.y2 : text.y2 - text.y1
-            }px`,
-            border: "1px solid white",
+            backgroundColor:
+              shape.objectType === "rectangle" ? "white" : "transparent",
+            border:
+              shape.objectType === "rectangle" ? "1px solid black" : "none",
           }}
         >
-          {focusedTextBox === index ? (
+          {shape.objectType === "text" ? (
             <textarea
               ref={inputRef}
               style={{
@@ -149,38 +145,36 @@ const WhiteBoard = () => {
                 backgroundColor: "transparent",
                 resize: "none",
               }}
-              value={text.text}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                handleInputChange(index, e)
-              }
+              value={shape.text}
+              onChange={(e) => handleInputChange(index, e)}
               onBlur={() => handleBlur(index)}
             />
           ) : (
-            <div>{text.text}</div>
+            <div />
           )}
         </div>
       ))}
       <button
         style={{
-          backgroundColor: shape === "pointer" ? "lightblue" : "white",
+          backgroundColor: currentTool === "pointer" ? "lightblue" : "white",
         }}
-        onClick={handlePointer}
+        onClick={() => handleToolSwitch("pointer")}
       >
         pointer
       </button>
       <button
         style={{
-          backgroundColor: shape === "rectangle" ? "lightblue" : "white",
+          backgroundColor: currentTool === "rectangle" ? "lightblue" : "white",
         }}
-        onClick={handleRectangle}
+        onClick={() => handleToolSwitch("rectangle")}
       >
         rectangle
       </button>
       <button
         style={{
-          backgroundColor: shape === "text" ? "lightblue" : "white",
+          backgroundColor: currentTool === "text" ? "lightblue" : "white",
         }}
-        onClick={handleText}
+        onClick={() => handleToolSwitch("text")}
       >
         text
       </button>

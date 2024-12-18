@@ -1,0 +1,13 @@
+.navElement {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.navElement img {
+  height: 30px;
+  width: 30px;
+  margin: 0.5rem;
+  margin-left: 1rem;
+}

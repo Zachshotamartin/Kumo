@@ -1,7 +1,13 @@
 .optionsBar {
+  position: absolute;
+  left: 90%;
+  top: 0;
+  height: 100vh;
+  width: 10%;
   flex: 0.2;
   background-color: #444444;
   display: flex;
   flex-direction: column;
+  z-index: 100;
   border: 1px solid #b4b4b4;
 }
