@@ -30,11 +30,15 @@ const WhiteBoard = () => {
   const selectedShape = useSelector(
     (state: any) => state.whiteBoard.selectedShape
   );
+
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const window = useSelector((state: any) => state.window);
-
-  const [drawing, setDrawing] = useState(false);
   const [focusedShape, setFocusedShape] = useState<number | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [dragging, setDragging] = useState(false); // Track dragging state
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
+    null
+  ); // Offset between cursor and shape position
   const [currentTool, setCurrentTool] = useState("pointer");
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -77,7 +81,6 @@ const WhiteBoard = () => {
       (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
 
     if (currentTool === "pointer") {
-      // Check if a shape is selected
       let selected = shapes
         .slice()
         .reverse()
@@ -90,9 +93,16 @@ const WhiteBoard = () => {
         );
       if (selected !== -1) {
         selected = shapes.length - 1 - selected;
+        const shape = shapes[selected];
+        // Calculate the offset between the cursor and the top-left corner of the shape
+        const offsetX = x - Math.min(shape.x1, shape.x2);
+        const offsetY = y - Math.min(shape.y1, shape.y2);
+        setDragOffset({ x: offsetX, y: offsetY });
+        setDragging(true);
+        dispatch(setSelectedShape(selected));
+      } else {
+        dispatch(setSelectedShape(null));
       }
-
-      dispatch(setSelectedShape(selected !== -1 ? selected : null));
       return;
     }
 
@@ -113,6 +123,31 @@ const WhiteBoard = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragging && selectedShape !== null) {
+      const boundingRect = canvasRef.current?.getBoundingClientRect();
+      const x =
+        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+        window.x1;
+      const y =
+        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+        window.y1;
+
+      if (dragOffset) {
+        const shape = shapes[selectedShape];
+        const width = Math.abs(shape.x2 - shape.x1);
+        const height = Math.abs(shape.y2 - shape.y1);
+
+        const updatedShape: Shape = {
+          ...shape,
+          x1: x - dragOffset.x,
+          y1: y - dragOffset.y,
+          x2: x - dragOffset.x + width,
+          y2: y - dragOffset.y + height,
+        };
+        dispatch(updateShape({ index: selectedShape, update: updatedShape }));
+      }
+    }
+
     if (drawing) {
       const boundingRect = canvasRef.current?.getBoundingClientRect();
       const x =
@@ -134,6 +169,8 @@ const WhiteBoard = () => {
 
   const handleMouseUp = () => {
     setDrawing(false);
+    setDragging(false);
+    setDragOffset(null);
     if (currentTool === "text") {
       setFocusedShape(shapes.length - 1);
       setTimeout(() => {
@@ -144,7 +181,6 @@ const WhiteBoard = () => {
     }
     setCurrentTool("pointer");
   };
-
   const handleBlur = (index: number) => {
     if (!shapes[index].text) {
       dispatch(removeShape(index));
