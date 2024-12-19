@@ -59,7 +59,7 @@ const OptionsBar = () => {
           ref={optionsBarRef}
           style={{ left: `${left}%`, width: `${100 - left}%` }}
         >
-          <h1> hello</h1>
+          <h1> Tomomi Martin</h1>
           <div
             style={{
               position: "absolute",

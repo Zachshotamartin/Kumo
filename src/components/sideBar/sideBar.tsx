@@ -74,21 +74,21 @@ const SideBar = () => {
   }, [dragging, width]);
 
   return (
-    <div
-      className={styles.sideBar}
-      ref={componentRef}
-      style={{
-        width: `${!hidden ? width : 0}%`,
-        cursor: cursor,
-      }}
-    >
+    <div>
       {hidden && (
         <button className={styles.hide} onClick={handleHide}>
           Unhide
         </button>
       )}
       {!hidden && (
-        <>
+        <div
+          className={styles.sideBar}
+          ref={componentRef}
+          style={{
+            width: `${!hidden ? width : 10}%`,
+            cursor: cursor,
+          }}
+        >
           <Navigation />
           <Boards />
           <Components />
@@ -102,7 +102,7 @@ const SideBar = () => {
               cursor: "ew-resize",
             }}
           />
-        </>
+        </div>
       )}
     </div>
   );
