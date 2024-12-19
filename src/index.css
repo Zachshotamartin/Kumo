@@ -14,3 +14,9 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
 }
+/* global.css */
+html,
+body {
+  touch-action: none;
+  overscroll-behavior: none;
+}
