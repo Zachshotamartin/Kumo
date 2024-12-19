@@ -5,3 +5,13 @@
   flex-direction: column;
   border: 1px solid #b4b4b4;
 }
+
+.icon {
+  height: 15px;
+  width: 15px;
+  margin: 0 1rem;
+}
+
+.hide {
+  background-color: #444444;
+}

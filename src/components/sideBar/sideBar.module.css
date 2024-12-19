@@ -10,3 +10,22 @@
   flex-direction: column;
   z-index: 100;
 }
+
+.hide {
+  position: absolute;
+  left: 2rem;
+  top: 2rem;
+  height: 5vh;
+  width: 5vh;
+  flex: 0.2;
+  background-color: #444444;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  border: 1px solid #b4b4b4;
+  border-radius: 10%;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+}
