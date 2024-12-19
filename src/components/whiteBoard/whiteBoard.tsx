@@ -6,6 +6,7 @@ import {
   addShape,
   updateShape,
   removeShape,
+  setSelectedShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
 
@@ -20,20 +21,22 @@ interface Shape {
 
 const WhiteBoard = () => {
   const dispatch = useDispatch();
+  const selectedShape = useSelector(
+    (state: any) => state.whiteBoard.selectedShape
+  );
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const window = useSelector((state: any) => state.window);
 
   const [drawing, setDrawing] = useState(false);
   const [focusedShape, setFocusedShape] = useState<number | null>(null);
   const [currentTool, setCurrentTool] = useState("pointer");
-  const [selectedShape, setSelectedShape] = useState<number | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleToolSwitch = (newTool: string) => {
     setDrawing(false);
     if (newTool !== "pointer") {
-      setSelectedShape(null);
+      dispatch(setSelectedShape(null));
     }
     setCurrentTool(newTool);
     if (newTool === "text") {
@@ -60,14 +63,23 @@ const WhiteBoard = () => {
 
     if (currentTool === "pointer") {
       // Check if a shape is selected
-      const selected = shapes.findIndex(
-        (shape: Shape) =>
-          x >= Math.min(shape.x1, shape.x2) &&
-          x <= Math.max(shape.x1, shape.x2) &&
-          y >= Math.min(shape.y1, shape.y2) &&
-          y <= Math.max(shape.y1, shape.y2)
-      );
-      setSelectedShape(selected !== -1 ? selected : null);
+      /*************  ✨ Codeium Command 🌟  *************/
+      let selected = shapes
+        .slice()
+        .reverse()
+        .findIndex(
+          (shape: Shape) =>
+            x >= Math.min(shape.x1, shape.x2) &&
+            x <= Math.max(shape.x1, shape.x2) &&
+            y >= Math.min(shape.y1, shape.y2) &&
+            y <= Math.max(shape.y1, shape.y2)
+        );
+      if (selected !== -1) {
+        selected = shapes.length - 1 - selected;
+      }
+
+      /******  5e4f5a52-7636-4f28-b9c0-67cffb4affa7  *******/
+      dispatch(setSelectedShape(selected !== -1 ? selected : null));
       return;
     }
 
@@ -83,7 +95,7 @@ const WhiteBoard = () => {
         text: currentTool === "text" ? "" : undefined,
       };
       dispatch(addShape(shape));
-      setSelectedShape(shapes.length); // Select the newly created shape
+      dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
     }
   };
 
