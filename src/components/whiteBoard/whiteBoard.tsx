@@ -26,11 +26,15 @@ const WhiteBoard = () => {
   const [drawing, setDrawing] = useState(false);
   const [focusedShape, setFocusedShape] = useState<number | null>(null);
   const [currentTool, setCurrentTool] = useState("pointer");
+  const [selectedShape, setSelectedShape] = useState<number | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleToolSwitch = (newTool: string) => {
     setDrawing(false);
+    if (newTool !== "pointer") {
+      setSelectedShape(null);
+    }
     setCurrentTool(newTool);
     if (newTool === "text") {
       setFocusedShape(shapes.length - 1);
@@ -46,9 +50,28 @@ const WhiteBoard = () => {
     if (e.target instanceof HTMLButtonElement) {
       return;
     }
+
+    const boundingRect = canvasRef.current?.getBoundingClientRect();
+    const x =
+      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+      window.x1;
+    const y =
+      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
+
+    if (currentTool === "pointer") {
+      // Check if a shape is selected
+      const selected = shapes.findIndex(
+        (shape: Shape) =>
+          x >= Math.min(shape.x1, shape.x2) &&
+          x <= Math.max(shape.x1, shape.x2) &&
+          y >= Math.min(shape.y1, shape.y2) &&
+          y <= Math.max(shape.y1, shape.y2)
+      );
+      setSelectedShape(selected !== -1 ? selected : null);
+      return;
+    }
+
     setDrawing(true);
-    const x = e.clientX / window.percentZoomed + window.x1;
-    const y = e.clientY / window.percentZoomed + window.y1;
 
     if (currentTool === "rectangle" || currentTool === "text") {
       const shape: Shape = {
@@ -60,13 +83,20 @@ const WhiteBoard = () => {
         text: currentTool === "text" ? "" : undefined,
       };
       dispatch(addShape(shape));
+      setSelectedShape(shapes.length); // Select the newly created shape
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (drawing) {
-      const x = e.clientX / window.percentZoomed + window.x1;
-      const y = e.clientY / window.percentZoomed + window.y1;
+      const boundingRect = canvasRef.current?.getBoundingClientRect();
+      const x =
+        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+        window.x1;
+      const y =
+        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+        window.y1;
+
       const lastShape = shapes[shapes.length - 1];
       const updatedShape: Shape = {
         ...lastShape,
@@ -114,17 +144,23 @@ const WhiteBoard = () => {
     if (event.ctrlKey) {
       // Zoom logic
       const zoomFactor = deltaY > 0 ? 1.1 : 0.9;
-      const centerX = (window.x1 + window.x2) / 2;
-      const centerY = (window.y1 + window.y2) / 2;
+
+      const boundingRect = canvasRef.current?.getBoundingClientRect();
+      const cursorX =
+        (event.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+        window.x1;
+      const cursorY =
+        (event.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+        window.y1;
 
       const newWidth = (window.x2 - window.x1) * zoomFactor;
       const newHeight = (window.y2 - window.y1) * zoomFactor;
 
       const newWindow: WindowState = {
-        x1: centerX - newWidth / 2,
-        y1: centerY - newHeight / 2,
-        x2: centerX + newWidth / 2,
-        y2: centerY + newHeight / 2,
+        x1: cursorX - (cursorX - window.x1) * zoomFactor,
+        y1: cursorY - (cursorY - window.y1) * zoomFactor,
+        x2: cursorX + (window.x2 - cursorX) * zoomFactor,
+        y2: cursorY + (window.y2 - cursorY) * zoomFactor,
         percentZoomed: window.percentZoomed * zoomFactor,
       };
       dispatch(setWindow(newWindow));
@@ -141,6 +177,13 @@ const WhiteBoard = () => {
         percentZoomed: window.percentZoomed,
       };
       dispatch(setWindow(newWindow));
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedShape !== null) {
+      dispatch(removeShape(selectedShape));
+      setSelectedShape(null);
     }
   };
 
@@ -174,7 +217,12 @@ const WhiteBoard = () => {
             height: `${Math.abs(shape.y1 - shape.y2) / window.percentZoomed}px`,
             backgroundColor:
               shape.type === "rectangle" ? "white" : "transparent",
-            border: shape.type === "rectangle" ? "1px solid white" : "none",
+            border:
+              index === selectedShape
+                ? "2px solid blue"
+                : shape.type === "rectangle"
+                ? "1px solid white"
+                : "none",
           }}
         >
           {shape.type === "text" ? (
@@ -224,6 +272,15 @@ const WhiteBoard = () => {
         >
           Text
         </button>
+        <button
+          onClick={handleDelete}
+          style={{
+            backgroundColor: "white",
+            marginLeft: "10px",
+          }}
+        >
+          Delete
+        </button>
         <p>
           {window.width}, {window.height}, {window.percentZoomed}
         </p>
@@ -239,4 +296,3 @@ const WhiteBoard = () => {
 };
 
 export default WhiteBoard;
-
