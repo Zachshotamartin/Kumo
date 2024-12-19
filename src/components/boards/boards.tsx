@@ -9,19 +9,19 @@ const Boards = () => {
   return (
     <div className={styles.boards}>
       <h1>Boards</h1>
-      <h2>Private</h2>
+      <h2 className={styles.title}>Private</h2>
       {privateBoards.map((board: any, index: number) => (
         <div key={index} className={styles.board}>
           <p>{board}</p>
         </div>
       ))}
-      <h2>Public</h2>
+      <h2 className={styles.title}>Public</h2>
       {publicBoards.map((board: any, index: number) => (
         <div key={index} className={styles.board}>
           <p>{board}</p>
         </div>
       ))}
-      <h2>Shared</h2>
+      <h2 className={styles.title}>Shared</h2>
       {sharedBoards.map((board: any, index: number) => (
         <div key={index} className={styles.board}>
           <p>{board}</p>

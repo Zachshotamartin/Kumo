@@ -3,3 +3,8 @@
   border: 1px solid #b4b4b4;
   height: 100vh;
 }
+
+.icon {
+  height: 20px;
+  width: 20px;
+}

@@ -9,7 +9,12 @@ import {
   setSelectedShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
-
+import image from "../../res/image.png";
+import text from "../../res/text.png";
+import pointer from "../../res/select.png";
+import remove from "../../res/delete.png";
+import calendar from "../../res/calendar.png";
+import rectangle from "../../res/rectangle.png";
 interface Shape {
   type: string;
   x1: number;
@@ -38,7 +43,15 @@ const WhiteBoard = () => {
     if (newTool !== "pointer") {
       dispatch(setSelectedShape(null));
     }
+
     setCurrentTool(newTool);
+    if (
+      newTool === "calendar" ||
+      newTool === "image" ||
+      newTool === "pointer"
+    ) {
+      setCurrentTool("pointer");
+    }
     if (newTool === "text") {
       setFocusedShape(shapes.length - 1);
       setTimeout(() => {
@@ -263,45 +276,47 @@ const WhiteBoard = () => {
         <button
           onClick={() => handleToolSwitch("pointer")}
           style={{
-            backgroundColor: currentTool === "pointer" ? "red" : "white",
+            backgroundColor: currentTool === "pointer" ? "red" : "transparent",
           }}
         >
-          Pointer
+          <img className={styles.icon} src={pointer} alt="" />
         </button>
         <button
           onClick={() => handleToolSwitch("rectangle")}
           style={{
-            backgroundColor: currentTool === "rectangle" ? "red" : "white",
+            backgroundColor:
+              currentTool === "rectangle" ? "red" : "transparent",
           }}
         >
-          Rectangle
+          <img className={styles.icon} src={rectangle} alt="" />
         </button>
         <button
           onClick={() => handleToolSwitch("text")}
           style={{
-            backgroundColor: currentTool === "text" ? "red" : "white",
+            backgroundColor: currentTool === "text" ? "red" : "transparent",
           }}
         >
-          Text
+          <img className={styles.icon} src={text} alt="" />
+        </button>
+        <button onClick={handleDelete}>
+          <img className={styles.icon} src={remove} alt="" />
         </button>
         <button
-          onClick={handleDelete}
+          onClick={() => handleToolSwitch("calendar")}
           style={{
-            backgroundColor: "white",
-            marginLeft: "10px",
+            backgroundColor: currentTool === "calendar" ? "red" : "transparent",
           }}
         >
-          Delete
+          <img className={styles.icon} src={calendar} alt="" />
         </button>
-        <p>
-          {window.width}, {window.height}, {window.percentZoomed}
-        </p>
-        <p>
-          x1 {window.x1}, y1 {window.y1}, x2 {window.x2}, y2 {window.y2}
-        </p>
-        <p>
-          {shapes[0]?.x1}, {shapes[0]?.y1}
-        </p>
+        <button
+          onClick={() => handleToolSwitch("image")}
+          style={{
+            backgroundColor: currentTool === "image" ? "red" : "transparent",
+          }}
+        >
+          <img className={styles.icon} src={image} alt="" />
+        </button>
       </div>
     </div>
   );

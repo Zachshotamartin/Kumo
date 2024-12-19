@@ -13,3 +13,17 @@
   background-color: lightblue;
   color: black;
 }
+
+.icon {
+  height: 15px;
+  width: 15px;
+  margin: 0 1rem;
+}
+
+.component {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  cursor: pointer;
+}
