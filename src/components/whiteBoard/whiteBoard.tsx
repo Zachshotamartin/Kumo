@@ -15,6 +15,7 @@ import pointer from "../../res/select.png";
 import remove from "../../res/delete.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
+
 interface Shape {
   type: string;
   x1: number;
@@ -63,8 +64,9 @@ const WhiteBoard = () => {
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target instanceof HTMLButtonElement) {
-      return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button")) {
+      return; // Ignore clicks on buttons
     }
 
     const boundingRect = canvasRef.current?.getBoundingClientRect();
@@ -76,7 +78,6 @@ const WhiteBoard = () => {
 
     if (currentTool === "pointer") {
       // Check if a shape is selected
-      /*************  ✨ Codeium Command 🌟  *************/
       let selected = shapes
         .slice()
         .reverse()
@@ -91,7 +92,6 @@ const WhiteBoard = () => {
         selected = shapes.length - 1 - selected;
       }
 
-      /******  5e4f5a52-7636-4f28-b9c0-67cffb4affa7  *******/
       dispatch(setSelectedShape(selected !== -1 ? selected : null));
       return;
     }
@@ -206,9 +206,16 @@ const WhiteBoard = () => {
   };
 
   const handleDelete = () => {
+    console.log("Deleted shape:", selectedShape);
     if (selectedShape !== null) {
-      dispatch(removeShape(selectedShape));
-      setSelectedShape(null);
+      const newShapes = shapes.filter(
+        (index: number) => index !== selectedShape
+      );
+      dispatch(removeShape(selectedShape)); // Update the store
+      dispatch(setSelectedShape(null)); // Deselect after deletion
+
+      // Ensure the focused shape is reset if required
+      setFocusedShape(null);
     }
   };
 
