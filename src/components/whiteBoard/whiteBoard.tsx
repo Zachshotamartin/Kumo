@@ -111,6 +111,7 @@ const WhiteBoard = () => {
         color: currentTool === "text" ? "transparent" : "white",
         width: 0,
         height: 0,
+        rotation: 0,
       };
       dispatch(addShape(shape));
       dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
@@ -140,7 +141,6 @@ const WhiteBoard = () => {
           y2: y - dragOffset.y + height,
           width,
           height,
-          rotation: 0,
         };
         dispatch(updateShape({ index: selectedShape, update: updatedShape }));
       }
@@ -162,6 +162,7 @@ const WhiteBoard = () => {
         y2: y,
         width: Math.abs(x - lastShape.x1),
         height: Math.abs(y - lastShape.y1),
+        rotation: 0,
       };
       dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
     }
