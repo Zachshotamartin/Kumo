@@ -14,6 +14,7 @@ const FontStyles = () => {
   const [fontFamily, setFontFamily] = useState(selectedShape.fontFamily);
   const [fontWeight, setFontWeight] = useState(selectedShape.fontWeight);
   const [textAlign, setTextAlign] = useState(selectedShape.textAlign);
+  const [alignItems, setAlignItems] = useState(selectedShape.alignItems);
   const [textDecoration, setTextDecoration] = useState(
     selectedShape.textDecoration
   );
@@ -27,6 +28,7 @@ const FontStyles = () => {
     setFontFamily(selectedShape.fontFamily);
     setFontWeight(selectedShape.fontWeight);
     setTextAlign(selectedShape.textAlign);
+    setAlignItems(selectedShape.alignItems);
     setTextDecoration(selectedShape.textDecoration);
     setLineHeight(selectedShape.lineHeight);
     setLetterSpacing(selectedShape.letterSpacing);
@@ -41,12 +43,14 @@ const FontStyles = () => {
           fontFamily: fontFamily,
           fontWeight: fontWeight,
           textAlign: textAlign,
+          alignItems: alignItems,
           textDecoration: textDecoration,
           lineHeight: lineHeight,
           letterSpacing: letterSpacing,
         },
       })
     );
+    console.log(selectedShape.alignItems);
     console.log(selectedShape);
   };
   return (
@@ -98,6 +102,28 @@ const FontStyles = () => {
         value="right"
         checked={textAlign === "right"}
         onChange={(e) => setTextAlign(e.target.value)}
+      />
+      <p>vertical align</p>
+      <input
+        type="radio"
+        name="alignItems"
+        value="flex-start"
+        checked={alignItems === "flex-start"}
+        onChange={(e) => setAlignItems(e.target.value)}
+      />
+      <input
+        type="radio"
+        name="alignItems"
+        value="center"
+        checked={alignItems === "center"}
+        onChange={(e) => setAlignItems(e.target.value)}
+      />
+      <input
+        type="radio"
+        name="alignItems"
+        value="flex-end"
+        checked={alignItems === "flex-end"}
+        onChange={(e) => setAlignItems(e.target.value)}
       />
       <p>text decoration</p>
       <input

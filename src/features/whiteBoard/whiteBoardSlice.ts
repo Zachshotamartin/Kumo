@@ -16,30 +16,32 @@ export interface Shape {
   height: number;
 
   // transforms
-  rotation?: number;
+  rotation: number;
   flipX?: boolean;
   flipY?: boolean;
 
   // box styling
-  borderRadius?: number;
-  borderWidth?: number;
-  borderStyle?: string;
+  borderRadius: number;
+  borderWidth: number;
+  borderStyle: string;
 
   // text styling
-  text?: string;
-  fontSize?: number;
-  fontFamily?: string;
-  fontWeight?: string;
-  textAlign?: string;
-  textDecoration?: string;
-  lineHeight?: number;
-  letterSpacing?: number;
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: string;
+  textAlign: string;
+  alignItems: string;
+  textDecoration: string;
+  lineHeight: number;
+  letterSpacing: number;
+  rows: number;
 
   // color styling
-  color?: string;
-  opacity?: number;
-  backgroundColor?: string;
-  borderColor?: string;
+  color: string;
+  opacity: number;
+  backgroundColor: string;
+  borderColor: string;
 }
 
 interface WhiteBoardState {

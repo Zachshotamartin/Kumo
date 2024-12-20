@@ -128,17 +128,19 @@ const WhiteBoard = () => {
         fontFamily: "Arial",
         fontWeight: "normal",
         textAlign: "left",
+        alignItems: "flex-start",
         textDecoration: "none",
         lineHeight: 1.2,
         letterSpacing: 0,
+        rows: 1,
 
         // color
-        color: "black",
+        color: "white",
         backgroundColor: currentTool === "text" ? "transparent" : "white",
         borderColor: "black",
         opacity: 1,
 
-        text: currentTool === "text" ? "" : undefined,
+        text: "",
       };
       dispatch(addShape(shape));
       dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
@@ -218,11 +220,13 @@ const WhiteBoard = () => {
 
   const handleInputChange = (
     index: number,
-    e: React.ChangeEvent<HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLTextAreaElement>,
+    rows: number
   ) => {
     const updatedShape: Shape = {
       ...shapes[index],
       text: e.target.value,
+      rows: rows,
     };
     dispatch(updateShape({ index, update: updatedShape }));
   };
@@ -273,6 +277,31 @@ const WhiteBoard = () => {
       dispatch(setSelectedShape(null));
       setFocusedShape(null);
     }
+  };
+
+  const calculateUsedRows = (
+    text: string,
+    lineHeight: number,
+    fontSize: number,
+    width: number,
+    fontFamily: string
+  ) => {
+    const div = document.createElement("div");
+    div.style.position = "absolute";
+    div.style.visibility = "hidden";
+    div.style.whiteSpace = "pre-wrap";
+    div.style.wordWrap = "break-word";
+    div.style.fontSize = `${fontSize}px`;
+    div.style.lineHeight = `${lineHeight}`;
+    div.style.width = `${width}px`;
+    div.style.fontFamily = fontFamily;
+
+    div.textContent = text;
+    document.body.appendChild(div);
+    const height = div.offsetHeight;
+    document.body.removeChild(div);
+    const endingCharacter = text.endsWith("\n") ? 1 : 0;
+    return Math.ceil(height / lineHeight) + endingCharacter;
   };
 
   return (
@@ -339,32 +368,58 @@ const WhiteBoard = () => {
             <textarea
               ref={inputRef}
               style={{
+                display: "flex",
                 width: "100%",
                 height: "100%",
-                border: "1px solid white",
+
                 backgroundColor: "transparent",
                 resize: "none",
                 outline: "none",
-                padding: "0",
+                padding:
+                  shape.alignItems === "flex-start"
+                    ? "0 0 0 0"
+                    : shape.alignItems === "flex-end"
+                    ? `${
+                        shape.height / window.percentZoomed -
+                        (shape.lineHeight * shape.rows) / window.percentZoomed
+                      }px 0 0 0`
+                    : shape.alignItems === "center"
+                    ? `${
+                        shape.height / 2 / window.percentZoomed -
+                        shape.lineHeight / 2 / window.percentZoomed
+                      }px 0 ${
+                        shape.height / 2 / window.percentZoomed -
+                        shape.lineHeight / 2 / window.percentZoomed
+                      }px 0`
+                    : "0 0 0 0",
+
+                border: "1px, solid, transparent",
                 overflow: "hidden",
                 whiteSpace: "nowrap",
                 textOverflow: "ellipsis",
 
                 // text styling
-                fontSize: `${shape.fontSize}px`,
+                fontSize: `${shape.fontSize / window.percentZoomed}px`,
                 fontFamily: `${shape.fontFamily}`,
                 fontWeight: `${shape.fontWeight}`,
-                textAlign: shape.textAlign as
-                  | "left"
-                  | "right"
-                  | "center"
-                  | "justify",
+                textAlign: shape.textAlign as "left" | "right" | "center",
                 textDecoration: `${shape.textDecoration}`,
                 lineHeight: `${shape.lineHeight}`,
-                letterSpacing: `${shape.letterSpacing}px`,
+                letterSpacing: `${
+                  shape.letterSpacing / window.percentZoomed
+                }px`,
               }}
               value={shape.text}
-              onChange={(e) => handleInputChange(index, e)}
+              onChange={(e) => {
+                const usedRows = calculateUsedRows(
+                  e.target.value,
+                  shape.lineHeight * window.percentZoomed,
+                  shape.fontSize * window.percentZoomed,
+                  shape.width / window.percentZoomed,
+                  shape.fontFamily
+                );
+                handleInputChange(index, e, usedRows);
+              }}
               onBlur={() => handleBlur(index)}
             />
           ) : null}
