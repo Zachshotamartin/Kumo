@@ -102,16 +102,43 @@ const WhiteBoard = () => {
 
     if (currentTool === "rectangle" || currentTool === "text") {
       const shape: Shape = {
+        // type
+        type: currentTool,
+
+        // position
         x1: x,
         y1: y,
         x2: x,
         y2: y,
-        type: currentTool,
-        text: currentTool === "text" ? "" : undefined,
-        color: currentTool === "text" ? "transparent" : "white",
+
+        //dimension
         width: 0,
         height: 0,
+
+        // transform
         rotation: 0,
+
+        // box styling
+        borderRadius: 0,
+        borderWidth: 0,
+        borderStyle: "solid",
+
+        // font styling
+        fontSize: 12,
+        fontFamily: "Arial",
+        fontWeight: "normal",
+        textAlign: "left",
+        textDecoration: "none",
+        lineHeight: 1.2,
+        letterSpacing: 0,
+
+        // color
+        color: "black",
+        backgroundColor: currentTool === "text" ? "transparent" : "white",
+        borderColor: "black",
+        opacity: 1,
+
+        text: currentTool === "text" ? "" : undefined,
       };
       dispatch(addShape(shape));
       dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
@@ -265,7 +292,10 @@ const WhiteBoard = () => {
         <div
           key={index}
           style={{
+            // type
             position: "absolute",
+
+            // position
             top: `${
               ((shape.y1 > shape.y2 ? shape.y2 : shape.y1) - window.y1) /
               window.percentZoomed
@@ -274,17 +304,49 @@ const WhiteBoard = () => {
               ((shape.x1 > shape.x2 ? shape.x2 : shape.x1) - window.x1) /
               window.percentZoomed
             }px`,
+
+            // dimension
             width: `${shape.width / window.percentZoomed}px`,
             height: `${shape.height / window.percentZoomed}px`,
-            backgroundColor:
-              shape.type === "rectangle" ? "white" : "transparent",
+
+            // transforms
+            transform: `rotate(${shape.rotation || 0}deg)`,
+            // flipX?: boolean;
+            // flipY?: boolean;
+
+            // box styling
+
+            borderRadius: `${shape.borderRadius}%`,
+            borderWidth: `${shape.borderWidth}px`,
+            borderStyle: `${shape.borderStyle}`,
             border:
               index === selectedShape
                 ? "2px solid blue"
                 : shape.type === "rectangle"
                 ? "1px solid white"
                 : "none",
-            transform: `rotate(${shape.rotation || 0}deg)`,
+
+            // text styling
+            fontSize: `${shape.fontSize}px`,
+            fontFamily: `${shape.fontFamily}`,
+            fontWeight: `${shape.fontWeight}`,
+            textAlign: shape.textAlign as
+              | "left"
+              | "right"
+              | "center"
+              | "justify",
+            textDecoration: `${shape.textDecoration}`,
+            lineHeight: `${shape.lineHeight}`,
+            letterSpacing: `${shape.letterSpacing}px`,
+
+            // color styling
+            color: `${shape.color}`,
+            backgroundColor:
+              shape.type === "rectangle"
+                ? `${shape.backgroundColor}`
+                : "transparent",
+            borderColor: `${shape.borderColor}`,
+            opacity: `${shape.opacity}`,
           }}
         >
           {shape.type === "text" ? (

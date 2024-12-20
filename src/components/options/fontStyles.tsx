@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 
-const Dimension = () => {
+const FontStyles = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
     (state: any) => state.whiteBoard.selectedShape
@@ -54,7 +54,7 @@ const Dimension = () => {
   };
   return (
     <div>
-      <h2>Dimension</h2>
+      <h2>Position</h2>
       <p>width</p>
       <input
         type="number"
@@ -72,4 +72,4 @@ const Dimension = () => {
   );
 };
 
-export default Dimension;
+export default FontStyles;

@@ -2,17 +2,44 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface Shape {
+  // type (image, text, calendar, rectangle)
   type: string;
+
+  // positioning
   x1: number;
   y1: number;
   x2: number;
   y2: number;
-  text?: string;
-  rotation?: number;
-  color?: string;
+
+  // dimensions
   width: number;
   height: number;
-  
+
+  // transforms
+  rotation?: number;
+  flipX?: boolean;
+  flipY?: boolean;
+
+  // box styling
+  borderRadius?: number;
+  borderWidth?: number;
+  borderStyle?: string;
+
+  // text styling
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: string;
+  textAlign?: string;
+  textDecoration?: string;
+  lineHeight?: number;
+  letterSpacing?: number;
+
+  // color styling
+  color?: string;
+  opacity?: number;
+  backgroundColor?: string;
+  borderColor?: string;
 }
 
 interface WhiteBoardState {

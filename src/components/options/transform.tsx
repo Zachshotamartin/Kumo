@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 
-const Rotation = () => {
+const Transform = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
     (state: any) => state.whiteBoard.selectedShape
@@ -27,15 +27,16 @@ const Rotation = () => {
   };
   return (
     <div>
-      <p>rotate</p>
+      <h2>Transform</h2>
+      <p>rotation</p>
       <input
         type="number"
         value={rotation}
-        onChange={(e) => setRotation(e.target.value)}
+        onChange={(e) => setRotation(Number(e.target.value))}
       />
       <button onClick={updatePosition}>Update</button>
     </div>
   );
 };
 
-export default Rotation;
+export default Transform;
