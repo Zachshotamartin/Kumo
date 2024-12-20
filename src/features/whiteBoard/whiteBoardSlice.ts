@@ -1,7 +1,7 @@
 // whiteBoardSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-interface Shape {
+export interface Shape {
   type: string;
   x1: number;
   y1: number;
@@ -47,6 +47,7 @@ const whiteBoardSlice = createSlice({
   },
 });
 
-export const { addShape, updateShape, removeShape, setSelectedShape } = whiteBoardSlice.actions;
+export const { addShape, updateShape, removeShape, setSelectedShape } =
+  whiteBoardSlice.actions;
 
 export default whiteBoardSlice.reducer;

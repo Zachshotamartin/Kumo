@@ -1,9 +1,20 @@
+/*************  ✨ Codeium Command 🌟  *************/
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./optionsBar.module.css";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import Position from "../options/position";
+import Dimension from "../options/dimension";
 
 const OptionsBar = () => {
+  const dispatch = useDispatch();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
+  const selectedIdx = useSelector(
+    (state: any) => state.whiteBoard.selectedShape
+  );
+  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
+    selectedIdx
+  ];
+
   const [left, setLeft] = useState(85); // Initial left position in percentage
   const [dragging, setDragging] = useState(false);
   const [startX, setStartX] = useState(0); // Track starting position of drag
@@ -59,7 +70,7 @@ const OptionsBar = () => {
           ref={optionsBarRef}
           style={{ left: `${left}%`, width: `${100 - left}%` }}
         >
-          <h1> Tomomi Martin</h1>
+          <h1>Options</h1>
           <div
             style={{
               position: "absolute",
@@ -71,6 +82,8 @@ const OptionsBar = () => {
             }}
             onMouseDown={handleMouseDown}
           />
+          {selectedShape && <Position />}
+          {selectedShape && <Dimension />}
         </div>
       )}
     </>
