@@ -10,4 +10,6 @@
   flex-direction: column;
   z-index: 100;
   border: 1px solid #b4b4b4;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }

@@ -315,7 +315,6 @@ const WhiteBoard = () => {
             // flipY?: boolean;
 
             // box styling
-
             borderRadius: `${shape.borderRadius}%`,
             borderWidth: `${shape.borderWidth}px`,
             borderStyle: `${shape.borderStyle}`,
@@ -325,19 +324,6 @@ const WhiteBoard = () => {
                 : shape.type === "rectangle"
                 ? "1px solid white"
                 : "none",
-
-            // text styling
-            fontSize: `${shape.fontSize}px`,
-            fontFamily: `${shape.fontFamily}`,
-            fontWeight: `${shape.fontWeight}`,
-            textAlign: shape.textAlign as
-              | "left"
-              | "right"
-              | "center"
-              | "justify",
-            textDecoration: `${shape.textDecoration}`,
-            lineHeight: `${shape.lineHeight}`,
-            letterSpacing: `${shape.letterSpacing}px`,
 
             // color styling
             color: `${shape.color}`,
@@ -363,6 +349,19 @@ const WhiteBoard = () => {
                 overflow: "hidden",
                 whiteSpace: "nowrap",
                 textOverflow: "ellipsis",
+
+                // text styling
+                fontSize: `${shape.fontSize}px`,
+                fontFamily: `${shape.fontFamily}`,
+                fontWeight: `${shape.fontWeight}`,
+                textAlign: shape.textAlign as
+                  | "left"
+                  | "right"
+                  | "center"
+                  | "justify",
+                textDecoration: `${shape.textDecoration}`,
+                lineHeight: `${shape.lineHeight}`,
+                letterSpacing: `${shape.letterSpacing}px`,
               }}
               value={shape.text}
               onChange={(e) => handleInputChange(index, e)}
