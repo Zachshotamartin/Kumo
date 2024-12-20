@@ -4,6 +4,7 @@ import styles from "./optionsBar.module.css";
 import { useSelector, useDispatch } from "react-redux";
 import Position from "../options/position";
 import Dimension from "../options/dimension";
+import Rotation from "../options/rotation";
 
 const OptionsBar = () => {
   const dispatch = useDispatch();
@@ -84,6 +85,7 @@ const OptionsBar = () => {
           />
           {selectedShape && <Position />}
           {selectedShape && <Dimension />}
+          {selectedShape && <Rotation />}
         </div>
       )}
     </>

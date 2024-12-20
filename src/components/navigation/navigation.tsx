@@ -13,7 +13,11 @@ const Navigation = () => {
   const user = useAuthState(auth);
   const Username = user[0]?.email;
   const dispatch = useDispatch();
-  const hideSideBar = useSelector((state: any) => state.sideBar.hideSideBar);
+  const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
+
+  const handleHide = () => {
+    dispatch(setHideSideBar(!hidden));
+  };
   return (
     <div className={styles.navigation}>
       <NavElement image={logo} text="Kumo" />
@@ -22,12 +26,7 @@ const Navigation = () => {
       <button className={styles.logout} onClick={() => auth.signOut()}>
         Logout
       </button>
-      <button
-        className={styles.hide}
-        onClick={() => {
-          dispatch(setHideSideBar(true));
-        }}
-      >
+      <button className={styles.hide} onClick={handleHide}>
         <img className={styles.icon} src={hide} alt="" />
       </button>
     </div>

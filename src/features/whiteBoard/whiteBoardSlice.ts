@@ -8,6 +8,11 @@ export interface Shape {
   x2: number;
   y2: number;
   text?: string;
+  rotation?: number;
+  color?: string;
+  width: number;
+  height: number;
+  
 }
 
 interface WhiteBoardState {

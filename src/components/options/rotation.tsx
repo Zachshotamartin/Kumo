@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 
-const Position = () => {
+const Rotation = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
     (state: any) => state.whiteBoard.selectedShape
@@ -10,11 +10,9 @@ const Position = () => {
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx
   ];
-  const [x1, setX1] = useState(selectedShape.x1);
-  const [y1, setY1] = useState(selectedShape.y1);
+  const [rotation, setRotation] = useState(selectedShape.rotate);
   useEffect(() => {
-    setX1(selectedShape.x1);
-    setY1(selectedShape.y1);
+    setRotation(selectedShape.rotation);
   }, [selectedShape]);
 
   const updatePosition = () => {
@@ -22,24 +20,22 @@ const Position = () => {
       updateShape({
         index: selectedIdx,
         update: {
-          x1: x1,
-          y1: y1,
-          x2: x1 + selectedShape.width,
-          y2: y1 + selectedShape.height,
+          rotation: rotation,
         },
       })
     );
   };
   return (
     <div>
-      <h2>Position</h2>
-      <p>x</p>
-      <input type="number" value={x1} onChange={(e) => setX1(e.target.value)} />
-      <p>y</p>
-      <input type="number" value={y1} onChange={(e) => setY1(e.target.value)} />
+      <p>rotate</p>
+      <input
+        type="number"
+        value={rotation}
+        onChange={(e) => setRotation(e.target.value)}
+      />
       <button onClick={updatePosition}>Update</button>
     </div>
   );
 };
 
-export default Position;
+export default Rotation;

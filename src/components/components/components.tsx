@@ -4,8 +4,6 @@ import { useSelector, useDispatch } from "react-redux";
 import { setSelectedShape } from "../../features/whiteBoard/whiteBoardSlice";
 import image from "../../res/image.png";
 import text from "../../res/text.png";
-import pointer from "../../res/select.png";
-import remove from "../../res/delete.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
 

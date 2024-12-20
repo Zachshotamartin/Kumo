@@ -15,15 +15,7 @@ import pointer from "../../res/select.png";
 import remove from "../../res/delete.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
-
-interface Shape {
-  type: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  text?: string;
-}
+import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch();
@@ -116,6 +108,9 @@ const WhiteBoard = () => {
         y2: y,
         type: currentTool,
         text: currentTool === "text" ? "" : undefined,
+        color: currentTool === "text" ? "transparent" : "white",
+        width: 0,
+        height: 0,
       };
       dispatch(addShape(shape));
       dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
@@ -143,6 +138,9 @@ const WhiteBoard = () => {
           y1: y - dragOffset.y,
           x2: x - dragOffset.x + width,
           y2: y - dragOffset.y + height,
+          width,
+          height,
+          rotation: 0,
         };
         dispatch(updateShape({ index: selectedShape, update: updatedShape }));
       }
@@ -162,6 +160,8 @@ const WhiteBoard = () => {
         ...lastShape,
         x2: x,
         y2: y,
+        width: Math.abs(x - lastShape.x1),
+        height: Math.abs(y - lastShape.y1),
       };
       dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
     }
@@ -214,9 +214,6 @@ const WhiteBoard = () => {
         (event.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
         window.y1;
 
-      const newWidth = (window.x2 - window.x1) * zoomFactor;
-      const newHeight = (window.y2 - window.y1) * zoomFactor;
-
       const newWindow: WindowState = {
         x1: cursorX - (cursorX - window.x1) * zoomFactor,
         y1: cursorY - (cursorY - window.y1) * zoomFactor,
@@ -244,13 +241,8 @@ const WhiteBoard = () => {
   const handleDelete = () => {
     console.log("Deleted shape:", selectedShape);
     if (selectedShape !== null) {
-      const newShapes = shapes.filter(
-        (index: number) => index !== selectedShape
-      );
-      dispatch(removeShape(selectedShape)); // Update the store
-      dispatch(setSelectedShape(null)); // Deselect after deletion
-
-      // Ensure the focused shape is reset if required
+      dispatch(removeShape(selectedShape));
+      dispatch(setSelectedShape(null));
       setFocusedShape(null);
     }
   };
@@ -281,8 +273,8 @@ const WhiteBoard = () => {
               ((shape.x1 > shape.x2 ? shape.x2 : shape.x1) - window.x1) /
               window.percentZoomed
             }px`,
-            width: `${Math.abs(shape.x1 - shape.x2) / window.percentZoomed}px`,
-            height: `${Math.abs(shape.y1 - shape.y2) / window.percentZoomed}px`,
+            width: `${shape.width / window.percentZoomed}px`,
+            height: `${shape.height / window.percentZoomed}px`,
             backgroundColor:
               shape.type === "rectangle" ? "white" : "transparent",
             border:
@@ -291,6 +283,7 @@ const WhiteBoard = () => {
                 : shape.type === "rectangle"
                 ? "1px solid white"
                 : "none",
+            transform: `rotate(${shape.rotation || 0}deg)`,
           }}
         >
           {shape.type === "text" ? (

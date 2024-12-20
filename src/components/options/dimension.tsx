@@ -46,6 +46,8 @@ const Dimension = () => {
               : selectedShape.y1) +
             height -
             Math.abs(selectedShape.y2 - selectedShape.y1),
+          width,
+          height,
         },
       })
     );

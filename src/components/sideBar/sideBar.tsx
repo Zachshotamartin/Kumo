@@ -3,19 +3,16 @@ import styles from "./sideBar.module.css";
 import Navigation from "../navigation/navigation";
 import Boards from "../boards/boards";
 import Components from "../components/components";
-import { useSelector, useDispatch } from "react-redux";
-import { setHideSideBar } from "../../features/hide/hide";
+import { useSelector, } from "react-redux";
+
 const SideBar = () => {
   const [width, setWidth] = useState(15); // initial width
   const [dragging, setDragging] = useState(false);
   const componentRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState("auto");
-  const dispatch = useDispatch();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
 
-  const handleHide = () => {
-    dispatch(setHideSideBar(false));
-  };
+  
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
@@ -75,11 +72,7 @@ const SideBar = () => {
 
   return (
     <div>
-      {hidden && (
-        <button className={styles.hide} onClick={handleHide}>
-          Unhide
-        </button>
-      )}
+      {hidden && <Navigation />}
       {!hidden && (
         <div
           className={styles.sideBar}
