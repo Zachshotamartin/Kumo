@@ -1,5 +1,7 @@
 // whiteBoard.tsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { throttle, debounce, last } from "lodash";
+
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
 import {
@@ -37,8 +39,12 @@ const WhiteBoard = () => {
   const [currentTool, setCurrentTool] = useState("pointer");
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [lastSyncedData, setLastSyncedData] = useState({
+    shapes,
+    selectedShape,
+  });
 
-  const updateFireBase = async () => {
+  const updateFirebase = async () => {
     const docRef = doc(db, "boards", board.id);
     try {
       await updateDoc(docRef, {
@@ -48,16 +54,31 @@ const WhiteBoard = () => {
         type: board.type,
         uid: board.uid,
       });
+      setLastSyncedData({
+        shapes: board.shapes,
+        selectedShape: board.selectedShape,
+      }); // Update last synced data
     } catch (error) {
       console.error("Error updating document:", error);
     }
   };
 
+  // Periodic sync logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log("Calling updateFirebase every 5 seconds");
+      updateFirebase();
+      console.log(lastSyncedData);
+    }, 5000); // Call updateFirebase every 5 seconds
+
+    // Cleanup the interval when the component unmounts
+    return () => clearInterval(interval);
+  }, [shapes, lastSyncedData]); // Empty dependency array ensures it runs once on mount
+
   const handleToolSwitch = (newTool: string) => {
     setDrawing(false);
     if (newTool !== "pointer") {
       dispatch(setSelectedShape(null));
-      updateFireBase();
     }
 
     setCurrentTool(newTool);
@@ -111,10 +132,8 @@ const WhiteBoard = () => {
         setDragOffset({ x: offsetX, y: offsetY });
         setDragging(true);
         dispatch(setSelectedShape(selected));
-        updateFireBase();
       } else {
         dispatch(setSelectedShape(null));
-        updateFireBase();
       }
       return;
     }
@@ -165,58 +184,72 @@ const WhiteBoard = () => {
       };
       dispatch(addShape(shape));
       dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
-      updateFireBase();
     }
   };
 
+  const debouncedMouseMove = useCallback(
+    throttle(
+      debounce((e: React.MouseEvent<HTMLDivElement>) => {
+        if (dragging && selectedShape !== null) {
+          const boundingRect = canvasRef.current?.getBoundingClientRect();
+          const x =
+            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+            window.x1;
+          const y =
+            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+            window.y1;
+
+          if (dragOffset) {
+            const shape = shapes[selectedShape];
+            const width = Math.abs(shape.x2 - shape.x1);
+            const height = Math.abs(shape.y2 - shape.y1);
+
+            const updatedShape: Shape = {
+              ...shape,
+              x1: x - dragOffset.x,
+              y1: y - dragOffset.y,
+              x2: x - dragOffset.x + width,
+              y2: y - dragOffset.y + height,
+              width,
+              height,
+            };
+            dispatch(
+              updateShape({ index: selectedShape, update: updatedShape })
+            );
+          }
+        }
+
+        if (drawing) {
+          const boundingRect = canvasRef.current?.getBoundingClientRect();
+          const x =
+            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+            window.x1;
+          const y =
+            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+            window.y1;
+
+          const lastShape = shapes[shapes.length - 1];
+          const updatedShape: Shape = {
+            ...lastShape,
+            x2: x,
+            y2: y,
+            width: Math.abs(x - lastShape.x1),
+            height: Math.abs(y - lastShape.y1),
+            rotation: 0,
+          };
+          dispatch(
+            updateShape({ index: shapes.length - 1, update: updatedShape })
+          );
+        }
+      }, 10),
+      10
+    ), // Adjust the throttle delay (100ms in this case)
+    [dragging, selectedShape, dragOffset, shapes, drawing, canvasRef, dispatch]
+  );
+
+  // Use the throttled version in the event listener
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragging && selectedShape !== null) {
-      const boundingRect = canvasRef.current?.getBoundingClientRect();
-      const x =
-        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-        window.x1;
-      const y =
-        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-        window.y1;
-
-      if (dragOffset) {
-        const shape = shapes[selectedShape];
-        const width = Math.abs(shape.x2 - shape.x1);
-        const height = Math.abs(shape.y2 - shape.y1);
-
-        const updatedShape: Shape = {
-          ...shape,
-          x1: x - dragOffset.x,
-          y1: y - dragOffset.y,
-          x2: x - dragOffset.x + width,
-          y2: y - dragOffset.y + height,
-          width,
-          height,
-        };
-        dispatch(updateShape({ index: selectedShape, update: updatedShape }));
-      }
-    }
-
-    if (drawing) {
-      const boundingRect = canvasRef.current?.getBoundingClientRect();
-      const x =
-        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-        window.x1;
-      const y =
-        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-        window.y1;
-
-      const lastShape = shapes[shapes.length - 1];
-      const updatedShape: Shape = {
-        ...lastShape,
-        x2: x,
-        y2: y,
-        width: Math.abs(x - lastShape.x1),
-        height: Math.abs(y - lastShape.y1),
-        rotation: 0,
-      };
-      dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
-    }
+    debouncedMouseMove(e);
   };
 
   const handleMouseUp = () => {
@@ -232,7 +265,6 @@ const WhiteBoard = () => {
       }, 0);
     }
     setCurrentTool("pointer");
-    updateFireBase();
   };
   const handleBlur = (index: number) => {
     if (!shapes[index].text) {
@@ -298,7 +330,7 @@ const WhiteBoard = () => {
     if (selectedShape !== null) {
       dispatch(removeShape(selectedShape));
       dispatch(setSelectedShape(null));
-      updateFireBase();
+      console.log(shapes);
       setFocusedShape(null);
     }
   };
