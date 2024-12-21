@@ -1,0 +1,13 @@
+.middleLayer {
+  color: black;
+  overflow-y: scroll;
+}
+.boardsContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  flex-wrap: wrap;
+  width: 100%;
+}

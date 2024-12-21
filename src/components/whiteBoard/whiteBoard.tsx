@@ -16,6 +16,8 @@ import remove from "../../res/delete.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { db } from "../../config/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch();
@@ -24,6 +26,7 @@ const WhiteBoard = () => {
   );
 
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+  const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
   const [focusedShape, setFocusedShape] = useState<number | null>(null);
   const [drawing, setDrawing] = useState(false);
@@ -35,10 +38,26 @@ const WhiteBoard = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
+  const updateFireBase = async () => {
+    const docRef = doc(db, "boards", board.id);
+    try {
+      await updateDoc(docRef, {
+        selectedShape: board.selectedShape,
+        shapes: board.shapes,
+        title: board.title,
+        type: board.type,
+        uid: board.uid,
+      });
+    } catch (error) {
+      console.error("Error updating document:", error);
+    }
+  };
+
   const handleToolSwitch = (newTool: string) => {
     setDrawing(false);
     if (newTool !== "pointer") {
       dispatch(setSelectedShape(null));
+      updateFireBase();
     }
 
     setCurrentTool(newTool);
@@ -92,8 +111,10 @@ const WhiteBoard = () => {
         setDragOffset({ x: offsetX, y: offsetY });
         setDragging(true);
         dispatch(setSelectedShape(selected));
+        updateFireBase();
       } else {
         dispatch(setSelectedShape(null));
+        updateFireBase();
       }
       return;
     }
@@ -144,6 +165,7 @@ const WhiteBoard = () => {
       };
       dispatch(addShape(shape));
       dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
+      updateFireBase();
     }
   };
 
@@ -210,6 +232,7 @@ const WhiteBoard = () => {
       }, 0);
     }
     setCurrentTool("pointer");
+    updateFireBase();
   };
   const handleBlur = (index: number) => {
     if (!shapes[index].text) {
@@ -275,6 +298,7 @@ const WhiteBoard = () => {
     if (selectedShape !== null) {
       dispatch(removeShape(selectedShape));
       dispatch(setSelectedShape(null));
+      updateFireBase();
       setFocusedShape(null);
     }
   };
@@ -355,7 +379,7 @@ const WhiteBoard = () => {
                 : "none",
 
             // color styling
-            color: `${shape.color}`,
+
             backgroundColor:
               shape.type === "rectangle"
                 ? `${shape.backgroundColor}`
@@ -408,6 +432,7 @@ const WhiteBoard = () => {
                 letterSpacing: `${
                   shape.letterSpacing / window.percentZoomed
                 }px`,
+                color: `${shape.color}`,
               }}
               value={shape.text}
               onChange={(e) => {

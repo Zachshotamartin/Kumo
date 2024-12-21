@@ -1,5 +1,7 @@
 // whiteBoardSlice.ts
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { onSnapshot, doc } from "firebase/firestore";
+import { db } from "../../config/firebase"; // Adjust based on your Firebase setup
 
 export interface Shape {
   // type (image, text, calendar, rectangle)
@@ -47,17 +49,35 @@ export interface Shape {
 interface WhiteBoardState {
   shapes: Shape[];
   selectedShape: number | null;
+  id: string | null;
+  type: string | null;
+  title: string | null;
+  uid: string | null;
 }
 
 const initialState: WhiteBoardState = {
   shapes: [],
   selectedShape: null,
+  id: null,
+  type: null,
+  title: null,
+  uid: null,
 };
 
 const whiteBoardSlice = createSlice({
   name: "whiteBoard",
   initialState,
   reducers: {
+    setWhiteboardData: (
+      state,
+      action: PayloadAction<Partial<WhiteBoardState>>
+    ) => {
+      const { shapes, id, type, title } = action.payload;
+      state.shapes = shapes || [];
+      state.id = id || null;
+      state.type = type || null;
+      state.title = title || null;
+    },
     addShape: (state, action: PayloadAction<Shape>) => {
       state.shapes.push(action.payload);
     },
@@ -81,7 +101,12 @@ const whiteBoardSlice = createSlice({
   },
 });
 
-export const { addShape, updateShape, removeShape, setSelectedShape } =
-  whiteBoardSlice.actions;
+export const {
+  setWhiteboardData,
+  addShape,
+  updateShape,
+  removeShape,
+  setSelectedShape,
+} = whiteBoardSlice.actions;
 
 export default whiteBoardSlice.reducer;

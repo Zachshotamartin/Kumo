@@ -3,7 +3,8 @@ import styles from "./sideBar.module.css";
 import Navigation from "../navigation/navigation";
 import Boards from "../boards/boards";
 import Components from "../components/components";
-import { useSelector, } from "react-redux";
+import { useSelector } from "react-redux";
+import MiddleLayer from "../middleLayer/middleLayer";
 
 const SideBar = () => {
   const [width, setWidth] = useState(15); // initial width
@@ -11,9 +12,7 @@ const SideBar = () => {
   const componentRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState("auto");
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
-
-  
-
+  const whiteBoard = useSelector((state: any) => state.whiteBoard);
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (
@@ -82,8 +81,9 @@ const SideBar = () => {
             cursor: cursor,
           }}
         >
+          <h2>{whiteBoard.uid}</h2>
           <Navigation />
-          <Boards />
+          <MiddleLayer />
           <Components />
           <div
             style={{

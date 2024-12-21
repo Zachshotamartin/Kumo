@@ -6,11 +6,23 @@ import WorkSpace from "./components/workSpace/workSpace";
 import HomePage from "./components/homepage/homePage";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "./config/firebase";
+import { useSelector } from "react-redux";
+import { login } from "./features/auth/authSlice";
+import MiddleLayer from "./components/middleLayer/middleLayer";
 function App() {
-  
-
-  const [user] = useAuthState(auth);
-  return <div className="App">{user ? <WorkSpace /> : <HomePage />}</div>;
+  const user = useSelector((state: any) => state.auth.user);
+  const whiteBoard = useSelector((state: any) => state.whiteBoard);
+  return (
+    <div className="App">
+      {!user ? (
+        <HomePage />
+      ) : whiteBoard.id !== null ? (
+        <WorkSpace />
+      ) : (
+        <MiddleLayer />
+      )}
+    </div>
+  );
 }
 
 export default App;

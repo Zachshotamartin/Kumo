@@ -6,6 +6,7 @@ import OptionsBar from "../optionsBar/optionsBar";
 import WhiteBoard from "../whiteBoard/whiteBoard";
 
 const WorkSpace = () => {
+  
   useEffect(() => {
     const preventPinchZoom = (e: TouchEvent) => {
       if (e.touches.length > 1) {
