@@ -1,15 +1,17 @@
 /*************  ✨ Codeium Command 🌟  *************/
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./optionsBar.module.css";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import Position from "../options/position";
 import Dimension from "../options/dimension";
 import Transform from "../options/transform";
 import Opacity from "../options/opacity";
 import FontStyles from "../options/fontStyles";
 import BoxStyling from "../options/boxStyling";
-
+import type { AppDispatch } from "../../store";
+import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 const OptionsBar = () => {
+  const dispatch = useDispatch<AppDispatch>();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
   const selectedIdx = useSelector(
     (state: any) => state.whiteBoard.selectedShape
@@ -17,6 +19,7 @@ const OptionsBar = () => {
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx
   ];
+  const boardChoices = useSelector((state: any) => state.boards);
 
   const [left, setLeft] = useState(85); // Initial left position in percentage
   const [dragging, setDragging] = useState(false);
@@ -85,7 +88,47 @@ const OptionsBar = () => {
             }}
             onMouseDown={handleMouseDown}
           />
+          {selectedShape?.type === "board" && (
+            <select
+              value={JSON.stringify(selectedShape)}
+              onChange={(e) => {
+                if (e.target.value === "none") {
+                  return;
+                }
+                const selectedBoard = JSON.parse(e.target.value);
+                console.log(selectedBoard);
 
+                dispatch(
+                  updateShape({
+                    index: selectedIdx,
+                    update: {
+                      id: selectedBoard.id,
+                      uid: selectedBoard.uid,
+                      title: selectedBoard.title,
+                    },
+                  })
+                );
+                console.log(boardChoices);
+              }}
+            >
+              <option value={"none"}>none</option>
+              {boardChoices.publicBoards.map((board: any, index: number) => (
+                <option key={index} value={JSON.stringify(board)}>
+                  {board.id + " public"}
+                </option>
+              ))}
+              {boardChoices.privateBoards.map((board: any, index: number) => (
+                <option key={index} value={JSON.stringify(board)}>
+                  {board.id + " private"}
+                </option>
+              ))}
+              {boardChoices.sharedBoards.map((board: any, index: number) => (
+                <option key={index} value={JSON.stringify(board)}>
+                  {board.id + " shared"}
+                </option>
+              ))}
+            </select>
+          )}
           {selectedShape && <Position />}
           {selectedShape && <Dimension />}
           {selectedShape && <Transform />}

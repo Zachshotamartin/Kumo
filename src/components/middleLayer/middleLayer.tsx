@@ -17,21 +17,17 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { useSelector } from "react-redux";
 import { useDispatch } from "react-redux";
 import type { AppDispatch } from "../../store";
-import { logout } from "../../features/auth/authSlice";
-import WorkSpace from "../../components/workSpace/workSpace";
+import { setBoards, addBoard } from "../../features/boards/boards";
+import { add } from "lodash";
 
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 const MiddleLayer = () => {
   const boardState = useSelector((state: any) => state.whiteBoard.board);
-  const [boardSelected, setBoardSelected] = useState("-1");
-  const [boardIds, setBoardIds] = useState({
-    privateBoards: [],
-    publicBoards: [],
-    sharedBoards: [],
-  });
-  const dispatch = useDispatch<AppDispatch>();
+  const availableBoards = useSelector((state: any) => state.boards);
   const user = useSelector((state: any) => state.auth.user);
+
+  const dispatch = useDispatch<AppDispatch>();
 
   useEffect(() => {
     if (user?.uid) {
@@ -40,19 +36,20 @@ const MiddleLayer = () => {
         if (!querySnapshot.empty) {
           const userDoc = querySnapshot.docs[0];
           const userData = userDoc.data();
-          setBoardIds({
-            privateBoards: userData.privateBoardsIds || [],
-            publicBoards: userData.publicBoardsIds || [],
-            sharedBoards: userData.sharedBoardsIds || [],
-          });
-          console.log(boardIds);
+          dispatch(
+            setBoards({
+              privateBoards: userData.privateBoardsIds || [],
+              publicBoards: userData.publicBoardsIds || [],
+              sharedBoards: userData.sharedBoardsIds || [],
+            })
+          );
         }
       });
       return () => unsubscribe();
     }
-  }, [user?.uid]);
+  }, [dispatch, user?.uid]);
 
-  const createBoard = async (type: string) => {
+  const createBoard = async (type: "private" | "public" | "shared") => {
     try {
       const data = {
         uid: user?.uid,
@@ -69,7 +66,14 @@ const MiddleLayer = () => {
         const userDoc = querySnapshot.docs[0];
         const userData = userDoc.data();
         await updateDoc(userDoc.ref, {
-          [`${type}BoardsIds`]: [...userData[`${type}BoardsIds`], doc.id],
+          [`${type}BoardsIds`]: [
+            ...userData[`${type}BoardsIds`],
+            {
+              id: doc.id,
+              title: data.title,
+              uid: user?.uid,
+            },
+          ],
         });
         // doc.id
 
@@ -80,7 +84,7 @@ const MiddleLayer = () => {
     }
   };
 
-  const handleClick = async (board: string) => {
+  const handleClick = async (board: string, type: string) => {
     // Ensure `db` and `board` are valid
     if (!board) {
       console.error("Invalid board ID");
@@ -109,19 +113,17 @@ const MiddleLayer = () => {
 
         // Dispatch to state management
         dispatch(setWhiteboardData(data));
+        console.log("Board selected:", board);
       } else {
         console.error(`No document found for board ID: ${board}`);
       }
     } catch (error) {
       console.error("Error getting document:", error);
     }
-
-    console.log("Board selected:", board);
   };
 
   return (
     <div className={styles.middleLayer}>
-      <p> {boardState?.id}</p>
       <h2>Public Boards</h2>
       <div className={styles.boardsContainer}>
         <button
@@ -132,9 +134,11 @@ const MiddleLayer = () => {
           {" "}
           Create Public Board{" "}
         </button>
-        {boardIds.publicBoards?.map((board: any, index: number) => (
+        {availableBoards?.publicBoards?.map((board: any, index: number) => (
           <div key={index} className={styles.board}>
-            <button onClick={() => handleClick(board)}>{board}</button>
+            <button onClick={() => handleClick(board.id, "public")}>
+              {board.id}
+            </button>
           </div>
         ))}
       </div>
@@ -148,9 +152,11 @@ const MiddleLayer = () => {
           {" "}
           Create Private Board{" "}
         </button>
-        {boardIds.privateBoards?.map((board: any, index: number) => (
+        {availableBoards?.privateBoards?.map((board: any, index: number) => (
           <div key={index} className={styles.board}>
-            <button onClick={() => handleClick(board)}>{board}</button>
+            <button onClick={() => handleClick(board.id, "private")}>
+              {board.id}
+            </button>
           </div>
         ))}
       </div>
@@ -164,9 +170,11 @@ const MiddleLayer = () => {
           {" "}
           Create Shared Board{" "}
         </button>
-        {boardIds.sharedBoards?.map((board: any, index: number) => (
+        {availableBoards?.sharedBoards?.map((board: any, index: number) => (
           <div key={index} className={styles.board}>
-            <button onClick={() => handleClick(board)}>{board}</button>
+            <button onClick={() => handleClick(board.id, "shared")}>
+              {board.id}
+            </button>
           </div>
         ))}
       </div>

@@ -1,6 +1,6 @@
 // whiteBoard.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { throttle, debounce, last } from "lodash";
+import { throttle, debounce } from "lodash";
 
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
@@ -17,9 +17,20 @@ import pointer from "../../res/select.png";
 import remove from "../../res/delete.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
+import recursive from "../../res/recursive.png";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 import { db } from "../../config/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import {
+  doc,
+  query,
+  updateDoc,
+  collection,
+  where,
+  onSnapshot,
+  getDoc,
+} from "firebase/firestore";
+import { setBoards } from "../../features/boards/boards";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch();
@@ -31,6 +42,7 @@ const WhiteBoard = () => {
   const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
   const [focusedShape, setFocusedShape] = useState<number | null>(null);
+  const user = useSelector((state: any) => state.user); // Add this line to get the user data from the Redux store
   const [drawing, setDrawing] = useState(false);
   const [dragging, setDragging] = useState(false); // Track dragging state
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
@@ -44,36 +56,56 @@ const WhiteBoard = () => {
     selectedShape,
   });
 
-  const updateFirebase = async () => {
-    const docRef = doc(db, "boards", board.id);
-    try {
-      await updateDoc(docRef, {
-        selectedShape: board.selectedShape,
-        shapes: board.shapes,
-        title: board.title,
-        type: board.type,
-        uid: board.uid,
-      });
-      setLastSyncedData({
-        shapes: board.shapes,
-        selectedShape: board.selectedShape,
-      }); // Update last synced data
-    } catch (error) {
-      console.error("Error updating document:", error);
-    }
-  };
+  const usersCollectionRef = collection(db, "users");
 
   // Periodic sync logic
   useEffect(() => {
+    const updateFirebase = async () => {
+      const docRef = doc(db, "boards", board.id);
+      try {
+        if (lastSyncedData.shapes === board.shapes) {
+          return;
+        }
+        await updateDoc(docRef, {
+          selectedShape: board.selectedShape,
+          shapes: board.shapes,
+          title: board.title,
+          type: board.type,
+          uid: board.uid,
+        });
+        setLastSyncedData({
+          shapes: board.shapes,
+          selectedShape: board.selectedShape,
+        }); // Update last synced data
+      } catch (error) {
+        console.error("Error updating document:", error);
+      }
+    };
     const interval = setInterval(() => {
-      console.log("Calling updateFirebase every 5 seconds");
       updateFirebase();
-      console.log(lastSyncedData);
     }, 5000); // Call updateFirebase every 5 seconds
 
     // Cleanup the interval when the component unmounts
     return () => clearInterval(interval);
-  }, [shapes, lastSyncedData]); // Empty dependency array ensures it runs once on mount
+  }, [board, shapes, lastSyncedData]); // Empty dependency array ensures it runs once on mount
+
+  useEffect(() => {
+    if (user?.uid) {
+      const q = query(usersCollectionRef, where("uid", "==", user?.uid));
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        if (!querySnapshot.empty) {
+          const userDoc = querySnapshot.docs[0];
+          const userData = userDoc.data();
+          setBoards({
+            privateBoards: userData.privateBoardsIds || [],
+            publicBoards: userData.publicBoardsIds || [],
+            sharedBoards: userData.sharedBoardsIds || [],
+          });
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [board, user?.uid, usersCollectionRef]);
 
   const handleToolSwitch = (newTool: string) => {
     setDrawing(false);
@@ -140,7 +172,11 @@ const WhiteBoard = () => {
 
     setDrawing(true);
 
-    if (currentTool === "rectangle" || currentTool === "text") {
+    if (
+      currentTool === "rectangle" ||
+      currentTool === "text" ||
+      currentTool === "board"
+    ) {
       const shape: Shape = {
         // type
         type: currentTool,
@@ -266,6 +302,76 @@ const WhiteBoard = () => {
     }
     setCurrentTool("pointer");
   };
+
+  /*************  ✨ Codeium Command ⭐  *************/
+  const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+    const boundingRect = canvasRef.current?.getBoundingClientRect();
+    const x =
+      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+      window.x1;
+    const y =
+      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
+
+    if (currentTool === "pointer") {
+      let selected = shapes
+        .slice()
+        .reverse()
+        .findIndex(
+          (shape: Shape) =>
+            x >= Math.min(shape.x1, shape.x2) &&
+            x <= Math.max(shape.x1, shape.x2) &&
+            y >= Math.min(shape.y1, shape.y2) &&
+            y <= Math.max(shape.y1, shape.y2)
+        );
+      if (selected !== -1) {
+        console.log("trying");
+        selected = shapes.length - 1 - selected;
+        const shape = shapes[selected];
+        console.log(shape);
+        const shapeType = shape.type;
+        if (shapeType === "board") {
+          if (shape.id) {
+            const docRef = doc(db, "boards", shape.id);
+            console.log(docRef);
+            try {
+              // Fetch document snapshot
+
+              const docSnap = await getDoc(docRef);
+
+              if (docSnap.exists()) {
+                const boardData = docSnap.data();
+
+                const data = {
+                  shapes: boardData.shapes || [],
+                  title: boardData.title || "Untitled",
+                  type: boardData.type || "default",
+                  selectedShape: null,
+                  uid: boardData.uid,
+                  id: board.id,
+                };
+
+                console.log("Board data:", data);
+
+                // Dispatch to state management
+                dispatch(setWhiteboardData(data));
+                console.log("Board selected:", board.id);
+              } else {
+                console.log("failed 2");
+                console.error(`No document found for board ID: ${board.id}`);
+              }
+            } catch (error) {
+              console.log("failed");
+              console.error("Error getting document:", error);
+            }
+          }
+        }
+      } else {
+        dispatch(setSelectedShape(null));
+      }
+      return;
+    }
+  };
+
   const handleBlur = (index: number) => {
     if (!shapes[index].text) {
       dispatch(removeShape(index));
@@ -372,6 +478,7 @@ const WhiteBoard = () => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
+      onDoubleClick={handleDoubleClick}
     >
       {shapes.map((shape: Shape, index: number) => (
         <div
@@ -415,7 +522,10 @@ const WhiteBoard = () => {
             backgroundColor:
               shape.type === "rectangle"
                 ? `${shape.backgroundColor}`
-                : "transparent",
+                : shape.type === "board"
+                ? "pink"
+                : "",
+
             borderColor: `${shape.borderColor}`,
             opacity: `${shape.opacity}`,
           }}
@@ -508,7 +618,10 @@ const WhiteBoard = () => {
         >
           <img className={styles.icon} src={text} alt="" />
         </button>
-        <button onClick={handleDelete}>
+        <button
+          onClick={handleDelete}
+          style={{ backgroundColor: "transparent" }}
+        >
           <img className={styles.icon} src={remove} alt="" />
         </button>
         <button
@@ -526,6 +639,14 @@ const WhiteBoard = () => {
           }}
         >
           <img className={styles.icon} src={image} alt="" />
+        </button>
+        <button
+          onClick={() => handleToolSwitch("board")}
+          style={{
+            backgroundColor: currentTool === "board" ? "red" : "transparent",
+          }}
+        >
+          <img className={styles.icon} src={recursive} alt="" />
         </button>
       </div>
     </div>

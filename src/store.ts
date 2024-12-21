@@ -4,6 +4,7 @@ import authSlice from "./features/auth/authSlice";
 import whiteBoardSlice from "./features/whiteBoard/whiteBoardSlice";
 import windowSlice from "./features/window/windowSlice";
 import sideBarSlice from "./features/hide/hide";
+import boardsSlice from "./features/boards/boards";
 
 const store = configureStore({
   reducer: {
@@ -11,6 +12,7 @@ const store = configureStore({
     whiteBoard: whiteBoardSlice,
     window: windowSlice,
     sideBar: sideBarSlice,
+    boards: boardsSlice,
   },
 });
 
