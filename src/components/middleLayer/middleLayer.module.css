@@ -1,13 +1,78 @@
+
 .middleLayer {
-  color: black;
+  color: white;
   overflow-y: scroll;
-}
-.boardsContainer {
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  justify-content: start;
+  align-items: flex-start;
   cursor: pointer;
-  flex-wrap: wrap;
-  width: 100%;
+
+  padding-left: 1rem;
+  border: 1px solid #b4b4b4;
+  padding-top: .5rem;
+  padding-bottom: .5rem;
+}
+.boardListContainer {
+  margin-left: 1rem;
+  background-color: "transparent";
+}
+.title {
+  margin-bottom: 0;
+}
+.button {
+  background-color: transparent;
+  color: inherit;
+  border: none;
+}
+.button:hover {
+  color: #007bff;
+}
+.board {
+  background-color: "transparent";
+}
+
+.createButton {
+  background-color: transparent;
+
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  margin-top: 3%;
+  padding: 0;
+}
+
+.createBoardContainer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+}
+.boardTypeContainer {
+  background-color: transparent;
+
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.icon {
+  height: 15px;
+  width: 15px;
 }

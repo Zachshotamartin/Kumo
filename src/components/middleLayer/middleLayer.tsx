@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
+
 import styles from "./middleLayer.module.css";
+
 import { db } from "../../config/firebase";
 import {
   addDoc,
@@ -13,21 +17,21 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
-
-import { useSelector } from "react-redux";
-import { useDispatch } from "react-redux";
+import { setBoards } from "../../features/boards/boards";
 import type { AppDispatch } from "../../store";
-import { setBoards, addBoard } from "../../features/boards/boards";
-import { add } from "lodash";
+import plus from "../../res/plus.png";
+import right from "../../res/right.png";
+import down from "../../res/down.png";
 
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 const MiddleLayer = () => {
-  const boardState = useSelector((state: any) => state.whiteBoard.board);
   const availableBoards = useSelector((state: any) => state.boards);
   const user = useSelector((state: any) => state.auth.user);
-
   const dispatch = useDispatch<AppDispatch>();
+  const [publicDropDown, setPublicDropDown] = useState(false);
+  const [privateDropDown, setPrivateDropDown] = useState(false);
+  const [sharedDropDown, setSharedDropDown] = useState(false);
 
   useEffect(() => {
     if (user?.uid) {
@@ -75,8 +79,6 @@ const MiddleLayer = () => {
             },
           ],
         });
-        // doc.id
-
         console.log("Board created successfully");
       }
     } catch (error) {
@@ -85,21 +87,16 @@ const MiddleLayer = () => {
   };
 
   const handleClick = async (board: string, type: string) => {
-    // Ensure `db` and `board` are valid
     if (!board) {
       console.error("Invalid board ID");
       return;
     }
-
     const docRef = doc(db, "boards", board);
     console.log(board);
     try {
-      // Fetch document snapshot
       const docSnap = await getDoc(docRef);
-
       if (docSnap.exists()) {
         const boardData = docSnap.data();
-
         const data = {
           shapes: boardData.shapes || [],
           title: boardData.title || "Untitled",
@@ -108,10 +105,7 @@ const MiddleLayer = () => {
           uid: boardData.uid,
           id: board,
         };
-
         console.log("Board data:", data);
-
-        // Dispatch to state management
         dispatch(setWhiteboardData(data));
         console.log("Board selected:", board);
       } else {
@@ -124,60 +118,92 @@ const MiddleLayer = () => {
 
   return (
     <div className={styles.middleLayer}>
-      <h2>Public Boards</h2>
-      <div className={styles.boardsContainer}>
+      <div className={styles.createBoardContainer}>
+        <h4 className={styles.title}> Boards </h4>
         <button
+          className={styles.createButton}
           onClick={() => {
             createBoard("public");
           }}
         >
-          {" "}
-          Create Public Board{" "}
+          <img className={styles.icon} src={plus} alt="Plus" />
         </button>
-        {availableBoards?.publicBoards?.map((board: any, index: number) => (
-          <div key={index} className={styles.board}>
-            <button onClick={() => handleClick(board.id, "public")}>
-              {board.id}
-            </button>
-          </div>
-        ))}
       </div>
-      <h2>Private Boards</h2>
-      <div className={styles.boardsContainer}>
-        <button
-          onClick={() => {
-            createBoard("private");
-          }}
-        >
-          {" "}
-          Create Private Board{" "}
-        </button>
-        {availableBoards?.privateBoards?.map((board: any, index: number) => (
-          <div key={index} className={styles.board}>
-            <button onClick={() => handleClick(board.id, "private")}>
-              {board.id}
-            </button>
-          </div>
-        ))}
+      <div
+        className={styles.boardTypeContainer}
+        onClick={() => setPublicDropDown(!publicDropDown)}
+      >
+        {publicDropDown ? (
+          <img className={styles.icon} src={down} alt="Down" />
+        ) : (
+          <img className={styles.icon} src={right} alt="Right" />
+        )}
+        <h5 className={styles.title}>Public</h5>
       </div>
-      <h2>Shared Boards</h2>
-      <div className={styles.boardsContainer}>
-        <button
-          onClick={() => {
-            createBoard("shared");
-          }}
-        >
-          {" "}
-          Create Shared Board{" "}
-        </button>
-        {availableBoards?.sharedBoards?.map((board: any, index: number) => (
-          <div key={index} className={styles.board}>
-            <button onClick={() => handleClick(board.id, "shared")}>
-              {board.id}
-            </button>
-          </div>
-        ))}
+      {publicDropDown && (
+        <div className={styles.boardListContainer}>
+          {availableBoards?.publicBoards?.map((board: any, index: number) => (
+            <div key={index} className={styles.board}>
+              <button
+                className={styles.button}
+                onClick={() => handleClick(board.id, "public")}
+              >
+                {board.title}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div
+        className={styles.boardTypeContainer}
+        onClick={() => setPrivateDropDown(!privateDropDown)}
+      >
+        {privateDropDown ? (
+          <img className={styles.icon} src={down} alt="Down" />
+        ) : (
+          <img className={styles.icon} src={right} alt="Right" />
+        )}
+        <h5 className={styles.title}>Private</h5>
       </div>
+      {privateDropDown && (
+        <div className={styles.boardListContainer}>
+          {availableBoards?.privateBoards?.map((board: any, index: number) => (
+            <div key={index} className={styles.board}>
+              <button
+                className={styles.button}
+                onClick={() => handleClick(board.id, "private")}
+              >
+                {board.title}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div
+        className={styles.boardTypeContainer}
+        onClick={() => setSharedDropDown(!sharedDropDown)}
+      >
+        {sharedDropDown ? (
+          <img className={styles.icon} src={down} alt="Down" />
+        ) : (
+          <img className={styles.icon} src={right} alt="Right" />
+        )}
+        <h5 className={styles.title}>Shared Boards</h5>
+      </div>
+      {sharedDropDown && (
+        <div className={styles.boardListContainer}>
+          {availableBoards?.sharedBoards?.map((board: any, index: number) => (
+            <div key={index} className={styles.board}>
+              <button
+                className={styles.button}
+                onClick={() => handleClick(board.id, "shared")}
+              >
+                {board.title}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

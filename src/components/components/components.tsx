@@ -6,7 +6,7 @@ import image from "../../res/image.png";
 import text from "../../res/text.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
-
+import recursive from "../../res/recursive.png";
 const Components = () => {
   const dispatch = useDispatch();
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
@@ -15,10 +15,11 @@ const Components = () => {
   );
   return (
     <div className={styles.components}>
-      <h1>Components</h1>
+      <h4 className={styles.title}>Components</h4>
       {shapes.map((shape: any, index: number) => (
         <div key={index} className={styles.component}>
-          <img className={styles.icon}
+          <img
+            className={styles.icon}
             src={
               shape.type === "image"
                 ? image
@@ -28,17 +29,18 @@ const Components = () => {
                 ? calendar
                 : shape.type === "rectangle"
                 ? rectangle
+                : shape.type === "board"
+                ? recursive
                 : ""
             }
             alt={shape.type}
           />
-
-          <p
-            className={selectedShape === index ? styles.selected : ""}
+          <h5
+            className={selectedShape === index ? styles.selected : styles.text}
             onClick={() => dispatch(setSelectedShape(index))}
           >
             {shape.type}
-          </p>
+          </h5>
         </div>
       ))}
     </div>

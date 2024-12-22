@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import styles from "./sideBar.module.css";
 import Navigation from "../navigation/navigation";
-import Boards from "../boards/boards";
 import Components from "../components/components";
 import { useSelector } from "react-redux";
 import MiddleLayer from "../middleLayer/middleLayer";
