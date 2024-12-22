@@ -40,6 +40,9 @@ const FontStyles = () => {
 
   useEffect(() => {
     updateTextStyling();
+    console.log(
+      `fontFamily: ${fontFamily}, fontWeight: ${fontWeight}, textAlign: ${textAlign}, alignItems: ${alignItems}, textDecoration: ${textDecoration}`
+    );
   }, [fontFamily, fontWeight, textAlign, alignItems, textDecoration]);
 
   const updateTextStyling = () => {
@@ -105,163 +108,103 @@ const FontStyles = () => {
       </div>
       <div className={styles.labelInput}>
         <h5 className={styles.label}>text align</h5>
-        <input
-          type="radio"
-          name="textAlign"
-          value="left"
-          checked={textAlign === "left"}
-          onChange={(e) => setTextAlign(e.target.value)}
-          className={styles.radioInput}
-        />
         <img
           src={alignLeft} // Replace with your image URL
           alt="left align"
           className={`${styles.radioImage} ${
             textAlign === "left" ? styles.checked : ""
           }`}
+          onClick={() => setTextAlign("left")}
         />
-        <input
-          type="radio"
-          name="textAlign"
-          value="center"
-          checked={textAlign === "center"}
-          onChange={(e) => setTextAlign(e.target.value)}
-          className={styles.radioInput}
-        />
+
         <img
           src={alignCenter} // Replace with your image URL
-          alt="left align"
+          alt="center align"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            textAlign === "center" ? styles.checked : ""
           }`}
+          onClick={() => setTextAlign("center")}
         />
-        <input
-          type="radio"
-          name="textAlign"
-          value="right"
-          checked={textAlign === "right"}
-          onChange={(e) => setTextAlign(e.target.value)}
-          className={styles.radioInput}
-        />
+
         <img
           src={alignRight} // Replace with your image URL
-          alt="left align"
+          alt="right align"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            textAlign === "right" ? styles.checked : ""
           }`}
+          onClick={() => setTextAlign("right")}
         />
       </div>
+
       <div className={styles.labelInput}>
         <h5 className={styles.label}>vertical align</h5>
-        <input
-          type="radio"
-          name="alignItems"
-          value="flex-start"
-          checked={alignItems === "flex-start"}
-          onChange={(e) => setAlignItems(e.target.value)}
-          className={styles.radioInput}
-        />
         <img
           src={alignLeft} // Replace with your image URL
-          alt="left align"
+          alt="flex-start align"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            alignItems === "flex-start" ? styles.checked : ""
           }`}
+          onClick={() => setAlignItems("flex-start")}
         />
-        <input
-          type="radio"
-          name="alignItems"
-          value="center"
-          checked={alignItems === "center"}
-          onChange={(e) => setAlignItems(e.target.value)}
-          className={styles.radioInput}
-        />
+
         <img
           src={alignCenter} // Replace with your image URL
-          alt="left align"
+          alt="center align"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            alignItems === "center" ? styles.checked : ""
           }`}
+          onClick={() => setAlignItems("center")}
         />
-        <input
-          type="radio"
-          name="alignItems"
-          value="flex-end"
-          checked={alignItems === "flex-end"}
-          onChange={(e) => setAlignItems(e.target.value)}
-          className={styles.radioInput}
-        />
+
         <img
           src={alignRight} // Replace with your image URL
-          alt="left align"
+          alt="flex-end align"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            alignItems === "flex-end" ? styles.checked : ""
           }`}
+          onClick={() => setAlignItems("flex-end")}
         />
       </div>
+
       <div className={styles.labelInput}>
         <h5 className={styles.label}>text decoration</h5>
-        <input
-          type="radio"
-          name="textDecoration"
-          value="none"
-          checked={textDecoration === "none"}
-          onChange={(e) => setTextDecoration(e.target.value)}
-          className={styles.radioInput}
-        />
         <img
           src={alignLeft} // Replace with your image URL
-          alt="left align"
+          alt="none decoration"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            textDecoration === "none" ? styles.checked : ""
           }`}
+          onClick={() => setTextDecoration("none")}
         />
-        <input
-          type="radio"
-          name="textDecoration"
-          value="underline"
-          checked={textDecoration === "underline"}
-          onChange={(e) => setTextDecoration(e.target.value)}
-          className={styles.radioInput}
-        />
+
         <img
           src={alignCenter} // Replace with your image URL
-          alt="left align"
+          alt="underline decoration"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            textDecoration === "underline" ? styles.checked : ""
           }`}
+          onClick={() => setTextDecoration("underline")}
         />
-        <input
-          type="radio"
-          name="textDecoration"
-          value="overline"
-          checked={textDecoration === "overline"}
-          onChange={(e) => setTextDecoration(e.target.value)}
-          className={styles.radioInput}
-        />
+
         <img
           src={alignRight} // Replace with your image URL
-          alt="left align"
+          alt="overline decoration"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            textDecoration === "overline" ? styles.checked : ""
           }`}
+          onClick={() => setTextDecoration("overline")}
         />
-        <input
-          type="radio"
-          name="textDecoration"
-          value="line-through"
-          checked={textDecoration === "line-through"}
-          onChange={(e) => setTextDecoration(e.target.value)}
-          className={styles.radioInput}
-        />
+
         <img
           src={alignRight} // Replace with your image URL
-          alt="left align"
+          alt="line-through decoration"
           className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
+            textDecoration === "line-through" ? styles.checked : ""
           }`}
+          onClick={() => setTextDecoration("line-through")}
         />
       </div>
+
       <div className={styles.labelInput}>
         <h5 className={styles.label}>line height</h5>
         <input
