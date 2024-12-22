@@ -10,7 +10,12 @@ import FontStyles from "../options/fontStyles";
 import BoxStyling from "../options/boxStyling";
 import type { AppDispatch } from "../../store";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../../config/firebase";
+import WhiteBoard from "../whiteBoard/whiteBoard";
+
 const OptionsBar = () => {
+  const user = useSelector((state: any) => state.auth.user);
   const dispatch = useDispatch<AppDispatch>();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
   const selectedIdx = useSelector(
@@ -20,16 +25,24 @@ const OptionsBar = () => {
     selectedIdx
   ];
   const boardChoices = useSelector((state: any) => state.boards);
-
+  const board = useSelector((state: any) => state.whiteBoard);
   const [left, setLeft] = useState(85); // Initial left position in percentage
-  const [dragging, setDragging] = useState(false);
+  const [Edgedragging, setEdgeDragging] = useState(false);
   const [startX, setStartX] = useState(0); // Track starting position of drag
   const [startLeft, setStartLeft] = useState(left); // Track starting left value
   const optionsBarRef = useRef<HTMLDivElement | null>(null);
+  const [selectedValue, setSelectedValue] = useState(
+    selectedShape?.id || "none"
+  );
+  const drawing = useSelector((state: any) => state.actions.drawing);
+  const dragging = useSelector((state: any) => state.actions.dragging);
+  const doubleClicking = useSelector(
+    (state: any) => state.actions.doubleClicking
+  );
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) {
-      setDragging(true);
+      setEdgeDragging(true);
       setStartX(e.clientX);
       setStartLeft(left);
     }
@@ -49,7 +62,7 @@ const OptionsBar = () => {
 
   const handleMouseUp = useCallback(() => {
     if (dragging) {
-      setDragging(false);
+      setEdgeDragging(false);
     }
   }, [dragging]);
 
@@ -90,14 +103,25 @@ const OptionsBar = () => {
           />
           {selectedShape?.type === "board" && (
             <select
-              value={JSON.stringify(selectedShape)}
-              onChange={(e) => {
-                if (e.target.value === "none") {
+              value={selectedValue}
+              onChange={async (e) => {
+                const selectedBoardId = e.target.value;
+                if (selectedBoardId === "none") {
                   return;
                 }
-                const selectedBoard = JSON.parse(e.target.value);
-                console.log(selectedBoard);
-
+                let selectedBoard = boardChoices.publicBoards.find(
+                  (board: any) => board.id === selectedBoardId
+                );
+                if (!selectedBoard) {
+                  selectedBoard = boardChoices.privateBoards.find(
+                    (board: any) => board.id === selectedBoardId
+                  );
+                }
+                if (!selectedBoard) {
+                  selectedBoard = boardChoices.sharedBoards.find(
+                    (board: any) => board.id === selectedBoardId
+                  );
+                }
                 dispatch(
                   updateShape({
                     index: selectedIdx,
@@ -108,26 +132,29 @@ const OptionsBar = () => {
                     },
                   })
                 );
-                console.log(boardChoices);
+                console.log(board);
+
+                setSelectedValue(selectedBoardId);
               }}
             >
-              <option value={"none"}>none</option>
+              <option value="none">none</option>
               {boardChoices.publicBoards.map((board: any, index: number) => (
-                <option key={index} value={JSON.stringify(board)}>
+                <option key={index} value={board.id}>
                   {board.id + " public"}
                 </option>
               ))}
               {boardChoices.privateBoards.map((board: any, index: number) => (
-                <option key={index} value={JSON.stringify(board)}>
+                <option key={index} value={board.id}>
                   {board.id + " private"}
                 </option>
               ))}
               {boardChoices.sharedBoards.map((board: any, index: number) => (
-                <option key={index} value={JSON.stringify(board)}>
+                <option key={index} value={board.id}>
                   {board.id + " shared"}
                 </option>
               ))}
             </select>
+            /******  f320630b-d2ae-446c-965c-4f3e563d62e5  *******/
           )}
           {selectedShape && <Position />}
           {selectedShape && <Dimension />}

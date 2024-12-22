@@ -92,7 +92,7 @@ const MiddleLayer = () => {
     }
 
     const docRef = doc(db, "boards", board);
-
+    console.log(board);
     try {
       // Fetch document snapshot
       const docSnap = await getDoc(docRef);

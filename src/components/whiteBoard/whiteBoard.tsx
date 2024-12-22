@@ -29,11 +29,18 @@ import {
   onSnapshot,
   getDoc,
 } from "firebase/firestore";
+import { AppDispatch } from "../../store";
 import { setBoards } from "../../features/boards/boards";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import {
+  setDrawing,
+  setDragging,
+  setDoubleClicking,
+} from "../../features/actions/actionsSlice";
 
 const WhiteBoard = () => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
+  const actionsDispatch = useDispatch();
   const selectedShape = useSelector(
     (state: any) => state.whiteBoard.selectedShape
   );
@@ -43,29 +50,30 @@ const WhiteBoard = () => {
   const window = useSelector((state: any) => state.window);
   const [focusedShape, setFocusedShape] = useState<number | null>(null);
   const user = useSelector((state: any) => state.user); // Add this line to get the user data from the Redux store
-  const [drawing, setDrawing] = useState(false);
-  const [dragging, setDragging] = useState(false); // Track dragging state
+  const drawing = useSelector((state: any) => state.actions.drawing);
+  const dragging = useSelector((state: any) => state.actions.dragging);
+  const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
+  const doubleClicking = useSelector(
+    (state: any) => state.actions.doubleClicking
+  );
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
     null
   ); // Offset between cursor and shape position
   const [currentTool, setCurrentTool] = useState("pointer");
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [lastSyncedData, setLastSyncedData] = useState({
-    shapes,
-    selectedShape,
-  });
 
   const usersCollectionRef = collection(db, "users");
 
-  // Periodic sync logic
   useEffect(() => {
+    if (drawing || dragging || doubleClicking) {
+      return;
+    }
+    if (docRef.id !== board.id) {
+      return;
+    }
     const updateFirebase = async () => {
-      const docRef = doc(db, "boards", board.id);
       try {
-        if (lastSyncedData.shapes === board.shapes) {
-          return;
-        }
         await updateDoc(docRef, {
           selectedShape: board.selectedShape,
           shapes: board.shapes,
@@ -73,21 +81,24 @@ const WhiteBoard = () => {
           type: board.type,
           uid: board.uid,
         });
-        setLastSyncedData({
-          shapes: board.shapes,
-          selectedShape: board.selectedShape,
-        }); // Update last synced data
       } catch (error) {
         console.error("Error updating document:", error);
       }
     };
-    const interval = setInterval(() => {
-      updateFirebase();
-    }, 5000); // Call updateFirebase every 5 seconds
 
-    // Cleanup the interval when the component unmounts
-    return () => clearInterval(interval);
-  }, [board, shapes, lastSyncedData]); // Empty dependency array ensures it runs once on mount
+    updateFirebase();
+  }, [
+    user?.uid,
+    board.id,
+    board.selectedShape,
+    board.shapes,
+    board.title,
+    board.type,
+    board.uid,
+    drawing,
+    dragging,
+    doubleClicking,
+  ]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -108,7 +119,7 @@ const WhiteBoard = () => {
   }, [board, user?.uid, usersCollectionRef]);
 
   const handleToolSwitch = (newTool: string) => {
-    setDrawing(false);
+    actionsDispatch(setDrawing(false));
     if (newTool !== "pointer") {
       dispatch(setSelectedShape(null));
     }
@@ -162,7 +173,7 @@ const WhiteBoard = () => {
         const offsetX = x - Math.min(shape.x1, shape.x2);
         const offsetY = y - Math.min(shape.y1, shape.y2);
         setDragOffset({ x: offsetX, y: offsetY });
-        setDragging(true);
+        actionsDispatch(setDragging(true));
         dispatch(setSelectedShape(selected));
       } else {
         dispatch(setSelectedShape(null));
@@ -170,7 +181,7 @@ const WhiteBoard = () => {
       return;
     }
 
-    setDrawing(true);
+    actionsDispatch(setDrawing(true));
 
     if (
       currentTool === "rectangle" ||
@@ -289,8 +300,8 @@ const WhiteBoard = () => {
   };
 
   const handleMouseUp = () => {
-    setDrawing(false);
-    setDragging(false);
+    actionsDispatch(setDrawing(false));
+    actionsDispatch(setDragging(false));
     setDragOffset(null);
     if (currentTool === "text") {
       setFocusedShape(shapes.length - 1);
@@ -305,6 +316,7 @@ const WhiteBoard = () => {
 
   /*************  ✨ Codeium Command ⭐  *************/
   const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+    actionsDispatch(setDoubleClicking(true));
     const boundingRect = canvasRef.current?.getBoundingClientRect();
     const x =
       (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
@@ -324,19 +336,19 @@ const WhiteBoard = () => {
             y <= Math.max(shape.y1, shape.y2)
         );
       if (selected !== -1) {
-        console.log("trying");
         selected = shapes.length - 1 - selected;
         const shape = shapes[selected];
-        console.log(shape);
+
         const shapeType = shape.type;
         if (shapeType === "board") {
           if (shape.id) {
-            const docRef = doc(db, "boards", shape.id);
-            console.log(docRef);
+            const documentRef = doc(db, "boards", shape.id);
+
             try {
               // Fetch document snapshot
 
-              const docSnap = await getDoc(docRef);
+              const docSnap = await getDoc(documentRef);
+              setDocRef(documentRef);
 
               if (docSnap.exists()) {
                 const boardData = docSnap.data();
@@ -347,20 +359,14 @@ const WhiteBoard = () => {
                   type: boardData.type || "default",
                   selectedShape: null,
                   uid: boardData.uid,
-                  id: board.id,
+                  id: shape.id,
                 };
 
-                console.log("Board data:", data);
-
-                // Dispatch to state management
                 dispatch(setWhiteboardData(data));
-                console.log("Board selected:", board.id);
               } else {
-                console.log("failed 2");
                 console.error(`No document found for board ID: ${board.id}`);
               }
             } catch (error) {
-              console.log("failed");
               console.error("Error getting document:", error);
             }
           }
@@ -368,6 +374,8 @@ const WhiteBoard = () => {
       } else {
         dispatch(setSelectedShape(null));
       }
+
+      actionsDispatch(setDoubleClicking(false));
       return;
     }
   };
@@ -432,11 +440,10 @@ const WhiteBoard = () => {
   };
 
   const handleDelete = () => {
-    console.log("Deleted shape:", selectedShape);
     if (selectedShape !== null) {
       dispatch(removeShape(selectedShape));
       dispatch(setSelectedShape(null));
-      console.log(shapes);
+
       setFocusedShape(null);
     }
   };
@@ -593,6 +600,7 @@ const WhiteBoard = () => {
         </div>
       ))}
       <div className={styles.tools}>
+        <h1>{board.id}</h1>
         <button
           onClick={() => handleToolSwitch("pointer")}
           style={{
