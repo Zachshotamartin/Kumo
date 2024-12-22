@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
-
+import styles from "./options.module.css";
 const Opacity = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
@@ -11,7 +11,6 @@ const Opacity = () => {
     selectedIdx
   ];
   const [opacity, setOpacity] = useState(selectedShape.opacity);
-  
 
   const handleSetOpacity = (value: number) => {
     if (value > 1) setOpacity(1);
@@ -32,18 +31,29 @@ const Opacity = () => {
       })
     );
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      updateOpacity();
+    }
+  };
+
   return (
-    <div>
-      <p>Appearance</p>
-      <p>Opacity</p>
-      <input
-        type="number"
-        value={opacity}
-        min={0}
-        max={1}
-        onChange={(e) => handleSetOpacity(Number(e.target.value))}
-      />
-      <button onClick={updateOpacity}>Update</button>
+    <div className={styles.container}>
+      <h4 className={styles.optionHeader}>Color</h4>
+      <div className={styles.labelInput}>
+        <h5 className={styles.label}>Opacity</h5>
+
+        <input
+          type="number"
+          className={styles.numberInput}
+          value={opacity}
+          min={0}
+          max={1}
+          onChange={(e) => handleSetOpacity(Number(e.target.value))}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
     </div>
   );
 };

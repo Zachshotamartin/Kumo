@@ -15,32 +15,11 @@ const Position = () => {
   const [x1, setX1] = useState<number>(selectedShape.x1);
   const [y1, setY1] = useState<number>(selectedShape.y1);
 
-  const inputRefX = useRef<HTMLInputElement>(null);
-  const inputRefY = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     // Update local state when the selected shape changes
     setX1(selectedShape.x1);
     setY1(selectedShape.y1);
   }, [selectedShape]);
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        inputRefX.current &&
-        !inputRefX.current.contains(e.target as Node) &&
-        inputRefY.current &&
-        !inputRefY.current.contains(e.target as Node)
-      ) {
-        updatePosition();
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [x1, y1]);
 
   const updatePosition = () => {
     dispatch(
@@ -68,7 +47,6 @@ const Position = () => {
       <div className={styles.labelInput}>
         <h5 className={styles.label}>x</h5>
         <input
-          ref={inputRefX}
           className={styles.numberInput}
           type="number"
           value={x1}
@@ -79,7 +57,6 @@ const Position = () => {
       <div className={styles.labelInput}>
         <h5 className={styles.label}>y</h5>
         <input
-          ref={inputRefY}
           className={styles.numberInput}
           type="number"
           value={y1}

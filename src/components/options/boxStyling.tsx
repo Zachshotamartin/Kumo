@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
-
+import styles from "./options.module.css";
 const BoxStyling = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
@@ -19,7 +19,11 @@ const BoxStyling = () => {
     setBorderStyle(selectedShape.borderStyle);
   }, [selectedShape]);
 
-  const updatePosition = () => {
+  useEffect(() => {
+    updateBox();
+  }, [borderStyle]);
+
+  const updateBox = () => {
     dispatch(
       updateShape({
         index: selectedIdx,
@@ -31,31 +35,46 @@ const BoxStyling = () => {
       })
     );
   };
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      updateBox();
+    }
+  };
   return (
-    <div>
-      <h2>Box Styling</h2>
-      <p>border radius</p>
-      <input
-        type="number"
-        value={borderRadius}
-        onChange={(e) => setBorderRadius(Number(e.target.value))}
-      />
-      <p>border width</p>
-      <input
-        type="number"
-        value={borderWidth}
-        onChange={(e) => setBorderWidth(Number(e.target.value))}
-      />
-      <p>border style</p>
-      <select
-        value={borderStyle}
-        onChange={(e) => setBorderStyle(e.target.value)}
-      >
-        <option value="solid">Solid</option>
-        <option value="dashed">Dashed</option>
-        <option value="dotted">Dotted</option>
-      </select>
-      <button onClick={updatePosition}>Update</button>
+    <div className={styles.container}>
+      <h4 className={styles.optionHeader}>Border</h4>
+      <div className={styles.labelInput}>
+        <h5 className={styles.label}>Radius</h5>
+        <input
+          className={styles.numberInput}
+          type="number"
+          value={borderRadius}
+          onChange={(e) => setBorderRadius(Number(e.target.value))}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+      <div className={styles.labelInput}>
+        <h5 className={styles.label}>Width</h5>
+        <input
+          type="number"
+          value={borderWidth}
+          className={styles.numberInput}
+          onChange={(e) => setBorderWidth(Number(e.target.value))}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+      <div className={styles.labelInput}>
+        <h5 className={styles.label}>Style</h5>
+        <select
+          value={borderStyle}
+          className={styles.dropdown}
+          onChange={(e) => setBorderStyle(e.target.value)}
+        >
+          <option value="solid">Solid</option>
+          <option value="dashed">Dashed</option>
+          <option value="dotted">Dotted</option>
+        </select>
+      </div>
     </div>
   );
 };

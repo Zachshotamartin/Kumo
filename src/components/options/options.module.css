@@ -43,3 +43,28 @@
   width: 100%;
   margin-right: 1rem;
 }
+
+.icon {
+  height: 15px;
+  width: 15px;
+}
+
+.radioInput {
+  display: none;
+}
+
+/* Style the image to look like a radio button */
+.radioImage {
+  height: 25px;
+  width: 25px;
+  cursor: pointer;
+  transition: transform 0.2s ease; /* Optional for visual effect */
+  border: 1px solid white;
+  margin: 0 0.5rem;
+}
+
+/* When the radio button is checked, apply a style */
+.radioImage.checked {
+  transform: scale(1.1); /* Slight zoom effect */
+  opacity: 0.7; /* Visual indication of the selection */
+}
