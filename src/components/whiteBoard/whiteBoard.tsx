@@ -600,7 +600,6 @@ const WhiteBoard = () => {
         </div>
       ))}
       <div className={styles.tools}>
-        <h1>{board.id}</h1>
         <button
           onClick={() => handleToolSwitch("pointer")}
           style={{

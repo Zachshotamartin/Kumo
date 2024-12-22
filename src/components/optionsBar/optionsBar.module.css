@@ -13,3 +13,9 @@
   overflow-y: scroll;
   overflow-x: hidden;
 }
+
+.shapeType {
+  text-align: left;
+  margin-left: 1rem;
+  margin-bottom: 0;
+}

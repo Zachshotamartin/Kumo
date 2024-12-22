@@ -9,13 +9,14 @@ import rectangle from "../../res/rectangle.png";
 import recursive from "../../res/recursive.png";
 const Components = () => {
   const dispatch = useDispatch();
-  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+  const board = useSelector((state: any) => state.whiteBoard);
+  const shapes = board.shapes;
   const selectedShape = useSelector(
     (state: any) => state.whiteBoard.selectedShape
   );
   return (
     <div className={styles.components}>
-      <h4 className={styles.title}>Components</h4>
+      <h4 className={styles.title}>{board.title} Components </h4>
       {shapes.map((shape: any, index: number) => (
         <div key={index} className={styles.component}>
           <img

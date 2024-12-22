@@ -26,6 +26,9 @@
   margin: 0;
   margin-left: 0.5rem;
 }
+.text:hover {
+  color: #007bff;
+}
 .icon {
   height: 15px;
   width: 15px;

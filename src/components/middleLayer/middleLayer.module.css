@@ -21,6 +21,9 @@
 .title {
   margin-bottom: 0;
 }
+.title:hover {
+  color: #007bff;
+}
 .button {
   background-color: transparent;
   color: inherit;

@@ -8,11 +8,8 @@ import Transform from "../options/transform";
 import Opacity from "../options/opacity";
 import FontStyles from "../options/fontStyles";
 import BoxStyling from "../options/boxStyling";
+import BoardLink from "../options/boardLink";
 import type { AppDispatch } from "../../store";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../../config/firebase";
-import WhiteBoard from "../whiteBoard/whiteBoard";
 
 const OptionsBar = () => {
   const user = useSelector((state: any) => state.auth.user);
@@ -24,25 +21,18 @@ const OptionsBar = () => {
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx
   ];
-  const boardChoices = useSelector((state: any) => state.boards);
-  const board = useSelector((state: any) => state.whiteBoard);
   const [left, setLeft] = useState(85); // Initial left position in percentage
-  const [Edgedragging, setEdgeDragging] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [startX, setStartX] = useState(0); // Track starting position of drag
   const [startLeft, setStartLeft] = useState(left); // Track starting left value
   const optionsBarRef = useRef<HTMLDivElement | null>(null);
-  const [selectedValue, setSelectedValue] = useState(
-    selectedShape?.id || "none"
-  );
-  const drawing = useSelector((state: any) => state.actions.drawing);
-  const dragging = useSelector((state: any) => state.actions.dragging);
-  const doubleClicking = useSelector(
-    (state: any) => state.actions.doubleClicking
-  );
+  
+ 
+  
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) {
-      setEdgeDragging(true);
+      setDragging(true);
       setStartX(e.clientX);
       setStartLeft(left);
     }
@@ -62,7 +52,7 @@ const OptionsBar = () => {
 
   const handleMouseUp = useCallback(() => {
     if (dragging) {
-      setEdgeDragging(false);
+      setDragging(false);
     }
   }, [dragging]);
 
@@ -89,7 +79,7 @@ const OptionsBar = () => {
           ref={optionsBarRef}
           style={{ left: `${left}%`, width: `${100 - left}%` }}
         >
-          <h1>{selectedShape?.type}</h1>
+          <h3 className={styles.shapeType}>{selectedShape?.type}</h3>
           <div
             style={{
               position: "absolute",
@@ -101,61 +91,8 @@ const OptionsBar = () => {
             }}
             onMouseDown={handleMouseDown}
           />
-          {selectedShape?.type === "board" && (
-            <select
-              value={selectedValue}
-              onChange={async (e) => {
-                const selectedBoardId = e.target.value;
-                if (selectedBoardId === "none") {
-                  return;
-                }
-                let selectedBoard = boardChoices.publicBoards.find(
-                  (board: any) => board.id === selectedBoardId
-                );
-                if (!selectedBoard) {
-                  selectedBoard = boardChoices.privateBoards.find(
-                    (board: any) => board.id === selectedBoardId
-                  );
-                }
-                if (!selectedBoard) {
-                  selectedBoard = boardChoices.sharedBoards.find(
-                    (board: any) => board.id === selectedBoardId
-                  );
-                }
-                dispatch(
-                  updateShape({
-                    index: selectedIdx,
-                    update: {
-                      id: selectedBoard.id,
-                      uid: selectedBoard.uid,
-                      title: selectedBoard.title,
-                    },
-                  })
-                );
-                console.log(board);
-
-                setSelectedValue(selectedBoardId);
-              }}
-            >
-              <option value="none">none</option>
-              {boardChoices.publicBoards.map((board: any, index: number) => (
-                <option key={index} value={board.id}>
-                  {board.id + " public"}
-                </option>
-              ))}
-              {boardChoices.privateBoards.map((board: any, index: number) => (
-                <option key={index} value={board.id}>
-                  {board.id + " private"}
-                </option>
-              ))}
-              {boardChoices.sharedBoards.map((board: any, index: number) => (
-                <option key={index} value={board.id}>
-                  {board.id + " shared"}
-                </option>
-              ))}
-            </select>
-            /******  f320630b-d2ae-446c-965c-4f3e563d62e5  *******/
-          )}
+          
+          {selectedShape && selectedShape.type === 'board' && <BoardLink/>}
           {selectedShape && <Position />}
           {selectedShape && <Dimension />}
           {selectedShape && <Transform />}

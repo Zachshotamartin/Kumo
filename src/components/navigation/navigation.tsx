@@ -9,7 +9,7 @@ import { auth } from "../../config/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import hide from "../../res/hide.png";
 import { setHideSideBar } from "../../features/hide/hide";
-import { login, logout } from "../../features/auth/authSlice";
+import { logout } from "../../features/auth/authSlice";
 import { AppDispatch } from "../../store";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 
@@ -23,13 +23,24 @@ const Navigation = () => {
   const handleHide = () => {
     dispatch(setHideSideBar(!hidden));
   };
+  const handleHome = () => {
+    const data = {
+      shapes: [],
+      title: null,
+      type: null,
+      selectedShape: null,
+      uid: auth.currentUser?.uid,
+      id: null,
+    };
+    appDispatch(setWhiteboardData(data));
+  };
   return (
     <div className={styles.navigation}>
       <NavElement image={logo} text="Kumo" />
       <NavElement image={userIcon} text={Username || "User"} />
       <NavElement image={menu} text="Settings" />
       <button
-        className={styles.logout}
+        className={styles.hide}
         onClick={() => {
           const data = {
             shapes: [],
@@ -41,11 +52,8 @@ const Navigation = () => {
           };
 
           console.log("Board data:", data);
-
-          // Dispatch to state management
           appDispatch(setWhiteboardData(data));
           auth.signOut();
-
           dispatch(logout());
           console.log(auth?.currentUser?.email);
           console.log(user);
@@ -54,7 +62,10 @@ const Navigation = () => {
         Logout
       </button>
       <button className={styles.hide} onClick={handleHide}>
-        <img className={styles.icon} src={hide} alt="" />
+        Hide
+      </button>
+      <button className={styles.hide} onClick={handleHome}>
+        Home
       </button>
     </div>
   );
