@@ -11,6 +11,7 @@ import { useDispatch } from "react-redux";
 import { login } from "../../features/auth/authSlice";
 import { db } from "../../config/firebase";
 import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
+import logo from "../../res/logo3.png";
 
 const usersCollectionRef = collection(db, "users");
 const HomePage = () => {
@@ -84,21 +85,40 @@ const HomePage = () => {
 
   return (
     <div className={styles.homePage}>
-      <form onSubmit={handleLogin}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button type="submit">Login</button>
-        <button type="button" onClick={handleGoogleLogin}>
+      <div className={styles.logo}>
+        <img className={styles.icon} src={logo} alt="logo" />
+        <h1 className={styles.logoText}>Kumo</h1>
+      </div>
+      <form className={styles.loginForm} onSubmit={handleLogin}>
+        <h4>Login</h4>
+        <div className={styles.inputContainer}>
+          <label>Email</label>
+          <input
+            className={styles.input}
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className={styles.inputContainer}>
+          <label>Password</label>
+          <input
+            className={styles.input}
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+        <button className={styles.submit} type="submit">
+          Login
+        </button>
+        <button
+          className={styles.googleButton}
+          type="button"
+          onClick={handleGoogleLogin}
+        >
           Login with Google
         </button>
         {error && <p>{error}</p>}

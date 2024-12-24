@@ -3,7 +3,6 @@ import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
 import { SketchPicker } from "react-color";
-import { set } from "lodash";
 
 const Colors = () => {
   const dispatch = useDispatch();
