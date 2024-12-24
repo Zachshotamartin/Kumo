@@ -9,6 +9,7 @@ import Opacity from "../options/opacity";
 import FontStyles from "../options/fontStyles";
 import BoxStyling from "../options/boxStyling";
 import BoardLink from "../options/boardLink";
+import Colors from "../options/colors";
 import type { AppDispatch } from "../../store";
 
 const OptionsBar = () => {
@@ -26,9 +27,6 @@ const OptionsBar = () => {
   const [startX, setStartX] = useState(0); // Track starting position of drag
   const [startLeft, setStartLeft] = useState(left); // Track starting left value
   const optionsBarRef = useRef<HTMLDivElement | null>(null);
-  
- 
-  
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) {
@@ -91,14 +89,15 @@ const OptionsBar = () => {
             }}
             onMouseDown={handleMouseDown}
           />
-          
-          {selectedShape && selectedShape.type === 'board' && <BoardLink/>}
+
+          {selectedShape && selectedShape.type === "board" && <BoardLink />}
           {selectedShape && <Position />}
           {selectedShape && <Dimension />}
           {selectedShape && <Transform />}
           {selectedShape && <BoxStyling />}
           {selectedShape && <Opacity />}
           {selectedShape && selectedShape.type === "text" && <FontStyles />}
+          {selectedShape && <Colors />}
         </div>
       )}
     </>
