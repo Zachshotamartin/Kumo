@@ -576,9 +576,16 @@ const WhiteBoard = () => {
 
   const handleDelete = () => {
     if (selectedShapes.length > 0) {
-      dispatch(removeShape(selectedShapes[0]));
-      dispatch(setSelectedShapes([]));
-
+      const shapesCopy = [...selectedShapes];
+      const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
+      console.log("selected");
+      console.log(selectedShapes);
+      console.log(newShapes);
+      console.log(newShapes);
+      newShapes.forEach((index: number) => {
+        dispatch(removeShape(index));
+      });
+      setSelectedShapes([]);
       setFocusedShape(null);
     }
   };
