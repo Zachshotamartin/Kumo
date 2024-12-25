@@ -60,7 +60,6 @@ const MiddleLayer = () => {
         title: "New Board",
         shapes: [],
         type: type,
-        selectedShape: null,
       };
       const doc = await addDoc(boardsCollectionRef, data);
       console.log("Document written with ID: ", doc.id);
@@ -101,7 +100,7 @@ const MiddleLayer = () => {
           shapes: boardData.shapes || [],
           title: boardData.title || "Untitled",
           type: boardData.type || "default",
-          selectedShape: null,
+
           uid: boardData.uid,
           id: board,
         };

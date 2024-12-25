@@ -1,7 +1,7 @@
 import React from "react";
 import styles from "./components.module.css";
 import { useSelector, useDispatch } from "react-redux";
-import { setSelectedShape } from "../../features/whiteBoard/whiteBoardSlice";
+import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import image from "../../res/image.png";
 import text from "../../res/text.png";
 import calendar from "../../res/calendar.png";
@@ -12,7 +12,7 @@ const Components = () => {
   const board = useSelector((state: any) => state.whiteBoard);
   const shapes = board.shapes;
   const selectedShape = useSelector(
-    (state: any) => state.whiteBoard.selectedShape
+    (state: any) => state.selected.selectedShapes
   );
   return (
     <div className={styles.components}>
@@ -38,7 +38,7 @@ const Components = () => {
           />
           <h5
             className={selectedShape === index ? styles.selected : styles.text}
-            onClick={() => dispatch(setSelectedShape(index))}
+            onClick={() => dispatch(setSelectedShapes([index]))}
           >
             {shape.type}
           </h5>

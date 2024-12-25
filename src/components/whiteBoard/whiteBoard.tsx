@@ -1,6 +1,6 @@
 // whiteBoard.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { throttle, debounce } from "lodash";
+import { throttle, debounce, set } from "lodash";
 
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
@@ -8,7 +8,6 @@ import {
   addShape,
   updateShape,
   removeShape,
-  setSelectedShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
 import image from "../../res/image.png";
@@ -36,14 +35,22 @@ import {
   setDrawing,
   setDragging,
   setDoubleClicking,
+  setMoving,
+  setHighlighting,
 } from "../../features/actions/actionsSlice";
+import {
+  setSelectedShapes,
+  addSelectedShape,
+  setSelectedTool,
+} from "../../features/selected/selectedSlice";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
   const actionsDispatch = useDispatch();
-  const selectedShape = useSelector(
-    (state: any) => state.whiteBoard.selectedShape
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
+  const selectedTool = useSelector((state: any) => state.selected.selectedTool);
 
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const board = useSelector((state: any) => state.whiteBoard);
@@ -52,14 +59,20 @@ const WhiteBoard = () => {
   const user = useSelector((state: any) => state.user); // Add this line to get the user data from the Redux store
   const drawing = useSelector((state: any) => state.actions.drawing);
   const dragging = useSelector((state: any) => state.actions.dragging);
-  const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
   const doubleClicking = useSelector(
     (state: any) => state.actions.doubleClicking
   );
+  const moving = useSelector((state: any) => state.actions.moving);
+  const highlighting = useSelector((state: any) => state.actions.highlighting);
+  const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
+  const [highlightStartX, setHighlightStartX] = useState(0);
+  const [highlightStartY, setHighlightStartY] = useState(0);
+  const [highlightEndX, setHighlightEndX] = useState(0);
+  const [highlightEndY, setHighlightEndY] = useState(0);
+
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
     null
   ); // Offset between cursor and shape position
-  const [currentTool, setCurrentTool] = useState("pointer");
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -75,7 +88,6 @@ const WhiteBoard = () => {
     const updateFirebase = async () => {
       try {
         await updateDoc(docRef, {
-          selectedShape: board.selectedShape,
           shapes: board.shapes,
           title: board.title,
           type: board.type,
@@ -90,7 +102,6 @@ const WhiteBoard = () => {
   }, [
     user?.uid,
     board.id,
-    board.selectedShape,
     board.shapes,
     board.title,
     board.type,
@@ -99,6 +110,30 @@ const WhiteBoard = () => {
     dragging,
     doubleClicking,
   ]);
+
+  useEffect(() => {
+    // search the shapes array to find all the shapes that intersect this bounding box
+    const minx = Math.min(highlightStartX, highlightEndX);
+    const maxx = Math.max(highlightStartX, highlightEndX);
+    const miny = Math.min(highlightStartY, highlightEndY);
+    const maxy = Math.max(highlightStartY, highlightEndY);
+    /*************  ✨ Codeium Command 🌟  *************/
+    const intersectingShapeIndices = shapes.reduce(
+      (indices: number[], shape: Shape, index: number) => {
+        if (
+          shape.x1 < maxx &&
+          shape.x2 > minx &&
+          shape.y1 < maxy &&
+          shape.y2 > miny
+        ) {
+          indices.push(index);
+        }
+        return indices;
+      },
+      []
+    );
+    dispatch(setSelectedShapes(intersectingShapeIndices));
+  }, [highlightEndX, highlightEndY]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -121,16 +156,16 @@ const WhiteBoard = () => {
   const handleToolSwitch = (newTool: string) => {
     actionsDispatch(setDrawing(false));
     if (newTool !== "pointer") {
-      dispatch(setSelectedShape(null));
+      dispatch(setSelectedShapes([]));
     }
 
-    setCurrentTool(newTool);
+    actionsDispatch(setSelectedTool(newTool));
     if (
       newTool === "calendar" ||
       newTool === "image" ||
       newTool === "pointer"
     ) {
-      setCurrentTool("pointer");
+      actionsDispatch(setSelectedTool("pointer"));
     }
     if (newTool === "text") {
       setFocusedShape(shapes.length - 1);
@@ -155,7 +190,7 @@ const WhiteBoard = () => {
     const y =
       (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
 
-    if (currentTool === "pointer") {
+    if (selectedTool === "pointer") {
       let selected = shapes
         .slice()
         .reverse()
@@ -174,9 +209,15 @@ const WhiteBoard = () => {
         const offsetY = y - Math.min(shape.y1, shape.y2);
         setDragOffset({ x: offsetX, y: offsetY });
         actionsDispatch(setDragging(true));
-        dispatch(setSelectedShape(selected));
+        dispatch(setSelectedShapes([selected]));
+        actionsDispatch(setMoving(true));
       } else {
-        dispatch(setSelectedShape(null));
+        dispatch(setSelectedShapes([]));
+        actionsDispatch(setDragging(true));
+        actionsDispatch(setHighlighting(true));
+
+        setHighlightStartX(x);
+        setHighlightStartY(y);
       }
       return;
     }
@@ -184,13 +225,13 @@ const WhiteBoard = () => {
     actionsDispatch(setDrawing(true));
 
     if (
-      currentTool === "rectangle" ||
-      currentTool === "text" ||
-      currentTool === "board"
+      selectedTool === "rectangle" ||
+      selectedTool === "text" ||
+      selectedTool === "board"
     ) {
       const shape: Shape = {
         // type
-        type: currentTool,
+        type: selectedTool,
 
         // position
         x1: x,
@@ -223,21 +264,21 @@ const WhiteBoard = () => {
 
         // color
         color: "white",
-        backgroundColor: currentTool === "text" ? "transparent" : "white",
+        backgroundColor: selectedTool === "text" ? "transparent" : "white",
         borderColor: "black",
         opacity: 1,
 
         text: "",
       };
       dispatch(addShape(shape));
-      dispatch(setSelectedShape(shapes.length)); // Select the newly created shape
+      dispatch(setSelectedShapes([shapes.length])); // Select the newly created shape
     }
   };
 
   const debouncedMouseMove = useCallback(
     throttle(
       debounce((e: React.MouseEvent<HTMLDivElement>) => {
-        if (dragging && selectedShape !== null) {
+        if (dragging && moving) {
           const boundingRect = canvasRef.current?.getBoundingClientRect();
           const x =
             (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
@@ -247,7 +288,7 @@ const WhiteBoard = () => {
             window.y1;
 
           if (dragOffset) {
-            const shape = shapes[selectedShape];
+            const shape = shapes[selectedShapes[0]];
             const width = Math.abs(shape.x2 - shape.x1);
             const height = Math.abs(shape.y2 - shape.y1);
 
@@ -261,9 +302,22 @@ const WhiteBoard = () => {
               height,
             };
             dispatch(
-              updateShape({ index: selectedShape, update: updatedShape })
+              updateShape({ index: selectedShapes[0], update: updatedShape })
             );
           }
+        }
+
+        if (dragging && highlighting) {
+          const boundingRect = canvasRef.current?.getBoundingClientRect();
+          const x =
+            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+            window.x1;
+          const y =
+            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+            window.y1;
+
+          setHighlightEndX(x);
+          setHighlightEndY(y);
         }
 
         if (drawing) {
@@ -291,7 +345,15 @@ const WhiteBoard = () => {
       }, 10),
       10
     ), // Adjust the throttle delay (100ms in this case)
-    [dragging, selectedShape, dragOffset, shapes, drawing, canvasRef, dispatch]
+    [
+      dragging,
+      selectedShapes[0],
+      dragOffset,
+      shapes,
+      drawing,
+      canvasRef,
+      dispatch,
+    ]
   );
 
   // Use the throttled version in the event listener
@@ -303,7 +365,7 @@ const WhiteBoard = () => {
     actionsDispatch(setDrawing(false));
     actionsDispatch(setDragging(false));
     setDragOffset(null);
-    if (currentTool === "text") {
+    if (selectedTool === "text") {
       setFocusedShape(shapes.length - 1);
       setTimeout(() => {
         if (inputRef.current) {
@@ -311,10 +373,25 @@ const WhiteBoard = () => {
         }
       }, 0);
     }
-    setCurrentTool("pointer");
+    const lastShape = shapes[shapes.length - 1];
+    const x2 = lastShape.x2;
+    const y2 = lastShape.y2;
+    const updatedShape: Shape = {
+      ...lastShape,
+      x2: lastShape.x2 > lastShape.x1 ? x2 : lastShape.x1,
+      y2: lastShape.y2 > lastShape.y1 ? y2 : lastShape.y1,
+      x1: x2 > lastShape.x1 ? lastShape.x1 : x2,
+      y1: y2 > lastShape.y1 ? lastShape.y1 : y2,
+      width: Math.abs(x2 - lastShape.x1),
+      height: Math.abs(y2 - lastShape.y1),
+      rotation: 0,
+    };
+    dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
+    actionsDispatch(setSelectedTool("pointer"));
+    actionsDispatch(setHighlighting(false));
+    actionsDispatch(setMoving(false));
   };
 
-  /*************  ✨ Codeium Command ⭐  *************/
   const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
     actionsDispatch(setDoubleClicking(true));
     const boundingRect = canvasRef.current?.getBoundingClientRect();
@@ -324,7 +401,7 @@ const WhiteBoard = () => {
     const y =
       (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
 
-    if (currentTool === "pointer") {
+    if (selectedTool === "pointer") {
       let selected = shapes
         .slice()
         .reverse()
@@ -357,12 +434,12 @@ const WhiteBoard = () => {
                   shapes: boardData.shapes || [],
                   title: boardData.title || "Untitled",
                   type: boardData.type || "default",
-                  selectedShape: null,
                   uid: boardData.uid,
                   id: shape.id,
                 };
 
                 dispatch(setWhiteboardData(data));
+                dispatch(setSelectedShapes([]));
               } else {
                 console.error(`No document found for board ID: ${board.id}`);
               }
@@ -372,7 +449,7 @@ const WhiteBoard = () => {
           }
         }
       } else {
-        dispatch(setSelectedShape(null));
+        dispatch(setSelectedShapes([]));
       }
 
       actionsDispatch(setDoubleClicking(false));
@@ -440,9 +517,9 @@ const WhiteBoard = () => {
   };
 
   const handleDelete = () => {
-    if (selectedShape !== null) {
-      dispatch(removeShape(selectedShape));
-      dispatch(setSelectedShape(null));
+    if (selectedShapes.length > 0) {
+      dispatch(removeShape(selectedShapes[0]));
+      dispatch(setSelectedShapes([]));
 
       setFocusedShape(null);
     }
@@ -477,7 +554,7 @@ const WhiteBoard = () => {
     <div
       ref={canvasRef}
       style={{
-        cursor: currentTool === "pointer" ? "crosshair" : "default",
+        cursor: selectedTool === "pointer" ? "crosshair" : "default",
         overflow: "hidden",
       }}
       className={styles.whiteBoard}
@@ -493,6 +570,7 @@ const WhiteBoard = () => {
           style={{
             // type
             position: "absolute",
+            zIndex: selectedShapes.includes(index) ? 50 : 0,
 
             // position
             top: `${
@@ -517,12 +595,9 @@ const WhiteBoard = () => {
             borderRadius: `${shape.borderRadius}%`,
             borderWidth: `${shape.borderWidth}px`,
             borderStyle: `${shape.borderStyle}`,
-            border:
-              index === selectedShape
-                ? "2px solid blue"
-                : shape.type === "rectangle"
-                ? "1px solid white"
-                : "none",
+            border: selectedShapes.includes(index)
+              ? "blue 2px solid"
+              : `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
 
             // color styling
 
@@ -533,7 +608,10 @@ const WhiteBoard = () => {
                 ? "pink"
                 : "",
 
-            borderColor: `${shape.borderColor}`,
+            borderColor: selectedShapes.includes(index)
+              ? "blue"
+              : shape.borderColor,
+
             opacity: `${shape.opacity}`,
           }}
         >
@@ -603,7 +681,7 @@ const WhiteBoard = () => {
         <button
           onClick={() => handleToolSwitch("pointer")}
           style={{
-            backgroundColor: currentTool === "pointer" ? "red" : "transparent",
+            backgroundColor: selectedTool === "pointer" ? "red" : "transparent",
           }}
         >
           <img className={styles.icon} src={pointer} alt="" />
@@ -612,7 +690,7 @@ const WhiteBoard = () => {
           onClick={() => handleToolSwitch("rectangle")}
           style={{
             backgroundColor:
-              currentTool === "rectangle" ? "red" : "transparent",
+              selectedTool === "rectangle" ? "red" : "transparent",
           }}
         >
           <img className={styles.icon} src={rectangle} alt="" />
@@ -620,7 +698,7 @@ const WhiteBoard = () => {
         <button
           onClick={() => handleToolSwitch("text")}
           style={{
-            backgroundColor: currentTool === "text" ? "red" : "transparent",
+            backgroundColor: selectedTool === "text" ? "red" : "transparent",
           }}
         >
           <img className={styles.icon} src={text} alt="" />
@@ -634,7 +712,8 @@ const WhiteBoard = () => {
         <button
           onClick={() => handleToolSwitch("calendar")}
           style={{
-            backgroundColor: currentTool === "calendar" ? "red" : "transparent",
+            backgroundColor:
+              selectedTool === "calendar" ? "red" : "transparent",
           }}
         >
           <img className={styles.icon} src={calendar} alt="" />
@@ -642,7 +721,7 @@ const WhiteBoard = () => {
         <button
           onClick={() => handleToolSwitch("image")}
           style={{
-            backgroundColor: currentTool === "image" ? "red" : "transparent",
+            backgroundColor: selectedTool === "image" ? "red" : "transparent",
           }}
         >
           <img className={styles.icon} src={image} alt="" />
@@ -650,7 +729,7 @@ const WhiteBoard = () => {
         <button
           onClick={() => handleToolSwitch("board")}
           style={{
-            backgroundColor: currentTool === "board" ? "red" : "transparent",
+            backgroundColor: selectedTool === "board" ? "red" : "transparent",
           }}
         >
           <img className={styles.icon} src={recursive} alt="" />

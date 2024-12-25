@@ -53,7 +53,6 @@ export interface Shape {
 
 interface WhiteBoardState {
   shapes: Shape[];
-  selectedShape: number | null;
   id: string | null;
   type: string | null;
   title: string | null;
@@ -62,7 +61,6 @@ interface WhiteBoardState {
 
 const initialState: WhiteBoardState = {
   shapes: [],
-  selectedShape: null,
   id: null,
   type: null,
   title: null,
@@ -100,18 +98,10 @@ const whiteBoardSlice = createSlice({
         (shape, index) => index !== action.payload
       );
     },
-    setSelectedShape: (state, action: PayloadAction<number | null>) => {
-      state.selectedShape = action.payload;
-    },
   },
 });
 
-export const {
-  setWhiteboardData,
-  addShape,
-  updateShape,
-  removeShape,
-  setSelectedShape,
-} = whiteBoardSlice.actions;
+export const { setWhiteboardData, addShape, updateShape, removeShape } =
+  whiteBoardSlice.actions;
 
 export default whiteBoardSlice.reducer;

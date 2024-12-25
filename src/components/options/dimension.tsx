@@ -6,7 +6,7 @@ import styles from "./options.module.css";
 const Dimension = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
-    (state: any) => state.whiteBoard.selectedShape
+    (state: any) => state.selected.selectedShapes[0]
   );
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx

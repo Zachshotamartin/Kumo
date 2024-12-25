@@ -9,7 +9,7 @@ import alignRight from "../../res/align-right.png";
 const FontStyles = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
-    (state: any) => state.whiteBoard.selectedShape
+    (state: any) => state.selected.selectedShapes[0]
   );
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx

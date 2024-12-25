@@ -9,7 +9,7 @@
 }
 
 .input {
-  padding: 1rem;
+  padding: 0.5rem 1rem;
 }
 
 .inputContainer {
@@ -42,7 +42,7 @@
 .submit {
   margin-top: 1rem;
   margin-bottom: 1rem;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
 
   background-color: #007bff;
   color: white;
@@ -61,7 +61,7 @@
 .googleButton {
   margin-top: 1rem;
   margin-bottom: 1rem;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   background-color: #4285f4;
   color: white;
   border: none;

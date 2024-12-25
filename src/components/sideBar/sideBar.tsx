@@ -70,7 +70,7 @@ const SideBar = () => {
 
   return (
     <div>
-      {hidden && <Navigation />}
+      <div className={styles.hidden}>{hidden && <Navigation />}</div>
       {!hidden && (
         <div
           className={styles.sideBar}

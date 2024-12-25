@@ -1,4 +1,3 @@
-/*************  ✨ Codeium Command 🌟  *************/
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./optionsBar.module.css";
 import { useSelector, useDispatch } from "react-redux";
@@ -17,7 +16,7 @@ const OptionsBar = () => {
   const dispatch = useDispatch<AppDispatch>();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
   const selectedIdx = useSelector(
-    (state: any) => state.whiteBoard.selectedShape
+    (state: any) => state.selected.selectedShapes[0]
   );
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx
