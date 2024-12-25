@@ -218,6 +218,8 @@ const WhiteBoard = () => {
 
         setHighlightStartX(x);
         setHighlightStartY(y);
+        setHighlightEndX(x);
+        setHighlightEndY(y);
       }
       return;
     }
@@ -596,7 +598,7 @@ const WhiteBoard = () => {
             borderWidth: `${shape.borderWidth}px`,
             borderStyle: `${shape.borderStyle}`,
             border: selectedShapes.includes(index)
-              ? "blue 2px solid"
+              ? "blue 1px solid"
               : `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
 
             // color styling
@@ -677,6 +679,29 @@ const WhiteBoard = () => {
           ) : null}
         </div>
       ))}
+      {dragging && highlighting && (
+        <div
+          style={{
+            position: "absolute",
+            top: `${
+              (Math.min(highlightStartY, highlightEndY) - window.y1) /
+              window.percentZoomed
+            }px`,
+            left: `${
+              (Math.min(highlightStartX, highlightEndX) - window.x1) /
+              window.percentZoomed
+            }px`,
+            width: `${
+              Math.abs(highlightEndX - highlightStartX) / window.percentZoomed
+            }px`,
+            height: `${
+              Math.abs(highlightEndY - highlightStartY) / window.percentZoomed
+            }px`,
+            border: "2px solid blue",
+            zIndex: 51,
+          }}
+        ></div>
+      )}
       <div className={styles.tools}>
         <button
           onClick={() => handleToolSwitch("pointer")}
