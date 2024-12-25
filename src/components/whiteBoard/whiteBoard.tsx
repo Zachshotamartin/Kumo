@@ -72,6 +72,9 @@ const WhiteBoard = () => {
   const [highlightEndX, setHighlightEndX] = useState(0);
   const [highlightEndY, setHighlightEndY] = useState(0);
   const [copiedShapes, setCopiedShapes] = useState<Shape[]>([]);
+  const [prevMouseX, setPrevMouseX] = useState(0);
+  const [prevMouseY, setPrevMouseY] = useState(0);
+
   let currentPasteAction: any = null;
 
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
@@ -162,7 +165,6 @@ const WhiteBoard = () => {
     let debounceTimeoutPaste: any;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      console.log(selectedShapes);
       if (event.metaKey && event.key === "c") {
         const copyShapes = () => {
           const copiedData = selectedShapes.map((index: number) => {
@@ -170,6 +172,7 @@ const WhiteBoard = () => {
           });
           navigator.clipboard.writeText(JSON.stringify(copiedData));
         };
+
         // Debounced copy function
         if (debounceTimeoutCopy) return; // Ignore if already debounced for copy
         debounceTimeoutCopy = setTimeout(
@@ -179,9 +182,6 @@ const WhiteBoard = () => {
 
         event.preventDefault();
         copyShapes();
-        console.log(selectedShapes);
-        console.log("copied to clipboard");
-        console.log(copiedShapes);
       } else if (event.metaKey && event.key === "b") {
         // Debounced paste function
         if (debounceTimeoutPaste) return; // Ignore if already debounced for paste
@@ -189,11 +189,17 @@ const WhiteBoard = () => {
           () => (debounceTimeoutPaste = null),
           300
         ); // Reset after 300ms
-
+        const pasteShapes = () => {
+          navigator.clipboard.readText().then((copiedData) => {
+            const pastedShapes = JSON.parse(copiedData);
+            pastedShapes.forEach((shape: Shape) => {
+              dispatch(addShape(shape));
+            });
+          });
+        };
         event.preventDefault();
         actionsDispatch(setPasting(true));
         pasteShapes();
-        console.log("pasted from clipboard");
       }
     };
 
@@ -254,13 +260,44 @@ const WhiteBoard = () => {
             y >= Math.min(shape.y1, shape.y2) &&
             y <= Math.max(shape.y1, shape.y2)
         );
-      if (selected !== -1) {
+      if (selectedShapes.length > 1) {
+        if (
+          x < Math.min(highlightStartX, highlightEndX) ||
+          x > Math.max(highlightStartX, highlightEndX) ||
+          y < Math.min(highlightStartY, highlightEndY) ||
+          y > Math.max(highlightStartY, highlightEndY)
+        ) {
+          dispatch(setSelectedShapes([]));
+          setHighlightStartX(0);
+          setHighlightStartY(0);
+          setHighlightEndX(0);
+          setHighlightEndY(0);
+          actionsDispatch(setHighlighting(false));
+        }
+
+        if (
+          x > Math.min(highlightStartX, highlightEndX) &&
+          x < Math.max(highlightStartX, highlightEndX) &&
+          y > Math.min(highlightStartY, highlightEndY) &&
+          y < Math.max(highlightStartY, highlightEndY)
+        ) {
+          setPrevMouseX(x);
+          setPrevMouseY(y);
+          setDragOffset({ x: 0, y: 0 });
+          dispatch(setSelectedShapes(selectedShapes));
+          actionsDispatch(setDragging(true));
+          actionsDispatch(setMoving(true));
+          return;
+        }
+      } else if (selected !== -1) {
         selected = shapes.length - 1 - selected;
-        const shape = shapes[selected];
+
         // Calculate the offset between the cursor and the top-left corner of the shape
-        const offsetX = x - Math.min(shape.x1, shape.x2);
-        const offsetY = y - Math.min(shape.y1, shape.y2);
-        setDragOffset({ x: offsetX, y: offsetY });
+
+        setPrevMouseX(x);
+        setPrevMouseY(y);
+
+        setDragOffset({ x: 0, y: 0 });
         actionsDispatch(setDragging(true));
         dispatch(setSelectedShapes([selected]));
         actionsDispatch(setMoving(true));
@@ -343,22 +380,42 @@ const WhiteBoard = () => {
             window.y1;
 
           if (dragOffset) {
-            const shape = shapes[selectedShapes[0]];
-            const width = Math.abs(shape.x2 - shape.x1);
-            const height = Math.abs(shape.y2 - shape.y1);
-
-            const updatedShape: Shape = {
-              ...shape,
-              x1: x - dragOffset.x,
-              y1: y - dragOffset.y,
-              x2: x - dragOffset.x + width,
-              y2: y - dragOffset.y + height,
-              width,
-              height,
-            };
-            dispatch(
-              updateShape({ index: selectedShapes[0], update: updatedShape })
+            const selectedShapesArray = shapes.filter(
+              (shape: Shape, index: number) => {
+                return selectedShapes.includes(index);
+              }
             );
+
+            selectedShapesArray.forEach((shape: Shape, index: number) => {
+              const width = Math.abs(shape.x2 - shape.x1);
+              const height = Math.abs(shape.y2 - shape.y1);
+              const x1 = Math.min(shape.x1, shape.x2);
+              const y1 = Math.min(shape.y1, shape.y2);
+              const x2 = Math.max(shape.x1, shape.x2);
+              const y2 = Math.max(shape.y1, shape.y2);
+
+              const updatedShape: Shape = {
+                ...shape,
+                x1: x1 + x - prevMouseX,
+                y1: y1 + y - prevMouseY,
+                x2: x2 + x - prevMouseX,
+                y2: y2 + y - prevMouseY,
+                width,
+                height,
+              };
+              // setHighlightStartX(highlightStartX + x - prevMouseX);
+              // setHighlightStartY(highlightStartY + y - prevMouseY);
+              // setHighlightEndX(highlightEndX + x - prevMouseX);
+              // setHighlightEndY(highlightEndY + y - prevMouseY);
+              dispatch(
+                updateShape({
+                  index: selectedShapes[index],
+                  update: updatedShape,
+                })
+              );
+            });
+            setPrevMouseX(x);
+            setPrevMouseY(y);
           }
         }
 
@@ -447,7 +504,6 @@ const WhiteBoard = () => {
     actionsDispatch(setSelectedTool("pointer"));
     actionsDispatch(setHighlighting(false));
     actionsDispatch(setMoving(false));
-    console.log(selectedShapes);
   };
 
   const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
@@ -578,10 +634,7 @@ const WhiteBoard = () => {
     if (selectedShapes.length > 0) {
       const shapesCopy = [...selectedShapes];
       const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
-      console.log("selected");
-      console.log(selectedShapes);
-      console.log(newShapes);
-      console.log(newShapes);
+
       newShapes.forEach((index: number) => {
         dispatch(removeShape(index));
       });
@@ -620,15 +673,6 @@ const WhiteBoard = () => {
   // Copy function
 
   // Paste function
-  const pasteShapes = () => {
-    navigator.clipboard.readText().then((copiedData) => {
-      const pastedShapes = JSON.parse(copiedData);
-
-      pastedShapes.forEach((shape: Shape) => {
-        dispatch(addShape(shape));
-      });
-    });
-  };
 
   return (
     <div
