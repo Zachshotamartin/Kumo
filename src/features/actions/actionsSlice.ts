@@ -7,6 +7,7 @@ interface ActionsState {
   doubleClicking: boolean;
   highlighting: boolean;
   moving: boolean;
+  pasting: boolean;
 }
 
 const initialState: ActionsState = {
@@ -15,6 +16,7 @@ const initialState: ActionsState = {
   doubleClicking: false,
   highlighting: false,
   moving: false,
+  pasting: false,
 };
 
 const actionsSlice = createSlice({
@@ -61,9 +63,24 @@ const actionsSlice = createSlice({
         state.highlighting = true;
       }
     },
+    setPasting: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.pasting = false;
+      }
+      if (action.payload) {
+        state.pasting = true;
+      }
+    },
   },
 });
 
-export const { setDrawing, setDragging, setDoubleClicking, setMoving, setHighlighting } = actionsSlice.actions;
+export const {
+  setDrawing,
+  setDragging,
+  setDoubleClicking,
+  setMoving,
+  setHighlighting,
+  setPasting,
+} = actionsSlice.actions;
 
 export default actionsSlice.reducer;

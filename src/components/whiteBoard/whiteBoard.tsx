@@ -37,6 +37,7 @@ import {
   setDoubleClicking,
   setMoving,
   setHighlighting,
+  setPasting,
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
@@ -64,11 +65,14 @@ const WhiteBoard = () => {
   );
   const moving = useSelector((state: any) => state.actions.moving);
   const highlighting = useSelector((state: any) => state.actions.highlighting);
+  const pasting = useSelector((state: any) => state.actions.pasting);
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
   const [highlightStartX, setHighlightStartX] = useState(0);
   const [highlightStartY, setHighlightStartY] = useState(0);
   const [highlightEndX, setHighlightEndX] = useState(0);
   const [highlightEndY, setHighlightEndY] = useState(0);
+  const [copiedShapes, setCopiedShapes] = useState<Shape[]>([]);
+  let currentPasteAction: any = null;
 
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
     null
@@ -152,6 +156,55 @@ const WhiteBoard = () => {
       return () => unsubscribe();
     }
   }, [board, user?.uid, usersCollectionRef]);
+
+  useEffect(() => {
+    let debounceTimeoutCopy: any;
+    let debounceTimeoutPaste: any;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      console.log(selectedShapes);
+      if (event.metaKey && event.key === "c") {
+        const copyShapes = () => {
+          const copiedData = selectedShapes.map((index: number) => {
+            return shapes[index];
+          });
+          navigator.clipboard.writeText(JSON.stringify(copiedData));
+        };
+        // Debounced copy function
+        if (debounceTimeoutCopy) return; // Ignore if already debounced for copy
+        debounceTimeoutCopy = setTimeout(
+          () => (debounceTimeoutCopy = null),
+          300
+        ); // Reset after 300ms
+
+        event.preventDefault();
+        copyShapes();
+        console.log(selectedShapes);
+        console.log("copied to clipboard");
+        console.log(copiedShapes);
+      } else if (event.metaKey && event.key === "b") {
+        // Debounced paste function
+        if (debounceTimeoutPaste) return; // Ignore if already debounced for paste
+        debounceTimeoutPaste = setTimeout(
+          () => (debounceTimeoutPaste = null),
+          300
+        ); // Reset after 300ms
+
+        event.preventDefault();
+        actionsDispatch(setPasting(true));
+        pasteShapes();
+        console.log("pasted from clipboard");
+      }
+    };
+
+    // Add event listener
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Cleanup function to remove event listener when the component unmounts
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedShapes]);
 
   const handleToolSwitch = (newTool: string) => {
     actionsDispatch(setDrawing(false));
@@ -375,23 +428,26 @@ const WhiteBoard = () => {
         }
       }, 0);
     }
-    const lastShape = shapes[shapes.length - 1];
-    const x2 = lastShape.x2;
-    const y2 = lastShape.y2;
-    const updatedShape: Shape = {
-      ...lastShape,
-      x2: lastShape.x2 > lastShape.x1 ? x2 : lastShape.x1,
-      y2: lastShape.y2 > lastShape.y1 ? y2 : lastShape.y1,
-      x1: x2 > lastShape.x1 ? lastShape.x1 : x2,
-      y1: y2 > lastShape.y1 ? lastShape.y1 : y2,
-      width: Math.abs(x2 - lastShape.x1),
-      height: Math.abs(y2 - lastShape.y1),
-      rotation: 0,
-    };
-    dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
+    if (shapes.length > 0) {
+      const lastShape = shapes[shapes.length - 1];
+      const x2 = lastShape?.x2;
+      const y2 = lastShape?.y2;
+      const updatedShape: Shape = {
+        ...lastShape,
+        x2: lastShape?.x2 > lastShape?.x1 ? x2 : lastShape?.x1,
+        y2: lastShape?.y2 > lastShape?.y1 ? y2 : lastShape?.y1,
+        x1: x2 > lastShape?.x1 ? lastShape?.x1 : x2,
+        y1: y2 > lastShape?.y1 ? lastShape?.y1 : y2,
+        width: Math.abs(x2 - lastShape?.x1),
+        height: Math.abs(y2 - lastShape?.y1),
+        rotation: 0,
+      };
+      dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
+    }
     actionsDispatch(setSelectedTool("pointer"));
     actionsDispatch(setHighlighting(false));
     actionsDispatch(setMoving(false));
+    console.log(selectedShapes);
   };
 
   const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
@@ -552,6 +608,21 @@ const WhiteBoard = () => {
     return Math.ceil(height / lineHeight) + endingCharacter;
   };
 
+  // Add event listeners for copy and paste
+
+  // Copy function
+
+  // Paste function
+  const pasteShapes = () => {
+    navigator.clipboard.readText().then((copiedData) => {
+      const pastedShapes = JSON.parse(copiedData);
+
+      pastedShapes.forEach((shape: Shape) => {
+        dispatch(addShape(shape));
+      });
+    });
+  };
+
   return (
     <div
       ref={canvasRef}
@@ -577,11 +648,13 @@ const WhiteBoard = () => {
             // position
             top: `${
               ((shape.y1 > shape.y2 ? shape.y2 : shape.y1) - window.y1) /
-              window.percentZoomed
+                window.percentZoomed -
+              (selectedShapes.includes(index) ? 1 : 0)
             }px`,
             left: `${
               ((shape.x1 > shape.x2 ? shape.x2 : shape.x1) - window.x1) /
-              window.percentZoomed
+                window.percentZoomed -
+              (selectedShapes.includes(index) ? 1 : 0)
             }px`,
 
             // dimension
