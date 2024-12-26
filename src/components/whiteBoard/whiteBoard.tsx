@@ -1,6 +1,6 @@
 // whiteBoard.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { throttle, debounce, set } from "lodash";
+import { throttle, debounce } from "lodash";
 
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
@@ -71,6 +71,10 @@ const WhiteBoard = () => {
   const [highlightStartY, setHighlightStartY] = useState(0);
   const [highlightEndX, setHighlightEndX] = useState(0);
   const [highlightEndY, setHighlightEndY] = useState(0);
+  const [borderStartX, setBorderStartX] = useState(0);
+  const [borderStartY, setBorderStartY] = useState(0);
+  const [borderEndX, setBorderEndX] = useState(0);
+  const [borderEndY, setBorderEndY] = useState(0);
   const [copiedShapes, setCopiedShapes] = useState<Shape[]>([]);
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
@@ -84,6 +88,39 @@ const WhiteBoard = () => {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const usersCollectionRef = collection(db, "users");
+
+  useEffect(() => {
+    const selectedShapesArray = shapes.filter((shape: Shape, index: number) => {
+      return selectedShapes.includes(index);
+    });
+
+    const x1Values = selectedShapesArray.map((shape: Shape) => shape.x1);
+    const x2Values = selectedShapesArray.map((shape: Shape) => shape.x2);
+    const y1Values = selectedShapesArray.map((shape: Shape) => shape.y1);
+    const y2Values = selectedShapesArray.map((shape: Shape) => shape.y2);
+    console.log(x1Values);
+    console.log(x2Values);
+    console.log(y1Values);
+    console.log(y2Values);
+    if (x1Values.length < 1) return;
+    const leftX = x1Values.reduce((min: number, value: number) =>
+      Math.min(min, value)
+    );
+    const rightX = x2Values.reduce((max: number, value: number) =>
+      Math.max(max, value)
+    );
+    const topY = y1Values.reduce((min: number, value: number) =>
+      Math.min(min, value)
+    );
+    const bottomY = y2Values.reduce((max: number, value: number) =>
+      Math.max(max, value)
+    );
+    console.log(leftX, rightX, topY, bottomY);
+    setBorderStartX(leftX);
+    setBorderStartY(topY);
+    setBorderEndX(rightX);
+    setBorderEndY(bottomY);
+  }, [selectedShapes, shapes]);
 
   useEffect(() => {
     if (drawing || dragging || doubleClicking) {
@@ -430,6 +467,38 @@ const WhiteBoard = () => {
 
           setHighlightEndX(x);
           setHighlightEndY(y);
+          const selectedShapesArray = shapes.filter(
+            (shape: Shape, index: number) => {
+              return selectedShapes.includes(index);
+            }
+          );
+
+          const x1Values = selectedShapesArray.map((shape: Shape) => shape.x1);
+          const x2Values = selectedShapesArray.map((shape: Shape) => shape.x2);
+          const y1Values = selectedShapesArray.map((shape: Shape) => shape.y1);
+          const y2Values = selectedShapesArray.map((shape: Shape) => shape.y2);
+          console.log(x1Values);
+          console.log(x2Values);
+          console.log(y1Values);
+          console.log(y2Values);
+          if (x1Values.length < 1) return;
+          const leftX = x1Values.reduce((min: number, value: number) =>
+            Math.min(min, value)
+          );
+          const rightX = x2Values.reduce((max: number, value: number) =>
+            Math.max(max, value)
+          );
+          const topY = y1Values.reduce((min: number, value: number) =>
+            Math.min(min, value)
+          );
+          const bottomY = y2Values.reduce((max: number, value: number) =>
+            Math.max(max, value)
+          );
+          console.log(leftX, rightX, topY, bottomY);
+          setBorderStartX(leftX);
+          setBorderStartY(topY);
+          setBorderEndX(rightX);
+          setBorderEndY(bottomY);
         }
 
         if (drawing) {
@@ -824,6 +893,26 @@ const WhiteBoard = () => {
             border: "2px solid blue",
             zIndex: 51,
           }}
+        ></div>
+      )}
+      {selectedShapes.length > 1 && (
+        <div
+          /*************  ✨ Codeium Command 🌟  *************/
+          style={{
+            position: "absolute",
+            top: `${(borderStartY - window.y1) / window.percentZoomed}px`,
+            left: `${(borderStartX - window.x1) / window.percentZoomed}px`,
+            width: `${
+              Math.abs(borderStartX - borderEndX) / window.percentZoomed
+            }px`,
+            height: `${
+              Math.abs(borderStartY - borderEndY) / window.percentZoomed
+            }px`,
+
+            border: "2px solid blue",
+            zIndex: 51,
+          }}
+          /******  b9671d67-e39e-4571-9258-e56805436483  *******/
         ></div>
       )}
       <div className={styles.tools}>
