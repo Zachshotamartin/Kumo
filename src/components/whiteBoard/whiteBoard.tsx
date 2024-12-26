@@ -66,7 +66,6 @@ const WhiteBoard = () => {
   const [borderStartY, setBorderStartY] = useState(0);
   const [borderEndX, setBorderEndX] = useState(0);
   const [borderEndY, setBorderEndY] = useState(0);
-  const [copiedShapes, setCopiedShapes] = useState<Shape[]>([]);
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
 
@@ -686,12 +685,6 @@ const WhiteBoard = () => {
     const endingCharacter = text.endsWith("\n") ? 1 : 0;
     return Math.ceil(height / lineHeight) + endingCharacter;
   };
-
-  // Add event listeners for copy and paste
-
-  // Copy function
-
-  // Paste function
 
   return (
     <div
