@@ -10,11 +10,11 @@ import { useSelector } from "react-redux";
 import { login } from "./features/auth/authSlice";
 import MiddleLayer from "./components/middleLayer/middleLayer";
 function App() {
-  const user = useSelector((state: any) => state.auth.user);
+  const user = useSelector((state: any) => state.auth);
   const whiteBoard = useSelector((state: any) => state.whiteBoard);
   return (
     <div className="App">
-      {!user ? (
+      {!user?.isAuthenticated ? (
         <HomePage />
       ) : whiteBoard.id !== null ? (
         <WorkSpace />

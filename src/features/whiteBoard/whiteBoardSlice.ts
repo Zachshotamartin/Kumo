@@ -75,11 +75,12 @@ const whiteBoardSlice = createSlice({
       state,
       action: PayloadAction<Partial<WhiteBoardState>>
     ) => {
-      const { shapes, id, type, title } = action.payload;
+      const { shapes, id, type, title, uid } = action.payload;
       state.shapes = shapes || [];
       state.id = id || null;
       state.type = type || null;
       state.title = title || null;
+      state.uid = uid || null;
     },
     addShape: (state, action: PayloadAction<Shape>) => {
       state.shapes.push(action.payload);

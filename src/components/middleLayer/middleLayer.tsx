@@ -27,14 +27,14 @@ const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 const MiddleLayer = () => {
   const availableBoards = useSelector((state: any) => state.boards);
-  const user = useSelector((state: any) => state.auth.user);
+  const user = useSelector((state: any) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
   const [publicDropDown, setPublicDropDown] = useState(false);
   const [privateDropDown, setPrivateDropDown] = useState(false);
   const [sharedDropDown, setSharedDropDown] = useState(false);
 
   useEffect(() => {
-    if (user?.uid) {
+    if (user?.isAuthenticated) {
       const q = query(usersCollectionRef, where("uid", "==", user?.uid));
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         if (!querySnapshot.empty) {
@@ -68,6 +68,8 @@ const MiddleLayer = () => {
       if (!querySnapshot.empty) {
         const userDoc = querySnapshot.docs[0];
         const userData = userDoc.data();
+        console.log("hello");
+        console.log(user?.uid);
         await updateDoc(userDoc.ref, {
           [`${type}BoardsIds`]: [
             ...userData[`${type}BoardsIds`],
@@ -75,6 +77,7 @@ const MiddleLayer = () => {
               id: doc.id,
               title: data.title,
               uid: user?.uid,
+              type: data.type,
             },
           ],
         });
@@ -122,7 +125,7 @@ const MiddleLayer = () => {
         <button
           className={styles.createButton}
           onClick={() => {
-            createBoard("public");
+            createBoard("private");
           }}
         >
           <img className={styles.icon} src={plus} alt="Plus" />

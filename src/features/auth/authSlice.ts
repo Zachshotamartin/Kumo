@@ -2,15 +2,15 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface AuthState {
-  user: {
-    uid: string | null;
-    email: string | null;
-  } | null;
+  uid: string | null;
+  email: string | null;
+
   isAuthenticated: boolean;
 }
 
 const initialState: AuthState = {
-  user: null,
+  uid: null,
+  email: null,
   isAuthenticated: false,
 };
 
@@ -25,21 +25,18 @@ const authSlice = createSlice({
         email: string;
       }>
     ) {
-      state.user = action.payload;
+      state.email = action.payload.email;
+      state.uid = action.payload.uid;
       state.isAuthenticated = true;
     },
     logout(state) {
-      state.user = null;
+      state.email = null;
+      state.uid = null;
       state.isAuthenticated = false;
-    },
-    updateUser(state, action: PayloadAction<Partial<AuthState["user"]>>) {
-      if (state.user) {
-        state.user = { ...state.user, ...action.payload };
-      }
     },
   },
 });
 
-export const { login, logout, updateUser } = authSlice.actions;
+export const { login, logout } = authSlice.actions;
 
 export default authSlice.reducer;
