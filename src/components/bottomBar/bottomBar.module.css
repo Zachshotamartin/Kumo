@@ -1,0 +1,14 @@
+.icon {
+  height: 20px;
+  width: 20px;
+}
+
+.tools {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  z-index: 100;
+}

@@ -10,13 +10,6 @@ import {
   removeShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
-import image from "../../res/image.png";
-import text from "../../res/text.png";
-import pointer from "../../res/select.png";
-import remove from "../../res/delete.png";
-import calendar from "../../res/calendar.png";
-import rectangle from "../../res/rectangle.png";
-import recursive from "../../res/recursive.png";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 import { db } from "../../config/firebase";
 import {
@@ -41,9 +34,9 @@ import {
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
-  addSelectedShape,
   setSelectedTool,
 } from "../../features/selected/selectedSlice";
+import BottomBar from "../bottomBar/bottomBar";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -56,7 +49,6 @@ const WhiteBoard = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
-  const [focusedShape, setFocusedShape] = useState<number | null>(null);
   const user = useSelector((state: any) => state.user); // Add this line to get the user data from the Redux store
   const drawing = useSelector((state: any) => state.actions.drawing);
   const dragging = useSelector((state: any) => state.actions.dragging);
@@ -65,7 +57,6 @@ const WhiteBoard = () => {
   );
   const moving = useSelector((state: any) => state.actions.moving);
   const highlighting = useSelector((state: any) => state.actions.highlighting);
-  const pasting = useSelector((state: any) => state.actions.pasting);
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
   const [highlightStartX, setHighlightStartX] = useState(0);
   const [highlightStartY, setHighlightStartY] = useState(0);
@@ -78,8 +69,6 @@ const WhiteBoard = () => {
   const [copiedShapes, setCopiedShapes] = useState<Shape[]>([]);
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
-
-  let currentPasteAction: any = null;
 
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
     null
@@ -248,30 +237,6 @@ const WhiteBoard = () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [selectedShapes]);
-
-  const handleToolSwitch = (newTool: string) => {
-    actionsDispatch(setDrawing(false));
-    if (newTool !== "pointer") {
-      dispatch(setSelectedShapes([]));
-    }
-
-    actionsDispatch(setSelectedTool(newTool));
-    if (
-      newTool === "calendar" ||
-      newTool === "image" ||
-      newTool === "pointer"
-    ) {
-      actionsDispatch(setSelectedTool("pointer"));
-    }
-    if (newTool === "text") {
-      setFocusedShape(shapes.length - 1);
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-        }
-      }, 0);
-    }
-  };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -547,7 +512,6 @@ const WhiteBoard = () => {
     actionsDispatch(setDragging(false));
     setDragOffset(null);
     if (selectedTool === "text") {
-      setFocusedShape(shapes.length - 1);
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
@@ -644,7 +608,6 @@ const WhiteBoard = () => {
     if (!shapes[index].text) {
       dispatch(removeShape(index));
     }
-    setFocusedShape(null);
   };
 
   const handleInputChange = (
@@ -696,19 +659,6 @@ const WhiteBoard = () => {
         percentZoomed: window.percentZoomed,
       };
       dispatch(setWindow(newWindow));
-    }
-  };
-
-  const handleDelete = () => {
-    if (selectedShapes.length > 0) {
-      const shapesCopy = [...selectedShapes];
-      const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
-
-      newShapes.forEach((index: number) => {
-        dispatch(removeShape(index));
-      });
-      setSelectedShapes([]);
-      setFocusedShape(null);
     }
   };
 
@@ -897,7 +847,6 @@ const WhiteBoard = () => {
       )}
       {selectedShapes.length > 1 && (
         <div
-          /*************  ✨ Codeium Command 🌟  *************/
           style={{
             position: "absolute",
             top: `${(borderStartY - window.y1) / window.percentZoomed}px`,
@@ -912,67 +861,10 @@ const WhiteBoard = () => {
             border: "2px solid blue",
             zIndex: 51,
           }}
-          /******  b9671d67-e39e-4571-9258-e56805436483  *******/
         ></div>
       )}
-      <div className={styles.tools}>
-        <button
-          onClick={() => handleToolSwitch("pointer")}
-          style={{
-            backgroundColor: selectedTool === "pointer" ? "red" : "transparent",
-          }}
-        >
-          <img className={styles.icon} src={pointer} alt="" />
-        </button>
-        <button
-          onClick={() => handleToolSwitch("rectangle")}
-          style={{
-            backgroundColor:
-              selectedTool === "rectangle" ? "red" : "transparent",
-          }}
-        >
-          <img className={styles.icon} src={rectangle} alt="" />
-        </button>
-        <button
-          onClick={() => handleToolSwitch("text")}
-          style={{
-            backgroundColor: selectedTool === "text" ? "red" : "transparent",
-          }}
-        >
-          <img className={styles.icon} src={text} alt="" />
-        </button>
-        <button
-          onClick={handleDelete}
-          style={{ backgroundColor: "transparent" }}
-        >
-          <img className={styles.icon} src={remove} alt="" />
-        </button>
-        <button
-          onClick={() => handleToolSwitch("calendar")}
-          style={{
-            backgroundColor:
-              selectedTool === "calendar" ? "red" : "transparent",
-          }}
-        >
-          <img className={styles.icon} src={calendar} alt="" />
-        </button>
-        <button
-          onClick={() => handleToolSwitch("image")}
-          style={{
-            backgroundColor: selectedTool === "image" ? "red" : "transparent",
-          }}
-        >
-          <img className={styles.icon} src={image} alt="" />
-        </button>
-        <button
-          onClick={() => handleToolSwitch("board")}
-          style={{
-            backgroundColor: selectedTool === "board" ? "red" : "transparent",
-          }}
-        >
-          <img className={styles.icon} src={recursive} alt="" />
-        </button>
-      </div>
+
+      <BottomBar />
     </div>
   );
 };
