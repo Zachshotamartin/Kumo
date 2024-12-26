@@ -299,10 +299,10 @@ const WhiteBoard = () => {
         );
       if (selectedShapes.length > 1) {
         if (
-          x < Math.min(highlightStartX, highlightEndX) ||
-          x > Math.max(highlightStartX, highlightEndX) ||
-          y < Math.min(highlightStartY, highlightEndY) ||
-          y > Math.max(highlightStartY, highlightEndY)
+          x < Math.min(borderStartX, borderEndX) ||
+          x > Math.max(borderStartX, borderEndX) ||
+          y < Math.min(borderStartY, borderEndY) ||
+          y > Math.max(borderStartY, borderEndY)
         ) {
           dispatch(setSelectedShapes([]));
           setHighlightStartX(0);
@@ -313,10 +313,10 @@ const WhiteBoard = () => {
         }
 
         if (
-          x > Math.min(highlightStartX, highlightEndX) &&
-          x < Math.max(highlightStartX, highlightEndX) &&
-          y > Math.min(highlightStartY, highlightEndY) &&
-          y < Math.max(highlightStartY, highlightEndY)
+          x > Math.min(borderStartX, borderEndX) &&
+          x < Math.max(borderStartX, borderEndX) &&
+          y > Math.min(borderStartY, borderEndY) &&
+          y < Math.max(borderStartY, borderEndY)
         ) {
           setPrevMouseX(x);
           setPrevMouseY(y);
