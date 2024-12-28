@@ -8,6 +8,7 @@ interface ActionsState {
   highlighting: boolean;
   moving: boolean;
   pasting: boolean;
+  sharing: boolean;
 }
 
 const initialState: ActionsState = {
@@ -17,6 +18,7 @@ const initialState: ActionsState = {
   highlighting: false,
   moving: false,
   pasting: false,
+  sharing: false,
 };
 
 const actionsSlice = createSlice({
@@ -71,6 +73,14 @@ const actionsSlice = createSlice({
         state.pasting = true;
       }
     },
+    setSharing: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.sharing = false;
+      }
+      if (action.payload) {
+        state.sharing = true;
+      }
+    },
   },
 });
 
@@ -81,6 +91,7 @@ export const {
   setMoving,
   setHighlighting,
   setPasting,
+  setSharing,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

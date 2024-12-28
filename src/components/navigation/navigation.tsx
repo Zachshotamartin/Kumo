@@ -22,11 +22,15 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import Share from "../share/share";
 import { db } from "../../config/firebase";
+import { setSharing } from "../../features/actions/actionsSlice";
+
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 
 const Navigation = () => {
+  const sharing = useSelector((state: any) => state.actions.sharing);
   const user = useSelector((state: any) => state.auth.user);
   const Username = user?.email;
   const dispatch = useDispatch();
@@ -78,6 +82,36 @@ const Navigation = () => {
     }
   };
 
+  // const handleShare = async () => {
+  //   const boardRef = doc(boardsCollectionRef, whiteboard.id);
+  //   await updateDoc(boardRef, {
+  //     ...whiteboard,
+  //     type: "shared",
+  //   });
+  //   const q = query(usersCollectionRef, where("uid", "==", whiteboard.uid));
+  //   const querySnapshot = await getDocs(q);
+  //   if (!querySnapshot.empty) {
+  //     const userDoc = querySnapshot.docs[0];
+  //     const userData = userDoc.data();
+  //     await updateDoc(userDoc.ref, {
+  //       sharedBoardsIds: [
+  //         ...userData.sharedBoardsIds,
+  //         {
+  //           id: whiteboard.id,
+  //           title: whiteboard.title,
+  //           uid: whiteboard.uid,
+  //           type: "shared",
+  //         },
+  //       ],
+  //     });
+  //     await updateDoc(userDoc.ref, {
+  //       privateBoardsIds: userData.privateBoardsIds.filter(
+  //         (board: any) => board.id !== whiteboard.id
+  //       ),
+  //     });
+  //   }
+  // };
+
   return (
     <div className={styles.navigation}>
       <NavElement image={logo} text="Kumo" />
@@ -114,6 +148,13 @@ const Navigation = () => {
       <button className={styles.hide} onClick={handleMakePublic}>
         Make Public
       </button>
+      <button
+        className={styles.hide}
+        onClick={() => dispatch(setSharing(true))}
+      >
+        Share
+      </button>
+      
     </div>
   );
 };
