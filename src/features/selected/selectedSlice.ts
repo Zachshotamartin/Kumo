@@ -7,8 +7,10 @@ interface SelectedState {
   selectedTool: string;
   highlightStart: number[];
   highlightEnd: number[];
-  borderStart: number[];
-  borderEnd: number[];
+  borderStartX: number;
+  borderStartY: number;
+  borderEndX: number;
+  borderEndY: number;
 }
 
 const initialState: SelectedState = {
@@ -16,8 +18,10 @@ const initialState: SelectedState = {
   selectedTool: "pointer",
   highlightStart: [0, 0],
   highlightEnd: [0, 0],
-  borderStart: [0, 0],
-  borderEnd: [0, 0],
+  borderStartX: 0,
+  borderStartY: 0,
+  borderEndX: 0,
+  borderEndY: 0,
 };
 
 const selectedSlice = createSlice({
@@ -35,8 +39,10 @@ const selectedSlice = createSlice({
     },
     clearSelectedShapes: (state) => {
       state.selectedShapes = [];
-      state.borderStart = [0, 0];
-      state.borderEnd = [0, 0];
+      state.borderStartX = 0;
+      state.borderStartY = 0;
+      state.borderEndX = 0;
+      state.borderEndY = 0;
     },
     setHighlightStart: (state, action: PayloadAction<number[]>) => {
       state.highlightStart = action.payload;
@@ -44,16 +50,32 @@ const selectedSlice = createSlice({
     setHighlightEnd: (state, action: PayloadAction<number[]>) => {
       state.highlightEnd = action.payload;
     },
-    setBorderStart: (state, action: PayloadAction<number[]>) => {
-      state.borderStart = action.payload;
+    setBorderStartX: (state, action: PayloadAction<number>) => {
+      state.borderStartX = action.payload;
     },
-    setBorderEnd: (state, action: PayloadAction<number[]>) => {
-      state.borderEnd = action.payload;
+    setBorderStartY: (state, action: PayloadAction<number>) => {
+      state.borderStartY = action.payload;
+    },
+    setBorderEndX: (state, action: PayloadAction<number>) => {
+      state.borderEndX = action.payload;
+    },
+    setBorderEndY: (state, action: PayloadAction<number>) => {
+      state.borderEndY = action.payload;
     },
   },
 });
 
-export const { setSelectedShapes, setSelectedTool, addSelectedShape, clearSelectedShapes, setHighlightStart, setHighlightEnd, setBorderStart, setBorderEnd } =
-  selectedSlice.actions;
+export const {
+  setSelectedShapes,
+  setSelectedTool,
+  addSelectedShape,
+  clearSelectedShapes,
+  setHighlightStart,
+  setHighlightEnd,
+  setBorderStartX,
+  setBorderEndX,
+  setBorderStartY,
+  setBorderEndY,
+} = selectedSlice.actions;
 
 export default selectedSlice.reducer;

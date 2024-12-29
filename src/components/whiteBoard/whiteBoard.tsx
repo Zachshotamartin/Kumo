@@ -38,8 +38,10 @@ import {
   clearSelectedShapes,
   setHighlightStart,
   setHighlightEnd,
-  setBorderStart,
-  setBorderEnd,
+  setBorderStartX,
+  setBorderEndX,
+  setBorderStartY,
+  setBorderEndY,
 } from "../../features/selected/selectedSlice";
 import BottomBar from "../bottomBar/bottomBar";
 import RenderBoxes from "../renderComponents/renderBoxes";
@@ -67,26 +69,11 @@ const WhiteBoard = () => {
   );
   const moving = useSelector((state: any) => state.actions.moving);
   const highlighting = useSelector((state: any) => state.actions.highlighting);
-  const highlightStartX = useSelector(
-    (state: any) => state.selected.highlightStart[0]
-  );
-  const highlightStartY = useSelector(
-    (state: any) => state.selected.highlightStart[1]
-  );
-  const highlightEndX = useSelector(
-    (state: any) => state.selected.highlightEnd[0]
-  );
-  const highlightEndY = useSelector(
-    (state: any) => state.selected.highlightEnd[1]
-  );
-  const borderStartX = useSelector(
-    (state: any) => state.selected.borderStart[0]
-  );
-  const borderStartY = useSelector(
-    (state: any) => state.selected.borderStart[1]
-  );
-  const borderEndX = useSelector((state: any) => state.selected.borderEnd[0]);
-  const borderEndY = useSelector((state: any) => state.selected.borderEnd[1]);
+
+  const borderStartX = useSelector((state: any) => state.selected.borderStartX);
+  const borderStartY = useSelector((state: any) => state.selected.borderStartY);
+  const borderEndX = useSelector((state: any) => state.selected.borderEndX);
+  const borderEndY = useSelector((state: any) => state.selected.borderEndY);
 
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
 
@@ -100,34 +87,6 @@ const WhiteBoard = () => {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const usersCollectionRef = collection(db, "users");
-
-  useEffect(() => {
-    const selectedShapesArray = shapes.filter((shape: Shape, index: number) => {
-      return selectedShapes.includes(index);
-    });
-
-    const x1Values = selectedShapesArray.map((shape: Shape) => shape.x1);
-    const x2Values = selectedShapesArray.map((shape: Shape) => shape.x2);
-    const y1Values = selectedShapesArray.map((shape: Shape) => shape.y1);
-    const y2Values = selectedShapesArray.map((shape: Shape) => shape.y2);
-
-    if (x1Values.length < 1) return;
-    const leftX = x1Values.reduce((min: number, value: number) =>
-      Math.min(min, value)
-    );
-    const rightX = x2Values.reduce((max: number, value: number) =>
-      Math.max(max, value)
-    );
-    const topY = y1Values.reduce((min: number, value: number) =>
-      Math.min(min, value)
-    );
-    const bottomY = y2Values.reduce((max: number, value: number) =>
-      Math.max(max, value)
-    );
-
-    dispatch(setBorderEnd([leftX, topY]));
-    dispatch(setBorderStart([rightX, bottomY]));
-  }, [selectedShapes, shapes]);
 
   useEffect(() => {
     if (drawing || dragging || doubleClicking) {
@@ -161,30 +120,6 @@ const WhiteBoard = () => {
     dragging,
     doubleClicking,
   ]);
-
-  useEffect(() => {
-    // search the shapes array to find all the shapes that intersect this bounding box
-    const minx = Math.min(highlightStartX, highlightEndX);
-    const maxx = Math.max(highlightStartX, highlightEndX);
-    const miny = Math.min(highlightStartY, highlightEndY);
-    const maxy = Math.max(highlightStartY, highlightEndY);
-    /*************  ✨ Codeium Command 🌟  *************/
-    const intersectingShapeIndices = shapes.reduce(
-      (indices: number[], shape: Shape, index: number) => {
-        if (
-          shape.x1 < maxx &&
-          shape.x2 > minx &&
-          shape.y1 < maxy &&
-          shape.y2 > miny
-        ) {
-          indices.push(index);
-        }
-        return indices;
-      },
-      []
-    );
-    dispatch(setSelectedShapes(intersectingShapeIndices));
-  }, [highlightEndX, highlightEndY]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -280,7 +215,7 @@ const WhiteBoard = () => {
             y >= Math.min(shape.y1, shape.y2) &&
             y <= Math.max(shape.y1, shape.y2)
         );
-      if (selectedShapes.length > 1) {
+      if (selectedShapes.length > 0) {
         if (
           x < Math.min(borderStartX, borderEndX) ||
           x > Math.max(borderStartX, borderEndX) ||
@@ -445,33 +380,6 @@ const WhiteBoard = () => {
               return selectedShapes.includes(index);
             }
           );
-
-          const xValues = [
-            ...selectedShapesArray.map((shape: Shape) => shape.x1),
-            ...selectedShapesArray.map((shape: Shape) => shape.x2),
-          ];
-
-          const yValues = [
-            ...selectedShapesArray.map((shape: Shape) => shape.y1),
-            ...selectedShapesArray.map((shape: Shape) => shape.y2),
-          ];
-
-          if (xValues.length < 3) return;
-          const leftX = xValues.reduce((min: number, value: number) =>
-            Math.min(min, value)
-          );
-          const rightX = xValues.reduce((max: number, value: number) =>
-            Math.max(max, value)
-          );
-          const topY = yValues.reduce((min: number, value: number) =>
-            Math.min(min, value)
-          );
-          const bottomY = yValues.reduce((max: number, value: number) =>
-            Math.max(max, value)
-          );
-
-          dispatch(setBorderStart([leftX, topY]));
-          dispatch(setBorderEnd([rightX, bottomY]));
         }
 
         if (drawing) {
@@ -670,7 +578,7 @@ const WhiteBoard = () => {
       <RenderBoards />
 
       {dragging && highlighting && <RenderHighlighting />}
-      {selectedShapes.length > 1 && <RenderBorder />}
+      <RenderBorder />
 
       <BottomBar />
     </div>

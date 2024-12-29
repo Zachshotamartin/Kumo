@@ -22,13 +22,11 @@ const RenderBoxes = () => {
                 // position
                 top: `${
                   ((shape.y1 > shape.y2 ? shape.y2 : shape.y1) - window.y1) /
-                    window.percentZoomed -
-                  (selectedShapes.includes(index) ? 1 : 0)
+                  window.percentZoomed
                 }px`,
                 left: `${
                   ((shape.x1 > shape.x2 ? shape.x2 : shape.x1) - window.x1) /
-                    window.percentZoomed -
-                  (selectedShapes.includes(index) ? 1 : 0)
+                  window.percentZoomed
                 }px`,
 
                 // dimension
@@ -44,17 +42,11 @@ const RenderBoxes = () => {
                 borderRadius: `${shape.borderRadius}%`,
                 borderWidth: `${shape.borderWidth}px`,
                 borderStyle: `${shape.borderStyle}`,
-                border: selectedShapes.includes(index)
-                  ? "blue 1px solid"
-                  : `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
+                border: `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
 
                 // color styling
 
                 backgroundColor: "green",
-
-                borderColor: selectedShapes.includes(index)
-                  ? "blue"
-                  : shape.borderColor,
 
                 opacity: `${shape.opacity}`,
               }}

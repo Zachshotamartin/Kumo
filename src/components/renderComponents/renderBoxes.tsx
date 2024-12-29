@@ -48,8 +48,6 @@ const RenderBoards = () => {
 
                 backgroundColor: `${shape.backgroundColor}`,
 
-                borderColor: `${shape.borderColor}`,
-
                 opacity: `${shape.opacity}`,
               }}
             ></div>
