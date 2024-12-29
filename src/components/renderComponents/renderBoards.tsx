@@ -1,7 +1,7 @@
 import React from "react";
 import { useSelector } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
-const RenderBoards = () => {
+const RenderBoxes = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
@@ -11,7 +11,7 @@ const RenderBoards = () => {
     <>
       {shapes.map((shape: Shape, index: number) => (
         <>
-          {shape.type === "rectangle" && (
+          {shape.type === "board" && (
             <div
               key={index}
               style={{
@@ -22,11 +22,13 @@ const RenderBoards = () => {
                 // position
                 top: `${
                   ((shape.y1 > shape.y2 ? shape.y2 : shape.y1) - window.y1) /
-                  window.percentZoomed
+                    window.percentZoomed -
+                  (selectedShapes.includes(index) ? 1 : 0)
                 }px`,
                 left: `${
                   ((shape.x1 > shape.x2 ? shape.x2 : shape.x1) - window.x1) /
-                  window.percentZoomed
+                    window.percentZoomed -
+                  (selectedShapes.includes(index) ? 1 : 0)
                 }px`,
 
                 // dimension
@@ -42,13 +44,17 @@ const RenderBoards = () => {
                 borderRadius: `${shape.borderRadius}%`,
                 borderWidth: `${shape.borderWidth}px`,
                 borderStyle: `${shape.borderStyle}`,
-                border: `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
+                border: selectedShapes.includes(index)
+                  ? "blue 1px solid"
+                  : `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
 
                 // color styling
 
-                backgroundColor: `${shape.backgroundColor}`,
+                backgroundColor: "green",
 
-                borderColor: `${shape.borderColor}`,
+                borderColor: selectedShapes.includes(index)
+                  ? "blue"
+                  : shape.borderColor,
 
                 opacity: `${shape.opacity}`,
               }}
@@ -60,4 +66,4 @@ const RenderBoards = () => {
   );
 };
 
-export default RenderBoards;
+export default RenderBoxes;

@@ -34,10 +34,19 @@ import {
 import {
   setSelectedShapes,
   setSelectedTool,
+  addSelectedShape,
+  clearSelectedShapes,
+  setHighlightStart,
+  setHighlightEnd,
+  setBorderStart,
+  setBorderEnd,
 } from "../../features/selected/selectedSlice";
 import BottomBar from "../bottomBar/bottomBar";
 import RenderBoxes from "../renderComponents/renderBoxes";
 import RenderText from "../renderComponents/renderText";
+import RenderBoards from "../renderComponents/renderBoards";
+import RenderHighlighting from "../renderComponents/renderHighlighting";
+import RenderBorder from "../renderComponents/renderBorder";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -58,15 +67,29 @@ const WhiteBoard = () => {
   );
   const moving = useSelector((state: any) => state.actions.moving);
   const highlighting = useSelector((state: any) => state.actions.highlighting);
+  const highlightStartX = useSelector(
+    (state: any) => state.selected.highlightStart[0]
+  );
+  const highlightStartY = useSelector(
+    (state: any) => state.selected.highlightStart[1]
+  );
+  const highlightEndX = useSelector(
+    (state: any) => state.selected.highlightEnd[0]
+  );
+  const highlightEndY = useSelector(
+    (state: any) => state.selected.highlightEnd[1]
+  );
+  const borderStartX = useSelector(
+    (state: any) => state.selected.borderStart[0]
+  );
+  const borderStartY = useSelector(
+    (state: any) => state.selected.borderStart[1]
+  );
+  const borderEndX = useSelector((state: any) => state.selected.borderEnd[0]);
+  const borderEndY = useSelector((state: any) => state.selected.borderEnd[1]);
+
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
-  const [highlightStartX, setHighlightStartX] = useState(0);
-  const [highlightStartY, setHighlightStartY] = useState(0);
-  const [highlightEndX, setHighlightEndX] = useState(0);
-  const [highlightEndY, setHighlightEndY] = useState(0);
-  const [borderStartX, setBorderStartX] = useState(0);
-  const [borderStartY, setBorderStartY] = useState(0);
-  const [borderEndX, setBorderEndX] = useState(0);
-  const [borderEndY, setBorderEndY] = useState(0);
+
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
 
@@ -101,11 +124,9 @@ const WhiteBoard = () => {
     const bottomY = y2Values.reduce((max: number, value: number) =>
       Math.max(max, value)
     );
-    console.log(leftX, rightX, topY, bottomY);
-    setBorderStartX(leftX);
-    setBorderStartY(topY);
-    setBorderEndX(rightX);
-    setBorderEndY(bottomY);
+
+    dispatch(setBorderEnd([leftX, topY]));
+    dispatch(setBorderStart([rightX, bottomY]));
   }, [selectedShapes, shapes]);
 
   useEffect(() => {
@@ -266,11 +287,7 @@ const WhiteBoard = () => {
           y < Math.min(borderStartY, borderEndY) ||
           y > Math.max(borderStartY, borderEndY)
         ) {
-          dispatch(setSelectedShapes([]));
-          setHighlightStartX(0);
-          setHighlightStartY(0);
-          setHighlightEndX(0);
-          setHighlightEndY(0);
+          dispatch(clearSelectedShapes());
           actionsDispatch(setHighlighting(false));
         }
 
@@ -305,10 +322,8 @@ const WhiteBoard = () => {
         actionsDispatch(setDragging(true));
         actionsDispatch(setHighlighting(true));
 
-        setHighlightStartX(x);
-        setHighlightStartY(y);
-        setHighlightEndX(x);
-        setHighlightEndY(y);
+        dispatch(setHighlightStart([x, y]));
+        dispatch(setHighlightEnd([x, y]));
       }
       return;
     }
@@ -402,10 +417,7 @@ const WhiteBoard = () => {
                 width,
                 height,
               };
-              // setHighlightStartX(highlightStartX + x - prevMouseX);
-              // setHighlightStartY(highlightStartY + y - prevMouseY);
-              // setHighlightEndX(highlightEndX + x - prevMouseX);
-              // setHighlightEndY(highlightEndY + y - prevMouseY);
+
               dispatch(
                 updateShape({
                   index: selectedShapes[index],
@@ -427,40 +439,39 @@ const WhiteBoard = () => {
             (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
             window.y1;
 
-          setHighlightEndX(x);
-          setHighlightEndY(y);
+          dispatch(setHighlightEnd([x, y]));
           const selectedShapesArray = shapes.filter(
             (shape: Shape, index: number) => {
               return selectedShapes.includes(index);
             }
           );
 
-          const x1Values = selectedShapesArray.map((shape: Shape) => shape.x1);
-          const x2Values = selectedShapesArray.map((shape: Shape) => shape.x2);
-          const y1Values = selectedShapesArray.map((shape: Shape) => shape.y1);
-          const y2Values = selectedShapesArray.map((shape: Shape) => shape.y2);
-          console.log(x1Values);
-          console.log(x2Values);
-          console.log(y1Values);
-          console.log(y2Values);
-          if (x1Values.length < 1) return;
-          const leftX = x1Values.reduce((min: number, value: number) =>
+          const xValues = [
+            ...selectedShapesArray.map((shape: Shape) => shape.x1),
+            ...selectedShapesArray.map((shape: Shape) => shape.x2),
+          ];
+
+          const yValues = [
+            ...selectedShapesArray.map((shape: Shape) => shape.y1),
+            ...selectedShapesArray.map((shape: Shape) => shape.y2),
+          ];
+
+          if (xValues.length < 3) return;
+          const leftX = xValues.reduce((min: number, value: number) =>
             Math.min(min, value)
           );
-          const rightX = x2Values.reduce((max: number, value: number) =>
+          const rightX = xValues.reduce((max: number, value: number) =>
             Math.max(max, value)
           );
-          const topY = y1Values.reduce((min: number, value: number) =>
+          const topY = yValues.reduce((min: number, value: number) =>
             Math.min(min, value)
           );
-          const bottomY = y2Values.reduce((max: number, value: number) =>
+          const bottomY = yValues.reduce((max: number, value: number) =>
             Math.max(max, value)
           );
-          console.log(leftX, rightX, topY, bottomY);
-          setBorderStartX(leftX);
-          setBorderStartY(topY);
-          setBorderEndX(rightX);
-          setBorderEndY(bottomY);
+
+          dispatch(setBorderStart([leftX, topY]));
+          dispatch(setBorderEnd([rightX, bottomY]));
         }
 
         if (drawing) {
@@ -656,48 +667,10 @@ const WhiteBoard = () => {
     >
       <RenderBoxes />
       <RenderText />
+      <RenderBoards />
 
-      {dragging && highlighting && (
-        <div
-          style={{
-            position: "absolute",
-            top: `${
-              (Math.min(highlightStartY, highlightEndY) - window.y1) /
-              window.percentZoomed
-            }px`,
-            left: `${
-              (Math.min(highlightStartX, highlightEndX) - window.x1) /
-              window.percentZoomed
-            }px`,
-            width: `${
-              Math.abs(highlightEndX - highlightStartX) / window.percentZoomed
-            }px`,
-            height: `${
-              Math.abs(highlightEndY - highlightStartY) / window.percentZoomed
-            }px`,
-            border: "2px solid blue",
-            zIndex: 51,
-          }}
-        ></div>
-      )}
-      {selectedShapes.length > 1 && (
-        <div
-          style={{
-            position: "absolute",
-            top: `${(borderStartY - window.y1) / window.percentZoomed}px`,
-            left: `${(borderStartX - window.x1) / window.percentZoomed}px`,
-            width: `${
-              Math.abs(borderStartX - borderEndX) / window.percentZoomed
-            }px`,
-            height: `${
-              Math.abs(borderStartY - borderEndY) / window.percentZoomed
-            }px`,
-
-            border: "2px solid blue",
-            zIndex: 51,
-          }}
-        ></div>
-      )}
+      {dragging && highlighting && <RenderHighlighting />}
+      {selectedShapes.length > 1 && <RenderBorder />}
 
       <BottomBar />
     </div>

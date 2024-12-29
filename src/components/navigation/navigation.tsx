@@ -154,7 +154,6 @@ const Navigation = () => {
       >
         Share
       </button>
-      
     </div>
   );
 };
