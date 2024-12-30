@@ -49,6 +49,7 @@ import RenderText from "../renderComponents/renderText";
 import RenderBoards from "../renderComponents/renderBoards";
 import RenderHighlighting from "../renderComponents/renderHighlighting";
 import RenderBorder from "../renderComponents/renderBorder";
+import RenderGridLines from "../renderComponents/renderGridLines";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -534,19 +535,41 @@ const WhiteBoard = () => {
       const cursorY =
         (event.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
         window.y1;
-
-      const newWindow: WindowState = {
-        x1: cursorX - (cursorX - window.x1) * zoomFactor,
-        y1: cursorY - (cursorY - window.y1) * zoomFactor,
-        x2: cursorX + (window.x2 - cursorX) * zoomFactor,
-        y2: cursorY + (window.y2 - cursorY) * zoomFactor,
-        percentZoomed: window.percentZoomed * zoomFactor,
-      };
-      dispatch(setWindow(newWindow));
+      if (
+        window.percentZoomed * zoomFactor < 2 &&
+        window.percentZoomed * zoomFactor > 0.2
+      ) {
+        const newWindow: WindowState = {
+          x1: cursorX - (cursorX - window.x1) * zoomFactor,
+          y1: cursorY - (cursorY - window.y1) * zoomFactor,
+          x2: cursorX + (window.x2 - cursorX) * zoomFactor,
+          y2: cursorY + (window.y2 - cursorY) * zoomFactor,
+          percentZoomed: window.percentZoomed * zoomFactor,
+        };
+        dispatch(setWindow(newWindow));
+      } else if (window.percentZoomed * zoomFactor > 2) {
+        const newWindow: WindowState = {
+          x1: cursorX - (cursorX - window.x1),
+          y1: cursorY - (cursorY - window.y1),
+          x2: cursorX + (window.x2 - cursorX),
+          y2: cursorY + (window.y2 - cursorY),
+          percentZoomed: window.percentZoomed,
+        };
+        dispatch(setWindow(newWindow));
+      } else {
+        const newWindow: WindowState = {
+          x1: cursorX - (cursorX - window.x1),
+          y1: cursorY - (cursorY - window.y1),
+          x2: cursorX + (window.x2 - cursorX),
+          y2: cursorY + (window.y2 - cursorY),
+          percentZoomed: window.percentZoomed,
+        };
+        dispatch(setWindow(newWindow));
+      }
     } else {
       // Pan logic
-      const deltaX = event.deltaX;
-      const deltaY = event.deltaY;
+      const deltaX = event.deltaX * window.percentZoomed;
+      const deltaY = event.deltaY * window.percentZoomed;
 
       const newWindow: WindowState = {
         x1: window.x1 + deltaX,
@@ -573,6 +596,7 @@ const WhiteBoard = () => {
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
     >
+      <RenderGridLines />
       <RenderBoxes />
       <RenderText />
       <RenderBoards />

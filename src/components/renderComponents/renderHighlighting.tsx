@@ -28,7 +28,6 @@ const RenderHighlighting = () => {
     const maxx = Math.max(highlightStartX, highlightEndX);
     const miny = Math.min(highlightStartY, highlightEndY);
     const maxy = Math.max(highlightStartY, highlightEndY);
-    /*************  ✨ Codeium Command 🌟  *************/
     const intersectingShapeIndices = shapes.reduce(
       (indices: number[], shape: Shape, index: number) => {
         if (
