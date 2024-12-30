@@ -58,7 +58,8 @@ const WhiteBoard = () => {
     (state: any) => state.selected.selectedShapes
   );
   const selectedTool = useSelector((state: any) => state.selected.selectedTool);
-
+  const [snap, setSnap] = useState(false);
+  const [distance, setDistance] = useState(0);
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
@@ -192,6 +193,57 @@ const WhiteBoard = () => {
     };
   }, [selectedShapes]);
 
+  const CheckCollision = () => {
+    let collision = false;
+
+    shapes.forEach((shape: Shape, index: number) => {
+      if (!selectedShapes.includes(index)) {
+        if (
+          shape.x1 === borderStartX ||
+          shape.x1 === borderEndX ||
+          shape.x2 === borderStartX ||
+          shape.x2 === borderEndX ||
+          shape.y1 === borderStartY ||
+          shape.y1 === borderEndY ||
+          shape.y2 === borderStartY ||
+          shape.y2 === borderEndY
+        ) {
+          collision = true;
+          return collision;
+        }
+      }
+    });
+    return collision;
+  };
+
+  const nearestEdge = () => {
+    let minDistance = Infinity;
+    let closestEdge = "";
+
+    shapes.forEach((shape: Shape, index: number) => {
+      if (!selectedShapes.includes(index)) {
+        const distances = {
+          x1Start: shape.x1 - borderStartX,
+          x1End: shape.x1 - borderEndX,
+          x2Start: shape.x2 - borderStartX,
+          x2End: shape.x2 - borderEndX,
+          y1Start: shape.y1 - borderStartY,
+          y1End: shape.y1 - borderEndY,
+          y2Start: shape.y2 - borderStartY,
+          y2End: shape.y2 - borderEndY,
+        };
+
+        for (const [edge, distance] of Object.entries(distances)) {
+          if (Math.abs(distance) < Math.abs(minDistance)) {
+            minDistance = distance;
+            closestEdge = edge;
+          }
+        }
+      }
+    });
+    return { minDistance, closestEdge };
+  };
+
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest("button")) {
@@ -199,11 +251,12 @@ const WhiteBoard = () => {
     }
 
     const boundingRect = canvasRef.current?.getBoundingClientRect();
-    const x =
-      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-      window.x1;
-    const y =
-      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
+    const x = Math.round(
+      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed + window.x1
+    );
+    const y = Math.round(
+      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1
+    );
 
     if (selectedTool === "pointer") {
       let selected = shapes
@@ -322,36 +375,51 @@ const WhiteBoard = () => {
       debounce((e: React.MouseEvent<HTMLDivElement>) => {
         if (dragging && moving) {
           const boundingRect = canvasRef.current?.getBoundingClientRect();
-          const x =
+          const x = Math.round(
             (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-            window.x1;
-          const y =
+              window.x1
+          );
+          const y = Math.round(
             (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-            window.y1;
-
-          if (dragOffset) {
-            const selectedShapesArray = shapes.filter(
-              (shape: Shape, index: number) => {
-                return selectedShapes.includes(index);
-              }
-            );
+              window.y1
+          );
+          const selectedShapesArray = shapes.filter(
+            (shape: Shape, index: number) => {
+              return selectedShapes.includes(index);
+            }
+          );
+          if (CheckCollision()) {
+            setSnap(true);
+            const { minDistance, closestEdge } = nearestEdge();
+            console.log(minDistance, closestEdge);
+            console.log(borderStartX);
 
             selectedShapesArray.forEach((shape: Shape, index: number) => {
               const width = Math.abs(shape.x2 - shape.x1);
               const height = Math.abs(shape.y2 - shape.y1);
-              const x1 = Math.min(shape.x1, shape.x2);
-              const y1 = Math.min(shape.y1, shape.y2);
-              const x2 = Math.max(shape.x1, shape.x2);
-              const y2 = Math.max(shape.y1, shape.y2);
+
+              const x1 =
+                closestEdge === "x1Start" ||
+                closestEdge === "x2Start" ||
+                closestEdge === "x1End" ||
+                closestEdge === "x2End"
+                  ? shape.x1 + minDistance - 2
+                  : shape.x1;
+
+              const y1 =
+                closestEdge === "y1Start" ||
+                closestEdge === "y2Start" ||
+                closestEdge === "y1End" ||
+                closestEdge === "y2End"
+                  ? shape.y1 + minDistance - 2
+                  : shape.y1;
 
               const updatedShape: Shape = {
                 ...shape,
-                x1: x1 + x - prevMouseX,
-                y1: y1 + y - prevMouseY,
-                x2: x2 + x - prevMouseX,
-                y2: y2 + y - prevMouseY,
-                width,
-                height,
+                x1: x1,
+                y1: y1,
+                x2: x1 + width,
+                y2: y1 + height,
               };
 
               dispatch(
@@ -361,9 +429,45 @@ const WhiteBoard = () => {
                 })
               );
             });
-            setPrevMouseX(x);
-            setPrevMouseY(y);
           }
+          if (snap) {
+            const distance =
+              Math.abs(x - prevMouseX) + Math.abs(y - prevMouseY);
+            if (distance > 10) {
+              // adjust this value to your liking
+              setSnap(false);
+            }
+          } else {
+            if (dragOffset) {
+              selectedShapesArray.forEach((shape: Shape, index: number) => {
+                const width = Math.abs(shape.x2 - shape.x1);
+                const height = Math.abs(shape.y2 - shape.y1);
+                const x1 = Math.min(shape.x1, shape.x2);
+                const y1 = Math.min(shape.y1, shape.y2);
+                const x2 = Math.max(shape.x1, shape.x2);
+                const y2 = Math.max(shape.y1, shape.y2);
+
+                const updatedShape: Shape = {
+                  ...shape,
+                  x1: x1 + x - prevMouseX,
+                  y1: y1 + y - prevMouseY,
+                  x2: x2 + x - prevMouseX,
+                  y2: y2 + y - prevMouseY,
+                  width,
+                  height,
+                };
+
+                dispatch(
+                  updateShape({
+                    index: selectedShapes[index],
+                    update: updatedShape,
+                  })
+                );
+              });
+            }
+          }
+          setPrevMouseX(x);
+          setPrevMouseY(y);
         }
 
         if (dragging && highlighting) {
@@ -376,21 +480,18 @@ const WhiteBoard = () => {
             window.y1;
 
           dispatch(setHighlightEnd([x, y]));
-          const selectedShapesArray = shapes.filter(
-            (shape: Shape, index: number) => {
-              return selectedShapes.includes(index);
-            }
-          );
         }
 
         if (drawing) {
           const boundingRect = canvasRef.current?.getBoundingClientRect();
-          const x =
+          const x = Math.round(
             (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-            window.x1;
-          const y =
+              window.x1
+          );
+          const y = Math.round(
             (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-            window.y1;
+              window.y1
+          );
 
           const lastShape = shapes[shapes.length - 1];
           const updatedShape: Shape = {
@@ -540,29 +641,29 @@ const WhiteBoard = () => {
         window.percentZoomed * zoomFactor > 0.2
       ) {
         const newWindow: WindowState = {
-          x1: cursorX - (cursorX - window.x1) * zoomFactor,
-          y1: cursorY - (cursorY - window.y1) * zoomFactor,
-          x2: cursorX + (window.x2 - cursorX) * zoomFactor,
-          y2: cursorY + (window.y2 - cursorY) * zoomFactor,
-          percentZoomed: window.percentZoomed * zoomFactor,
+          x1: Math.round(cursorX - (cursorX - window.x1) * zoomFactor),
+          y1: Math.round(cursorY - (cursorY - window.y1) * zoomFactor),
+          x2: Math.round(cursorX + (window.x2 - cursorX) * zoomFactor),
+          y2: Math.round(cursorY + (window.y2 - cursorY) * zoomFactor),
+          percentZoomed: Math.round(window.percentZoomed * zoomFactor),
         };
         dispatch(setWindow(newWindow));
       } else if (window.percentZoomed * zoomFactor > 2) {
         const newWindow: WindowState = {
-          x1: cursorX - (cursorX - window.x1),
-          y1: cursorY - (cursorY - window.y1),
-          x2: cursorX + (window.x2 - cursorX),
-          y2: cursorY + (window.y2 - cursorY),
-          percentZoomed: window.percentZoomed,
+          x1: Math.round(cursorX - (cursorX - window.x1)),
+          y1: Math.round(cursorY - (cursorY - window.y1)),
+          x2: Math.round(cursorX + (window.x2 - cursorX)),
+          y2: Math.round(cursorY + (window.y2 - cursorY)),
+          percentZoomed: Math.round(window.percentZoomed),
         };
         dispatch(setWindow(newWindow));
       } else {
         const newWindow: WindowState = {
-          x1: cursorX - (cursorX - window.x1),
-          y1: cursorY - (cursorY - window.y1),
-          x2: cursorX + (window.x2 - cursorX),
-          y2: cursorY + (window.y2 - cursorY),
-          percentZoomed: window.percentZoomed,
+          x1: Math.round(cursorX - (cursorX - window.x1)),
+          y1: Math.round(cursorY - (cursorY - window.y1)),
+          x2: Math.round(cursorX + (window.x2 - cursorX)),
+          y2: Math.round(cursorY + (window.y2 - cursorY)),
+          percentZoomed: Math.round(window.percentZoomed),
         };
         dispatch(setWindow(newWindow));
       }

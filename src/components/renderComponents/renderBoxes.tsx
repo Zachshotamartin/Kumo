@@ -34,7 +34,7 @@ const RenderBoards = () => {
                 height: `${shape.height / window.percentZoomed}px`,
 
                 // transforms
-                transform: `rotate(${shape.rotation || 0}deg)`,
+                transform: `rotate(${shape.rotation}deg)`,
                 // flipX?: boolean;
                 // flipY?: boolean;
 
@@ -42,7 +42,9 @@ const RenderBoards = () => {
                 borderRadius: `${shape.borderRadius}%`,
                 borderWidth: `${shape.borderWidth}px`,
                 borderStyle: `${shape.borderStyle}`,
-                border: `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
+                border: `${shape.borderColor} ${
+                  shape.borderWidth / window.percentZoomed
+                }px ${shape.borderStyle}`,
 
                 // color styling
 
