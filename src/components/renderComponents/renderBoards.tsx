@@ -48,8 +48,8 @@ const RenderBoxes = () => {
 
                 // color styling
 
-                backgroundColor: "green",
-
+                backgroundImage: `url(${shape.backgroundImage})`,
+                backgroundSize: "cover",
                 opacity: `${shape.opacity}`,
               }}
             ></div>

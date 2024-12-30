@@ -50,6 +50,7 @@ import RenderBoards from "../renderComponents/renderBoards";
 import RenderHighlighting from "../renderComponents/renderHighlighting";
 import RenderBorder from "../renderComponents/renderBorder";
 import RenderGridLines from "../renderComponents/renderGridLines";
+import boardImage from "../../res/recursive.png";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -294,7 +295,6 @@ const WhiteBoard = () => {
           y < Math.max(borderStartY, borderEndY)
         ) {
           dispatch(setSelectedShapes([selected]));
-          
         }
       }
       console.log(selected);
@@ -307,7 +307,6 @@ const WhiteBoard = () => {
         setDragOffset({ x: 0, y: 0 });
         actionsDispatch(setDragging(true));
         actionsDispatch(setMoving(true));
-
       } else {
         console.log("what");
         dispatch(setSelectedShapes([]));
@@ -368,6 +367,9 @@ const WhiteBoard = () => {
 
         text: "",
       };
+      if (selectedTool === "board") {
+        shape.backgroundImage = boardImage;
+      }
       dispatch(addShape(shape));
       dispatch(setSelectedShapes([shapes.length])); // Select the newly created shape
     }
