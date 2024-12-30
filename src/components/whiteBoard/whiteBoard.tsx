@@ -193,23 +193,26 @@ const WhiteBoard = () => {
     };
   }, [selectedShapes]);
 
+  const SNAP_THRESHOLD = 5; // Define snapping threshold
+
   const CheckCollision = () => {
     let collision = false;
 
     shapes.forEach((shape: Shape, index: number) => {
       if (!selectedShapes.includes(index)) {
-        if (
-          shape.x1 === borderStartX ||
-          shape.x1 === borderEndX ||
-          shape.x2 === borderStartX ||
-          shape.x2 === borderEndX ||
-          shape.y1 === borderStartY ||
-          shape.y1 === borderEndY ||
-          shape.y2 === borderStartY ||
-          shape.y2 === borderEndY
-        ) {
+        // Check if any edge is within the snapping threshold
+        const isColliding =
+          Math.abs(shape.x1 - borderStartX) <= SNAP_THRESHOLD ||
+          Math.abs(shape.x2 - borderStartX) <= SNAP_THRESHOLD ||
+          Math.abs(shape.x1 - borderEndX) <= SNAP_THRESHOLD ||
+          Math.abs(shape.x2 - borderEndX) <= SNAP_THRESHOLD ||
+          Math.abs(shape.y1 - borderStartY) <= SNAP_THRESHOLD ||
+          Math.abs(shape.y2 - borderStartY) <= SNAP_THRESHOLD ||
+          Math.abs(shape.y1 - borderEndY) <= SNAP_THRESHOLD ||
+          Math.abs(shape.y2 - borderEndY) <= SNAP_THRESHOLD;
+
+        if (isColliding) {
           collision = true;
-          return collision;
         }
       }
     });
@@ -222,19 +225,20 @@ const WhiteBoard = () => {
 
     shapes.forEach((shape: Shape, index: number) => {
       if (!selectedShapes.includes(index)) {
+        // Calculate distances for all edges
         const distances = {
-          x1Start: shape.x1 - borderStartX,
-          x1End: shape.x1 - borderEndX,
-          x2Start: shape.x2 - borderStartX,
-          x2End: shape.x2 - borderEndX,
-          y1Start: shape.y1 - borderStartY,
-          y1End: shape.y1 - borderEndY,
-          y2Start: shape.y2 - borderStartY,
-          y2End: shape.y2 - borderEndY,
+          x1Start: Math.abs(shape.x1 - borderStartX),
+          x1End: Math.abs(shape.x1 - borderEndX),
+          x2Start: Math.abs(shape.x2 - borderStartX),
+          x2End: Math.abs(shape.x2 - borderEndX),
+          y1Start: Math.abs(shape.y1 - borderStartY),
+          y1End: Math.abs(shape.y1 - borderEndY),
+          y2Start: Math.abs(shape.y2 - borderStartY),
+          y2End: Math.abs(shape.y2 - borderEndY),
         };
 
         for (const [edge, distance] of Object.entries(distances)) {
-          if (Math.abs(distance) < Math.abs(minDistance)) {
+          if (distance < minDistance && distance <= SNAP_THRESHOLD) {
             minDistance = distance;
             closestEdge = edge;
           }
@@ -259,16 +263,19 @@ const WhiteBoard = () => {
     );
 
     if (selectedTool === "pointer") {
-      let selected = shapes
-        .slice()
-        .reverse()
-        .findIndex(
-          (shape: Shape) =>
-            x >= Math.min(shape.x1, shape.x2) &&
-            x <= Math.max(shape.x1, shape.x2) &&
-            y >= Math.min(shape.y1, shape.y2) &&
-            y <= Math.max(shape.y1, shape.y2)
-        );
+      let selected: number = -1;
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        let shape = shapes[i];
+        if (
+          x >= Math.min(shape.x1, shape.x2) &&
+          x <= Math.max(shape.x1, shape.x2) &&
+          y >= Math.min(shape.y1, shape.y2) &&
+          y <= Math.max(shape.y1, shape.y2)
+        ) {
+          selected = i;
+        }
+      }
+
       if (selectedShapes.length > 0) {
         if (
           x < Math.min(borderStartX, borderEndX) ||
@@ -276,7 +283,7 @@ const WhiteBoard = () => {
           y < Math.min(borderStartY, borderEndY) ||
           y > Math.max(borderStartY, borderEndY)
         ) {
-          dispatch(clearSelectedShapes());
+          dispatch(setSelectedShapes([selected]));
           actionsDispatch(setHighlighting(false));
         }
 
@@ -286,27 +293,23 @@ const WhiteBoard = () => {
           y > Math.min(borderStartY, borderEndY) &&
           y < Math.max(borderStartY, borderEndY)
         ) {
-          setPrevMouseX(x);
-          setPrevMouseY(y);
-          setDragOffset({ x: 0, y: 0 });
-          dispatch(setSelectedShapes(selectedShapes));
-          actionsDispatch(setDragging(true));
-          actionsDispatch(setMoving(true));
-          return;
+          dispatch(setSelectedShapes([selected]));
+          
         }
-      } else if (selected !== -1) {
-        selected = shapes.length - 1 - selected;
-
+      }
+      console.log(selected);
+      if (selected !== -1) {
         // Calculate the offset between the cursor and the top-left corner of the shape
 
         setPrevMouseX(x);
         setPrevMouseY(y);
-
+        console.log("what is wrong");
         setDragOffset({ x: 0, y: 0 });
         actionsDispatch(setDragging(true));
-        dispatch(setSelectedShapes([selected]));
         actionsDispatch(setMoving(true));
+
       } else {
+        console.log("what");
         dispatch(setSelectedShapes([]));
         actionsDispatch(setDragging(true));
         actionsDispatch(setHighlighting(true));
@@ -383,76 +386,57 @@ const WhiteBoard = () => {
             (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
               window.y1
           );
+
           const selectedShapesArray = shapes.filter(
-            (shape: Shape, index: number) => {
-              return selectedShapes.includes(index);
-            }
+            (shape: Shape, index: number) => selectedShapes.includes(index)
           );
-          if (CheckCollision()) {
-            setSnap(true);
-            const { minDistance, closestEdge } = nearestEdge();
-            console.log(minDistance, closestEdge);
-            console.log(borderStartX);
 
-            selectedShapesArray.forEach((shape: Shape, index: number) => {
-              const width = Math.abs(shape.x2 - shape.x1);
-              const height = Math.abs(shape.y2 - shape.y1);
+          // if (CheckCollision()) {
+          //   const { minDistance, closestEdge } = nearestEdge();
 
-              const x1 =
-                closestEdge === "x1Start" ||
-                closestEdge === "x2Start" ||
-                closestEdge === "x1End" ||
-                closestEdge === "x2End"
-                  ? shape.x1 + minDistance - 2
-                  : shape.x1;
+          //   selectedShapesArray.forEach((shape: Shape, index: number) => {
+          //     const width = Math.abs(shape.x2 - shape.x1);
+          //     const height = Math.abs(shape.y2 - shape.y1);
 
-              const y1 =
-                closestEdge === "y1Start" ||
-                closestEdge === "y2Start" ||
-                closestEdge === "y1End" ||
-                closestEdge === "y2End"
-                  ? shape.y1 + minDistance - 2
-                  : shape.y1;
+          //     // Adjust shape based on the nearest edge
+          //     const newX1 =
+          //       closestEdge.startsWith("x") && closestEdge.includes("Start")
+          //         ? shape.x1 + minDistance
+          //         : shape.x1;
+          //     const newY1 =
+          //       closestEdge.startsWith("y") && closestEdge.includes("Start")
+          //         ? shape.y1 + minDistance
+          //         : shape.y1;
 
-              const updatedShape: Shape = {
-                ...shape,
-                x1: x1,
-                y1: y1,
-                x2: x1 + width,
-                y2: y1 + height,
-              };
+          //     const updatedShape: Shape = {
+          //       ...shape,
+          //       x1: newX1,
+          //       y1: newY1,
+          //       x2: newX1 + width,
+          //       y2: newY1 + height,
+          //     };
 
-              dispatch(
-                updateShape({
-                  index: selectedShapes[index],
-                  update: updatedShape,
-                })
-              );
-            });
-          }
-          if (snap) {
-            const distance =
-              Math.abs(x - prevMouseX) + Math.abs(y - prevMouseY);
-            if (distance > 10) {
-              // adjust this value to your liking
-              setSnap(false);
-            }
-          } else {
+          //     dispatch(
+          //       updateShape({
+          //         index: selectedShapes[index],
+          //         update: updatedShape,
+          //       })
+          //     );
+          //   });
+          //}
+
+          if (!snap) {
             if (dragOffset) {
               selectedShapesArray.forEach((shape: Shape, index: number) => {
                 const width = Math.abs(shape.x2 - shape.x1);
                 const height = Math.abs(shape.y2 - shape.y1);
-                const x1 = Math.min(shape.x1, shape.x2);
-                const y1 = Math.min(shape.y1, shape.y2);
-                const x2 = Math.max(shape.x1, shape.x2);
-                const y2 = Math.max(shape.y1, shape.y2);
 
                 const updatedShape: Shape = {
                   ...shape,
-                  x1: x1 + x - prevMouseX,
-                  y1: y1 + y - prevMouseY,
-                  x2: x2 + x - prevMouseX,
-                  y2: y2 + y - prevMouseY,
+                  x1: shape.x1 + x - prevMouseX,
+                  y1: shape.y1 + y - prevMouseY,
+                  x2: shape.x2 + x - prevMouseX,
+                  y2: shape.y2 + y - prevMouseY,
                   width,
                   height,
                 };
@@ -509,15 +493,7 @@ const WhiteBoard = () => {
       }, 10),
       10
     ), // Adjust the throttle delay (100ms in this case)
-    [
-      dragging,
-      selectedShapes[0],
-      dragOffset,
-      shapes,
-      drawing,
-      canvasRef,
-      dispatch,
-    ]
+    [dragging, selectedShapes, dragOffset, shapes, drawing, canvasRef, dispatch]
   );
 
   // Use the throttled version in the event listener
