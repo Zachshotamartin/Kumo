@@ -15,11 +15,17 @@ const LeftBar = () => {
   const usersCollectionRef = collection(db, "users");
   const boardsCollectionRef = collection(db, "boards");
   const user = useSelector((state: any) => state.auth);
+  const [boardName, setBoardName] = React.useState("");
+
+  const handleBoardName = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBoardName(e.target.value);
+  };
+
   const createBoard = async (type: "private" | "public" | "shared") => {
     try {
       const data = {
         uid: user?.uid,
-        title: "New Board",
+        title: boardName || "Untitled",
         shapes: [],
         type: type,
       };
@@ -54,6 +60,13 @@ const LeftBar = () => {
     <div className={styles.leftBar}>
       <div className={styles.createBoardContainer}>
         <h4 className={styles.title}> Create New Board</h4>
+        <input
+          className={styles.input}
+          type="text"
+          placeholder="Board Name"
+          value={boardName}
+          onChange={handleBoardName}
+        />
         <button
           className={styles.createButton}
           onClick={() => {
