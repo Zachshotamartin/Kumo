@@ -6,9 +6,11 @@ import OptionsBar from "../optionsBar/optionsBar";
 import WhiteBoard from "../whiteBoard/whiteBoard";
 import { useSelector } from "react-redux";
 import Share from "../share/share";
+import Delete from "../delete/delete";
 
 const WorkSpace = () => {
   const sharing = useSelector((state: any) => state.actions.sharing);
+  const deleting = useSelector((state: any) => state.actions.deleting);
   useEffect(() => {
     const preventPinchZoom = (e: TouchEvent) => {
       if (e.touches.length > 1) {
@@ -30,6 +32,7 @@ const WorkSpace = () => {
       <WhiteBoard />
       <OptionsBar />
       {sharing && <Share />}
+      {deleting && <Delete />}
     </div>
   );
 };

@@ -24,7 +24,7 @@ import {
 } from "firebase/firestore";
 import Share from "../share/share";
 import { db } from "../../config/firebase";
-import { setSharing } from "../../features/actions/actionsSlice";
+import { setSharing, setDeleting } from "../../features/actions/actionsSlice";
 
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
@@ -82,35 +82,7 @@ const Navigation = () => {
     }
   };
 
-  // const handleShare = async () => {
-  //   const boardRef = doc(boardsCollectionRef, whiteboard.id);
-  //   await updateDoc(boardRef, {
-  //     ...whiteboard,
-  //     type: "shared",
-  //   });
-  //   const q = query(usersCollectionRef, where("uid", "==", whiteboard.uid));
-  //   const querySnapshot = await getDocs(q);
-  //   if (!querySnapshot.empty) {
-  //     const userDoc = querySnapshot.docs[0];
-  //     const userData = userDoc.data();
-  //     await updateDoc(userDoc.ref, {
-  //       sharedBoardsIds: [
-  //         ...userData.sharedBoardsIds,
-  //         {
-  //           id: whiteboard.id,
-  //           title: whiteboard.title,
-  //           uid: whiteboard.uid,
-  //           type: "shared",
-  //         },
-  //       ],
-  //     });
-  //     await updateDoc(userDoc.ref, {
-  //       privateBoardsIds: userData.privateBoardsIds.filter(
-  //         (board: any) => board.id !== whiteboard.id
-  //       ),
-  //     });
-  //   }
-  // };
+  
 
   return (
     <div className={styles.navigation}>
@@ -153,6 +125,12 @@ const Navigation = () => {
         onClick={() => dispatch(setSharing(true))}
       >
         Share
+      </button>
+      <button
+        className={styles.hide}
+        onClick={() => dispatch(setDeleting(true))}
+      >
+        Delete
       </button>
     </div>
   );

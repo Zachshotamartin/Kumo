@@ -21,7 +21,6 @@
   flex-direction: column;
   justify-content: start;
   align-items: flex-start;
-  cursor: pointer;
 
   padding-left: 1rem;
   border: 1px solid #b4b4b4;
@@ -34,6 +33,7 @@
   margin-left: 1rem;
   background-color: "transparent";
   flex-wrap: wrap;
+  overflow-y: visible;
 }
 .title {
   margin-bottom: 0;
@@ -78,8 +78,6 @@
   padding: 0;
 }
 .boardTypeContainer {
-  background-color: transparent;
-
   border: none;
   cursor: pointer;
 

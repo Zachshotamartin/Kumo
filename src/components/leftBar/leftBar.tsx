@@ -51,16 +51,18 @@ const LeftBar = () => {
   };
 
   return (
-    <div className={styles.createBoardContainer}>
-      <h4 className={styles.title}> Create New Board</h4>
-      <button
-        className={styles.createButton}
-        onClick={() => {
-          createBoard("private");
-        }}
-      >
-        <img className={styles.icon} src={plus} alt="Plus" />
-      </button>
+    <div className={styles.leftBar}>
+      <div className={styles.createBoardContainer}>
+        <h4 className={styles.title}> Create New Board</h4>
+        <button
+          className={styles.createButton}
+          onClick={() => {
+            createBoard("private");
+          }}
+        >
+          <img className={styles.icon} src={plus} alt="Plus" />
+        </button>
+      </div>
     </div>
   );
 };
