@@ -9,6 +9,7 @@ import { auth } from "./config/firebase";
 import { useSelector } from "react-redux";
 import { login } from "./features/auth/authSlice";
 import MiddleLayer from "./components/middleLayer/middleLayer";
+import MiddlePage from "./components/middlePage/middlePage";
 function App() {
   const user = useSelector((state: any) => state.auth);
   const whiteBoard = useSelector((state: any) => state.whiteBoard);
@@ -19,7 +20,7 @@ function App() {
       ) : whiteBoard.id !== null ? (
         <WorkSpace />
       ) : (
-        <MiddleLayer />
+        <MiddlePage />
       )}
     </div>
   );

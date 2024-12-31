@@ -124,18 +124,24 @@ const MiddleLayer = () => {
   };
 
   return (
-    <div className={styles.middleLayer}>
-      <div className={styles.createBoardContainer}>
-        <h4 className={styles.title}> Boards </h4>
-        <button
-          className={styles.createButton}
-          onClick={() => {
-            createBoard("private");
-          }}
-        >
-          <img className={styles.icon} src={plus} alt="Plus" />
-        </button>
-      </div>
+    <div
+      className={
+        whiteBoard.id === null ? styles.middleLayer2 : styles.middleLayer
+      }
+    >
+      {whiteBoard.id !== null && (
+        <div className={styles.createBoardContainer}>
+          <h4 className={styles.title}> Boards </h4>
+          <button
+            className={styles.createButton}
+            onClick={() => {
+              createBoard("private");
+            }}
+          >
+            <img className={styles.icon} src={plus} alt="Plus" />
+          </button>
+        </div>
+      )}
       {whiteBoard.id !== null && (
         <div
           className={styles.boardTypeContainer}

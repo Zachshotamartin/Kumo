@@ -1,4 +1,3 @@
-
 .middleLayer {
   color: white;
   overflow-y: scroll;
@@ -11,12 +10,30 @@
 
   padding-left: 1rem;
   border: 1px solid #b4b4b4;
-  padding-top: .5rem;
-  padding-bottom: .5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.middleLayer2 {
+  color: white;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: start;
+  align-items: flex-start;
+  cursor: pointer;
+
+  padding-left: 1rem;
+  border: 1px solid #b4b4b4;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  flex: 1;
+  height: 100vh;
 }
 .boardListContainer {
   margin-left: 1rem;
   background-color: "transparent";
+  flex-wrap: wrap;
 }
 .title {
   margin-bottom: 0;
