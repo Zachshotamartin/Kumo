@@ -288,28 +288,20 @@ const WhiteBoard = () => {
           dispatch(setSelectedShapes([]));
           actionsDispatch(setHighlighting(false));
         }
-
-        if (
-          x > Math.min(borderStartX, borderEndX) &&
-          x < Math.max(borderStartX, borderEndX) &&
-          y > Math.min(borderStartY, borderEndY) &&
-          y < Math.max(borderStartY, borderEndY)
-        ) {
-          console.log("entered");
-          console.log(selectedShapes);
-        }
       }
 
       if (selected !== -1) {
         // Calculate the offset between the cursor and the top-left corner of the shape
-        console.log(borderStartX, borderStartY);
+
         setPrevMouseX(x);
         setPrevMouseY(y);
 
         setDragOffset({ x: 0, y: 0 });
         actionsDispatch(setDragging(true));
         actionsDispatch(setMoving(true));
-        dispatch(setSelectedShapes([selected]));
+        if (!selectedShapes.includes(selected)) {
+          dispatch(setSelectedShapes([selected]));
+        }
       } else {
         if (
           x > Math.min(borderStartX, borderEndX) &&
@@ -319,12 +311,11 @@ const WhiteBoard = () => {
         ) {
           setPrevMouseX(x);
           setPrevMouseY(y);
-          console.log("hello");
+
           setDragOffset({ x: 0, y: 0 });
           actionsDispatch(setDragging(true));
           actionsDispatch(setMoving(true));
         } else {
-          console.log("what");
           dispatch(setSelectedShapes([]));
           dispatch(setBorderStartX(0));
           dispatch(setBorderStartY(0));
