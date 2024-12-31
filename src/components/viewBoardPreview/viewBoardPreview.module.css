@@ -1,0 +1,31 @@
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  padding: 1rem;
+
+  overflow-x: scroll;
+  flex-direction: row;
+}
+
+.boardImage {
+  height: 50px;
+  width: 50px;
+}
+.boardContainer {
+  margin: 0.5rem;
+  cursor: pointer;
+  border: 1px solid #b4b4b4;
+  border-radius: 5px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.boardContainer:hover {
+  background-color: #b4b4b4;
+  color: white;
+}

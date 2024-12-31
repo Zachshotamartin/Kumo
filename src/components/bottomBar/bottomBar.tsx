@@ -13,6 +13,7 @@ import { setDrawing } from "../../features/actions/actionsSlice";
 import { AppDispatch } from "../../store";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import { removeShape } from "../../features/whiteBoard/whiteBoardSlice";
+import { setBorderStartX, setBorderStartY, setBorderEndX, setBorderEndY } from "../../features/selected/selectedSlice";
 
 const BottomBar = () => {
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -54,7 +55,11 @@ const BottomBar = () => {
       newShapes.forEach((index: number) => {
         dispatch(removeShape(index));
       });
-      setSelectedShapes([]);
+      dispatch(setSelectedShapes([]));
+      dispatch(setBorderStartX(0));
+      dispatch(setBorderStartY(0));
+      dispatch(setBorderEndX(0));
+      dispatch(setBorderEndY(0));
     }
   };
 

@@ -21,6 +21,7 @@ const RenderBorder = () => {
 
   useEffect(() => {
     const selectedShapesArray = shapes.filter((shape: Shape, index: number) => {
+      console.log(selectedShapes);
       return selectedShapes.includes(index);
     });
 

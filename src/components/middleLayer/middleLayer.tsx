@@ -16,6 +16,7 @@ import {
   updateDoc,
   getDoc,
 } from "firebase/firestore";
+import ViewBoardPreview from "../viewBoardPreview/viewBoardPreview";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { setBoards } from "../../features/boards/boards";
 import type { AppDispatch } from "../../store";
@@ -32,6 +33,10 @@ const MiddleLayer = () => {
   const [publicDropDown, setPublicDropDown] = useState(false);
   const [privateDropDown, setPrivateDropDown] = useState(false);
   const [sharedDropDown, setSharedDropDown] = useState(false);
+  const publicBoards = availableBoards.publicBoards;
+  const privateBoards = availableBoards.privateBoards;
+  const sharedBoards = availableBoards.sharedBoards;
+  const whiteBoard = useSelector((state: any) => state.whiteBoard);
 
   useEffect(() => {
     if (user?.isAuthenticated) {
@@ -142,7 +147,7 @@ const MiddleLayer = () => {
         )}
         <h5 className={styles.title}>Public</h5>
       </div>
-      {publicDropDown && (
+      {publicDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.publicBoards?.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
@@ -156,6 +161,9 @@ const MiddleLayer = () => {
           ))}
         </div>
       )}
+      {publicDropDown && whiteBoard.id === null && (
+        <ViewBoardPreview boards={publicBoards} />
+      )}
       <div
         className={styles.boardTypeContainer}
         onClick={() => setPrivateDropDown(!privateDropDown)}
@@ -167,7 +175,7 @@ const MiddleLayer = () => {
         )}
         <h5 className={styles.title}>Private</h5>
       </div>
-      {privateDropDown && (
+      {privateDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.privateBoards?.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
@@ -181,6 +189,9 @@ const MiddleLayer = () => {
           ))}
         </div>
       )}
+      {privateDropDown && whiteBoard.id === null && (
+        <ViewBoardPreview boards={privateBoards} />
+      )}
       <div
         className={styles.boardTypeContainer}
         onClick={() => setSharedDropDown(!sharedDropDown)}
@@ -192,7 +203,7 @@ const MiddleLayer = () => {
         )}
         <h5 className={styles.title}>Shared Boards</h5>
       </div>
-      {sharedDropDown && (
+      {sharedDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.sharedBoards?.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
@@ -205,6 +216,9 @@ const MiddleLayer = () => {
             </div>
           ))}
         </div>
+      )}
+      {sharedDropDown && whiteBoard.id === null && (
+        <ViewBoardPreview boards={sharedBoards} />
       )}
     </div>
   );

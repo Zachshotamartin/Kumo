@@ -265,6 +265,7 @@ const WhiteBoard = () => {
 
     if (selectedTool === "pointer") {
       let selected: number = -1;
+      console.log(shapes);
       for (let i = shapes.length - 1; i >= 0; i--) {
         let shape = shapes[i];
         if (
@@ -274,6 +275,7 @@ const WhiteBoard = () => {
           y <= Math.max(shape.y1, shape.y2)
         ) {
           selected = i;
+          console.log(selected);
         }
       }
 
@@ -297,19 +299,24 @@ const WhiteBoard = () => {
           dispatch(setSelectedShapes([selected]));
         }
       }
-      console.log(selected);
+
       if (selected !== -1) {
         // Calculate the offset between the cursor and the top-left corner of the shape
-
+        console.log(borderStartX, borderStartY);
         setPrevMouseX(x);
         setPrevMouseY(y);
-        console.log("what is wrong");
+
         setDragOffset({ x: 0, y: 0 });
         actionsDispatch(setDragging(true));
         actionsDispatch(setMoving(true));
+        dispatch(setSelectedShapes([selected]));
       } else {
         console.log("what");
         dispatch(setSelectedShapes([]));
+        dispatch(setBorderStartX(0));
+        dispatch(setBorderStartY(0));
+        dispatch(setBorderEndX(0));
+        dispatch(setBorderEndY(0));
         actionsDispatch(setDragging(true));
         actionsDispatch(setHighlighting(true));
 
