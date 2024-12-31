@@ -265,7 +265,7 @@ const WhiteBoard = () => {
 
     if (selectedTool === "pointer") {
       let selected: number = -1;
-      console.log(shapes);
+
       for (let i = shapes.length - 1; i >= 0; i--) {
         let shape = shapes[i];
         if (
@@ -275,7 +275,6 @@ const WhiteBoard = () => {
           y <= Math.max(shape.y1, shape.y2)
         ) {
           selected = i;
-          console.log(selected);
         }
       }
 
@@ -286,7 +285,7 @@ const WhiteBoard = () => {
           y < Math.min(borderStartY, borderEndY) ||
           y > Math.max(borderStartY, borderEndY)
         ) {
-          dispatch(setSelectedShapes([selected]));
+          dispatch(setSelectedShapes([]));
           actionsDispatch(setHighlighting(false));
         }
 
@@ -296,7 +295,8 @@ const WhiteBoard = () => {
           y > Math.min(borderStartY, borderEndY) &&
           y < Math.max(borderStartY, borderEndY)
         ) {
-          dispatch(setSelectedShapes([selected]));
+          console.log("entered");
+          console.log(selectedShapes);
         }
       }
 
@@ -311,17 +311,31 @@ const WhiteBoard = () => {
         actionsDispatch(setMoving(true));
         dispatch(setSelectedShapes([selected]));
       } else {
-        console.log("what");
-        dispatch(setSelectedShapes([]));
-        dispatch(setBorderStartX(0));
-        dispatch(setBorderStartY(0));
-        dispatch(setBorderEndX(0));
-        dispatch(setBorderEndY(0));
-        actionsDispatch(setDragging(true));
-        actionsDispatch(setHighlighting(true));
+        if (
+          x > Math.min(borderStartX, borderEndX) &&
+          x < Math.max(borderStartX, borderEndX) &&
+          y > Math.min(borderStartY, borderEndY) &&
+          y < Math.max(borderStartY, borderEndY)
+        ) {
+          setPrevMouseX(x);
+          setPrevMouseY(y);
+          console.log("hello");
+          setDragOffset({ x: 0, y: 0 });
+          actionsDispatch(setDragging(true));
+          actionsDispatch(setMoving(true));
+        } else {
+          console.log("what");
+          dispatch(setSelectedShapes([]));
+          dispatch(setBorderStartX(0));
+          dispatch(setBorderStartY(0));
+          dispatch(setBorderEndX(0));
+          dispatch(setBorderEndY(0));
+          actionsDispatch(setDragging(true));
+          actionsDispatch(setHighlighting(true));
 
-        dispatch(setHighlightStart([x, y]));
-        dispatch(setHighlightEnd([x, y]));
+          dispatch(setHighlightStart([x, y]));
+          dispatch(setHighlightEnd([x, y]));
+        }
       }
       return;
     }

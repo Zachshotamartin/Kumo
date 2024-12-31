@@ -136,17 +136,20 @@ const MiddleLayer = () => {
           <img className={styles.icon} src={plus} alt="Plus" />
         </button>
       </div>
-      <div
-        className={styles.boardTypeContainer}
-        onClick={() => setPublicDropDown(!publicDropDown)}
-      >
-        {publicDropDown ? (
-          <img className={styles.icon} src={down} alt="Down" />
-        ) : (
-          <img className={styles.icon} src={right} alt="Right" />
-        )}
-        <h5 className={styles.title}>Public</h5>
-      </div>
+      {whiteBoard.id !== null && (
+        <div
+          className={styles.boardTypeContainer}
+          onClick={() => setPublicDropDown(!publicDropDown)}
+        >
+          {publicDropDown ? (
+            <img className={styles.icon} src={down} alt="Down" />
+          ) : (
+            <img className={styles.icon} src={right} alt="Right" />
+          )}
+          <h5 className={styles.title}>Public</h5>
+        </div>
+      )}
+      {whiteBoard.id === null && <h5 className={styles.title}>Public</h5>}
       {publicDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.publicBoards?.map((board: any, index: number) => (
@@ -161,20 +164,21 @@ const MiddleLayer = () => {
           ))}
         </div>
       )}
-      {publicDropDown && whiteBoard.id === null && (
-        <ViewBoardPreview boards={publicBoards} />
+      {whiteBoard.id === null && <ViewBoardPreview boards={publicBoards} />}
+      {whiteBoard.id !== null && (
+        <div
+          className={styles.boardTypeContainer}
+          onClick={() => setPrivateDropDown(!privateDropDown)}
+        >
+          {privateDropDown ? (
+            <img className={styles.icon} src={down} alt="Down" />
+          ) : (
+            <img className={styles.icon} src={right} alt="Right" />
+          )}
+          <h5 className={styles.title}>Private</h5>
+        </div>
       )}
-      <div
-        className={styles.boardTypeContainer}
-        onClick={() => setPrivateDropDown(!privateDropDown)}
-      >
-        {privateDropDown ? (
-          <img className={styles.icon} src={down} alt="Down" />
-        ) : (
-          <img className={styles.icon} src={right} alt="Right" />
-        )}
-        <h5 className={styles.title}>Private</h5>
-      </div>
+      {whiteBoard.id === null && <h5 className={styles.title}>Private</h5>}
       {privateDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.privateBoards?.map((board: any, index: number) => (
@@ -189,20 +193,24 @@ const MiddleLayer = () => {
           ))}
         </div>
       )}
-      {privateDropDown && whiteBoard.id === null && (
-        <ViewBoardPreview boards={privateBoards} />
+      {whiteBoard.id === null && <ViewBoardPreview boards={privateBoards} />}
+
+      {whiteBoard.id !== null && (
+        <div
+          className={styles.boardTypeContainer}
+          onClick={() => setSharedDropDown(!sharedDropDown)}
+        >
+          {sharedDropDown ? (
+            <img className={styles.icon} src={down} alt="Down" />
+          ) : (
+            <img className={styles.icon} src={right} alt="Right" />
+          )}
+          <h5 className={styles.title}>Shared Boards</h5>
+        </div>
       )}
-      <div
-        className={styles.boardTypeContainer}
-        onClick={() => setSharedDropDown(!sharedDropDown)}
-      >
-        {sharedDropDown ? (
-          <img className={styles.icon} src={down} alt="Down" />
-        ) : (
-          <img className={styles.icon} src={right} alt="Right" />
-        )}
+      {whiteBoard.id === null && (
         <h5 className={styles.title}>Shared Boards</h5>
-      </div>
+      )}
       {sharedDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.sharedBoards?.map((board: any, index: number) => (
@@ -217,9 +225,7 @@ const MiddleLayer = () => {
           ))}
         </div>
       )}
-      {sharedDropDown && whiteBoard.id === null && (
-        <ViewBoardPreview boards={sharedBoards} />
-      )}
+      {whiteBoard.id === null && <ViewBoardPreview boards={sharedBoards} />}
     </div>
   );
 };
