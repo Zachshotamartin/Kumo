@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
 import {
   addShape,
+  removeShape,
   updateShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
@@ -148,6 +149,7 @@ const WhiteBoard = () => {
     let debounceTimeoutPaste: any;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      console.log(event.key);
       if (event.metaKey && event.key === "c") {
         const copyShapes = () => {
           const copiedData = selectedShapes.map((index: number) => {
@@ -184,6 +186,23 @@ const WhiteBoard = () => {
         event.preventDefault();
         actionsDispatch(setPasting(true));
         pasteShapes();
+      } else if (event.key === "Backspace") {
+        // make sure that this is not focused on a textbox
+        event.preventDefault();
+        console.log("deleting");
+        if (selectedShapes.length > 0) {
+          const shapesCopy = [...selectedShapes];
+          const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
+
+          newShapes.forEach((index: number) => {
+            dispatch(removeShape(index));
+          });
+          dispatch(setSelectedShapes([]));
+          dispatch(setBorderStartX(0));
+          dispatch(setBorderStartY(0));
+          dispatch(setBorderEndX(0));
+          dispatch(setBorderEndY(0));
+        }
       }
     };
 
@@ -706,3 +725,6 @@ const WhiteBoard = () => {
 };
 
 export default WhiteBoard;
+function deleteShape(index: number): any {
+  throw new Error("Function not implemented.");
+}

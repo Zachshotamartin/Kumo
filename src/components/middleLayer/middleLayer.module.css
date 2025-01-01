@@ -9,7 +9,7 @@
   cursor: pointer;
 
   padding-left: 1rem;
-  border: 1px solid #b4b4b4;
+  border: 1px solid #b4b4b42b;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
 }
@@ -23,7 +23,7 @@
   align-items: flex-start;
 
   padding-left: 1rem;
-  border: 1px solid #b4b4b4;
+  border: 1px solid #b4b4b42b;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
   flex: 1;

@@ -14,11 +14,13 @@ const SideBar = () => {
   const whiteBoard = useSelector((state: any) => state.whiteBoard);
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
+      console.log("mousedown");
       if (
         componentRef.current &&
-        e.clientX >= componentRef.current.clientWidth - 5
+        e.clientX >= componentRef.current.getBoundingClientRect().right - 5
       ) {
         setDragging(true);
+        console.log("mousedown detected");
       }
     };
 
@@ -41,7 +43,10 @@ const SideBar = () => {
 
     const handleMouseMoveOverComponent = (e: MouseEvent) => {
       if (componentRef.current) {
-        if (e.clientX >= componentRef.current.clientWidth - 5) {
+        if (
+          e.clientX >=
+          componentRef.current.getBoundingClientRect().right - 5
+        ) {
           setCursor("ew-resize");
         } else {
           setCursor("auto");
@@ -49,24 +54,24 @@ const SideBar = () => {
       }
     };
 
-    componentRef.current?.addEventListener("mousedown", handleMouseDown);
+    // Attach event listeners after component mounts
+    document.addEventListener("mousedown", handleMouseDown);
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-    componentRef.current?.addEventListener(
-      "mousemove",
-      handleMouseMoveOverComponent
-    );
+
+    const currentRef = componentRef.current;
+    currentRef?.addEventListener("mousemove", handleMouseMoveOverComponent);
 
     return () => {
-      componentRef.current?.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
-      componentRef.current?.removeEventListener(
+      currentRef?.removeEventListener(
         "mousemove",
         handleMouseMoveOverComponent
       );
     };
-  }, [dragging, width]);
+  }, [dragging]);
 
   return (
     <div>

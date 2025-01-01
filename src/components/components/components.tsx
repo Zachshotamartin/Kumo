@@ -16,7 +16,7 @@ const Components = () => {
   );
   return (
     <div className={styles.components}>
-      <h4 className={styles.title}>{board.title} Components </h4>
+      <h4 className={styles.title}>Components </h4>
       {shapes.map((shape: any, index: number) => (
         <div key={index} className={styles.component}>
           <img

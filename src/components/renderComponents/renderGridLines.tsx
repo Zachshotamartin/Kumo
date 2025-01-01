@@ -1,6 +1,6 @@
 import React from "react";
 import { useSelector } from "react-redux";
-import styles from "./renderGridLines.module.css";
+
 const RenderGridLines = () => {
   const window = useSelector((state: any) => state.window);
 
@@ -23,7 +23,7 @@ const RenderGridLines = () => {
           width: "100%",
           height: `1px`,
           backgroundColor: "white",
-          opacity: 0.3,
+          opacity: 0.1,
         }}
       ></div>
     );
@@ -46,7 +46,7 @@ const RenderGridLines = () => {
           width: `1px`,
           height: "100%",
           backgroundColor: "white",
-          opacity: 0.3,
+          opacity: 0.1,
         }}
       ></div>
     );

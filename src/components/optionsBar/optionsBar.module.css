@@ -1,17 +1,22 @@
 .optionsBar {
   position: absolute;
-  left: 90%;
-  top: 0;
-  height: 100vh;
+  left: 80%;
+  top: 1%;
+  height: 98%;
   width: 10%;
-  flex: 0.2;
+
   background-color: #444444;
   display: flex;
   flex-direction: column;
   z-index: 100;
-  border: 1px solid #b4b4b4;
+  border: 1px solid #b4b4b42b;
   overflow-y: scroll;
   overflow-x: hidden;
+  scrollbar-color: #b4b4b4 #444444;
+  scrollbar-width: thin;
+  scroll-margin-block-start: 1rem;
+  scrollbar-gutter: stable;
+  border-radius: 10px;
 }
 
 .shapeType {

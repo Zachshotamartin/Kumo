@@ -2,7 +2,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   padding: 1rem;
 
@@ -10,21 +10,28 @@
 }
 
 .boardImage {
-  height: 15rem;
+  height: 10rem;
   width: 20rem;
+  border: 1px solid #b4b4b4;
+  border-radius: 1rem;
+  object-fit: contain;
+  margin: 0;
+}
+.boardImage:hover {
+  background-color: #b4b4b4;
+  color: white;
 }
 .boardContainer {
   margin: 0.5rem;
   cursor: pointer;
-  border: 1px solid #b4b4b4;
-  border-radius: 5px;
-  padding: 0.5rem;
+
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
+  align-items: left;
 }
-.boardContainer:hover {
-  background-color: #b4b4b4;
-  color: white;
+
+.boardTitle {
+  text-align: left;
+  margin: 0.5rem;
 }

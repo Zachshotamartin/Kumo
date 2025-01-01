@@ -87,7 +87,7 @@ const Navigation = () => {
   };
 
   return (
-    <div className={styles.navigation}>
+    <div className={hidden ? styles.hiddenNavigation : styles.navigation}>
       <NavElement image={logo} text="Kumo" />
       <NavElement image={userIcon} text={user?.email || "User"} />
       <NavElement image={menu} text="Settings" />

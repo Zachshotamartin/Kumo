@@ -3,7 +3,7 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
-  border: 1px solid #b4b4b4;
+  border: 1px solid #b4b4b42b;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
 }
@@ -42,7 +42,7 @@
 .dropdown {
   background-color: #444444;
   color: white;
-  border: 1px solid #b4b4b4;
+  border: 1px solid #b4b4b42b;
   border-radius: 5px;
   padding: 0.5rem;
   margin: 0;

@@ -9,11 +9,8 @@ import FontStyles from "../options/fontStyles";
 import BoxStyling from "../options/boxStyling";
 import BoardLink from "../options/boardLink";
 import Colors from "../options/colors";
-import type { AppDispatch } from "../../store";
 
 const OptionsBar = () => {
-  const user = useSelector((state: any) => state.auth.user);
-  const dispatch = useDispatch<AppDispatch>();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
   const selectedIdx = useSelector(
     (state: any) => state.selected.selectedShapes[0]
@@ -74,7 +71,7 @@ const OptionsBar = () => {
         <div
           className={styles.optionsBar}
           ref={optionsBarRef}
-          style={{ left: `${left}%`, width: `${100 - left}%` }}
+          style={{ left: `${left}%`, width: `${99 - left}%` }}
         >
           <h3 className={styles.shapeType}>{selectedShape?.type}</h3>
           <div
