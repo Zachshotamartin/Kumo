@@ -165,6 +165,7 @@ const WhiteBoard = () => {
         event.preventDefault();
         copyShapes();
       } else if (event.metaKey && event.key === "b") {
+        event.preventDefault();
         // Debounced paste function
         if (debounceTimeoutPaste) return; // Ignore if already debounced for paste
         debounceTimeoutPaste = setTimeout(
@@ -521,30 +522,33 @@ const WhiteBoard = () => {
     setDragOffset(null);
     if (selectedTool === "text") {
       setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-        }
-      }, 0);
+        actionsDispatch(setHighlighting(false));
+        actionsDispatch(setMoving(false));
+      }, 10);
+      console.log("inputRef");
+      console.log(inputRef.current?.value);
+      inputRef?.current?.focus();
     }
-    if (shapes.length > 0) {
-      const lastShape = shapes[shapes.length - 1];
-      const x2 = lastShape?.x2;
-      const y2 = lastShape?.y2;
-      const updatedShape: Shape = {
-        ...lastShape,
-        x2: lastShape?.x2 > lastShape?.x1 ? x2 : lastShape?.x1,
-        y2: lastShape?.y2 > lastShape?.y1 ? y2 : lastShape?.y1,
-        x1: x2 > lastShape?.x1 ? lastShape?.x1 : x2,
-        y1: y2 > lastShape?.y1 ? lastShape?.y1 : y2,
-        width: Math.abs(x2 - lastShape?.x1),
-        height: Math.abs(y2 - lastShape?.y1),
-        rotation: 0,
-      };
-      dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
-    }
+    // if (shapes.length > 0) {
+    //   const lastShape = shapes[shapes.length - 1];
+    //   const x2 = lastShape?.x2;
+    //   const y2 = lastShape?.y2;
+    //   const updatedShape: Shape = {
+    //     ...lastShape,
+    //     x2: lastShape?.x2 > lastShape?.x1 ? x2 : lastShape?.x1,
+    //     y2: lastShape?.y2 > lastShape?.y1 ? y2 : lastShape?.y1,
+    //     x1: x2 > lastShape?.x1 ? lastShape?.x1 : x2,
+    //     y1: y2 > lastShape?.y1 ? lastShape?.y1 : y2,
+    //     width: Math.abs(x2 - lastShape?.x1),
+    //     height: Math.abs(y2 - lastShape?.y1),
+    //     rotation: 0,
+    //   };
+    //   dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
+    // }
     actionsDispatch(setSelectedTool("pointer"));
     actionsDispatch(setHighlighting(false));
     actionsDispatch(setMoving(false));
+    dispatch(setSelectedShapes(selectedShapes));
   };
 
   const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {

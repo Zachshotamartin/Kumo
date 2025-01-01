@@ -21,6 +21,7 @@ const RenderText = () => {
       dispatch(removeShape(index));
     }
   };
+
   const calculateUsedRows = (
     text: string,
     lineHeight: number,
@@ -57,6 +58,12 @@ const RenderText = () => {
       rows: rows,
     };
     dispatch(updateShape({ index, update: updatedShape }));
+  };
+
+  const handleInputFocus = (index: number) => {
+    if (shapes[index].type === "text") {
+      inputRef?.current?.focus();
+    }
   };
 
   return (
@@ -168,6 +175,7 @@ const RenderText = () => {
                     handleInputChange(index, e, usedRows);
                   }}
                   onBlur={() => handleBlur(index)}
+                  onFocus={() => handleInputFocus(index)}
                 />
               ) : null}
             </div>
