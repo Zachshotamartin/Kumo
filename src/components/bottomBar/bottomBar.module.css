@@ -1,6 +1,21 @@
 .icon {
   height: 30px;
   width: 30px;
+  border-radius: 10px;
+  padding: 0.5rem;
+  cursor: pointer;
+}
+.icon:hover {
+  background-color: #007bff;
+}
+
+.iconSelected {
+  height: 30px;
+  width: 30px;
+  border-radius: 10px;
+  padding: 0.5rem;
+  cursor: pointer;
+  background-color: #007bff;
 }
 
 .tools {
@@ -16,4 +31,11 @@
   border-radius: 20px;
   background-color: #444444;
   border: 1px solid white;
+}
+
+.button {
+  background-color: transparent;
+  color: inherit;
+  border: none;
+  cursor: pointer;
 }

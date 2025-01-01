@@ -49,6 +49,8 @@
   align-content: flex-start;
   overflow-x: hidden;
   justify-content: flex-start;
+  padding-left: 1rem;
+  padding-top: 0.5rem;
 }
 .input {
   padding: 0.5rem 1rem;
@@ -58,4 +60,3 @@
   background-color: #444444;
   color: white;
 }
-

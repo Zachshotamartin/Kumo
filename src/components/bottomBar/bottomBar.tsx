@@ -13,7 +13,12 @@ import { setDrawing } from "../../features/actions/actionsSlice";
 import { AppDispatch } from "../../store";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import { removeShape } from "../../features/whiteBoard/whiteBoardSlice";
-import { setBorderStartX, setBorderStartY, setBorderEndX, setBorderEndY } from "../../features/selected/selectedSlice";
+import {
+  setBorderStartX,
+  setBorderStartY,
+  setBorderEndX,
+  setBorderEndY,
+} from "../../features/selected/selectedSlice";
 
 const BottomBar = () => {
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -67,54 +72,82 @@ const BottomBar = () => {
     <div className={styles.tools}>
       <button
         onClick={() => handleToolSwitch("pointer")}
-        style={{
-          backgroundColor: selectedTool === "pointer" ? "red" : "transparent",
-        }}
+        className={styles.button}
       >
-        <img className={styles.icon} src={pointer} alt="" />
+        <img
+          className={
+            selectedTool === "pointer" ? styles.iconSelected : styles.icon
+          }
+          src={pointer}
+          alt=""
+        />
       </button>
       <button
         onClick={() => handleToolSwitch("rectangle")}
-        style={{
-          backgroundColor: selectedTool === "rectangle" ? "red" : "transparent",
-        }}
+        className={styles.button}
       >
-        <img className={styles.icon} src={rectangle} alt="" />
+        <img
+          className={
+            selectedTool === "rectangle" ? styles.iconSelected : styles.icon
+          }
+          src={rectangle}
+          alt=""
+        />
       </button>
       <button
         onClick={() => handleToolSwitch("text")}
-        style={{
-          backgroundColor: selectedTool === "text" ? "red" : "transparent",
-        }}
+        className={styles.button}
       >
-        <img className={styles.icon} src={text} alt="" />
+        <img
+          className={
+            selectedTool === "text" ? styles.iconSelected : styles.icon
+          }
+          src={text}
+          alt=""
+        />
       </button>
-      <button onClick={handleDelete} style={{ backgroundColor: "transparent" }}>
+      <button
+        onClick={handleDelete}
+        style={{ backgroundColor: "transparent" }}
+        className={styles.button}
+      >
         <img className={styles.icon} src={remove} alt="" />
       </button>
       <button
         onClick={() => handleToolSwitch("calendar")}
-        style={{
-          backgroundColor: selectedTool === "calendar" ? "red" : "transparent",
-        }}
+        className={styles.button}
       >
-        <img className={styles.icon} src={calendar} alt="" />
+        <img
+          className={
+            selectedTool === "calendar" ? styles.iconSelected : styles.icon
+          }
+          src={calendar}
+          alt=""
+        />
       </button>
       <button
         onClick={() => handleToolSwitch("image")}
-        style={{
-          backgroundColor: selectedTool === "image" ? "red" : "transparent",
-        }}
+        className={styles.button}
       >
-        <img className={styles.icon} src={image} alt="" />
+        <img
+          className={
+            selectedTool === "image" ? styles.iconSelected : styles.icon
+          }
+          src={image}
+          alt=""
+        />
       </button>
       <button
         onClick={() => handleToolSwitch("board")}
-        style={{
-          backgroundColor: selectedTool === "board" ? "red" : "transparent",
-        }}
+        className={styles.button}
       >
-        <img className={styles.icon} src={recursive} alt="" />
+        <img
+          className={
+            selectedTool === "board" ? styles.iconSelected : styles.icon
+          }
+          src={recursive}
+          alt=""
+        />
       </button>
     </div>
   );

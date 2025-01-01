@@ -14,13 +14,12 @@ const SideBar = () => {
   const whiteBoard = useSelector((state: any) => state.whiteBoard);
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      console.log("mousedown");
       if (
         componentRef.current &&
-        e.clientX >= componentRef.current.getBoundingClientRect().right - 5
+        e.clientX >= componentRef.current.getBoundingClientRect().right - 5 &&
+        e.clientX <= componentRef.current.getBoundingClientRect().right + 1
       ) {
         setDragging(true);
-        console.log("mousedown detected");
       }
     };
 
@@ -43,6 +42,7 @@ const SideBar = () => {
 
     const handleMouseMoveOverComponent = (e: MouseEvent) => {
       if (componentRef.current) {
+        console.log("resizing");
         if (
           e.clientX >=
           componentRef.current.getBoundingClientRect().right - 5
@@ -71,7 +71,7 @@ const SideBar = () => {
         handleMouseMoveOverComponent
       );
     };
-  }, [dragging]);
+  }, [dragging, width]);
 
   return (
     <div>

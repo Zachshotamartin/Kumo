@@ -101,83 +101,76 @@ const RenderText = () => {
 
                 // box styling
                 borderRadius: `${shape.borderRadius}%`,
-                borderWidth: `${shape.borderWidth}px`,
-                borderStyle: `${shape.borderStyle}`,
-                border: selectedShapes.includes(index)
-                  ? "blue 1px solid"
-                  : `${shape.borderColor} ${shape.borderWidth}px ${shape.borderStyle}`,
+
+                border: `${shape.borderColor} ${
+                  shape.borderWidth / window.percentZoomed
+                }px ${shape.borderStyle}`,
 
                 // color styling
 
-                borderColor: selectedShapes.includes(index)
-                  ? "blue"
-                  : shape.borderColor,
-
                 opacity: `${shape.opacity}`,
+                backgroundColor: `${shape.backgroundColor}`,
               }}
             >
-              {shape.type === "text" ? (
-                <textarea
-                  ref={inputRef}
-                  style={{
-                    display: "flex",
-                    width: "100%",
-                    height: "100%",
+              <textarea
+                ref={inputRef}
+                style={{
+                  display: "flex",
+                  width: "100%",
+                  height: "100%",
 
-                    backgroundColor: "transparent",
-                    resize: "none",
-                    outline: "none",
-                    padding:
-                      shape.alignItems === "flex-start"
-                        ? "0 0 0 0"
-                        : shape.alignItems === "flex-end"
-                        ? `${
-                            shape.height / window.percentZoomed -
-                            (shape.lineHeight * shape.rows) /
-                              window.percentZoomed
-                          }px 0 0 0`
-                        : shape.alignItems === "center"
-                        ? `${
-                            shape.height / 2 / window.percentZoomed -
-                            shape.lineHeight / 2 / window.percentZoomed
-                          }px 0 ${
-                            shape.height / 2 / window.percentZoomed -
-                            shape.lineHeight / 2 / window.percentZoomed
-                          }px 0`
-                        : "0 0 0 0",
+                  backgroundColor: "transparent",
+                  resize: "none",
+                  outline: "none",
+                  padding:
+                    shape.alignItems === "flex-start"
+                      ? "0 0 0 0"
+                      : shape.alignItems === "flex-end"
+                      ? `${
+                          shape.height / window.percentZoomed -
+                          (shape.lineHeight * shape.rows) / window.percentZoomed
+                        }px 0 0 0`
+                      : shape.alignItems === "center"
+                      ? `${
+                          shape.height / 2 / window.percentZoomed -
+                          shape.lineHeight / 2 / window.percentZoomed
+                        }px 0 ${
+                          shape.height / 2 / window.percentZoomed -
+                          shape.lineHeight / 2 / window.percentZoomed
+                        }px 0`
+                      : "0 0 0 0",
 
-                    border: "1px, solid, transparent",
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
-                    textOverflow: "ellipsis",
+                  border: "0px, solid, transparent",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
 
-                    // text styling
-                    fontSize: `${shape.fontSize / window.percentZoomed}px`,
-                    fontFamily: `${shape.fontFamily}`,
-                    fontWeight: `${shape.fontWeight}`,
-                    textAlign: shape.textAlign as "left" | "right" | "center",
-                    textDecoration: `${shape.textDecoration}`,
-                    lineHeight: `${shape.lineHeight}`,
-                    letterSpacing: `${
-                      shape.letterSpacing / window.percentZoomed
-                    }px`,
-                    color: `${shape.color}`,
-                  }}
-                  value={shape.text}
-                  onChange={(e) => {
-                    const usedRows = calculateUsedRows(
-                      e.target.value,
-                      shape.lineHeight * window.percentZoomed,
-                      shape.fontSize * window.percentZoomed,
-                      shape.width / window.percentZoomed,
-                      shape.fontFamily
-                    );
-                    handleInputChange(index, e, usedRows);
-                  }}
-                  onBlur={() => handleBlur(index)}
-                  onFocus={() => handleInputFocus(index)}
-                />
-              ) : null}
+                  // text styling
+                  fontSize: `${shape.fontSize / window.percentZoomed}px`,
+                  fontFamily: `${shape.fontFamily}`,
+                  fontWeight: `${shape.fontWeight}`,
+                  textAlign: shape.textAlign as "left" | "right" | "center",
+                  textDecoration: `${shape.textDecoration}`,
+                  lineHeight: `${shape.lineHeight}`,
+                  letterSpacing: `${
+                    shape.letterSpacing / window.percentZoomed
+                  }px`,
+                  color: `${shape.color}`,
+                }}
+                value={shape.text}
+                onChange={(e) => {
+                  const usedRows = calculateUsedRows(
+                    e.target.value,
+                    shape.lineHeight * window.percentZoomed,
+                    shape.fontSize * window.percentZoomed,
+                    shape.width / window.percentZoomed,
+                    shape.fontFamily
+                  );
+                  handleInputChange(index, e, usedRows);
+                }}
+                onBlur={() => handleBlur(index)}
+                onFocus={() => handleInputFocus(index)}
+              />
             </div>
           )}
         </>

@@ -5,6 +5,13 @@ import styles from "./options.module.css";
 import alignLeft from "../../res/align-left.png";
 import alignCenter from "../../res/align-center.png";
 import alignRight from "../../res/align-right.png";
+import overline from "../../res/overline.png";
+import underline from "../../res/underline.png";
+import none from "../../res/none.png";
+import lineThrough from "../../res/throughline.png";
+import alignTop from "../../res/align-top.png";
+import alignMiddle from "../../res/align-middle.png";
+import alignBottom from "../../res/align-bottom.png";
 
 const FontStyles = () => {
   const dispatch = useDispatch();
@@ -139,7 +146,7 @@ const FontStyles = () => {
       <div className={styles.labelInput}>
         <h5 className={styles.label}>vertical align</h5>
         <img
-          src={alignLeft} // Replace with your image URL
+          src={alignTop} // Replace with your image URL
           alt="flex-start align"
           className={`${styles.radioImage} ${
             alignItems === "flex-start" ? styles.checked : ""
@@ -148,7 +155,7 @@ const FontStyles = () => {
         />
 
         <img
-          src={alignCenter} // Replace with your image URL
+          src={alignMiddle} // Replace with your image URL
           alt="center align"
           className={`${styles.radioImage} ${
             alignItems === "center" ? styles.checked : ""
@@ -157,7 +164,7 @@ const FontStyles = () => {
         />
 
         <img
-          src={alignRight} // Replace with your image URL
+          src={alignBottom} // Replace with your image URL
           alt="flex-end align"
           className={`${styles.radioImage} ${
             alignItems === "flex-end" ? styles.checked : ""
@@ -169,7 +176,7 @@ const FontStyles = () => {
       <div className={styles.labelInput}>
         <h5 className={styles.label}>text decoration</h5>
         <img
-          src={alignLeft} // Replace with your image URL
+          src={none} // Replace with your image URL
           alt="none decoration"
           className={`${styles.radioImage} ${
             textDecoration === "none" ? styles.checked : ""
@@ -178,7 +185,7 @@ const FontStyles = () => {
         />
 
         <img
-          src={alignCenter} // Replace with your image URL
+          src={underline} // Replace with your image URL
           alt="underline decoration"
           className={`${styles.radioImage} ${
             textDecoration === "underline" ? styles.checked : ""
@@ -187,7 +194,7 @@ const FontStyles = () => {
         />
 
         <img
-          src={alignRight} // Replace with your image URL
+          src={overline} // Replace with your image URL
           alt="overline decoration"
           className={`${styles.radioImage} ${
             textDecoration === "overline" ? styles.checked : ""
@@ -196,7 +203,7 @@ const FontStyles = () => {
         />
 
         <img
-          src={alignRight} // Replace with your image URL
+          src={lineThrough} // Replace with your image URL
           alt="line-through decoration"
           className={`${styles.radioImage} ${
             textDecoration === "line-through" ? styles.checked : ""

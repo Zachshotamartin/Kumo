@@ -16,6 +16,7 @@
 .hide {
   background-color: #444444;
   color: white;
+  margin-left: 1rem;
 }
 
 .hiddenNavigation {
