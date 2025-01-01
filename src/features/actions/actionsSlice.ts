@@ -10,6 +10,7 @@ interface ActionsState {
   pasting: boolean;
   sharing: boolean;
   deleting: boolean;
+  grid: boolean;
 }
 
 const initialState: ActionsState = {
@@ -21,6 +22,7 @@ const initialState: ActionsState = {
   pasting: false,
   sharing: false,
   deleting: false,
+  grid: true,
 };
 
 const actionsSlice = createSlice({
@@ -91,6 +93,14 @@ const actionsSlice = createSlice({
         state.deleting = true;
       }
     },
+    setGrid: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.grid = false;
+      }
+      if (action.payload) {
+        state.grid = true;
+      }
+    },
   },
 });
 
@@ -103,6 +113,7 @@ export const {
   setPasting,
   setSharing,
   setDeleting,
+  setGrid,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

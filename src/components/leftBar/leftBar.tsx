@@ -10,6 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 import { useSelector } from "react-redux";
+import Navigation from "../navigation/navigation";
 import { db } from "../../config/firebase";
 const LeftBar = () => {
   const usersCollectionRef = collection(db, "users");
@@ -58,6 +59,7 @@ const LeftBar = () => {
 
   return (
     <div className={styles.leftBar}>
+      <Navigation />
       <div className={styles.createBoardContainer}>
         <h4 className={styles.title}> Create New Board</h4>
         <input

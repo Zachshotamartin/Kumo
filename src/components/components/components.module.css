@@ -11,6 +11,10 @@
   padding-left: 1rem;
   border: 1px solid #b4b4b4;
   padding-top: 0.5rem;
+  scrollbar-color: #b4b4b4 #444444;
+  scrollbar-width: thin;
+  scroll-margin-block-start: 1rem;
+  scrollbar-gutter: stable;
 }
 
 .title {

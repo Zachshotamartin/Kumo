@@ -77,6 +77,7 @@ const WhiteBoard = () => {
   const borderStartY = useSelector((state: any) => state.selected.borderStartY);
   const borderEndX = useSelector((state: any) => state.selected.borderEndX);
   const borderEndY = useSelector((state: any) => state.selected.borderEndY);
+  const grid = useSelector((state: any) => state.actions.grid);
 
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
 
@@ -691,7 +692,7 @@ const WhiteBoard = () => {
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
     >
-      <RenderGridLines />
+      {grid && <RenderGridLines />}
       <RenderBoxes />
       <RenderText />
       <RenderBoards />

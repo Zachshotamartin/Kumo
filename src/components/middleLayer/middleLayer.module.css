@@ -1,6 +1,6 @@
 .middleLayer {
   color: white;
-  overflow-y: scroll;
+
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -34,6 +34,7 @@
   background-color: "transparent";
   flex-wrap: wrap;
   overflow-y: visible;
+  text-align: left;
 }
 .title {
   margin-bottom: 0;

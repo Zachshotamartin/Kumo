@@ -30,6 +30,7 @@ const Colors = () => {
   };
 
   const updateBackgroundColor = (color: string) => {
+    console.log("made it in");
     dispatch(
       updateShape({
         index: selectedIdx,
@@ -69,19 +70,24 @@ const Colors = () => {
   }, [color]);
 
   const handleColorChange = (color: any) => {
-    if (color && color.hex) {
-      setColor(color.hex);
+    console.log("trying to change color");
+    if (color) {
+      console.log(color);
+      setColor(color);
     }
   };
   const handleBackgroundColorChange = (color: any) => {
-    if (color && color.hex) {
-      setBackgroundColor(color.hex);
+    console.log("trying to change color");
+    console.log(color);
+    if (color) {
+      setBackgroundColor(color);
+      console.log(color);
     }
   };
 
   const handleBorderColorChange = (color: any) => {
-    if (color && color.hex) {
-      setBorderColor(color.hex);
+    if (color) {
+      setBorderColor(color);
     }
   };
 
@@ -90,23 +96,29 @@ const Colors = () => {
       <h4 className={styles.optionHeader}>Color</h4>
       <div className={styles.labelInput}>
         <h5 className={styles.label}>Color</h5>
-        <SketchPicker
-          color={color}
-          onChangeComplete={(color) => handleColorChange(color)}
+        <input
+          style={{ backgroundColor: color }}
+          type="color"
+          value={color}
+          onChange={(e) => handleColorChange(e.target.value)}
         />
       </div>
       <div className={styles.labelInput}>
         <h5 className={styles.label}>Background Color</h5>
-        <SketchPicker
-          color={backgroundColor}
-          onChangeComplete={(color) => handleBackgroundColorChange(color)}
+        <input
+          style={{ backgroundColor: backgroundColor }}
+          type="color"
+          value={backgroundColor}
+          onChange={(e) => handleBackgroundColorChange(e.target.value)}
         />
       </div>
       <div className={styles.labelInput}>
         <h5 className={styles.label}>Border Color</h5>
-        <SketchPicker
-          color={borderColor}
-          onChangeComplete={(color) => handleBorderColorChange(color)}
+        <input
+          style={{ backgroundColor: borderColor }}
+          type="color"
+          value={borderColor}
+          onChange={(e) => handleBorderColorChange(e.target.value)}
         />
       </div>
     </div>

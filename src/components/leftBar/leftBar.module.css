@@ -1,9 +1,12 @@
 .leftBar {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-start;
+  margin-top: 0;
   flex: 0.15;
+  background-color: #444444;
+  border: 1px solid #b4b4b4;
+  overflow-x: hidden;
 }
 
 .title {
@@ -32,4 +35,13 @@
 .icon {
   height: 15px;
   width: 15px;
+}
+.createBoardContainer {
+  flex: 1;
+  border: 1px solid #b4b4b4;
+  display: flex;
+  flex-direction: column;
+
+  overflow-x: hidden;
+  justify-content: flex-start;
 }

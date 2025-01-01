@@ -3,7 +3,6 @@
   display: flex;
   flex-direction: column;
   border: 1px solid #b4b4b4;
-  overflow-y: scroll;
   overflow-x: hidden;
   justify-content: flex-start;
   align-items: flex-start;

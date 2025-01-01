@@ -57,22 +57,72 @@ const RenderBorder = () => {
   }, [selectedShapes, shapes]);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: `${(borderStartY - window.y1 - 2) / window.percentZoomed}px`,
-        left: `${(borderStartX - window.x1 - 2) / window.percentZoomed}px`,
-        width: `${
-          Math.abs(borderStartX - borderEndX) / window.percentZoomed
-        }px`,
-        height: `${
-          Math.abs(borderStartY - borderEndY) / window.percentZoomed
-        }px`,
+    <>
+      <div
+        style={{
+          position: "absolute",
+          top: `${(borderStartY - window.y1 - 2) / window.percentZoomed}px`,
+          left: `${(borderStartX - window.x1 - 2) / window.percentZoomed}px`,
+          width: `${
+            Math.abs(borderStartX - borderEndX) / window.percentZoomed
+          }px`,
+          height: `${
+            Math.abs(borderStartY - borderEndY) / window.percentZoomed
+          }px`,
 
-        border: `${2 / window.percentZoomed}px solid blue`,
-        zIndex: 51,
-      }}
-    ></div>
+          border: `${2 / window.percentZoomed}px solid blue`,
+          zIndex: 51,
+        }}
+      ></div>
+      <div
+        style={{
+          position: "absolute",
+          top: `${(borderStartY - window.y1 - 4) / window.percentZoomed}px`,
+          left: `${(borderStartX - window.x1 - 4) / window.percentZoomed}px`,
+          width: `${4 / window.percentZoomed}px`,
+          height: `${4 / window.percentZoomed}px`,
+          border: `${1 / window.percentZoomed}px solid blue`,
+          backgroundColor: "white",
+          zIndex: 52,
+        }}
+      ></div>
+      <div
+        style={{
+          position: "absolute",
+          top: `${(borderEndY - window.y1 - 2) / window.percentZoomed}px`,
+          left: `${(borderStartX - window.x1 - 4) / window.percentZoomed}px`,
+          width: `${4 / window.percentZoomed}px`,
+          height: `${4 / window.percentZoomed}px`,
+          border: `${1 / window.percentZoomed}px solid blue`,
+          backgroundColor: "white",
+          zIndex: 52,
+        }}
+      ></div>
+      <div
+        style={{
+          position: "absolute",
+          top: `${(borderStartY - window.y1 - 4) / window.percentZoomed}px`,
+          left: `${(borderEndX - window.x1 - 2) / window.percentZoomed}px`,
+          width: `${4 / window.percentZoomed}px`,
+          height: `${4 / window.percentZoomed}px`,
+          border: `${1 / window.percentZoomed}px solid blue`,
+          backgroundColor: "white",
+          zIndex: 52,
+        }}
+      ></div>
+      <div
+        style={{
+          position: "absolute",
+          top: `${(borderEndY - window.y1 - 2) / window.percentZoomed}px`,
+          left: `${(borderEndX - window.x1 - 2) / window.percentZoomed}px`,
+          width: `${4 / window.percentZoomed}px`,
+          height: `${4 / window.percentZoomed}px`,
+          border: `${1 / window.percentZoomed}px solid blue`,
+          backgroundColor: "white",
+          zIndex: 52,
+        }}
+      ></div>
+    </>
   );
 };
 

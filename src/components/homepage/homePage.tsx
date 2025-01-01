@@ -39,7 +39,7 @@ const HomePage = () => {
         sharedBoardsIds: [],
       };
       await addDoc(usersCollectionRef, data);
-      console.log(data);
+
       dispatch(login({ uid: userCredential.user.uid, email: email }));
     } catch (error: any) {
       if (error.code === "auth/email-already-in-use") {
@@ -64,6 +64,8 @@ const HomePage = () => {
           email: auth.currentUser?.email || "",
         })
       );
+      console.log(auth.currentUser?.uid);
+      console.log(auth.currentUser?.email);
       const userRef = collection(db, "users");
       const q = query(userRef, where("uid", "==", userCredential.user.uid));
       const querySnapshot = await getDocs(q);

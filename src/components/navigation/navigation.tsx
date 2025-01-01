@@ -24,15 +24,19 @@ import {
 } from "firebase/firestore";
 import Share from "../share/share";
 import { db } from "../../config/firebase";
-import { setSharing, setDeleting } from "../../features/actions/actionsSlice";
+import {
+  setSharing,
+  setDeleting,
+  setGrid,
+} from "../../features/actions/actionsSlice";
 
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 
 const Navigation = () => {
-  const sharing = useSelector((state: any) => state.actions.sharing);
-  const user = useSelector((state: any) => state.auth.user);
-  const Username = user?.email;
+  const user = useSelector((state: any) => state.auth);
+  const grid = useSelector((state: any) => state.actions.grid);
+
   const dispatch = useDispatch();
   const appDispatch = useDispatch<AppDispatch>();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
@@ -82,12 +86,10 @@ const Navigation = () => {
     }
   };
 
-  
-
   return (
     <div className={styles.navigation}>
       <NavElement image={logo} text="Kumo" />
-      <NavElement image={userIcon} text={Username || "User"} />
+      <NavElement image={userIcon} text={user?.email || "User"} />
       <NavElement image={menu} text="Settings" />
       <button
         className={styles.hide}
@@ -111,27 +113,45 @@ const Navigation = () => {
       >
         Logout
       </button>
-      <button className={styles.hide} onClick={handleHide}>
-        Hide
-      </button>
-      <button className={styles.hide} onClick={handleHome}>
-        Home
-      </button>
-      <button className={styles.hide} onClick={handleMakePublic}>
-        Make Public
-      </button>
-      <button
-        className={styles.hide}
-        onClick={() => dispatch(setSharing(true))}
-      >
-        Share
-      </button>
-      <button
-        className={styles.hide}
-        onClick={() => dispatch(setDeleting(true))}
-      >
-        Delete
-      </button>
+      {whiteboard.id !== null && (
+        <button className={styles.hide} onClick={handleHide}>
+          Hide
+        </button>
+      )}
+      {whiteboard.id !== null && (
+        <button className={styles.hide} onClick={handleHome}>
+          Home
+        </button>
+      )}
+      {whiteboard.id !== null && (
+        <button className={styles.hide} onClick={handleMakePublic}>
+          Make Public
+        </button>
+      )}
+      {whiteboard.id !== null && (
+        <button
+          className={styles.hide}
+          onClick={() => dispatch(setSharing(true))}
+        >
+          Share
+        </button>
+      )}
+      {whiteboard.id !== null && (
+        <button
+          className={styles.hide}
+          onClick={() => dispatch(setDeleting(true))}
+        >
+          Delete
+        </button>
+      )}
+      {whiteboard.id !== null && (
+        <button
+          className={styles.hide}
+          onClick={() => dispatch(setGrid(!grid))}
+        >
+          Toggle Grid
+        </button>
+      )}
     </div>
   );
 };

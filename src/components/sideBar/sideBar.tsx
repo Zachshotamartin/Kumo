@@ -80,7 +80,7 @@ const SideBar = () => {
             cursor: cursor,
           }}
         >
-          <h2>{whiteBoard.uid}</h2>
+          <h2>{whiteBoard.title}</h2>
           <Navigation />
           <MiddleLayer />
           <Components />
