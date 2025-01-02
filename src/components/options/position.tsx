@@ -46,7 +46,7 @@ const Position = () => {
       <h4 className={styles.optionHeader}>Position</h4>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>x</h5>
+          <h5 className={styles.label}>X</h5>
           <input
             className={styles.numberInput}
             type="number"
@@ -56,7 +56,7 @@ const Position = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>y</h5>
+          <h5 className={styles.label}>Y</h5>
           <input
             className={styles.numberInput}
             type="number"

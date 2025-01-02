@@ -11,7 +11,7 @@ import BoardLink from "../options/boardLink";
 import Colors from "../options/colors";
 
 const OptionsBar = () => {
-  const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
+  const hidden = useSelector((state: any) => state.sideBar.hideOptions);
   const selectedIdx = useSelector(
     (state: any) => state.selected.selectedShapes[0]
   );

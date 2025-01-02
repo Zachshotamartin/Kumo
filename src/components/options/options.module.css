@@ -42,7 +42,7 @@
 .label {
   margin: 0;
   margin-right: 0;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-align: left;
   flex-basis: 0;
   flex-shrink: 1;
@@ -68,9 +68,8 @@
 }
 
 .colorInput {
-  background-color: #444444;
-  color: white;
   border: 1px solid #b4b4b42b;
+  border-width: 2px;
   border-radius: 5px;
   margin: 0;
   padding: 1rem;

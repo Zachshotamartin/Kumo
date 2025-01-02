@@ -56,6 +56,7 @@ import RenderCalendars from "../renderComponents/renderCalendars";
 import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
 import image from "../../res/image.png";
+import { setHideOptions } from "../../features/hide/hide";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -129,6 +130,15 @@ const WhiteBoard = () => {
     dragging,
     doubleClicking,
   ]);
+
+  useEffect(() => {
+    if (selectedShapes.length === 0) {
+      dispatch(setHideOptions(true));
+    } else {
+      dispatch(setHideOptions(false));
+    }
+    console.log(selectedShapes.length);
+  }, [selectedShapes]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -217,7 +227,7 @@ const WhiteBoard = () => {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedShapes]);
+  }, [selectedShapes, shapes]);
 
   const SNAP_THRESHOLD = 5; // Define snapping threshold
 
