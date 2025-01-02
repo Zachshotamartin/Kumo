@@ -51,3 +51,21 @@
 .dropdown button:hover {
   color: #007bff;
 }
+
+.dropdownHidden {
+  display: flex;
+  position: fixed;
+  top: 8rem;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+
+  border: 2px solid #b4b4b42b;
+  border-radius: 10px;
+  background-color: #444444;
+  z-index: 100;
+  padding: 0.5rem;
+}
+.dropdownHidden button:hover {
+  color: #007bff;
+}

@@ -109,7 +109,10 @@ const Navigation = () => {
         handleClick={handleClickUser}
       />
       {userOpen && (
-        <div className={styles.dropdown} style={{ left: `${width + 2}%` }}>
+        <div
+          className={!hidden ? styles.dropdown : styles.dropdownHidden}
+          style={{ left: !hidden ? `${width + 2}%` : "2rem" }}
+        >
           {whiteboard.id !== null && (
             <button className={styles.hide} onClick={handleHome}>
               Home
@@ -143,10 +146,13 @@ const Navigation = () => {
         handleClick={handleClickSettings}
       />
       {settingsOpen && (
-        <div className={styles.dropdown} style={{ left: `${width + 2}%` }}>
+        <div
+          className={!hidden ? styles.dropdown : styles.dropdownHidden}
+          style={{ left: !hidden ? `${width + 2}%` : "2rem" }}
+        >
           {whiteboard.id !== null && (
             <button className={styles.hide} onClick={handleHide}>
-              Hide Sidebar
+              Toggle Sidebar
             </button>
           )}
 
