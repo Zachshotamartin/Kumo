@@ -48,6 +48,7 @@
   flex-shrink: 1;
   flex-grow: 1;
 }
+
 .numberInput {
   background-color: #444444;
   color: white;
@@ -87,6 +88,9 @@
 }
 
 .dropdown {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   background-color: #444444;
   color: white;
   border: 1px solid #b4b4b42b;
