@@ -140,7 +140,7 @@ const RenderText = () => {
                         }px 0`
                       : "0 0 0 0",
 
-                  border: "0px, solid, transparent",
+                  border: "none",
                   overflow: "hidden",
                   whiteSpace: "nowrap",
                   textOverflow: "ellipsis",
