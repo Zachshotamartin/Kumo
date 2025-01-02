@@ -145,7 +145,7 @@ const Navigation = () => {
         text="Settings"
         handleClick={handleClickSettings}
       />
-      {settingsOpen && (
+      {settingsOpen && whiteboard.id !== null && (
         <div
           className={!hidden ? styles.dropdown : styles.dropdownHidden}
           style={{ left: !hidden ? `${width + 2}%` : "2rem" }}

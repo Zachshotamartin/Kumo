@@ -18,8 +18,11 @@
   margin: 0;
 }
 .boardImage:hover {
-  background-color: #b4b4b4;
+  opacity: 0.8;
+  cursor: pointer;
+  transform: scale(1.02);
   color: white;
+  transition: all 0.2s ease-in-out;
 }
 .boardContainer {
   margin: 0.5rem;

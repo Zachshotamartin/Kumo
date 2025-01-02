@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styles from "./viewBoardPreview.module.css";
 import boardImage from "../../res/recursive.png";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
@@ -6,6 +6,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import { AppDispatch } from "../../store";
 import { useDispatch } from "react-redux";
+
+import { ref, getDownloadURL } from "firebase/storage";
+import { storage } from "../../config/firebase";
 
 const ViewBoardPreview = (props: { boards: any }) => {
   const boards = props.boards;
@@ -40,6 +43,33 @@ const ViewBoardPreview = (props: { boards: any }) => {
       console.error("Error getting document:", error);
     }
   };
+
+  const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
+
+  const getStorageImageById = async (id: string) => {
+    const storageRef = ref(storage, `boardPreviews/${id}.jpg`);
+    console.log(id);
+    console.log(storageRef);
+    return await getDownloadURL(storageRef);
+  };
+
+  useEffect(() => {
+    const fetchImageUrls = async () => {
+      const urls: { [key: string]: string } = {};
+      for (const board of boards) {
+        try {
+          const url = await getStorageImageById(board.id);
+          urls[board.id] = url;
+        } catch (error) {
+          console.error(`Failed to fetch image for board ${board.id}:`, error);
+        }
+      }
+      setImageUrls(urls);
+    };
+
+    fetchImageUrls();
+  }, [boards]);
+
   return (
     <div className={styles.container}>
       {boards.map((board: any) => {
@@ -50,7 +80,7 @@ const ViewBoardPreview = (props: { boards: any }) => {
             onClick={() => handleClick(board.id, board.type)}
           >
             <img
-              src={boardImage}
+              src={imageUrls[board.id] || boardImage}
               className={styles.boardImage}
               alt={board.title}
             />

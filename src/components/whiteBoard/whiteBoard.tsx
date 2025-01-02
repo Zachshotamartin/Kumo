@@ -38,7 +38,6 @@ import {
   clearSelectedShapes,
   setHighlightStart,
   setHighlightEnd,
-  
 } from "../../features/selected/selectedSlice";
 import BottomBar from "../bottomBar/bottomBar";
 import RenderBoxes from "../renderComponents/renderBoxes";
@@ -53,6 +52,11 @@ import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
 import image from "../../res/image.png";
 import { setHideOptions } from "../../features/hide/hide";
+import { saveAs } from "file-saver";
+import { storage } from "../../config/firebase";
+import { ref, uploadBytes } from "firebase/storage";
+
+const domtoimage = require("dom-to-image");
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -113,8 +117,42 @@ const WhiteBoard = () => {
         console.error("Error updating document:", error);
       }
     };
+    const generatePreview = () => {
+      const element = document.getElementById("whiteboard");
+      domtoimage
+        .toJpeg(element, { quality: 0.2 })
+        .then((dataUrl: string) => {
+          const image = new Image();
+          image.src = dataUrl;
+
+          // Correctly convert the dataUrl to a Blob
+          const byteString = atob(dataUrl.split(",")[1]); // Decode Base64 string
+          const arrayBuffer = new ArrayBuffer(byteString.length);
+          const uint8Array = new Uint8Array(arrayBuffer);
+
+          for (let i = 0; i < byteString.length; i++) {
+            uint8Array[i] = byteString.charCodeAt(i);
+          }
+
+          const blob = new Blob([uint8Array], { type: "image/jpeg" });
+
+          // Upload the Blob to Firebase Storage
+          const fileRef = ref(storage, `boardPreviews/${board.id}.jpg`);
+          uploadBytes(fileRef, blob)
+            .then((snapshot) => {
+              console.log("File uploaded successfully!");
+            })
+            .catch((error) => {
+              console.error("Error uploading file:", error);
+            });
+        })
+        .catch((error: any) => {
+          console.error("Error generating preview:", error);
+        });
+    };
 
     updateFirebase();
+    generatePreview();
   }, [
     user?.uid,
     board.id,
@@ -158,7 +196,6 @@ const WhiteBoard = () => {
     let debounceTimeoutPaste: any;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      
       if (event.metaKey && event.key === "c") {
         const copyShapes = () => {
           const copiedData = selectedShapes.map((index: number) => {
@@ -198,7 +235,7 @@ const WhiteBoard = () => {
       } else if (event.key === "Backspace") {
         // make sure that this is not focused on a textbox
         event.preventDefault();
- 
+
         if (selectedShapes.length > 0) {
           const shapesCopy = [...selectedShapes];
           const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
@@ -712,9 +749,10 @@ const WhiteBoard = () => {
       dispatch(setWindow(newWindow));
     }
   };
- 
+
   return (
     <div
+      id="whiteboard"
       ref={canvasRef}
       style={{
         cursor: selectedTool === "pointer" ? "crosshair" : "default",
