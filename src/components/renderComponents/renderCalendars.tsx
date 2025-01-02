@@ -2,7 +2,7 @@ import React from "react";
 import { useSelector } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 
-const RenderImages = () => {
+const RenderCalendars = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
@@ -13,7 +13,7 @@ const RenderImages = () => {
     <>
       {shapes.map((shape: Shape, index: number) => (
         <>
-          {shape.type === "image" && (
+          {shape.type === "calendar" && (
             <div
               key={index}
               style={{
@@ -63,4 +63,4 @@ const RenderImages = () => {
   );
 };
 
-export default RenderImages;
+export default RenderCalendars;

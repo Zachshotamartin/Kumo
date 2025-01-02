@@ -42,16 +42,18 @@ const Transform = () => {
   return (
     <div className={styles.container}>
       <h4 className={styles.optionHeader}>Transform</h4>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>Rotation</h5>
-        <input
-          ref={inputRefRotation}
-          type="number"
-          className={styles.numberInput}
-          value={rotation}
-          onChange={(e) => setRotation(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>Rotation</h5>
+          <input
+            ref={inputRefRotation}
+            type="number"
+            className={styles.numberInput}
+            value={rotation}
+            onChange={(e) => setRotation(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
       </div>
     </div>
   );

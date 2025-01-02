@@ -43,37 +43,41 @@ const BoxStyling = () => {
   return (
     <div className={styles.container}>
       <h4 className={styles.optionHeader}>Border</h4>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>Radius</h5>
-        <input
-          className={styles.numberInput}
-          type="number"
-          value={borderRadius}
-          onChange={(e) => setBorderRadius(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>Radius</h5>
+          <input
+            className={styles.numberInput}
+            type="number"
+            value={borderRadius}
+            onChange={(e) => setBorderRadius(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>Width</h5>
+          <input
+            type="number"
+            value={borderWidth}
+            className={styles.numberInput}
+            onChange={(e) => setBorderWidth(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
       </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>Width</h5>
-        <input
-          type="number"
-          value={borderWidth}
-          className={styles.numberInput}
-          onChange={(e) => setBorderWidth(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>Style</h5>
-        <select
-          value={borderStyle}
-          className={styles.dropdown}
-          onChange={(e) => setBorderStyle(e.target.value)}
-        >
-          <option value="solid">Solid</option>
-          <option value="dashed">Dashed</option>
-          <option value="dotted">Dotted</option>
-        </select>
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>Style</h5>
+          <select
+            value={borderStyle}
+            className={styles.dropdown}
+            onChange={(e) => setBorderStyle(e.target.value)}
+          >
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+          </select>
+        </div>
       </div>
     </div>
   );

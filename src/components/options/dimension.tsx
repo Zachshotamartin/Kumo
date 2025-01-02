@@ -70,27 +70,29 @@ const Dimension = () => {
   return (
     <div className={styles.container}>
       <h4 className={styles.optionHeader}>Dimension</h4>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>Width</h5>
-        <input
-          ref={inputRefWidth}
-          type="number"
-          className={styles.numberInput}
-          value={width}
-          onChange={(e) => setWidth(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>Height</h5>
-        <input
-          ref={inputRefHeight}
-          type="number"
-          className={styles.numberInput}
-          value={height}
-          onChange={(e) => setHeight(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>Width</h5>
+          <input
+            ref={inputRefWidth}
+            type="number"
+            className={styles.numberInput}
+            value={width}
+            onChange={(e) => setWidth(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>Height</h5>
+          <input
+            ref={inputRefHeight}
+            type="number"
+            className={styles.numberInput}
+            value={height}
+            onChange={(e) => setHeight(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
       </div>
     </div>
   );

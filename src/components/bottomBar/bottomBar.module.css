@@ -27,7 +27,7 @@
   transform: translate(-50%, -50%);
 
   z-index: 100;
-  padding: 0.5rem 2rem;
+  padding: 0.5rem 0.5rem;
   border-radius: 20px;
   background-color: #444444;
   border: 1px solid white;

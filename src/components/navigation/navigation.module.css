@@ -1,10 +1,13 @@
 .navigation {
   display: flex;
   flex-direction: column;
-  border: 1px solid #b4b4b42b;
+  border-top: 2px solid #b4b4b42b;
+  
   overflow-x: hidden;
   justify-content: flex-start;
   align-items: flex-start;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .icon {

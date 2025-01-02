@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./optionsBar.module.css";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import Position from "../options/position";
 import Dimension from "../options/dimension";
 import Transform from "../options/transform";
-import Opacity from "../options/opacity";
+
 import FontStyles from "../options/fontStyles";
 import BoxStyling from "../options/boxStyling";
 import BoardLink from "../options/boardLink";
@@ -37,7 +37,7 @@ const OptionsBar = () => {
       if (dragging && optionsBarRef.current) {
         const deltaX = e.clientX - startX;
         const deltaPercent = (deltaX / window.innerWidth) * 100;
-        const newLeft = Math.min(90, Math.max(80, startLeft + deltaPercent));
+        const newLeft = Math.min(85, Math.max(80, startLeft + deltaPercent));
         setLeft(newLeft);
       }
     },
@@ -71,7 +71,7 @@ const OptionsBar = () => {
         <div
           className={styles.optionsBar}
           ref={optionsBarRef}
-          style={{ left: `${left}%`, width: `${99 - left}%` }}
+          style={{ left: `${left}%`, width: `${100 - left}%` }}
         >
           <h3 className={styles.shapeType}>{selectedShape?.type}</h3>
           <div
@@ -91,7 +91,7 @@ const OptionsBar = () => {
           {selectedShape && <Dimension />}
           {selectedShape && <Transform />}
           {selectedShape && <BoxStyling />}
-          {selectedShape && <Opacity />}
+
           {selectedShape && selectedShape.type === "text" && <FontStyles />}
           {selectedShape && <Colors />}
         </div>

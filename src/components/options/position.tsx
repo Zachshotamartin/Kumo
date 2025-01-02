@@ -44,25 +44,27 @@ const Position = () => {
   return (
     <div className={styles.container}>
       <h4 className={styles.optionHeader}>Position</h4>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>x</h5>
-        <input
-          className={styles.numberInput}
-          type="number"
-          value={x1}
-          onChange={(e) => setX1(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>y</h5>
-        <input
-          className={styles.numberInput}
-          type="number"
-          value={y1}
-          onChange={(e) => setY1(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>x</h5>
+          <input
+            className={styles.numberInput}
+            type="number"
+            value={x1}
+            onChange={(e) => setX1(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>y</h5>
+          <input
+            className={styles.numberInput}
+            type="number"
+            value={y1}
+            onChange={(e) => setY1(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
       </div>
     </div>
   );

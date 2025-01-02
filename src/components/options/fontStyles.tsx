@@ -78,159 +78,173 @@ const FontStyles = () => {
   return (
     <div className={styles.container}>
       <h4 className={styles.optionHeader}>Typography</h4>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>size</h5>
-        <input
-          type="number"
-          className={styles.numberInput}
-          value={fontSize}
-          onChange={(e) => setFontSize(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>size</h5>
+          <input
+            type="number"
+            className={styles.numberInput}
+            value={fontSize}
+            onChange={(e) => setFontSize(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>weight</h5>
+          <select
+            value={fontWeight}
+            onChange={(e) => setFontWeight(e.target.value)}
+            className={styles.dropdown}
+          >
+            <option value="lighter">lighter</option>
+            <option value="normal">normal</option>
+            <option value="bold">bold</option>
+            <option value="bolder">bolder</option>
+          </select>
+        </div>
       </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>family</h5>
-        <select
-          value={fontFamily}
-          className={styles.dropdown}
-          onChange={(e) => setFontFamily(e.target.value)}
-        >
-          <option value="Arial">Arial</option>
-          <option value="Times New Roman">Times New Roman</option>
-          <option value="Verdana">Verdana</option>
-        </select>
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>family</h5>
+          <select
+            value={fontFamily}
+            className={styles.dropdown}
+            onChange={(e) => setFontFamily(e.target.value)}
+          >
+            <option value="Arial">Arial</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Verdana">Verdana</option>
+          </select>
+        </div>
       </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>weight</h5>
-        <select
-          value={fontWeight}
-          onChange={(e) => setFontWeight(e.target.value)}
-          className={styles.dropdown}
-        >
-          <option value="lighter">lighter</option>
-          <option value="normal">normal</option>
-          <option value="bold">bold</option>
-          <option value="bolder">bolder</option>
-        </select>
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>text align</h5>
+          <div className={styles.radioGroup}>
+            <img
+              src={alignLeft} // Replace with your image URL
+              alt="left align"
+              className={`${styles.radioImage} ${
+                textAlign === "left" ? styles.checked : ""
+              }`}
+              onClick={() => setTextAlign("left")}
+            />
+
+            <img
+              src={alignCenter} // Replace with your image URL
+              alt="center align"
+              className={`${styles.radioImage} ${
+                textAlign === "center" ? styles.checked : ""
+              }`}
+              onClick={() => setTextAlign("center")}
+            />
+
+            <img
+              src={alignRight} // Replace with your image URL
+              alt="right align"
+              className={`${styles.radioImage} ${
+                textAlign === "right" ? styles.checked : ""
+              }`}
+              onClick={() => setTextAlign("right")}
+            />
+          </div>
+        </div>
+
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>vertical align</h5>
+          <div className={styles.radioGroup}>
+            <img
+              src={alignTop}
+              alt="flex-start align"
+              className={`${styles.radioImage} ${
+                alignItems === "flex-start" ? styles.checked : ""
+              }`}
+              onClick={() => setAlignItems("flex-start")}
+            />
+
+            <img
+              src={alignMiddle}
+              alt="center align"
+              className={`${styles.radioImage} ${
+                alignItems === "center" ? styles.checked : ""
+              }`}
+              onClick={() => setAlignItems("center")}
+            />
+
+            <img
+              src={alignBottom}
+              alt="flex-end align"
+              className={`${styles.radioImage} ${
+                alignItems === "flex-end" ? styles.checked : ""
+              }`}
+              onClick={() => setAlignItems("flex-end")}
+            />
+          </div>
+        </div>
       </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>text align</h5>
-        <img
-          src={alignLeft} // Replace with your image URL
-          alt="left align"
-          className={`${styles.radioImage} ${
-            textAlign === "left" ? styles.checked : ""
-          }`}
-          onClick={() => setTextAlign("left")}
-        />
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>text decoration</h5>
+          <div className={styles.radioGroup}>
+            <img
+              src={none} // Replace with your image URL
+              alt="none decoration"
+              className={`${styles.radioImage} ${
+                textDecoration === "none" ? styles.checked : ""
+              }`}
+              onClick={() => setTextDecoration("none")}
+            />
 
-        <img
-          src={alignCenter} // Replace with your image URL
-          alt="center align"
-          className={`${styles.radioImage} ${
-            textAlign === "center" ? styles.checked : ""
-          }`}
-          onClick={() => setTextAlign("center")}
-        />
+            <img
+              src={underline} // Replace with your image URL
+              alt="underline decoration"
+              className={`${styles.radioImage} ${
+                textDecoration === "underline" ? styles.checked : ""
+              }`}
+              onClick={() => setTextDecoration("underline")}
+            />
 
-        <img
-          src={alignRight} // Replace with your image URL
-          alt="right align"
-          className={`${styles.radioImage} ${
-            textAlign === "right" ? styles.checked : ""
-          }`}
-          onClick={() => setTextAlign("right")}
-        />
+            <img
+              src={overline} // Replace with your image URL
+              alt="overline decoration"
+              className={`${styles.radioImage} ${
+                textDecoration === "overline" ? styles.checked : ""
+              }`}
+              onClick={() => setTextDecoration("overline")}
+            />
+
+            <img
+              src={lineThrough} // Replace with your image URL
+              alt="line-through decoration"
+              className={`${styles.radioImage} ${
+                textDecoration === "line-through" ? styles.checked : ""
+              }`}
+              onClick={() => setTextDecoration("line-through")}
+            />
+          </div>
+        </div>
       </div>
-
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>vertical align</h5>
-        <img
-          src={alignTop} // Replace with your image URL
-          alt="flex-start align"
-          className={`${styles.radioImage} ${
-            alignItems === "flex-start" ? styles.checked : ""
-          }`}
-          onClick={() => setAlignItems("flex-start")}
-        />
-
-        <img
-          src={alignMiddle} // Replace with your image URL
-          alt="center align"
-          className={`${styles.radioImage} ${
-            alignItems === "center" ? styles.checked : ""
-          }`}
-          onClick={() => setAlignItems("center")}
-        />
-
-        <img
-          src={alignBottom} // Replace with your image URL
-          alt="flex-end align"
-          className={`${styles.radioImage} ${
-            alignItems === "flex-end" ? styles.checked : ""
-          }`}
-          onClick={() => setAlignItems("flex-end")}
-        />
-      </div>
-
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>text decoration</h5>
-        <img
-          src={none} // Replace with your image URL
-          alt="none decoration"
-          className={`${styles.radioImage} ${
-            textDecoration === "none" ? styles.checked : ""
-          }`}
-          onClick={() => setTextDecoration("none")}
-        />
-
-        <img
-          src={underline} // Replace with your image URL
-          alt="underline decoration"
-          className={`${styles.radioImage} ${
-            textDecoration === "underline" ? styles.checked : ""
-          }`}
-          onClick={() => setTextDecoration("underline")}
-        />
-
-        <img
-          src={overline} // Replace with your image URL
-          alt="overline decoration"
-          className={`${styles.radioImage} ${
-            textDecoration === "overline" ? styles.checked : ""
-          }`}
-          onClick={() => setTextDecoration("overline")}
-        />
-
-        <img
-          src={lineThrough} // Replace with your image URL
-          alt="line-through decoration"
-          className={`${styles.radioImage} ${
-            textDecoration === "line-through" ? styles.checked : ""
-          }`}
-          onClick={() => setTextDecoration("line-through")}
-        />
-      </div>
-
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>line height</h5>
-        <input
-          type="number"
-          className={styles.numberInput}
-          value={lineHeight}
-          onChange={(e) => setLineHeight(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
-      <div className={styles.labelInput}>
-        <h5 className={styles.label}>letter spacing</h5>
-        <input
-          type="number"
-          className={styles.numberInput}
-          value={letterSpacing}
-          onChange={(e) => setLetterSpacing(Number(e.target.value))}
-          onKeyDown={handleKeyDown}
-        />
+      <div className={styles.labelInputGroup}>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>line height</h5>
+          <input
+            type="number"
+            className={styles.numberInput}
+            value={lineHeight}
+            onChange={(e) => setLineHeight(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div className={styles.labelInput}>
+          <h5 className={styles.label}>letter spacing</h5>
+          <input
+            type="number"
+            className={styles.numberInput}
+            value={letterSpacing}
+            onChange={(e) => setLetterSpacing(Number(e.target.value))}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
       </div>
     </div>
   );

@@ -11,7 +11,10 @@ import { useSelector, useDispatch } from "react-redux";
 import { setSelectedTool } from "../../features/selected/selectedSlice";
 import { setDrawing } from "../../features/actions/actionsSlice";
 import { AppDispatch } from "../../store";
-import { setSelectedShapes } from "../../features/selected/selectedSlice";
+import {
+  setSelectedShapes,
+  clearSelectedShapes,
+} from "../../features/selected/selectedSlice";
 import { removeShape } from "../../features/whiteBoard/whiteBoardSlice";
 import {
   setBorderStartX,
@@ -31,18 +34,11 @@ const BottomBar = () => {
 
   const handleToolSwitch = (newTool: string) => {
     actionsDispatch(setDrawing(false));
-    if (newTool !== "pointer") {
-      dispatch(setSelectedShapes([]));
-    }
+
+    dispatch(clearSelectedShapes());
 
     actionsDispatch(setSelectedTool(newTool));
-    if (
-      newTool === "calendar" ||
-      newTool === "image" ||
-      newTool === "pointer"
-    ) {
-      actionsDispatch(setSelectedTool("pointer"));
-    }
+
     if (newTool === "text") {
       setTimeout(() => {
         if (inputRef.current) {

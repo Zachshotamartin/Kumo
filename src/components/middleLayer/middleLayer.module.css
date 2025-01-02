@@ -9,9 +9,11 @@
   cursor: pointer;
 
   padding-left: 1rem;
-  border: 1px solid #b4b4b42b;
+  border-top: 2px solid #b4b4b42b;
+  border-bottom: 2px solid #b4b4b42b;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
+
 }
 .middleLayer2 {
   color: white;

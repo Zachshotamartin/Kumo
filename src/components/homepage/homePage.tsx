@@ -92,7 +92,6 @@ const HomePage = () => {
         <h1 className={styles.logoText}>Kumo</h1>
       </div>
       <form className={styles.loginForm} onSubmit={handleLogin}>
-        <h4>Login</h4>
         <div className={styles.inputContainer}>
           <label>Email</label>
           <input
@@ -116,6 +115,7 @@ const HomePage = () => {
         <button className={styles.submit} type="submit">
           Login
         </button>
+        <h5 className={styles.or}> or</h5>
         <button
           className={styles.googleButton}
           type="button"

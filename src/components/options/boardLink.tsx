@@ -18,59 +18,62 @@ const BoardLink = () => {
   return (
     <div className={styles.container}>
       <h4 className={styles.optionHeader}>Board Link</h4>
-      <div className={styles.labelInput}>
+      <div className={styles.labelInputGroup}>
         {selectedShape?.type === "board" && (
-          <select
-            className={styles.dropdown}
-            value={selectedValue}
-            onChange={async (e) => {
-              const selectedBoardId = e.target.value;
-              if (selectedBoardId === "none") {
-                return;
-              }
-              let selectedBoard = boardChoices.publicBoards.find(
-                (board: any) => board.id === selectedBoardId
-              );
-              if (!selectedBoard) {
-                selectedBoard = boardChoices.privateBoards.find(
+          <div className={styles.labelInput}>
+            <h5 className={styles.label}>link</h5>
+            <select
+              className={styles.dropdown}
+              value={selectedValue}
+              onChange={async (e) => {
+                const selectedBoardId = e.target.value;
+                if (selectedBoardId === "none") {
+                  return;
+                }
+                let selectedBoard = boardChoices.publicBoards.find(
                   (board: any) => board.id === selectedBoardId
                 );
-              }
-              if (!selectedBoard) {
-                selectedBoard = boardChoices.sharedBoards.find(
-                  (board: any) => board.id === selectedBoardId
+                if (!selectedBoard) {
+                  selectedBoard = boardChoices.privateBoards.find(
+                    (board: any) => board.id === selectedBoardId
+                  );
+                }
+                if (!selectedBoard) {
+                  selectedBoard = boardChoices.sharedBoards.find(
+                    (board: any) => board.id === selectedBoardId
+                  );
+                }
+                dispatch(
+                  updateShape({
+                    index: selectedIdx,
+                    update: {
+                      id: selectedBoard.id,
+                      uid: selectedBoard.uid,
+                      title: selectedBoard.title,
+                    },
+                  })
                 );
-              }
-              dispatch(
-                updateShape({
-                  index: selectedIdx,
-                  update: {
-                    id: selectedBoard.id,
-                    uid: selectedBoard.uid,
-                    title: selectedBoard.title,
-                  },
-                })
-              );
-              setSelectedValue(selectedBoardId);
-            }}
-          >
-            <option value="none">none</option>
-            {boardChoices.publicBoards.map((board: any, index: number) => (
-              <option key={index} value={board.id}>
-                {board.id + " public"}
-              </option>
-            ))}
-            {boardChoices.privateBoards.map((board: any, index: number) => (
-              <option key={index} value={board.id}>
-                {board.id + " private"}
-              </option>
-            ))}
-            {boardChoices.sharedBoards.map((board: any, index: number) => (
-              <option key={index} value={board.id}>
-                {board.id + " shared"}
-              </option>
-            ))}
-          </select>
+                setSelectedValue(selectedBoardId);
+              }}
+            >
+              <option value="none">none</option>
+              {boardChoices.publicBoards.map((board: any, index: number) => (
+                <option key={index} value={board.id}>
+                  {board.id + " public"}
+                </option>
+              ))}
+              {boardChoices.privateBoards.map((board: any, index: number) => (
+                <option key={index} value={board.id}>
+                  {board.id + " private"}
+                </option>
+              ))}
+              {boardChoices.sharedBoards.map((board: any, index: number) => (
+                <option key={index} value={board.id}>
+                  {board.id + " shared"}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
     </div>

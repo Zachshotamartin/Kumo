@@ -51,7 +51,11 @@ import RenderBoards from "../renderComponents/renderBoards";
 import RenderHighlighting from "../renderComponents/renderHighlighting";
 import RenderBorder from "../renderComponents/renderBorder";
 import RenderGridLines from "../renderComponents/renderGridLines";
+import RenderImages from "../renderComponents/renderImages";
+import RenderCalendars from "../renderComponents/renderCalendars";
 import boardImage from "../../res/recursive.png";
+import calendarImage from "../../res/calendar.png";
+import image from "../../res/image.png";
 
 const WhiteBoard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -357,7 +361,9 @@ const WhiteBoard = () => {
     if (
       selectedTool === "rectangle" ||
       selectedTool === "text" ||
-      selectedTool === "board"
+      selectedTool === "board" ||
+      selectedTool === "calendar" ||
+      selectedTool === "image"
     ) {
       const shape: Shape = {
         // type
@@ -394,7 +400,13 @@ const WhiteBoard = () => {
 
         // color
         color: "white",
-        backgroundColor: selectedTool === "text" ? "transparent" : "white",
+        backgroundColor:
+          selectedTool === "text" ||
+          selectedTool === "board" ||
+          selectedTool === "calendar" ||
+          selectedTool === "image"
+            ? "transparent"
+            : "white",
         borderColor: "black",
         opacity: 1,
 
@@ -402,6 +414,12 @@ const WhiteBoard = () => {
       };
       if (selectedTool === "board") {
         shape.backgroundImage = boardImage;
+      }
+      if (selectedTool === "calendar") {
+        shape.backgroundImage = calendarImage;
+      }
+      if (selectedTool === "image") {
+        shape.backgroundImage = image;
       }
       dispatch(addShape(shape));
       dispatch(setSelectedShapes([shapes.length])); // Select the newly created shape
@@ -696,7 +714,7 @@ const WhiteBoard = () => {
       dispatch(setWindow(newWindow));
     }
   };
-
+  console.log(selectedTool);
   return (
     <div
       ref={canvasRef}
@@ -715,7 +733,8 @@ const WhiteBoard = () => {
       <RenderBoxes />
       <RenderText />
       <RenderBoards />
-
+      <RenderImages />
+      <RenderCalendars />
       {dragging && highlighting && <RenderHighlighting />}
       <RenderBorder />
 
@@ -725,6 +744,3 @@ const WhiteBoard = () => {
 };
 
 export default WhiteBoard;
-function deleteShape(index: number): any {
-  throw new Error("Function not implemented.");
-}

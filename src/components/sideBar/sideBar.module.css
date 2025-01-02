@@ -11,6 +11,8 @@
   flex-direction: column;
   z-index: 100;
   overflow-x: hidden;
+
+  border: 2px solid #b4b4b42b;
 }
 
 .hide {
@@ -40,4 +42,12 @@
   top: 1rem;
   z-index: 100;
   border-radius: 30px;
+}
+
+.title {
+  text-align: left;
+  margin: 0;
+  padding-left: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
