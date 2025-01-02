@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import styles from "./navigation.module.css";
 import NavElement from "../navElement/navElement";
 import { useSelector, useDispatch } from "react-redux";
@@ -14,9 +14,7 @@ import { AppDispatch } from "../../store";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import {
   collection,
-  CollectionReference,
   doc,
-  DocumentData,
   getDocs,
   query,
   updateDoc,
@@ -28,7 +26,10 @@ import {
   setSharing,
   setDeleting,
   setGrid,
+  setSettingsOpen,
+  setUserOpen,
 } from "../../features/actions/actionsSlice";
+import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
@@ -41,7 +42,9 @@ const Navigation = () => {
   const appDispatch = useDispatch<AppDispatch>();
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
   const whiteboard = useSelector((state: any) => state.whiteBoard);
-
+  const userOpen = useSelector((state: any) => state.actions.userOpen);
+  const settingsOpen = useSelector((state: any) => state.actions.settingsOpen);
+  const width = useSelector((state: any) => state.window.sideBarWidth);
   const handleHide = () => {
     dispatch(setHideSideBar(!hidden));
   };
@@ -53,6 +56,7 @@ const Navigation = () => {
       uid: user?.uid,
       id: null,
     };
+    dispatch(clearSelectedShapes());
     appDispatch(setWhiteboardData(data));
   };
 
@@ -86,71 +90,96 @@ const Navigation = () => {
     }
   };
 
+  const handleClickSettings = () => {
+    dispatch(setSettingsOpen(!settingsOpen));
+    dispatch(setUserOpen(false));
+  };
+  const handleClickUser = () => {
+    dispatch(setUserOpen(!userOpen));
+    dispatch(setSettingsOpen(false));
+  };
+
   return (
     <div className={hidden ? styles.hiddenNavigation : styles.navigation}>
-      <NavElement image={logo} text="Kumo" />
-      <NavElement image={userIcon} text={user?.email || "User"} />
-      <NavElement image={menu} text="Settings" />
-      <button
-        className={styles.hide}
-        onClick={() => {
-          const data = {
-            shapes: [],
-            title: "",
-            type: null,
-            selectedShape: null,
-            uid: auth.currentUser?.uid,
-            id: null,
-          };
+      <NavElement image={logo} text="Kumo" handleClick={() => {}} />
 
-          console.log("Board data:", data);
-          appDispatch(setWhiteboardData(data));
-          auth.signOut();
-          dispatch(logout());
-          console.log(auth?.currentUser?.email);
-          console.log(user);
-        }}
-      >
-        Logout
-      </button>
-      {whiteboard.id !== null && (
-        <button className={styles.hide} onClick={handleHide}>
-          Hide
-        </button>
+      <NavElement
+        image={userIcon}
+        text={user?.email || "User"}
+        handleClick={handleClickUser}
+      />
+      {userOpen && (
+        <div className={styles.dropdown} style={{ left: `${width + 2}%` }}>
+          {whiteboard.id !== null && (
+            <button className={styles.hide} onClick={handleHome}>
+              Home
+            </button>
+          )}
+          <button
+            className={styles.hide}
+            onClick={() => {
+              const data = {
+                shapes: [],
+                title: "",
+                type: null,
+                selectedShape: null,
+                uid: auth.currentUser?.uid,
+                id: null,
+              };
+
+              dispatch(clearSelectedShapes());
+              appDispatch(setWhiteboardData(data));
+              auth.signOut();
+              dispatch(logout());
+            }}
+          >
+            Logout
+          </button>
+        </div>
       )}
-      {whiteboard.id !== null && (
-        <button className={styles.hide} onClick={handleHome}>
-          Home
-        </button>
-      )}
-      {whiteboard.id !== null && (
-        <button className={styles.hide} onClick={handleMakePublic}>
-          Make Public
-        </button>
-      )}
-      {whiteboard.id !== null && (
-        <button
-          className={styles.hide}
-          onClick={() => dispatch(setSharing(true))}
-        >
-          Share
-        </button>
-      )}
-      {whiteboard.id !== null && (
-        <button
-          className={styles.hide}
-          onClick={() => dispatch(setDeleting(true))}
-        >
-          Delete
-        </button>
-      )}
-      {whiteboard.id !== null && (
-        <button
-          className={styles.hide}
-          onClick={() => dispatch(setGrid(!grid))}
-        >
-          Toggle Grid
-        </button>
+      <NavElement
+        image={menu}
+        text="Settings"
+        handleClick={handleClickSettings}
+      />
+      {settingsOpen && (
+        <div className={styles.dropdown} style={{ left: `${width + 2}%` }}>
+          {whiteboard.id !== null && (
+            <button className={styles.hide} onClick={handleHide}>
+              Hide Sidebar
+            </button>
+          )}
+
+          {whiteboard.id !== null && (
+            <button className={styles.hide} onClick={handleMakePublic}>
+              Make Public
+            </button>
+          )}
+          {whiteboard.id !== null && (
+            <button
+              className={styles.hide}
+              onClick={() => dispatch(setSharing(true))}
+            >
+              Share Board
+            </button>
+          )}
+          {whiteboard.id !== null && (
+            <button
+              className={styles.hide}
+              onClick={() => dispatch(setDeleting(true))}
+            >
+              Delete Board
+            </button>
+          )}
+          {whiteboard.id !== null && (
+            <button
+              className={styles.hide}
+              onClick={() => dispatch(setGrid(!grid))}
+            >
+              Toggle Grid
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

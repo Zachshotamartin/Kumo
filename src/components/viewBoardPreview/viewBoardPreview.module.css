@@ -10,8 +10,8 @@
 }
 
 .boardImage {
-  height: 10rem;
-  width: 20rem;
+  height: 15rem;
+  width: 30rem;
   border: 1px solid #b4b4b4;
   border-radius: 1rem;
   object-fit: contain;

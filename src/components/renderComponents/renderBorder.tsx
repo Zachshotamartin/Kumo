@@ -25,6 +25,10 @@ const RenderBorder = () => {
     });
 
     if (selectedShapesArray.length === 0) {
+      dispatch(setBorderStartX(-100000));
+      dispatch(setBorderEndX(-100000));
+      dispatch(setBorderStartY(-100000));
+      dispatch(setBorderEndY(-100000));
       return;
     }
     const leftX = selectedShapesArray.reduce((minX: number, shape: Shape) => {

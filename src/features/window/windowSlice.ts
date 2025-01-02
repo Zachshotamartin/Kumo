@@ -1,5 +1,6 @@
 // whiteBoardSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { set } from "lodash";
 
 interface WindowState {
   x1: number;
@@ -12,6 +13,7 @@ interface WindowState {
   percentZoomed?: number;
   initialWidth?: number;
   initialHeight?: number;
+  sideBarWidth?: number;
 }
 
 const initialState: WindowState = {
@@ -25,6 +27,7 @@ const initialState: WindowState = {
   color: "black",
   height: window.innerHeight - 0,
   width: window.innerWidth - 0,
+  sideBarWidth: 15,
 };
 
 const windowSlice = createSlice({
@@ -46,10 +49,13 @@ const windowSlice = createSlice({
       state.initialHeight =
         action.payload.initialHeight ?? initialState.initialHeight;
     },
+    setSideBarWidth: (state, action: PayloadAction<number>) => {
+      state.sideBarWidth = action.payload;
+    },
   },
 });
 
-export const { setWindow } = windowSlice.actions;
+export const { setWindow, setSideBarWidth } = windowSlice.actions;
 
 export default windowSlice.reducer;
 

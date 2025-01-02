@@ -35,14 +35,10 @@ import {
 import {
   setSelectedShapes,
   setSelectedTool,
-  addSelectedShape,
   clearSelectedShapes,
   setHighlightStart,
   setHighlightEnd,
-  setBorderStartX,
-  setBorderEndX,
-  setBorderStartY,
-  setBorderEndY,
+  
 } from "../../features/selected/selectedSlice";
 import BottomBar from "../bottomBar/bottomBar";
 import RenderBoxes from "../renderComponents/renderBoxes";
@@ -137,7 +133,6 @@ const WhiteBoard = () => {
     } else {
       dispatch(setHideOptions(false));
     }
-    console.log(selectedShapes.length);
   }, [selectedShapes]);
 
   useEffect(() => {
@@ -163,7 +158,7 @@ const WhiteBoard = () => {
     let debounceTimeoutPaste: any;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      console.log(event.key);
+      
       if (event.metaKey && event.key === "c") {
         const copyShapes = () => {
           const copiedData = selectedShapes.map((index: number) => {
@@ -203,7 +198,7 @@ const WhiteBoard = () => {
       } else if (event.key === "Backspace") {
         // make sure that this is not focused on a textbox
         event.preventDefault();
-        console.log("deleting");
+ 
         if (selectedShapes.length > 0) {
           const shapesCopy = [...selectedShapes];
           const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
@@ -211,11 +206,7 @@ const WhiteBoard = () => {
           newShapes.forEach((index: number) => {
             dispatch(removeShape(index));
           });
-          dispatch(setSelectedShapes([]));
-          dispatch(setBorderStartX(0));
-          dispatch(setBorderStartY(0));
-          dispatch(setBorderEndX(0));
-          dispatch(setBorderEndY(0));
+          dispatch(clearSelectedShapes());
         }
       }
     };
@@ -320,7 +311,7 @@ const WhiteBoard = () => {
           y < Math.min(borderStartY, borderEndY) ||
           y > Math.max(borderStartY, borderEndY)
         ) {
-          dispatch(setSelectedShapes([]));
+          dispatch(clearSelectedShapes());
           actionsDispatch(setHighlighting(false));
         }
       }
@@ -351,11 +342,8 @@ const WhiteBoard = () => {
           actionsDispatch(setDragging(true));
           actionsDispatch(setMoving(true));
         } else {
-          dispatch(setSelectedShapes([]));
-          dispatch(setBorderStartX(0));
-          dispatch(setBorderStartY(0));
-          dispatch(setBorderEndX(0));
-          dispatch(setBorderEndY(0));
+          dispatch(clearSelectedShapes());
+
           actionsDispatch(setDragging(true));
           actionsDispatch(setHighlighting(true));
 
@@ -573,8 +561,7 @@ const WhiteBoard = () => {
         actionsDispatch(setHighlighting(false));
         actionsDispatch(setMoving(false));
       }, 10);
-      console.log("inputRef");
-      console.log(inputRef.current?.value);
+
       inputRef?.current?.focus();
     }
     // if (shapes.length > 0) {
@@ -646,7 +633,8 @@ const WhiteBoard = () => {
                 };
 
                 dispatch(setWhiteboardData(data));
-                dispatch(setSelectedShapes([]));
+
+                dispatch(clearSelectedShapes());
               } else {
                 console.error(`No document found for board ID: ${board.id}`);
               }
@@ -656,7 +644,7 @@ const WhiteBoard = () => {
           }
         }
       } else {
-        dispatch(setSelectedShapes([]));
+        dispatch(clearSelectedShapes());
       }
 
       actionsDispatch(setDoubleClicking(false));
@@ -724,7 +712,7 @@ const WhiteBoard = () => {
       dispatch(setWindow(newWindow));
     }
   };
-  console.log(selectedTool);
+ 
   return (
     <div
       ref={canvasRef}

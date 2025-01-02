@@ -39,10 +39,6 @@ const selectedSlice = createSlice({
     },
     clearSelectedShapes: (state) => {
       state.selectedShapes = [];
-      state.borderStartX = 0;
-      state.borderStartY = 0;
-      state.borderEndX = 0;
-      state.borderEndY = 0;
     },
     setHighlightStart: (state, action: PayloadAction<number[]>) => {
       state.highlightStart = action.payload;

@@ -23,6 +23,7 @@ import type { AppDispatch } from "../../store";
 import plus from "../../res/plus.png";
 import right from "../../res/right.png";
 import down from "../../res/down.png";
+import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
@@ -113,7 +114,9 @@ const MiddleLayer = () => {
           id: board,
         };
         console.log("Board data:", data);
+        dispatch(clearSelectedShapes());
         dispatch(setWhiteboardData(data));
+
         console.log("Board selected:", board);
       } else {
         console.error(`No document found for board ID: ${board}`);

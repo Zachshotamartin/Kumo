@@ -102,14 +102,8 @@ const BottomBar = () => {
           alt=""
         />
       </button>
-      <button
-        onClick={handleDelete}
-        style={{ backgroundColor: "transparent" }}
-        className={styles.button}
-      >
-        <img className={styles.icon} src={remove} alt="" />
-      </button>
-      <button
+
+      {/* <button
         onClick={() => handleToolSwitch("calendar")}
         className={styles.button}
       >
@@ -120,7 +114,7 @@ const BottomBar = () => {
           src={calendar}
           alt=""
         />
-      </button>
+      </button> */}
       <button
         onClick={() => handleToolSwitch("image")}
         className={styles.button}
@@ -144,6 +138,13 @@ const BottomBar = () => {
           src={recursive}
           alt=""
         />
+      </button>
+      <button
+        onClick={handleDelete}
+        style={{ backgroundColor: "transparent" }}
+        className={styles.button}
+      >
+        <img className={styles.icon} src={remove} alt="" />
       </button>
     </div>
   );

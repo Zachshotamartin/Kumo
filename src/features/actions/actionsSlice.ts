@@ -1,5 +1,6 @@
 // authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { set } from "lodash";
 
 interface ActionsState {
   drawing: boolean;
@@ -11,6 +12,8 @@ interface ActionsState {
   sharing: boolean;
   deleting: boolean;
   grid: boolean;
+  settingsOpen: boolean;
+  userOpen: boolean;
 }
 
 const initialState: ActionsState = {
@@ -23,6 +26,8 @@ const initialState: ActionsState = {
   sharing: false,
   deleting: false,
   grid: true,
+  settingsOpen: false,
+  userOpen: false,
 };
 
 const actionsSlice = createSlice({
@@ -101,6 +106,22 @@ const actionsSlice = createSlice({
         state.grid = true;
       }
     },
+   setSettingsOpen: (state, action: PayloadAction<boolean>) => {
+     if (!action.payload) {
+       state.settingsOpen = false;
+     }
+     if (action.payload) {
+       state.settingsOpen = true;
+     }
+   },
+   setUserOpen: (state, action: PayloadAction<boolean>) => {
+     if (!action.payload) {
+       state.userOpen = false;
+     }
+     if (action.payload) {
+       state.userOpen = true;
+     }
+   }
   },
 });
 
@@ -114,6 +135,8 @@ export const {
   setSharing,
   setDeleting,
   setGrid,
+  setSettingsOpen,
+  setUserOpen,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

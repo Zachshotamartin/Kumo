@@ -2,8 +2,9 @@
   display: flex;
   flex-direction: column;
   border-top: 2px solid #b4b4b42b;
-  
+
   overflow-x: hidden;
+  overflow-y: visible;
   justify-content: flex-start;
   align-items: flex-start;
   padding-top: 0.5rem;
@@ -19,7 +20,8 @@
 .hide {
   background-color: #444444;
   color: white;
-  margin-left: 1rem;
+  border: none;
+  cursor: pointer;
 }
 
 .hiddenNavigation {
@@ -30,4 +32,22 @@
   overflow-x: visible;
   justify-content: flex-start;
   align-items: flex-start;
+}
+
+.dropdown {
+  display: flex;
+  position: fixed;
+  top: 4rem;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+
+  border: 2px solid #b4b4b42b;
+  border-radius: 10px;
+  background-color: #444444;
+  z-index: 100;
+  padding: 0.5rem;
+}
+.dropdown button:hover {
+  color: #007bff;
 }

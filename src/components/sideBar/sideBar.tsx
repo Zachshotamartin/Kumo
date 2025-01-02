@@ -2,16 +2,17 @@ import React, { useState, useRef, useEffect } from "react";
 import styles from "./sideBar.module.css";
 import Navigation from "../navigation/navigation";
 import Components from "../components/components";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import MiddleLayer from "../middleLayer/middleLayer";
-
+import { setSideBarWidth } from "../../features/window/windowSlice";
 const SideBar = () => {
-  const [width, setWidth] = useState(15); // initial width
+  const width = useSelector((state: any) => state.window.sideBarWidth);
   const [dragging, setDragging] = useState(false);
   const componentRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState("auto");
   const hidden = useSelector((state: any) => state.sideBar.hideSideBar);
   const whiteBoard = useSelector((state: any) => state.whiteBoard);
+  const dispatch = useDispatch();
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (
@@ -26,12 +27,13 @@ const SideBar = () => {
     const handleMouseMove = (e: MouseEvent) => {
       if (dragging && componentRef.current) {
         const newWidth = (e.clientX / window.innerWidth) * 100;
+
         if (newWidth < 10) {
-          setWidth(10);
+          dispatch(setSideBarWidth(10));
         } else if (newWidth > 20) {
-          setWidth(20);
+          dispatch(setSideBarWidth(20));
         } else {
-          setWidth(newWidth);
+          dispatch(setSideBarWidth(newWidth));
         }
       }
     };
@@ -42,7 +44,6 @@ const SideBar = () => {
 
     const handleMouseMoveOverComponent = (e: MouseEvent) => {
       if (componentRef.current) {
-        console.log("resizing");
         if (
           e.clientX >=
           componentRef.current.getBoundingClientRect().right - 5
