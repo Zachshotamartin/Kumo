@@ -25,7 +25,7 @@ const Delete = () => {
   const dispatch = useDispatch();
   const appDispatch = useDispatch<AppDispatch>();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const inputText = (e.target as HTMLFormElement).querySelector(
       "input"
@@ -41,24 +41,22 @@ const Delete = () => {
       appDispatch(setWhiteboardData({}));
     });
 
-    if (board.type === "private") {
-      const q = query(usersCollectionRef, where("uid", "==", board.uid));
-      getDocs(q).then((querySnapshot) => {
-        querySnapshot.forEach((doc) => {
-          updateDoc(doc.ref, {
-            privateBoardsIds: doc.data().privateBoardsIds.filter(
-              (item: any) => item.id !== board.id
-            ),
-          });
-        })
+    const users = await getDocs(
+      query(usersCollectionRef, where("uid", "in", board.sharedWith))
+    );
+    for (const userDoc of users.docs) {
+      const userData = userDoc.data();
+      await updateDoc(userDoc.ref, {
+        publicBoardsIds: userData.publicBoardsIds.filter(
+          (whiteboard: any) => board.id !== whiteboard.id
+        ),
+        privateBoardsIds: userData.privateBoardsIds.filter(
+          (whiteboard: any) => board.id !== whiteboard.id
+        ),
+        sharedBoardsIds: userData.sharedBoardsIds.filter(
+          (whiteboard: any) => board.id !== whiteboard.id
+        ),
       });
-    }
-    if (board.type === "public") {
-      // do something later
-    }
-
-    if (board.type === "shared") {
-      // do later
     }
 
     dispatch(setDeleting(false));
