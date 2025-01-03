@@ -19,12 +19,14 @@ import {
 import ViewBoardPreview from "../viewBoardPreview/viewBoardPreview";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { setBoards } from "../../features/boards/boards";
+import { addBoardImage } from "../../features/boardImages/boardImages";
 import type { AppDispatch } from "../../store";
 import plus from "../../res/plus.png";
 import right from "../../res/right.png";
 import down from "../../res/down.png";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
-
+import { getDownloadURL, ref } from "firebase/storage";
+import { storage } from "../../config/firebase";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 const MiddleLayer = () => {
@@ -37,6 +39,9 @@ const MiddleLayer = () => {
   const publicBoards = availableBoards.publicBoards;
   const privateBoards = availableBoards.privateBoards;
   const sharedBoards = availableBoards.sharedBoards;
+  const boardImages = useSelector(
+    (state: any) => state.boardImages.boardImages
+  );
   const whiteBoard = useSelector((state: any) => state.whiteBoard);
 
   useEffect(() => {
@@ -93,6 +98,32 @@ const MiddleLayer = () => {
       console.error("Error creating board:", error);
     }
   };
+  const getStorageImageById = async (id: string) => {
+    const storageRef = ref(storage, `boardPreviews/${id}.jpg`);
+    console.log(id);
+    console.log(storageRef);
+    return await getDownloadURL(storageRef);
+  };
+
+  useEffect(() => {
+    const boards = [...publicBoards, ...privateBoards, ...sharedBoards];
+    const fetchImageUrls = async () => {
+      for (const board of boards) {
+        try {
+          if (boardImages.some((image: any) => image.id === board.id)) {
+            // look at this please
+            continue;
+          }
+          const url = await getStorageImageById(board.id);
+          dispatch(addBoardImage({ id: board.id, url: url }));
+        } catch (error) {
+          console.error(`Failed to fetch image for board ${board.id}:`, error);
+        }
+      }
+    };
+
+    fetchImageUrls();
+  }, [publicBoards, privateBoards, sharedBoards]);
 
   const handleClick = async (board: string, type: string) => {
     if (!board) {

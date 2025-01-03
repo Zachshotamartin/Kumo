@@ -5,7 +5,7 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import { AppDispatch } from "../../store";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 
 import { ref, getDownloadURL } from "firebase/storage";
 import { storage } from "../../config/firebase";
@@ -13,6 +13,9 @@ import { storage } from "../../config/firebase";
 const ViewBoardPreview = (props: { boards: any }) => {
   const boards = props.boards;
   const dispatch = useDispatch<AppDispatch>();
+  const boardImages = useSelector(
+    (state: any) => state.boardImages.boardImages
+  );
 
   const handleClick = async (board: string, type: string) => {
     if (!board) {
@@ -44,32 +47,6 @@ const ViewBoardPreview = (props: { boards: any }) => {
     }
   };
 
-  const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
-
-  const getStorageImageById = async (id: string) => {
-    const storageRef = ref(storage, `boardPreviews/${id}.jpg`);
-    console.log(id);
-    console.log(storageRef);
-    return await getDownloadURL(storageRef);
-  };
-
-  useEffect(() => {
-    const fetchImageUrls = async () => {
-      const urls: { [key: string]: string } = {};
-      for (const board of boards) {
-        try {
-          const url = await getStorageImageById(board.id);
-          urls[board.id] = url;
-        } catch (error) {
-          console.error(`Failed to fetch image for board ${board.id}:`, error);
-        }
-      }
-      setImageUrls(urls);
-    };
-
-    fetchImageUrls();
-  }, [boards]);
-
   return (
     <div className={styles.container}>
       {boards.map((board: any) => {
@@ -80,7 +57,11 @@ const ViewBoardPreview = (props: { boards: any }) => {
             onClick={() => handleClick(board.id, board.type)}
           >
             <img
-              src={imageUrls[board.id] || boardImage}
+              // ({id: string, url: string})[]
+              src={
+                boardImages.find((image: any) => image.id === board.id)?.url ||
+                boardImage
+              }
               className={styles.boardImage}
               alt={board.title}
             />

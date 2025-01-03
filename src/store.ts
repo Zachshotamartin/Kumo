@@ -7,6 +7,7 @@ import sideBarSlice from "./features/hide/hide";
 import boardsSlice from "./features/boards/boards";
 import actionsSlice from "./features/actions/actionsSlice";
 import selectedSlice from "./features/selected/selectedSlice";
+import boardImagesSlice from "./features/boardImages/boardImages";
 
 const store = configureStore({
   reducer: {
@@ -17,6 +18,7 @@ const store = configureStore({
     boards: boardsSlice,
     actions: actionsSlice,
     selected: selectedSlice,
+    boardImages: boardImagesSlice,
   },
 });
 

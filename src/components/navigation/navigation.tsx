@@ -47,6 +47,7 @@ const Navigation = () => {
   const width = useSelector((state: any) => state.window.sideBarWidth);
   const handleHide = () => {
     dispatch(setHideSideBar(!hidden));
+    dispatch(setSettingsOpen(false));
   };
   const handleHome = () => {
     const data = {
@@ -58,6 +59,7 @@ const Navigation = () => {
     };
     dispatch(clearSelectedShapes());
     appDispatch(setWhiteboardData(data));
+    dispatch(setUserOpen(false));
   };
 
   const handleMakePublic = async () => {
@@ -88,6 +90,7 @@ const Navigation = () => {
         ),
       });
     }
+    dispatch(setSettingsOpen(false));
   };
 
   const handleClickSettings = () => {
@@ -121,6 +124,7 @@ const Navigation = () => {
           <button
             className={styles.hide}
             onClick={() => {
+              dispatch(setUserOpen(false));
               const data = {
                 shapes: [],
                 title: "",
@@ -131,6 +135,7 @@ const Navigation = () => {
               };
 
               dispatch(clearSelectedShapes());
+              
               appDispatch(setWhiteboardData(data));
               auth.signOut();
               dispatch(logout());
@@ -164,7 +169,10 @@ const Navigation = () => {
           {whiteboard.id !== null && (
             <button
               className={styles.hide}
-              onClick={() => dispatch(setSharing(true))}
+              onClick={() => {
+                dispatch(setSharing(true));
+                dispatch(setSettingsOpen(false));
+              }}
             >
               Share Board
             </button>
@@ -172,7 +180,10 @@ const Navigation = () => {
           {whiteboard.id !== null && (
             <button
               className={styles.hide}
-              onClick={() => dispatch(setDeleting(true))}
+              onClick={() => {
+                dispatch(setDeleting(true));
+                dispatch(setSettingsOpen(false));
+              }}
             >
               Delete Board
             </button>
@@ -180,7 +191,10 @@ const Navigation = () => {
           {whiteboard.id !== null && (
             <button
               className={styles.hide}
-              onClick={() => dispatch(setGrid(!grid))}
+              onClick={() => {
+                dispatch(setGrid(!grid));
+                dispatch(setSettingsOpen(false));
+              }}
             >
               Toggle Grid
             </button>

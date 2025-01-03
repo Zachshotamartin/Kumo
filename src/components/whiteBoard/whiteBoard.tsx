@@ -86,7 +86,7 @@ const WhiteBoard = () => {
   const grid = useSelector((state: any) => state.actions.grid);
 
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
-
+  
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
 
