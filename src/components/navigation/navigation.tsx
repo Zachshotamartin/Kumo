@@ -30,7 +30,8 @@ import {
   setUserOpen,
 } from "../../features/actions/actionsSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
-
+import { removeBoardImage } from "../../features/boardImages/boardImages";
+import { remove } from "lodash";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 
@@ -56,18 +57,24 @@ const Navigation = () => {
       type: null,
       uid: user?.uid,
       id: null,
+      sharedWith: [],
     };
+    dispatch(removeBoardImage(whiteboard.id));
     dispatch(clearSelectedShapes());
     appDispatch(setWhiteboardData(data));
     dispatch(setUserOpen(false));
   };
 
   const handleMakePublic = async () => {
+    if (whiteboard.type === "public") {
+      alert("board is already public");
+      return;
+    }
+
+    // change board type to public
     const boardRef = doc(boardsCollectionRef, whiteboard.id);
-    await updateDoc(boardRef, {
-      ...whiteboard,
-      type: "public",
-    });
+
+    // update user
     const q = query(usersCollectionRef, where("uid", "==", whiteboard.uid));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
@@ -83,11 +90,93 @@ const Navigation = () => {
             type: "public",
           },
         ],
-      });
-      await updateDoc(userDoc.ref, {
         privateBoardsIds: userData.privateBoardsIds.filter(
           (board: any) => board.id !== whiteboard.id
         ),
+        sharedBoardsIds: userData.sharedBoardsIds.filter(
+          (board: any) => board.id !== whiteboard.id
+        ),
+      });
+    }
+    const users = await getDocs(
+      query(usersCollectionRef, where("uid", "in", whiteboard.sharedWith))
+    );
+    for (const userDoc of users.docs) {
+      const userData = userDoc.data();
+      await updateDoc(userDoc.ref, {
+        publicBoardsIds: [
+          ...userData.publicBoardsIds,
+          {
+            id: whiteboard.id,
+            title: whiteboard.title,
+            uid: whiteboard.uid,
+            type: "public",
+          },
+        ],
+        privateBoardsIds: userData.privateBoardsIds.filter(
+          (board: any) => board.id !== whiteboard.id
+        ),
+        sharedBoardsIds: userData.sharedBoardsIds.filter(
+          (board: any) => board.id !== whiteboard.id
+        ),
+      });
+    }
+    await updateDoc(boardRef, {
+      ...whiteboard,
+      type: "public",
+      sharedWith: [whiteboard.uid],
+    });
+    dispatch(setSettingsOpen(false));
+  };
+
+  const handleMakePrivate = async () => {
+    if (user.uid !== whiteboard.uid) {
+      alert("you are not the owner of this board");
+      return;
+    }
+    if (whiteboard.type === "private") {
+      alert("board is already private");
+      return;
+    }
+
+    const boardRef = doc(boardsCollectionRef, whiteboard.id);
+    await updateDoc(boardRef, {
+      ...whiteboard,
+      type: "private",
+      sharedWith: [user.uid],
+    });
+    const users = await getDocs(
+      query(usersCollectionRef, where("uid", "in", whiteboard.sharedWith))
+    );
+    for (const userDoc of users.docs) {
+      const userData = userDoc.data();
+      await updateDoc(userDoc.ref, {
+        publicBoardsIds: userData.publicBoardsIds.filter(
+          (board: any) => board.id !== whiteboard.id
+        ),
+        privateBoardsIds: userData.privateBoardsIds.filter(
+          (board: any) => board.id !== whiteboard.id
+        ),
+        sharedBoardsIds: userData.sharedBoardsIds.filter(
+          (board: any) => board.id !== whiteboard.id
+        ),
+      });
+    }
+    const q = query(usersCollectionRef, where("uid", "==", whiteboard.uid));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+      await updateDoc(userDoc.ref, {
+        privateBoardsIds: [
+          ...userData.privateBoardsIds,
+          {
+            id: whiteboard.id,
+            title: whiteboard.title,
+            uid: whiteboard.uid,
+            type: "private",
+          },
+        ],
       });
     }
     dispatch(setSettingsOpen(false));
@@ -124,6 +213,7 @@ const Navigation = () => {
           <button
             className={styles.hide}
             onClick={() => {
+              dispatch(removeBoardImage(whiteboard.id));
               dispatch(setUserOpen(false));
               const data = {
                 shapes: [],
@@ -132,10 +222,11 @@ const Navigation = () => {
                 selectedShape: null,
                 uid: auth.currentUser?.uid,
                 id: null,
+                sharedWith: [],
               };
 
               dispatch(clearSelectedShapes());
-              
+
               appDispatch(setWhiteboardData(data));
               auth.signOut();
               dispatch(logout());
@@ -167,9 +258,18 @@ const Navigation = () => {
             </button>
           )}
           {whiteboard.id !== null && (
+            <button className={styles.hide} onClick={handleMakePrivate}>
+              Make Private
+            </button>
+          )}
+          {whiteboard.id !== null && (
             <button
               className={styles.hide}
               onClick={() => {
+                if (whiteboard.type === "public") {
+                  alert("Cannot share a public board");
+                  return;
+                }
                 dispatch(setSharing(true));
                 dispatch(setSettingsOpen(false));
               }}

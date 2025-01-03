@@ -19,7 +19,10 @@ import {
 import ViewBoardPreview from "../viewBoardPreview/viewBoardPreview";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { setBoards } from "../../features/boards/boards";
-import { addBoardImage } from "../../features/boardImages/boardImages";
+import {
+  addBoardImage,
+  removeBoardImage,
+} from "../../features/boardImages/boardImages";
 import type { AppDispatch } from "../../store";
 import plus from "../../res/plus.png";
 import right from "../../res/right.png";
@@ -71,6 +74,7 @@ const MiddleLayer = () => {
         title: "New Board",
         shapes: [],
         type: type,
+        sharedWith: [user.uid],
       };
       const doc = await addDoc(boardsCollectionRef, data);
       console.log("Document written with ID: ", doc.id);
@@ -114,6 +118,7 @@ const MiddleLayer = () => {
             // look at this please
             continue;
           }
+          console.log("getting image", board.title);
           const url = await getStorageImageById(board.id);
           dispatch(addBoardImage({ id: board.id, url: url }));
         } catch (error) {
@@ -123,7 +128,7 @@ const MiddleLayer = () => {
     };
 
     fetchImageUrls();
-  }, [publicBoards, privateBoards, sharedBoards]);
+  }, [publicBoards, privateBoards, sharedBoards, removeBoardImage]);
 
   const handleClick = async (board: string, type: string) => {
     if (!board) {
@@ -143,6 +148,7 @@ const MiddleLayer = () => {
 
           uid: boardData.uid,
           id: board,
+          sharedWith: boardData.sharedWith,
         };
         console.log("Board data:", data);
         dispatch(clearSelectedShapes());

@@ -37,7 +37,7 @@ const OptionsBar = () => {
       if (dragging && optionsBarRef.current) {
         const deltaX = e.clientX - startX;
         const deltaPercent = (deltaX / window.innerWidth) * 100;
-        const newLeft = Math.min(85, Math.max(80, startLeft + deltaPercent));
+        const newLeft = Math.min(85, Math.max(70, startLeft + deltaPercent));
         setLeft(newLeft);
       }
     },

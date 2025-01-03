@@ -52,7 +52,6 @@ import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
 import image from "../../res/image.png";
 import { setHideOptions } from "../../features/hide/hide";
-import { saveAs } from "file-saver";
 import { storage } from "../../config/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 
@@ -86,7 +85,7 @@ const WhiteBoard = () => {
   const grid = useSelector((state: any) => state.actions.grid);
 
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
-  
+
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
 
@@ -112,11 +111,26 @@ const WhiteBoard = () => {
           title: board.title,
           type: board.type,
           uid: board.uid,
+          sharedWith: board.sharedWith,
         });
       } catch (error) {
         console.error("Error updating document:", error);
       }
     };
+    updateFirebase();
+  }, [
+    user?.uid,
+    board.id,
+    board.shapes,
+    board.title,
+    board.type,
+    board.uid,
+    drawing,
+    dragging,
+    doubleClicking,
+  ]);
+
+  useEffect(() => {
     const generatePreview = () => {
       const element = document.getElementById("whiteboard");
       domtoimage
@@ -150,20 +164,9 @@ const WhiteBoard = () => {
           console.error("Error generating preview:", error);
         });
     };
-
-    updateFirebase();
+    console.log("generating Preview");
     generatePreview();
-  }, [
-    user?.uid,
-    board.id,
-    board.shapes,
-    board.title,
-    board.type,
-    board.uid,
-    drawing,
-    dragging,
-    doubleClicking,
-  ]);
+  }, [board.id]);
 
   useEffect(() => {
     if (selectedShapes.length === 0) {
@@ -667,6 +670,7 @@ const WhiteBoard = () => {
                   type: boardData.type || "default",
                   uid: boardData.uid,
                   id: shape.id,
+                  sharedWith: boardData.sharedWith || [],
                 };
 
                 dispatch(setWhiteboardData(data));

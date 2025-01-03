@@ -4,6 +4,7 @@ import plus from "../../res/plus.png";
 import {
   addDoc,
   collection,
+  arrayUnion,
   getDocs,
   query,
   updateDoc,
@@ -24,33 +25,38 @@ const LeftBar = () => {
 
   const createBoard = async (type: "private" | "public" | "shared") => {
     try {
-      const data = {
-        uid: user?.uid,
-        title: boardName || "Untitled",
-        shapes: [],
-        type: type,
-      };
-      const doc = await addDoc(boardsCollectionRef, data);
-      console.log("Document written with ID: ", doc.id);
-      const q = query(usersCollectionRef, where("uid", "==", user?.uid));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-        console.log("hello");
-        console.log(user?.uid);
-        await updateDoc(userDoc.ref, {
-          [`${type}BoardsIds`]: [
-            ...userData[`${type}BoardsIds`],
-            {
-              id: doc.id,
-              title: data.title,
-              uid: user?.uid,
-              type: data.type,
-            },
-          ],
-        });
-        console.log("Board created successfully");
+      if (user.uid) {
+        const data = {
+          uid: user?.uid,
+          title: boardName || "Untitled",
+          shapes: [],
+          type: type,
+          sharedWith: [user.uid],
+        };
+
+        const doc = await addDoc(boardsCollectionRef, data);
+        console.log("data");
+        console.log("Document written with ID: ", doc.id);
+        const q = query(usersCollectionRef, where("uid", "==", user?.uid));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const userDoc = querySnapshot.docs[0];
+          const userData = userDoc.data();
+          console.log("hello");
+          console.log(user?.uid);
+          await updateDoc(userDoc.ref, {
+            [`${type}BoardsIds`]: [
+              ...userData[`${type}BoardsIds`],
+              {
+                id: doc.id,
+                title: data.title,
+                uid: user?.uid,
+                type: data.type,
+              },
+            ],
+          });
+          console.log("Board created successfully");
+        }
       }
     } catch (error) {
       console.error("Error creating board:", error);

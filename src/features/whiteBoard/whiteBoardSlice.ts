@@ -56,6 +56,7 @@ interface WhiteBoardState {
   type: string | null;
   title: string | null;
   uid: string | null;
+  sharedWith: string[];
 }
 
 const initialState: WhiteBoardState = {
@@ -64,6 +65,7 @@ const initialState: WhiteBoardState = {
   type: null,
   title: null,
   uid: null,
+  sharedWith: [],
 };
 
 const whiteBoardSlice = createSlice({
@@ -74,14 +76,14 @@ const whiteBoardSlice = createSlice({
       state,
       action: PayloadAction<Partial<WhiteBoardState>>
     ) => {
-      const { shapes, id, type, title, uid } = action.payload;
-      
+      const { shapes, id, type, title, uid, sharedWith } = action.payload;
+
       state.shapes = shapes || [];
       state.id = id || null;
       state.type = type || null;
       state.title = title || null;
       state.uid = uid || null;
-
+      state.sharedWith = sharedWith || [];
     },
     addShape: (state, action: PayloadAction<Shape>) => {
       state.shapes.push(action.payload);
@@ -100,10 +102,26 @@ const whiteBoardSlice = createSlice({
         (shape, index) => index !== action.payload
       );
     },
+    share: (state, action: PayloadAction<string>) => {
+      if (!state.sharedWith.includes(action.payload)) {
+        state.sharedWith.push(action.payload);
+      }
+    },
+    removeShare: (state, action: PayloadAction<string>) => {
+      state.sharedWith = state.sharedWith.filter(
+        (uid) => uid !== action.payload
+      );
+    },
   },
 });
 
-export const { setWhiteboardData, addShape, updateShape, removeShape } =
-  whiteBoardSlice.actions;
+export const {
+  setWhiteboardData,
+  addShape,
+  updateShape,
+  removeShape,
+  share,
+  removeShare,
+} = whiteBoardSlice.actions;
 
 export default whiteBoardSlice.reducer;

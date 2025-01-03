@@ -13,6 +13,7 @@ import {
 import { db } from "../../config/firebase";
 import board, {
   setWhiteboardData,
+  share,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { useSelector, useDispatch } from "react-redux";
 import { setSharing } from "../../features/actions/actionsSlice";
@@ -34,20 +35,17 @@ const Share = () => {
       type: "shared",
       uid: board.uid,
       id: board.id,
+      sharedWith: board.sharedWith,
     };
 
     // sets current whiteboard to shared
-    appDispatch(setWhiteboardData(data));
+
+    const email = (e.target as HTMLFormElement).querySelector("input")!.value;
 
     // sets board type to shared
-    const boardRef = doc(boardCollectionRef, board.id);
-    updateDoc(boardRef, {
-      ...board,
-      type: "shared",
-    });
 
     // updates added shared account
-    const email = (e.target as HTMLFormElement).querySelector("input")!.value;
+
     const emailQuery = query(usersCollectionRef, where("email", "==", email));
     getDocs(emailQuery).then((querySnapshot) => {
       if (querySnapshot.empty) {
@@ -57,8 +55,14 @@ const Share = () => {
 
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
+      const uid = userData.uid;
+      if (!board.sharedWith.includes(uid)) {
+        data.sharedWith = [...board.sharedWith, uid];
+      }
+
+      appDispatch(share(userData.uid));
       updateDoc(userDoc.ref, {
-        publicBoardsIds: [
+        sharedBoardsIds: [
           ...userData.sharedBoardsIds,
           {
             id: board.id,
@@ -67,6 +71,12 @@ const Share = () => {
             type: "shared",
           },
         ],
+      });
+      appDispatch(setWhiteboardData(data));
+      const boardRef = doc(boardCollectionRef, board.id);
+      updateDoc(boardRef, {
+        ...board,
+        type: "shared",
       });
     });
 

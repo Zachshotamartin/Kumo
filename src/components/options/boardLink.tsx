@@ -59,17 +59,17 @@ const BoardLink = () => {
               <option value="none">none</option>
               {boardChoices.publicBoards.map((board: any, index: number) => (
                 <option key={index} value={board.id}>
-                  {board.id + " public"}
+                  {board.title + " (public)"}
                 </option>
               ))}
               {boardChoices.privateBoards.map((board: any, index: number) => (
                 <option key={index} value={board.id}>
-                  {board.id + " private"}
+                  {board.title + " (private)"}
                 </option>
               ))}
               {boardChoices.sharedBoards.map((board: any, index: number) => (
                 <option key={index} value={board.id}>
-                  {board.id + " shared"}
+                  {board.title + " (shared)"}
                 </option>
               ))}
             </select>
