@@ -37,7 +37,9 @@ const Components = () => {
             alt={shape.type}
           />
           <h5
-            className={selectedShape === index ? styles.selected : styles.text}
+            className={
+              selectedShape.includes(index) ? styles.selected : styles.text
+            }
             onClick={() => dispatch(setSelectedShapes([index]))}
           >
             {shape.type}

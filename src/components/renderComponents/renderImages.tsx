@@ -1,13 +1,38 @@
 import React from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import styles from "./renderStyles.module.css";
+import {
+  setHoverStartX,
+  setHoverStartY,
+  setHoverEndX,
+  setHoverEndY,
+} from "../../features/selected/selectedSlice";
 
 const RenderImages = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
+  const dispatch = useDispatch();
   const window = useSelector((state: any) => state.window);
+
+  const handleMouseEnter = (index: number) => {
+    const shape = shapes.find((shape: Shape, i: number) => i === index);
+    if (shape) {
+      dispatch(setHoverStartX(shape.x1 - 2));
+      dispatch(setHoverStartY(shape.y1 - 2));
+      dispatch(setHoverEndX(shape.x2 - 2 + 2 * shape.borderWidth));
+      dispatch(setHoverEndY(shape.y2 - 2 + 2 * shape.borderWidth));
+    }
+  };
+
+  const handleMouseLeave = () => {
+    dispatch(setHoverStartX(-100000));
+    dispatch(setHoverStartY(-100000));
+    dispatch(setHoverEndX(-100000));
+    dispatch(setHoverEndY(-100000));
+  };
 
   return (
     <>
@@ -55,6 +80,8 @@ const RenderImages = () => {
                 backgroundSize: "cover",
                 opacity: `${shape.opacity}`,
               }}
+              onMouseEnter={() => handleMouseEnter(index)}
+              onMouseLeave={handleMouseLeave}
             ></div>
           )}
         </>

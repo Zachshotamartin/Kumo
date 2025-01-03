@@ -36,6 +36,7 @@ import {
   setResizingRight,
   setResizingTop,
   setResizingBottom,
+  setHoverEdge,
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
@@ -53,6 +54,7 @@ import RenderBorder from "../renderComponents/renderBorder";
 import RenderGridLines from "../renderComponents/renderGridLines";
 import RenderImages from "../renderComponents/renderImages";
 import RenderCalendars from "../renderComponents/renderCalendars";
+import RenderHoverBorder from "../renderComponents/renderHoverBorder";
 import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
 import image from "../../res/image.png";
@@ -86,6 +88,7 @@ const WhiteBoard = () => {
   const resizingBottom = useSelector(
     (state: any) => state.actions.resizingBottom
   );
+  const hoverEdge = useSelector((state: any) => state.actions.hoverEdge);
   const pasting = useSelector((state: any) => state.actions.pasting);
   const doubleClicking = useSelector(
     (state: any) => state.actions.doubleClicking
@@ -886,6 +889,7 @@ const WhiteBoard = () => {
       <RenderCalendars />
       {dragging && highlighting && <RenderHighlighting />}
       <RenderBorder />
+      <RenderHoverBorder />
 
       <BottomBar />
     </div>

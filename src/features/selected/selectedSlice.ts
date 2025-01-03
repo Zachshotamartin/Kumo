@@ -1,6 +1,7 @@
 // authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Shape } from "../whiteBoard/whiteBoardSlice";
+import { set } from "lodash";
 
 interface SelectedState {
   selectedShapes: Shape[];
@@ -11,6 +12,10 @@ interface SelectedState {
   borderStartY: number;
   borderEndX: number;
   borderEndY: number;
+  hoverStartX: number;
+  hoverStartY: number;
+  hoverEndX: number;
+  hoverEndY: number;
 }
 
 const initialState: SelectedState = {
@@ -22,6 +27,10 @@ const initialState: SelectedState = {
   borderStartY: 0,
   borderEndX: 0,
   borderEndY: 0,
+  hoverStartX: 0,
+  hoverStartY: 0,
+  hoverEndX: 0,
+  hoverEndY: 0,
 };
 
 const selectedSlice = createSlice({
@@ -58,6 +67,18 @@ const selectedSlice = createSlice({
     setBorderEndY: (state, action: PayloadAction<number>) => {
       state.borderEndY = action.payload;
     },
+    setHoverStartX: (state, action: PayloadAction<number>) => {
+      state.hoverStartX = action.payload;
+    },
+    setHoverStartY: (state, action: PayloadAction<number>) => {
+      state.hoverStartY = action.payload;
+    },
+    setHoverEndX: (state, action: PayloadAction<number>) => {
+      state.hoverEndX = action.payload;
+    },
+    setHoverEndY: (state, action: PayloadAction<number>) => {
+      state.hoverEndY = action.payload;
+    },
   },
 });
 
@@ -72,6 +93,10 @@ export const {
   setBorderEndX,
   setBorderStartY,
   setBorderEndY,
+  setHoverStartX,
+  setHoverStartY,
+  setHoverEndX,
+  setHoverEndY,
 } = selectedSlice.actions;
 
 export default selectedSlice.reducer;

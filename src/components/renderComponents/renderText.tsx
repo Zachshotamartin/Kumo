@@ -2,10 +2,17 @@ import React, { useRef } from "react";
 import { useSelector } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 import { useDispatch } from "react-redux";
+import styles from "./renderStyles.module.css";
 import {
   updateShape,
   removeShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
+import {
+  setHoverStartX,
+  setHoverStartY,
+  setHoverEndX,
+  setHoverEndY,
+} from "../../features/selected/selectedSlice";
 import { AppDispatch } from "../../store";
 const RenderText = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
@@ -13,7 +20,25 @@ const RenderText = () => {
     (state: any) => state.selected.selectedShapes
   );
   const dispatch = useDispatch<AppDispatch>();
+
   const window = useSelector((state: any) => state.window);
+
+  const handleMouseEnter = (index: number) => {
+    const shape = shapes.find((shape: Shape, i: number) => i === index);
+    if (shape) {
+      dispatch(setHoverStartX(shape.x1 - 2));
+      dispatch(setHoverStartY(shape.y1 - 2));
+      dispatch(setHoverEndX(shape.x2 - 2 + 2 * shape.borderWidth));
+      dispatch(setHoverEndY(shape.y2 - 2 + 2 * shape.borderWidth));
+    }
+  };
+
+  const handleMouseLeave = () => {
+    dispatch(setHoverStartX(-100000));
+    dispatch(setHoverStartY(-100000));
+    dispatch(setHoverEndX(-100000));
+    dispatch(setHoverEndY(-100000));
+  };
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleBlur = (index: number) => {
@@ -111,6 +136,8 @@ const RenderText = () => {
                 opacity: `${shape.opacity}`,
                 backgroundColor: `${shape.backgroundColor}`,
               }}
+              onMouseEnter={() => handleMouseEnter(index)}
+              onMouseLeave={handleMouseLeave}
             >
               <textarea
                 ref={inputRef}

@@ -19,6 +19,7 @@ interface ActionsState {
   resizingRight: boolean;
   resizingTop: boolean;
   resizingBottom: boolean;
+  hoverEdge: boolean;
 }
 
 const initialState: ActionsState = {
@@ -38,6 +39,7 @@ const initialState: ActionsState = {
   resizingRight: false,
   resizingTop: false,
   resizingBottom: false,
+  hoverEdge: false,
 };
 
 const actionsSlice = createSlice({
@@ -172,6 +174,14 @@ const actionsSlice = createSlice({
         state.resizingBottom = true;
       }
     },
+    setHoverEdge: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.hoverEdge = false;
+      }
+      if (action.payload) {
+        state.hoverEdge = true;
+      }
+    },
   },
 });
 
@@ -192,6 +202,7 @@ export const {
   setResizingRight,
   setResizingTop,
   setResizingBottom,
+  setHoverEdge,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;
