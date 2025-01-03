@@ -14,6 +14,11 @@ interface ActionsState {
   grid: boolean;
   settingsOpen: boolean;
   userOpen: boolean;
+  resizing: boolean;
+  resizingLeft: boolean;
+  resizingRight: boolean;
+  resizingTop: boolean;
+  resizingBottom: boolean;
 }
 
 const initialState: ActionsState = {
@@ -28,6 +33,11 @@ const initialState: ActionsState = {
   grid: true,
   settingsOpen: false,
   userOpen: false,
+  resizing: false,
+  resizingLeft: false,
+  resizingRight: false,
+  resizingTop: false,
+  resizingBottom: false,
 };
 
 const actionsSlice = createSlice({
@@ -106,22 +116,62 @@ const actionsSlice = createSlice({
         state.grid = true;
       }
     },
-   setSettingsOpen: (state, action: PayloadAction<boolean>) => {
-     if (!action.payload) {
-       state.settingsOpen = false;
-     }
-     if (action.payload) {
-       state.settingsOpen = true;
-     }
-   },
-   setUserOpen: (state, action: PayloadAction<boolean>) => {
-     if (!action.payload) {
-       state.userOpen = false;
-     }
-     if (action.payload) {
-       state.userOpen = true;
-     }
-   }
+    setSettingsOpen: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.settingsOpen = false;
+      }
+      if (action.payload) {
+        state.settingsOpen = true;
+      }
+    },
+    setUserOpen: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.userOpen = false;
+      }
+      if (action.payload) {
+        state.userOpen = true;
+      }
+    },
+    setResizing: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.resizing = false;
+      }
+      if (action.payload) {
+        state.resizing = true;
+      }
+    },
+    setResizingLeft: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.resizingLeft = false;
+      }
+      if (action.payload) {
+        state.resizingLeft = true;
+      }
+    },
+    setResizingRight: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.resizingRight = false;
+      }
+      if (action.payload) {
+        state.resizingRight = true;
+      }
+    },
+    setResizingTop: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.resizingTop = false;
+      }
+      if (action.payload) {
+        state.resizingTop = true;
+      }
+    },
+    setResizingBottom: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.resizingBottom = false;
+      }
+      if (action.payload) {
+        state.resizingBottom = true;
+      }
+    },
   },
 });
 
@@ -137,6 +187,11 @@ export const {
   setGrid,
   setSettingsOpen,
   setUserOpen,
+  setResizing,
+  setResizingLeft,
+  setResizingRight,
+  setResizingTop,
+  setResizingBottom,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

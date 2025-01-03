@@ -12,6 +12,8 @@ import { setHideSideBar } from "../../features/hide/hide";
 import { logout } from "../../features/auth/authSlice";
 import { AppDispatch } from "../../store";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+
+
 import {
   collection,
   doc,
@@ -36,6 +38,7 @@ const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 
 const Navigation = () => {
+  
   const user = useSelector((state: any) => state.auth);
   const grid = useSelector((state: any) => state.actions.grid);
 
@@ -191,7 +194,9 @@ const Navigation = () => {
     dispatch(setSettingsOpen(false));
   };
 
+
   return (
+    
     <div className={hidden ? styles.hiddenNavigation : styles.navigation}>
       <NavElement image={logo} text="Kumo" handleClick={() => {}} />
 
@@ -281,6 +286,10 @@ const Navigation = () => {
             <button
               className={styles.hide}
               onClick={() => {
+                if (whiteboard.uid !== user?.uid) {
+                  alert("Cannot delete someone else's board");
+                  return;
+                }
                 dispatch(setDeleting(true));
                 dispatch(setSettingsOpen(false));
               }}

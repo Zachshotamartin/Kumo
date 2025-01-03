@@ -31,6 +31,11 @@ import {
   setMoving,
   setHighlighting,
   setPasting,
+  setResizing,
+  setResizingLeft,
+  setResizingRight,
+  setResizingTop,
+  setResizingBottom,
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
@@ -72,6 +77,16 @@ const WhiteBoard = () => {
   const user = useSelector((state: any) => state.user); // Add this line to get the user data from the Redux store
   const drawing = useSelector((state: any) => state.actions.drawing);
   const dragging = useSelector((state: any) => state.actions.dragging);
+  const resizing = useSelector((state: any) => state.actions.resizing);
+  const resizingLeft = useSelector((state: any) => state.actions.resizingLeft);
+  const resizingRight = useSelector(
+    (state: any) => state.actions.resizingRight
+  );
+  const resizingTop = useSelector((state: any) => state.actions.resizingTop);
+  const resizingBottom = useSelector(
+    (state: any) => state.actions.resizingBottom
+  );
+  const pasting = useSelector((state: any) => state.actions.pasting);
   const doubleClicking = useSelector(
     (state: any) => state.actions.doubleClicking
   );
@@ -235,19 +250,19 @@ const WhiteBoard = () => {
         event.preventDefault();
         actionsDispatch(setPasting(true));
         pasteShapes();
-      } else if (event.key === "Backspace") {
-        // make sure that this is not focused on a textbox
-        event.preventDefault();
+        // } else if (event.key === "Backspace") {
+        //   // make sure that this is not focused on a textbox
+        //   event.preventDefault();
 
-        if (selectedShapes.length > 0) {
-          const shapesCopy = [...selectedShapes];
-          const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
+        //   if (selectedShapes.length > 0) {
+        //     const shapesCopy = [...selectedShapes];
+        //     const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
 
-          newShapes.forEach((index: number) => {
-            dispatch(removeShape(index));
-          });
-          dispatch(clearSelectedShapes());
-        }
+        //     newShapes.forEach((index: number) => {
+        //       dispatch(removeShape(index));
+        //     });
+        //     dispatch(clearSelectedShapes());
+        //   }
       }
     };
 
@@ -332,7 +347,7 @@ const WhiteBoard = () => {
     if (selectedTool === "pointer") {
       let selected: number = -1;
 
-      for (let i = shapes.length - 1; i >= 0; i--) {
+      for (let i = 0; i < shapes.length; i++) {
         let shape = shapes[i];
         if (
           x >= Math.min(shape.x1, shape.x2) &&
@@ -340,6 +355,7 @@ const WhiteBoard = () => {
           y >= Math.min(shape.y1, shape.y2) &&
           y <= Math.max(shape.y1, shape.y2)
         ) {
+          // if cursor is within a shape.
           selected = i;
         }
       }
@@ -351,13 +367,61 @@ const WhiteBoard = () => {
           y < Math.min(borderStartY, borderEndY) ||
           y > Math.max(borderStartY, borderEndY)
         ) {
+          // if cursor is outside the bounding box
           dispatch(clearSelectedShapes());
           actionsDispatch(setHighlighting(false));
         }
       }
 
+      if (selectedShapes.length > 0) {
+        if (
+          x >=
+          Math.min(borderEndX - 2, borderEndX + 2) / window.percentZoomed
+        ) {
+          actionsDispatch(setResizingRight(true));
+        }
+        if (
+          x <=
+          Math.max(borderStartX - 2, borderStartX + 2) / window.percentZoomed
+        ) {
+          actionsDispatch(setResizingLeft(true));
+        }
+        if (
+          y >=
+          Math.min(borderEndY - 2, borderEndY + 2) / window.percentZoomed
+        ) {
+          actionsDispatch(setResizingBottom(true));
+        }
+        if (
+          y <=
+          Math.max(borderStartY - 2, borderStartY + 2) / window.percentZoomed
+        ) {
+          actionsDispatch(setResizingTop(true));
+        }
+        if (
+          x >=
+            Math.min(borderEndX - 2, borderEndX + 2) / window.percentZoomed ||
+          x <=
+            Math.max(borderStartX - 2, borderStartX + 2) /
+              window.percentZoomed ||
+          y >=
+            Math.min(borderEndY - 2, borderEndY + 2) / window.percentZoomed ||
+          y <=
+            Math.max(borderStartY - 2, borderStartY + 2) / window.percentZoomed
+        ) {
+          // if cursor is on the border of the bounding box to resize shape
+          actionsDispatch(setResizing(true));
+          setPrevMouseX(x);
+          setPrevMouseY(y);
+          setDragOffset({ x: 0, y: 0 });
+          actionsDispatch(setDragging(true));
+          console.log("resizing");
+          return;
+        }
+      }
+
       if (selected !== -1) {
-        // Calculate the offset between the cursor and the top-left corner of the shape
+        // if something is selected
 
         setPrevMouseX(x);
         setPrevMouseY(y);
@@ -366,6 +430,7 @@ const WhiteBoard = () => {
         actionsDispatch(setDragging(true));
         actionsDispatch(setMoving(true));
         if (!selectedShapes.includes(selected)) {
+          // if something is selected but not already within the bounding box
           dispatch(setSelectedShapes([selected]));
         }
       } else {
@@ -375,6 +440,7 @@ const WhiteBoard = () => {
           y > Math.min(borderStartY, borderEndY) &&
           y < Math.max(borderStartY, borderEndY)
         ) {
+          // if nothing is selected but cursor is still in the selected bounding box
           setPrevMouseX(x);
           setPrevMouseY(y);
 
@@ -382,6 +448,7 @@ const WhiteBoard = () => {
           actionsDispatch(setDragging(true));
           actionsDispatch(setMoving(true));
         } else {
+          // if nothing is selected
           dispatch(clearSelectedShapes());
 
           actionsDispatch(setDragging(true));
@@ -437,10 +504,9 @@ const WhiteBoard = () => {
         rows: 1,
 
         // color
-        color: "white",
+        color: selectedTool === "board" ? "black" : "white",
         backgroundColor:
           selectedTool === "text" ||
-          selectedTool === "board" ||
           selectedTool === "calendar" ||
           selectedTool === "image"
             ? "transparent"
@@ -467,6 +533,9 @@ const WhiteBoard = () => {
   const debouncedMouseMove = useCallback(
     throttle(
       debounce((e: React.MouseEvent<HTMLDivElement>) => {
+        const selectedShapesArray = shapes.filter(
+          (shape: Shape, index: number) => selectedShapes.includes(index)
+        );
         if (dragging && moving) {
           const boundingRect = canvasRef.current?.getBoundingClientRect();
           const x = Math.round(
@@ -476,10 +545,6 @@ const WhiteBoard = () => {
           const y = Math.round(
             (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
               window.y1
-          );
-
-          const selectedShapesArray = shapes.filter(
-            (shape: Shape, index: number) => selectedShapes.includes(index)
           );
 
           // if (CheckCollision()) {
@@ -557,6 +622,45 @@ const WhiteBoard = () => {
           dispatch(setHighlightEnd([x, y]));
         }
 
+        if (dragging && resizing) {
+          const boundingRect = canvasRef.current?.getBoundingClientRect();
+          const x = Math.round(
+            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+              window.x1
+          );
+          const y = Math.round(
+            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+              window.y1
+          );
+          selectedShapesArray.forEach((shape: Shape, index: number) => {
+            const x1 = resizingLeft ? shape.x1 + x - prevMouseX : shape.x1;
+            const y1 = resizingTop ? shape.y1 + y - prevMouseY : shape.y1;
+            const x2 = resizingRight ? shape.x2 + x - prevMouseX : shape.x2;
+            const y2 = resizingBottom ? shape.y2 + y - prevMouseY : shape.y2;
+            const width = Math.abs(x2 - x1);
+            const height = Math.abs(y2 - y1);
+
+            const updatedShape: Shape = {
+              ...shape,
+              x1: x1,
+              y1: y1,
+              x2: x2,
+              y2: y2,
+              width,
+              height,
+            };
+
+            dispatch(
+              updateShape({
+                index: selectedShapes[index],
+                update: updatedShape,
+              })
+            );
+          });
+          setPrevMouseX(x);
+          setPrevMouseY(y);
+        }
+
         if (drawing) {
           const boundingRect = canvasRef.current?.getBoundingClientRect();
           const x = Math.round(
@@ -623,6 +727,11 @@ const WhiteBoard = () => {
     actionsDispatch(setSelectedTool("pointer"));
     actionsDispatch(setHighlighting(false));
     actionsDispatch(setMoving(false));
+    actionsDispatch(setResizing(false));
+    actionsDispatch(setResizingLeft(false));
+    actionsDispatch(setResizingRight(false));
+    actionsDispatch(setResizingTop(false));
+    actionsDispatch(setResizingBottom(false));
     dispatch(setSelectedShapes(selectedShapes));
   };
 
@@ -708,8 +817,8 @@ const WhiteBoard = () => {
         (event.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
         window.y1;
       if (
-        window.percentZoomed * zoomFactor < 2 &&
-        window.percentZoomed * zoomFactor > 0.2
+        window.percentZoomed * zoomFactor < 4 &&
+        window.percentZoomed * zoomFactor > 0.05
       ) {
         const newWindow: WindowState = {
           x1: Math.round(cursorX - (cursorX - window.x1) * zoomFactor),

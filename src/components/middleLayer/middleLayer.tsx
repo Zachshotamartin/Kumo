@@ -3,7 +3,7 @@ import { useSelector } from "react-redux";
 import { useDispatch } from "react-redux";
 
 import styles from "./middleLayer.module.css";
-
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { db } from "../../config/firebase";
 import {
   addDoc,
@@ -163,6 +163,7 @@ const MiddleLayer = () => {
     }
   };
 
+  
   return (
     <div
       className={

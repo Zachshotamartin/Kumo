@@ -27,6 +27,7 @@ const Delete = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
     const inputText = (e.target as HTMLFormElement).querySelector(
       "input"
     )!.value;

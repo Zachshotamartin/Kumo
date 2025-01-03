@@ -92,7 +92,9 @@ const OptionsBar = () => {
           {selectedShape && <Transform />}
           {selectedShape && <BoxStyling />}
 
-          {selectedShape && selectedShape.type === "text" && <FontStyles />}
+          {selectedShape &&
+            (selectedShape.type === "text" ||
+              selectedShape.type === "board") && <FontStyles />}
           {selectedShape && <Colors />}
         </div>
       )}

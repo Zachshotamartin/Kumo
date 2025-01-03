@@ -47,12 +47,29 @@ const RenderBoxes = () => {
                 }px ${shape.borderStyle}`,
 
                 // color styling
-
-                backgroundImage: `url(${shape.backgroundImage})`,
+                backgroundColor: `${shape.backgroundColor}`,
+                color: `${shape.color}`,
+                
+                //backgroundImage: `url(${shape.backgroundImage})`,
                 backgroundSize: "cover",
                 opacity: `${shape.opacity}`,
+                display: "flex",
+                alignItems: `${shape.alignItems}`,
+                justifyContent: `${shape.textAlign}`,
+          
+                
               }}
-            ></div>
+            >
+              <p
+              style={{
+                fontSize: `${shape.fontSize / window.percentZoomed}px`,
+                fontWeight: `${shape.fontWeight}`,
+                textDecoration: `${shape.textDecoration}`,
+                fontFamily: `${shape.fontFamily}`,
+                lineHeight: `${shape.lineHeight}`,
+                color: `${shape.color}`,
+              }}>{shape.title}</p>
+            </div>
           )}
         </>
       ))}
