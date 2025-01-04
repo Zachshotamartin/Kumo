@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 
@@ -58,7 +58,7 @@ const RenderBorder = () => {
     dispatch(setBorderStartY(topY));
     dispatch(setBorderEndX(rightX));
     dispatch(setBorderEndY(bottomY));
-  }, [selectedShapes, shapes]);
+  }, [dispatch, selectedShapes, shapes]);
 
   return (
     <>

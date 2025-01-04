@@ -1,4 +1,3 @@
-/*************  ✨ Codeium Command 🌟  *************/
 import React, { useState } from "react";
 import styles from "./homePage.module.css";
 import { auth, provider } from "../../config/firebase";

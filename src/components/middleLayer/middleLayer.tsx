@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useDispatch } from "react-redux";
-
 import styles from "./middleLayer.module.css";
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+// import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { db } from "../../config/firebase";
 import {
   addDoc,
@@ -21,7 +20,6 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { setBoards } from "../../features/boards/boards";
 import {
   addBoardImage,
-  removeBoardImage,
 } from "../../features/boardImages/boardImages";
 import type { AppDispatch } from "../../store";
 import plus from "../../res/plus.png";
@@ -46,6 +44,7 @@ const MiddleLayer = () => {
     (state: any) => state.boardImages.boardImages
   );
   const whiteBoard = useSelector((state: any) => state.whiteBoard);
+  console.log(user.uid, "uid");
 
   useEffect(() => {
     if (user?.isAuthenticated) {
@@ -65,7 +64,7 @@ const MiddleLayer = () => {
       });
       return () => unsubscribe();
     }
-  }, [dispatch, user?.uid]);
+  }, [dispatch, user?.isAuthenticated, user?.uid]);
 
   const createBoard = async (type: "private" | "public" | "shared") => {
     try {
@@ -128,7 +127,7 @@ const MiddleLayer = () => {
     };
 
     fetchImageUrls();
-  }, [publicBoards, privateBoards, sharedBoards, removeBoardImage]);
+  }, [publicBoards, privateBoards, sharedBoards, boardImages, dispatch]);
 
   const handleClick = async (board: string, type: string) => {
     if (!board) {
@@ -163,7 +162,6 @@ const MiddleLayer = () => {
     }
   };
 
-  
   return (
     <div
       className={

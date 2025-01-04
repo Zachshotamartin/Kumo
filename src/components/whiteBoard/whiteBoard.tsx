@@ -6,7 +6,6 @@ import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
 import {
   addShape,
-  removeShape,
   updateShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
@@ -36,7 +35,6 @@ import {
   setResizingRight,
   setResizingTop,
   setResizingBottom,
-  setHoverEdge,
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
@@ -71,12 +69,11 @@ const WhiteBoard = () => {
     (state: any) => state.selected.selectedShapes
   );
   const selectedTool = useSelector((state: any) => state.selected.selectedTool);
-  const [snap, setSnap] = useState(false);
-  const [distance, setDistance] = useState(0);
+
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
-  const user = useSelector((state: any) => state.user); // Add this line to get the user data from the Redux store
+  const user = useSelector((state: any) => state.auth);
   const drawing = useSelector((state: any) => state.actions.drawing);
   const dragging = useSelector((state: any) => state.actions.dragging);
   const resizing = useSelector((state: any) => state.actions.resizing);
@@ -88,8 +85,7 @@ const WhiteBoard = () => {
   const resizingBottom = useSelector(
     (state: any) => state.actions.resizingBottom
   );
-  const hoverEdge = useSelector((state: any) => state.actions.hoverEdge);
-  const pasting = useSelector((state: any) => state.actions.pasting);
+
   const doubleClicking = useSelector(
     (state: any) => state.actions.doubleClicking
   );
@@ -137,7 +133,7 @@ const WhiteBoard = () => {
     };
     updateFirebase();
   }, [
-    user?.uid,
+    user.uid,
     board.id,
     board.shapes,
     board.title,
@@ -146,7 +142,36 @@ const WhiteBoard = () => {
     drawing,
     dragging,
     doubleClicking,
+    docRef,
+    board.sharedWith,
   ]);
+
+  useEffect(() => {
+    if (!docRef) {
+      return;
+    }
+    const unsub = onSnapshot(
+      docRef,
+      (doc: { exists: () => any; data: () => any; id: any }) => {
+        if (doc.exists()) {
+          const data = doc.data();
+          dispatch(
+            setWhiteboardData({
+              id: doc.id,
+              shapes: data?.shapes || [],
+              title: data?.title || "",
+              type: data?.type || "",
+              uid: data?.uid || "",
+              sharedWith: data?.sharedWith || [],
+            })
+          );
+        }
+      }
+    );
+    return () => {
+      unsub();
+    };
+  }, [docRef, dispatch]);
 
   useEffect(() => {
     const generatePreview = () => {
@@ -192,7 +217,7 @@ const WhiteBoard = () => {
     } else {
       dispatch(setHideOptions(false));
     }
-  }, [selectedShapes]);
+  }, [dispatch, selectedShapes]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -276,62 +301,7 @@ const WhiteBoard = () => {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedShapes, shapes]);
-
-  const SNAP_THRESHOLD = 5; // Define snapping threshold
-
-  const CheckCollision = () => {
-    let collision = false;
-
-    shapes.forEach((shape: Shape, index: number) => {
-      if (!selectedShapes.includes(index)) {
-        // Check if any edge is within the snapping threshold
-        const isColliding =
-          Math.abs(shape.x1 - borderStartX) <= SNAP_THRESHOLD ||
-          Math.abs(shape.x2 - borderStartX) <= SNAP_THRESHOLD ||
-          Math.abs(shape.x1 - borderEndX) <= SNAP_THRESHOLD ||
-          Math.abs(shape.x2 - borderEndX) <= SNAP_THRESHOLD ||
-          Math.abs(shape.y1 - borderStartY) <= SNAP_THRESHOLD ||
-          Math.abs(shape.y2 - borderStartY) <= SNAP_THRESHOLD ||
-          Math.abs(shape.y1 - borderEndY) <= SNAP_THRESHOLD ||
-          Math.abs(shape.y2 - borderEndY) <= SNAP_THRESHOLD;
-
-        if (isColliding) {
-          collision = true;
-        }
-      }
-    });
-    return collision;
-  };
-
-  const nearestEdge = () => {
-    let minDistance = Infinity;
-    let closestEdge = "";
-
-    shapes.forEach((shape: Shape, index: number) => {
-      if (!selectedShapes.includes(index)) {
-        // Calculate distances for all edges
-        const distances = {
-          x1Start: Math.abs(shape.x1 - borderStartX),
-          x1End: Math.abs(shape.x1 - borderEndX),
-          x2Start: Math.abs(shape.x2 - borderStartX),
-          x2End: Math.abs(shape.x2 - borderEndX),
-          y1Start: Math.abs(shape.y1 - borderStartY),
-          y1End: Math.abs(shape.y1 - borderEndY),
-          y2Start: Math.abs(shape.y2 - borderStartY),
-          y2End: Math.abs(shape.y2 - borderEndY),
-        };
-
-        for (const [edge, distance] of Object.entries(distances)) {
-          if (distance < minDistance && distance <= SNAP_THRESHOLD) {
-            minDistance = distance;
-            closestEdge = edge;
-          }
-        }
-      }
-    });
-    return { minDistance, closestEdge };
-  };
+  }, [actionsDispatch, dispatch, selectedShapes, shapes]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -535,6 +505,7 @@ const WhiteBoard = () => {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedMouseMove = useCallback(
     throttle(
       debounce((e: React.MouseEvent<HTMLDivElement>) => {
@@ -602,65 +573,30 @@ const WhiteBoard = () => {
         }
 
         if (dragging && moving) {
-          // if (CheckCollision()) {
-          //   const { minDistance, closestEdge } = nearestEdge();
+          if (dragOffset) {
+            selectedShapesArray.forEach((shape: Shape, index: number) => {
+              const width = Math.abs(shape.x2 - shape.x1);
+              const height = Math.abs(shape.y2 - shape.y1);
 
-          //   selectedShapesArray.forEach((shape: Shape, index: number) => {
-          //     const width = Math.abs(shape.x2 - shape.x1);
-          //     const height = Math.abs(shape.y2 - shape.y1);
+              const updatedShape: Shape = {
+                ...shape,
+                x1: shape.x1 + x - prevMouseX,
+                y1: shape.y1 + y - prevMouseY,
+                x2: shape.x2 + x - prevMouseX,
+                y2: shape.y2 + y - prevMouseY,
+                width,
+                height,
+              };
 
-          //     // Adjust shape based on the nearest edge
-          //     const newX1 =
-          //       closestEdge.startsWith("x") && closestEdge.includes("Start")
-          //         ? shape.x1 + minDistance
-          //         : shape.x1;
-          //     const newY1 =
-          //       closestEdge.startsWith("y") && closestEdge.includes("Start")
-          //         ? shape.y1 + minDistance
-          //         : shape.y1;
-
-          //     const updatedShape: Shape = {
-          //       ...shape,
-          //       x1: newX1,
-          //       y1: newY1,
-          //       x2: newX1 + width,
-          //       y2: newY1 + height,
-          //     };
-
-          //     dispatch(
-          //       updateShape({
-          //         index: selectedShapes[index],
-          //         update: updatedShape,
-          //       })
-          //     );
-          //   });
-          //}
-
-          if (!snap) {
-            if (dragOffset) {
-              selectedShapesArray.forEach((shape: Shape, index: number) => {
-                const width = Math.abs(shape.x2 - shape.x1);
-                const height = Math.abs(shape.y2 - shape.y1);
-
-                const updatedShape: Shape = {
-                  ...shape,
-                  x1: shape.x1 + x - prevMouseX,
-                  y1: shape.y1 + y - prevMouseY,
-                  x2: shape.x2 + x - prevMouseX,
-                  y2: shape.y2 + y - prevMouseY,
-                  width,
-                  height,
-                };
-
-                dispatch(
-                  updateShape({
-                    index: selectedShapes[index],
-                    update: updatedShape,
-                  })
-                );
-              });
-            }
+              dispatch(
+                updateShape({
+                  index: selectedShapes[index],
+                  update: updatedShape,
+                })
+              );
+            });
           }
+
           setPrevMouseX(x);
           setPrevMouseY(y);
         }
@@ -736,22 +672,7 @@ const WhiteBoard = () => {
 
       inputRef?.current?.focus();
     }
-    // if (shapes.length > 0) {
-    //   const lastShape = shapes[shapes.length - 1];
-    //   const x2 = lastShape?.x2;
-    //   const y2 = lastShape?.y2;
-    //   const updatedShape: Shape = {
-    //     ...lastShape,
-    //     x2: lastShape?.x2 > lastShape?.x1 ? x2 : lastShape?.x1,
-    //     y2: lastShape?.y2 > lastShape?.y1 ? y2 : lastShape?.y1,
-    //     x1: x2 > lastShape?.x1 ? lastShape?.x1 : x2,
-    //     y1: y2 > lastShape?.y1 ? lastShape?.y1 : y2,
-    //     width: Math.abs(x2 - lastShape?.x1),
-    //     height: Math.abs(y2 - lastShape?.y1),
-    //     rotation: 0,
-    //   };
-    //   dispatch(updateShape({ index: shapes.length - 1, update: updatedShape }));
-    // }
+
     actionsDispatch(setSelectedTool("pointer"));
     actionsDispatch(setHighlighting(false));
     actionsDispatch(setMoving(false));

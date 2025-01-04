@@ -11,7 +11,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import board, {
+import {
   setWhiteboardData,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { useSelector, useDispatch } from "react-redux";
@@ -39,6 +39,7 @@ const Delete = () => {
     const boardRef = doc(boardCollectionRef, board.id);
     deleteDoc(boardRef).then(() => {
       // deletes doc from redux
+      
       appDispatch(setWhiteboardData({}));
     });
 
@@ -61,8 +62,6 @@ const Delete = () => {
     }
 
     dispatch(setDeleting(false));
-
-    // also remove from users listed boards
   };
 
   return (

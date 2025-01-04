@@ -1,6 +1,5 @@
 // authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { set } from "lodash";
 
 interface ActionsState {
   drawing: boolean;

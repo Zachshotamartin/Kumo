@@ -2,7 +2,6 @@ import React, { useRef } from "react";
 import { useSelector } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 import { useDispatch } from "react-redux";
-import styles from "./renderStyles.module.css";
 import {
   updateShape,
   removeShape,

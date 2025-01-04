@@ -33,25 +33,6 @@ const FontStyles = () => {
   const [letterSpacing, setLetterSpacing] = useState(
     selectedShape.letterSpacing
   );
-
-  useEffect(() => {
-    setFontSize(selectedShape.fontSize);
-    setFontFamily(selectedShape.fontFamily);
-    setFontWeight(selectedShape.fontWeight);
-    setTextAlign(selectedShape.textAlign);
-    setAlignItems(selectedShape.alignItems);
-    setTextDecoration(selectedShape.textDecoration);
-    setLineHeight(selectedShape.lineHeight);
-    setLetterSpacing(selectedShape.letterSpacing);
-  }, [selectedShape]);
-
-  useEffect(() => {
-    updateTextStyling();
-    console.log(
-      `fontFamily: ${fontFamily}, fontWeight: ${fontWeight}, textAlign: ${textAlign}, alignItems: ${alignItems}, textDecoration: ${textDecoration}`
-    );
-  }, [fontFamily, fontWeight, textAlign, alignItems, textDecoration]);
-
   const updateTextStyling = () => {
     dispatch(
       updateShape({
@@ -69,6 +50,30 @@ const FontStyles = () => {
       })
     );
   };
+  useEffect(() => {
+    setFontSize(selectedShape.fontSize);
+    setFontFamily(selectedShape.fontFamily);
+    setFontWeight(selectedShape.fontWeight);
+    setTextAlign(selectedShape.textAlign);
+    setAlignItems(selectedShape.alignItems);
+    setTextDecoration(selectedShape.textDecoration);
+    setLineHeight(selectedShape.lineHeight);
+    setLetterSpacing(selectedShape.letterSpacing);
+  }, [selectedShape]);
+
+  useEffect(() => {
+    updateTextStyling();
+    console.log(
+      `fontFamily: ${fontFamily}, fontWeight: ${fontWeight}, textAlign: ${textAlign}, alignItems: ${alignItems}, textDecoration: ${textDecoration}`
+    );
+  }, [
+    fontFamily,
+    fontWeight,
+    textAlign,
+    alignItems,
+    textDecoration,
+    updateTextStyling,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {

@@ -43,7 +43,14 @@ const RenderHighlighting = () => {
       []
     );
     dispatch(setSelectedShapes(intersectingShapeIndices));
-  }, [highlightEndX, highlightEndY]);
+  }, [
+    dispatch,
+    highlightEndX,
+    highlightEndY,
+    highlightStartX,
+    highlightStartY,
+    shapes,
+  ]);
 
   return (
     <div

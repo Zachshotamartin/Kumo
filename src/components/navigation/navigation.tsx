@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import styles from "./navigation.module.css";
 import NavElement from "../navElement/navElement";
 import { useSelector, useDispatch } from "react-redux";
@@ -6,8 +5,6 @@ import logo from "../../res/logo3.png";
 import menu from "../../res/menu.png";
 import userIcon from "../../res/user-circle.png";
 import { auth } from "../../config/firebase";
-import { useAuthState } from "react-firebase-hooks/auth";
-import hide from "../../res/hide.png";
 import { setHideSideBar } from "../../features/hide/hide";
 import { logout } from "../../features/auth/authSlice";
 import { AppDispatch } from "../../store";
@@ -22,7 +19,6 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import Share from "../share/share";
 import { db } from "../../config/firebase";
 import {
   setSharing,
@@ -33,7 +29,6 @@ import {
 } from "../../features/actions/actionsSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { removeBoardImage } from "../../features/boardImages/boardImages";
-import { remove } from "lodash";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 

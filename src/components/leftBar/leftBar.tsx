@@ -4,7 +4,6 @@ import plus from "../../res/plus.png";
 import {
   addDoc,
   collection,
-  arrayUnion,
   getDocs,
   query,
   updateDoc,

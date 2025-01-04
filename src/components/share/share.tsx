@@ -8,10 +8,9 @@ import {
   getDocs,
   updateDoc,
   doc,
-  deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import board, {
+import {
   setWhiteboardData,
   share,
 } from "../../features/whiteBoard/whiteBoardSlice";

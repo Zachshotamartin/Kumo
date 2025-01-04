@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import styles from "./options.module.css";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";

@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from "react";
 import styles from "./viewBoardPreview.module.css";
 import boardImage from "../../res/recursive.png";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
@@ -6,9 +5,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import { AppDispatch } from "../../store";
 import { useDispatch, useSelector } from "react-redux";
-
-import { ref, getDownloadURL } from "firebase/storage";
-import { storage } from "../../config/firebase";
 
 const ViewBoardPreview = (props: { boards: any }) => {
   const boards = props.boards;

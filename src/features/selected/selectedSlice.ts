@@ -1,7 +1,7 @@
 // authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Shape } from "../whiteBoard/whiteBoardSlice";
-import { set } from "lodash";
+
 
 interface SelectedState {
   selectedShapes: Shape[];
@@ -48,6 +48,10 @@ const selectedSlice = createSlice({
     },
     clearSelectedShapes: (state) => {
       state.selectedShapes = [];
+      state.borderStartX = -100000;
+      state.borderStartY = -100000;
+      state.borderEndX = -100000;
+      state.borderEndY = -100000;
     },
     setHighlightStart: (state, action: PayloadAction<number[]>) => {
       state.highlightStart = action.payload;

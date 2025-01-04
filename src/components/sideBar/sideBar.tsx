@@ -72,7 +72,7 @@ const SideBar = () => {
         handleMouseMoveOverComponent
       );
     };
-  }, [dragging, width]);
+  }, [dispatch, dragging, width]);
 
   return (
     <div>

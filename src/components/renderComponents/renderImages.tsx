@@ -1,7 +1,6 @@
 import React from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
-import styles from "./renderStyles.module.css";
 import {
   setHoverStartX,
   setHoverStartY,

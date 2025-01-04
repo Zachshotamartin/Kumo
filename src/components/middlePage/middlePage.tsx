@@ -1,4 +1,3 @@
-import React from "react";
 import MiddleLayer from "../middleLayer/middleLayer";
 import styles from "./middlePage.module.css";
 import LeftBar from "../leftBar/leftBar";
