@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useDispatch } from "react-redux";
-import styles from "./middleLayer.module.css";
+import styles from "./middleLayerSide.module.css";
 // import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { db } from "../../config/firebase";
 import {
@@ -15,7 +15,6 @@ import {
   updateDoc,
   getDoc,
 } from "firebase/firestore";
-import ViewBoardPreview from "../viewBoardPreview/viewBoardPreview";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { setBoards } from "../../features/boards/boards";
 import { addBoardImage } from "../../features/boardImages/boardImages";
@@ -28,7 +27,7 @@ import { getDownloadURL, ref } from "firebase/storage";
 import { storage } from "../../config/firebase";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
-const MiddleLayer = () => {
+const MiddleLayerSide = () => {
   const availableBoards = useSelector((state: any) => state.boards);
   const user = useSelector((state: any) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
@@ -41,8 +40,6 @@ const MiddleLayer = () => {
   const boardImages = useSelector(
     (state: any) => state.boardImages.boardImages
   );
-  const whiteBoard = useSelector((state: any) => state.whiteBoard);
-  console.log(user.uid, "uid");
 
   useEffect(() => {
     if (user?.isAuthenticated) {
@@ -162,19 +159,99 @@ const MiddleLayer = () => {
 
   return (
     <div className={styles.middleLayer}>
-      <h5 className={styles.title}>{`Public (${publicBoards?.length})`}</h5>
+      <div className={styles.createBoardContainer}>
+        <h4 className={styles.title}> Boards </h4>
+        <button
+          className={styles.createButton}
+          onClick={() => {
+            createBoard("private");
+          }}
+        >
+          <img className={styles.icon} src={plus} alt="Plus" />
+        </button>
+      </div>
 
-      <ViewBoardPreview boards={publicBoards} />
+      <div
+        className={styles.boardTypeContainer}
+        onClick={() => setPublicDropDown(!publicDropDown)}
+      >
+        {publicDropDown ? (
+          <img className={styles.icon} src={down} alt="Down" />
+        ) : (
+          <img className={styles.icon} src={right} alt="Right" />
+        )}
+        <h5 className={styles.title}>{`Public (${publicBoards.length})`}</h5>
+      </div>
+      {publicDropDown && (
+        <div className={styles.boardListContainer}>
+          {availableBoards?.publicBoards?.map((board: any, index: number) => (
+            <div key={index} className={styles.board}>
+              <button
+                className={styles.button}
+                onClick={() => handleClick(board.id, "public")}
+              >
+                {board.title}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <h5 className={styles.title}>{`Private (${privateBoards?.length})`}</h5>
+      <div
+        className={styles.boardTypeContainer}
+        onClick={() => setPrivateDropDown(!privateDropDown)}
+      >
+        {privateDropDown ? (
+          <img className={styles.icon} src={down} alt="Down" />
+        ) : (
+          <img className={styles.icon} src={right} alt="Right" />
+        )}
+        <h5 className={styles.title}>{`Private (${privateBoards.length})`}</h5>
+      </div>
 
-      <ViewBoardPreview boards={privateBoards} />
+      {privateDropDown && (
+        <div className={styles.boardListContainer}>
+          {availableBoards?.privateBoards?.map((board: any, index: number) => (
+            <div key={index} className={styles.board}>
+              <button
+                className={styles.button}
+                onClick={() => handleClick(board.id, "private")}
+              >
+                {board.title}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <h5 className={styles.title}>{`Shared (${sharedBoards?.length})`}</h5>
+      <div
+        className={styles.boardTypeContainer}
+        onClick={() => setSharedDropDown(!sharedDropDown)}
+      >
+        {sharedDropDown ? (
+          <img className={styles.icon} src={down} alt="Down" />
+        ) : (
+          <img className={styles.icon} src={right} alt="Right" />
+        )}
+        <h5 className={styles.title}>{`Shared (${sharedBoards.length})`}</h5>
+      </div>
 
-      <ViewBoardPreview boards={sharedBoards} />
+      {sharedDropDown && (
+        <div className={styles.boardListContainer}>
+          {availableBoards?.sharedBoards?.map((board: any, index: number) => (
+            <div key={index} className={styles.board}>
+              <button
+                className={styles.button}
+                onClick={() => handleClick(board.id, "shared")}
+              >
+                {board.title}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
-export default MiddleLayer;
+export default MiddleLayerSide;

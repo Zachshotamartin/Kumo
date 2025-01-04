@@ -19,6 +19,7 @@ interface ActionsState {
   resizingTop: boolean;
   resizingBottom: boolean;
   hoverEdge: boolean;
+  inWhiteBoard: boolean;
 }
 
 const initialState: ActionsState = {
@@ -39,6 +40,7 @@ const initialState: ActionsState = {
   resizingTop: false,
   resizingBottom: false,
   hoverEdge: false,
+  inWhiteBoard: false,
 };
 
 const actionsSlice = createSlice({
@@ -181,6 +183,14 @@ const actionsSlice = createSlice({
         state.hoverEdge = true;
       }
     },
+    setInWhiteBoard: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.inWhiteBoard = false;
+      }
+      if (action.payload) {
+        state.inWhiteBoard = true;
+      }
+    },
   },
 });
 
@@ -202,6 +212,7 @@ export const {
   setResizingTop,
   setResizingBottom,
   setHoverEdge,
+  setInWhiteBoard,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

@@ -25,6 +25,7 @@ import {
   setGrid,
   setSettingsOpen,
   setUserOpen,
+  setInWhiteBoard,
 } from "../../features/actions/actionsSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { removeBoardImage } from "../../features/boardImages/boardImages";
@@ -56,6 +57,7 @@ const Navigation = () => {
       sharedWith: [],
     };
     dispatch(setSharing(false));
+    dispatch(setInWhiteBoard(false));
     dispatch(removeBoardImage(whiteboard.id));
     dispatch(clearSelectedShapes());
     appDispatch(setWhiteboardData(data));
@@ -223,6 +225,7 @@ const Navigation = () => {
               };
 
               dispatch(clearSelectedShapes());
+              dispatch(setInWhiteBoard(false));
               dispatch(setSharing(false));
               appDispatch(setWhiteboardData(data));
               auth.signOut();

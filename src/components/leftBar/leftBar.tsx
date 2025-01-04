@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { useSelector } from "react-redux";
 import Navigation from "../navigation/navigation";
+import MiddleLayerSide from "../middleLayer/middleLayerSide";
 import { db } from "../../config/firebase";
 const LeftBar = () => {
   const usersCollectionRef = collection(db, "users");
@@ -86,6 +87,7 @@ const LeftBar = () => {
           </button>
         </div>
       </div>
+      <MiddleLayerSide />
     </div>
   );
 };

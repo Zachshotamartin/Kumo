@@ -1,0 +1,81 @@
+.middleLayer {
+  color: white;
+
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: start;
+  align-items: flex-start;
+  cursor: pointer;
+
+  padding-left: 1rem;
+  border-top: 2px solid #b4b4b42b;
+  border-bottom: 2px solid #b4b4b42b;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.boardListContainer {
+  margin-left: 1rem;
+  background-color: "transparent";
+  flex-wrap: wrap;
+  overflow-y: visible;
+  text-align: left;
+}
+.title {
+  margin-bottom: 0;
+}
+
+.button {
+  background-color: transparent;
+  color: inherit;
+  border: none;
+}
+.button:hover {
+  color: #007bff;
+}
+.board {
+  background-color: "transparent";
+}
+
+.createButton {
+  background-color: transparent;
+
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  margin-top: 3%;
+  padding: 0;
+}
+
+.createBoardContainer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+}
+.boardTypeContainer {
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.icon {
+  height: 15px;
+  width: 15px;
+}

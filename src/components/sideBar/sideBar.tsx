@@ -3,7 +3,7 @@ import styles from "./sideBar.module.css";
 import Navigation from "../navigation/navigation";
 import Components from "../components/components";
 import { useSelector, useDispatch } from "react-redux";
-import MiddleLayer from "../middleLayer/middleLayer";
+import MiddleLayerSide from "../middleLayer/middleLayerSide";
 import { setSideBarWidth } from "../../features/window/windowSlice";
 const SideBar = () => {
   const width = useSelector((state: any) => state.window.sideBarWidth);
@@ -88,7 +88,7 @@ const SideBar = () => {
         >
           <h4 className={styles.title}>{whiteBoard.title}</h4>
           <Navigation />
-          <MiddleLayer />
+          <MiddleLayerSide />
           <Components />
           <div
             style={{
