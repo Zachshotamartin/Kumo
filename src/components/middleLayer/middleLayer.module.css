@@ -13,11 +13,10 @@
   border-bottom: 2px solid #b4b4b42b;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
-
 }
 .middleLayer2 {
   color: white;
-  overflow-y: scroll;
+
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -25,11 +24,13 @@
   align-items: flex-start;
 
   padding-left: 1rem;
+
   border: 1px solid #b4b4b42b;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
   flex: 1;
   height: 100vh;
+  overflow-y: hidden;
 }
 .boardListContainer {
   margin-left: 1rem;
@@ -41,9 +42,12 @@
 .title {
   margin-bottom: 0;
 }
-.title:hover {
-  color: #007bff;
+.title2 {
+  margin-top: 1rem;
+  margin-bottom: 0;
+  margin-left: 1rem;
 }
+
 .button {
   background-color: transparent;
   color: inherit;

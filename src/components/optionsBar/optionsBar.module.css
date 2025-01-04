@@ -20,7 +20,7 @@
   border-radius: 10px;
 }
 .optionsBar:hover {
-  scrollbar-color: #b4b4b4 #444444;
+  scrollbar-color: #b4b4b4 transparent;
 }
 
 .shapeType {

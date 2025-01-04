@@ -18,9 +18,7 @@ import {
 import ViewBoardPreview from "../viewBoardPreview/viewBoardPreview";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { setBoards } from "../../features/boards/boards";
-import {
-  addBoardImage,
-} from "../../features/boardImages/boardImages";
+import { addBoardImage } from "../../features/boardImages/boardImages";
 import type { AppDispatch } from "../../store";
 import plus from "../../res/plus.png";
 import right from "../../res/right.png";
@@ -194,7 +192,9 @@ const MiddleLayer = () => {
           <h5 className={styles.title}>Public</h5>
         </div>
       )}
-      {whiteBoard.id === null && <h5 className={styles.title}>Public</h5>}
+      {whiteBoard.id === null && (
+        <h5 className={styles.title2}>{`Public (${publicBoards?.length})`}</h5>
+      )}
       {publicDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.publicBoards?.map((board: any, index: number) => (
@@ -223,7 +223,11 @@ const MiddleLayer = () => {
           <h5 className={styles.title}>Private</h5>
         </div>
       )}
-      {whiteBoard.id === null && <h5 className={styles.title}>Private</h5>}
+      {whiteBoard.id === null && (
+        <h5
+          className={styles.title2}
+        >{`Private (${privateBoards?.length})`}</h5>
+      )}
       {privateDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>
           {availableBoards?.privateBoards?.map((board: any, index: number) => (
@@ -254,7 +258,7 @@ const MiddleLayer = () => {
         </div>
       )}
       {whiteBoard.id === null && (
-        <h5 className={styles.title}>Shared Boards</h5>
+        <h5 className={styles.title2}>{`Shared (${sharedBoards?.length})`}</h5>
       )}
       {sharedDropDown && whiteBoard.id !== null && (
         <div className={styles.boardListContainer}>

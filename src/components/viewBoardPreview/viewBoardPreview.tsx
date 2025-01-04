@@ -54,7 +54,6 @@ const ViewBoardPreview = (props: { boards: any }) => {
             onClick={() => handleClick(board.id, board.type)}
           >
             <img
-              // ({id: string, url: string})[]
               src={
                 boardImages.find((image: any) => image.id === board.id)?.url ||
                 boardImage
