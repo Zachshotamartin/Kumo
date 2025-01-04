@@ -146,32 +146,32 @@ const WhiteBoard = () => {
     board.sharedWith,
   ]);
 
-  useEffect(() => {
-    if (!docRef) {
-      return;
-    }
-    const unsub = onSnapshot(
-      docRef,
-      (doc: { exists: () => any; data: () => any; id: any }) => {
-        if (doc.exists()) {
-          const data = doc.data();
-          dispatch(
-            setWhiteboardData({
-              id: doc.id,
-              shapes: data?.shapes || [],
-              title: data?.title || "",
-              type: data?.type || "",
-              uid: data?.uid || "",
-              sharedWith: data?.sharedWith || [],
-            })
-          );
-        }
-      }
-    );
-    return () => {
-      unsub();
-    };
-  }, [docRef, dispatch]);
+  // useEffect(() => {
+  //   if (!docRef) {
+  //     return;
+  //   }
+  //   const unsub = onSnapshot(
+  //     docRef,
+  //     (doc: { exists: () => any; data: () => any; id: any }) => {
+  //       if (doc.exists()) {
+  //         const data = doc.data();
+  //         dispatch(
+  //           setWhiteboardData({
+  //             id: doc.id,
+  //             shapes: data?.shapes || [],
+  //             title: data?.title || "",
+  //             type: data?.type || "",
+  //             uid: data?.uid || "",
+  //             sharedWith: data?.sharedWith || [],
+  //           })
+  //         );
+  //       }
+  //     }
+  //   );
+  //   return () => {
+  //     unsub();
+  //   };
+  // }, [docRef, dispatch]);
 
   useEffect(() => {
     const generatePreview = () => {

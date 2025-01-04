@@ -11,9 +11,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import {
-  setWhiteboardData,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { useSelector, useDispatch } from "react-redux";
 import { setDeleting } from "../../features/actions/actionsSlice";
 import { AppDispatch } from "../../store";
@@ -39,7 +37,7 @@ const Delete = () => {
     const boardRef = doc(boardCollectionRef, board.id);
     deleteDoc(boardRef).then(() => {
       // deletes doc from redux
-      
+
       appDispatch(setWhiteboardData({}));
     });
 
@@ -70,20 +68,26 @@ const Delete = () => {
         <label className={styles.deleteLabel}>
           Deletion is permanent. You will not be able to recover this board
           after deletion. Please enter the title as listed below to confirm
-          deletion
+          deletion:
         </label>
-        <h4 className={styles.deleteTitle}>{board.title}</h4>
-        <input className={styles.deleteInput} type="text" placeholder="" />
-        <button className={styles.deleteButton} type="submit">
-          Delete
-        </button>
+        <h3 className={styles.deleteTitle}>{board.title}</h3>
+        <input
+          className={styles.deleteInput}
+          type="text"
+          placeholder={board.title}
+        />
+        <div className={styles.buttonContainer}>
+          <button
+            className={styles.closeButton}
+            onClick={() => dispatch(setDeleting(false))}
+          >
+            Close
+          </button>
+          <button className={styles.deleteButton} type="submit">
+            Delete
+          </button>
+        </div>
       </form>
-      <button
-        className={styles.closeButton}
-        onClick={() => dispatch(setDeleting(false))}
-      >
-        Close
-      </button>
     </div>
   );
 };

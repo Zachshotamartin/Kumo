@@ -37,24 +37,28 @@ const Share = () => {
       sharedWith: board.sharedWith,
     };
 
-    // sets current whiteboard to shared
-
     const email = (e.target as HTMLFormElement).querySelector("input")!.value;
 
-    // sets board type to shared
-
-    // updates added shared account
-
     const emailQuery = query(usersCollectionRef, where("email", "==", email));
+
     getDocs(emailQuery).then((querySnapshot) => {
       if (querySnapshot.empty) {
-        console.log("No matching documents.");
+        alert("No matching users found.");
+        return;
+      }
+
+      if (board.sharedWith.includes(email)) {
+        alert("This board is already shared with this email");
         return;
       }
 
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
       const uid = userData.uid;
+      if (uid === board.uid) {
+        alert("You cannot share this board with yourself");
+        return;
+      }
       if (!board.sharedWith.includes(uid)) {
         data.sharedWith = [...board.sharedWith, uid];
       }
@@ -77,35 +81,36 @@ const Share = () => {
         ...board,
         type: "shared",
       });
-    });
-
-    // updates user document
-    const uidQuery = query(usersCollectionRef, where("uid", "==", board.uid));
-    getDocs(uidQuery).then((querySnapshot) => {
-      if (querySnapshot.empty) {
-        console.log("No matching documents.");
-        return;
-      }
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-      updateDoc(userDoc.ref, {
-        privateBoardsIds: userData.privateBoardsIds.filter(
-          (whiteboard: any) => whiteboard.id !== boardId
-        ),
-        publicBoardsIds: userData.publicBoardsIds.filter(
-          (whiteboard: any) => whiteboard.id !== boardId
-        ),
-        sharedBoardsIds: [
-          ...userData.sharedBoardsIds,
-          {
-            id: board.id,
-            title: board.title,
-            uid: board.uid,
-            type: "shared",
-          },
-        ],
+      // updates user document
+      const uidQuery = query(usersCollectionRef, where("uid", "==", board.uid));
+      getDocs(uidQuery).then((querySnapshot) => {
+        if (querySnapshot.empty) {
+          console.log("No matching documents.");
+          return;
+        }
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        if (!userData.sharedBoardsIds.includes(board.Id)) {
+          updateDoc(userDoc.ref, {
+            privateBoardsIds: userData.privateBoardsIds.filter(
+              (whiteboard: any) => whiteboard.id !== boardId
+            ),
+            publicBoardsIds: userData.publicBoardsIds.filter(
+              (whiteboard: any) => whiteboard.id !== boardId
+            ),
+            sharedBoardsIds: [
+              ...userData.sharedBoardsIds,
+              {
+                id: board.id,
+                title: board.title,
+                uid: board.uid,
+                type: "shared",
+              },
+            ],
+          });
+        }
       });
-      dispatch(setSharing(false));
+      alert("Board shared to " + email + " successfully!");
     });
   };
 
@@ -117,16 +122,18 @@ const Share = () => {
           type="text"
           placeholder="Enter email"
         />
-        <button className={styles.shareButton} type="submit">
-          Share
-        </button>
+        <div className={styles.buttonContainer}>
+          <button
+            className={styles.closeButton}
+            onClick={() => dispatch(setSharing(false))}
+          >
+            Close
+          </button>
+          <button className={styles.shareButton} type="submit">
+            Share
+          </button>
+        </div>
       </form>
-      <button
-        className={styles.closeButton}
-        onClick={() => dispatch(setSharing(false))}
-      >
-        Close
-      </button>
     </div>
   );
 };
