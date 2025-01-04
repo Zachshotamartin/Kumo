@@ -1,6 +1,5 @@
 import React from "react";
 import { useSelector } from "react-redux";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 
 const RenderHoverBorder = () => {
   const hoverStartX = useSelector(

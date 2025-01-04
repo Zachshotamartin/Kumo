@@ -375,43 +375,45 @@ const WhiteBoard = () => {
           actionsDispatch(setHighlighting(false));
         }
       }
-
+      let resizing = false;
       if (selectedShapes.length > 0) {
         if (
-          x >=
-          Math.min(borderEndX - 2, borderEndX + 2) / window.percentZoomed
+          x >= borderEndX - 4 &&
+          x <= borderEndX &&
+          y <= borderEndY &&
+          y >= borderStartY
         ) {
+          resizing = true;
           actionsDispatch(setResizingRight(true));
         }
         if (
-          x <=
-          Math.max(borderStartX - 2, borderStartX + 2) / window.percentZoomed
+          x >= borderStartX &&
+          x <= borderStartX + 4 &&
+          y <= borderEndY &&
+          y >= borderStartY
         ) {
+          resizing = true;
           actionsDispatch(setResizingLeft(true));
         }
         if (
-          y >=
-          Math.min(borderEndY - 2, borderEndY + 2) / window.percentZoomed
+          y >= borderEndY - 4 &&
+          y <= borderEndY &&
+          x <= borderEndX &&
+          x >= borderStartX
         ) {
+          resizing = true;
           actionsDispatch(setResizingBottom(true));
         }
         if (
-          y <=
-          Math.max(borderStartY - 2, borderStartY + 2) / window.percentZoomed
+          y >= borderStartY &&
+          y <= borderStartY + 4 &&
+          x <= borderEndX &&
+          x >= borderStartX
         ) {
+          resizing = true;
           actionsDispatch(setResizingTop(true));
         }
-        if (
-          x >=
-            Math.min(borderEndX - 2, borderEndX + 2) / window.percentZoomed ||
-          x <=
-            Math.max(borderStartX - 2, borderStartX + 2) /
-              window.percentZoomed ||
-          y >=
-            Math.min(borderEndY - 2, borderEndY + 2) / window.percentZoomed ||
-          y <=
-            Math.max(borderStartY - 2, borderStartY + 2) / window.percentZoomed
-        ) {
+        if (resizing) {
           // if cursor is on the border of the bounding box to resize shape
           actionsDispatch(setResizing(true));
           setPrevMouseX(x);
@@ -539,17 +541,67 @@ const WhiteBoard = () => {
         const selectedShapesArray = shapes.filter(
           (shape: Shape, index: number) => selectedShapes.includes(index)
         );
-        if (dragging && moving) {
-          const boundingRect = canvasRef.current?.getBoundingClientRect();
-          const x = Math.round(
-            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-              window.x1
-          );
-          const y = Math.round(
-            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-              window.y1
-          );
+        const boundingRect = canvasRef.current?.getBoundingClientRect();
+        const x = Math.round(
+          (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+            window.x1
+        );
+        const y = Math.round(
+          (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+            window.y1
+        );
 
+        if (selectedShapesArray.length > 0) {
+          if (
+            (x >= borderEndX - 4 &&
+              x <= borderEndX &&
+              y <= borderEndY - 4 &&
+              y >= borderStartY + 4) ||
+            (x >= borderStartX &&
+              x <= borderStartX + 4 &&
+              y <= borderEndY - 4 &&
+              y >= borderStartY + 4)
+          ) {
+            (e.target as HTMLElement).style.cursor = "ew-resize";
+          } else if (
+            (y >= borderEndY - 4 &&
+              y <= borderEndY &&
+              x <= borderEndX - 4 &&
+              x >= borderStartX + 4) ||
+            (y >= borderStartY &&
+              y <= borderStartY + 4 &&
+              x <= borderEndX - 4 &&
+              x >= borderStartX + 4)
+          ) {
+            (e.target as HTMLElement).style.cursor = "ns-resize";
+          } else if (
+            (x >= borderStartX &&
+              x <= borderStartX + 4 &&
+              y >= borderStartY &&
+              y <= borderStartY + 4) ||
+            (x >= borderEndX - 4 &&
+              x <= borderEndX &&
+              y >= borderEndY - 4 &&
+              y <= borderEndY)
+          ) {
+            (e.target as HTMLElement).style.cursor = "nwse-resize";
+          } else if (
+            (x >= borderStartX &&
+              x <= borderStartX + 4 &&
+              y >= borderEndY - 4 &&
+              y <= borderEndY) ||
+            (x >= borderEndX - 4 &&
+              x <= borderEndX &&
+              y >= borderStartY &&
+              y <= borderStartY + 4)
+          ) {
+            (e.target as HTMLElement).style.cursor = "nesw-resize";
+          } else {
+            (e.target as HTMLElement).style.cursor = "default";
+          }
+        }
+
+        if (dragging && moving) {
           // if (CheckCollision()) {
           //   const { minDistance, closestEdge } = nearestEdge();
 
@@ -614,27 +666,10 @@ const WhiteBoard = () => {
         }
 
         if (dragging && highlighting) {
-          const boundingRect = canvasRef.current?.getBoundingClientRect();
-          const x =
-            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-            window.x1;
-          const y =
-            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-            window.y1;
-
           dispatch(setHighlightEnd([x, y]));
         }
 
         if (dragging && resizing) {
-          const boundingRect = canvasRef.current?.getBoundingClientRect();
-          const x = Math.round(
-            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-              window.x1
-          );
-          const y = Math.round(
-            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-              window.y1
-          );
           selectedShapesArray.forEach((shape: Shape, index: number) => {
             const x1 = resizingLeft ? shape.x1 + x - prevMouseX : shape.x1;
             const y1 = resizingTop ? shape.y1 + y - prevMouseY : shape.y1;
@@ -665,16 +700,6 @@ const WhiteBoard = () => {
         }
 
         if (drawing) {
-          const boundingRect = canvasRef.current?.getBoundingClientRect();
-          const x = Math.round(
-            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-              window.x1
-          );
-          const y = Math.round(
-            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-              window.y1
-          );
-
           const lastShape = shapes[shapes.length - 1];
           const updatedShape: Shape = {
             ...lastShape,
