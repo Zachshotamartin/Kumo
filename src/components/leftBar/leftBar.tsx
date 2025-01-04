@@ -67,21 +67,24 @@ const LeftBar = () => {
       <Navigation />
       <div className={styles.createBoardContainer}>
         <h4 className={styles.title}> Create New Board</h4>
-        <input
-          className={styles.input}
-          type="text"
-          placeholder="Board Name"
-          value={boardName}
-          onChange={handleBoardName}
-        />
-        <button
-          className={styles.createButton}
-          onClick={() => {
-            createBoard("private");
-          }}
-        >
-          <img className={styles.icon} src={plus} alt="Plus" />
-        </button>
+        <div className={styles.buttonContainer}>
+          <input
+            className={styles.input}
+            type="text"
+            placeholder="Board Name"
+            value={boardName}
+            onChange={handleBoardName}
+          />
+
+          <button
+            className={styles.createButton}
+            onClick={() => {
+              createBoard("private");
+            }}
+          >
+            <img className={styles.icon} src={plus} alt="Plus" />
+          </button>
+        </div>
       </div>
     </div>
   );

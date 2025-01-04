@@ -4,7 +4,7 @@
   justify-content: flex-start;
 
   margin-top: 0;
-  flex: 0.15;
+  flex: 0.2;
 
   border: 1px solid #b4b4b42b;
   overflow-x: hidden;
@@ -14,34 +14,33 @@
 .title {
   margin-bottom: 0;
 }
-.title:hover {
-  color: #007bff;
-}
+
 .createButton {
   background-color: transparent;
-
-  border: none;
   cursor: pointer;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
-  user-select: none;
-  margin-top: 3%;
   padding: 0;
-
-  justify-content: flex-start;
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border: none;
 }
 
 .icon {
-  height: 15px;
-  width: 15px;
+  height: 20px;
+  width: 20px;
+  margin: 0;
+  padding: 0;
+}
+.icon:hover {
+  opacity: 0.8;
+  cursor: pointer;
+  transform: scale(1.1);
+  color: white;
 }
 .createBoardContainer {
-  flex: 1;
   border: 1px solid #b4b4b42b;
   display: flex;
   flex-direction: column;
@@ -51,12 +50,26 @@
   justify-content: flex-start;
   padding-left: 1rem;
   padding-top: 0.5rem;
+  padding-left: 1rem;
 }
 .input {
   padding: 0.5rem 1rem;
-  width: 70%;
   border: 1px solid #b4b4b42b;
   border-radius: 5px;
   background-color: #444444;
   color: white;
+  flex: 1;
+  margin: 0;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+.buttonContainer {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  margin-right: 2rem;
 }

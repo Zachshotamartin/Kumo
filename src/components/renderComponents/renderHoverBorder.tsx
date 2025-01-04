@@ -18,11 +18,19 @@ const RenderHoverBorder = () => {
     <div
       style={{
         position: "absolute",
-        top: `${(hoverStartY - window.y1) / window.percentZoomed}px`,
-        left: `${(hoverStartX - window.x1) / window.percentZoomed}px`,
+        top: `${
+          (hoverStartY - window.y1) / window.percentZoomed +
+          2 / window.percentZoomed -
+          2
+        }px`,
+        left: `${
+          (hoverStartX - window.x1) / window.percentZoomed +
+          2 / window.percentZoomed -
+          2
+        }px`,
         width: `${(hoverEndX - hoverStartX) / window.percentZoomed}px`,
         height: `${(hoverEndY - hoverStartY) / window.percentZoomed}px`,
-        border: `${2 / window.percentZoomed}px solid #007bff`,
+        border: `${2}px solid #007bff`,
       }}
     />
   );

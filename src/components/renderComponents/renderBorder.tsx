@@ -65,8 +65,9 @@ const RenderBorder = () => {
       <div
         style={{
           position: "absolute",
-          top: `${(borderStartY - window.y1 - 2) / window.percentZoomed}px`,
-          left: `${(borderStartX - window.x1 - 2) / window.percentZoomed}px`,
+          top: `${(borderStartY - window.y1) / window.percentZoomed - 2}px`,
+          left: `${(borderStartX - window.x1) / window.percentZoomed - 2}px`,
+
           width: `${
             Math.abs(borderStartX - borderEndX) / window.percentZoomed
           }px`,
@@ -74,18 +75,25 @@ const RenderBorder = () => {
             Math.abs(borderStartY - borderEndY) / window.percentZoomed
           }px`,
 
-          border: `${2 / window.percentZoomed}px solid blue`,
+          border: `${2}px solid #007bff`,
+          backgroundColor: "transparent",
           zIndex: 51,
         }}
       ></div>
       <div
         style={{
           position: "absolute",
-          top: `${(borderStartY - window.y1 - 4) / window.percentZoomed}px`,
-          left: `${(borderStartX - window.x1 - 4) / window.percentZoomed}px`,
-          width: `${4 / window.percentZoomed}px`,
-          height: `${4 / window.percentZoomed}px`,
-          border: `${1 / window.percentZoomed}px solid blue`,
+          top: `${
+            (borderStartY - window.y1 - 8 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          left: `${
+            (borderStartX - window.x1 - 8 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          width: `${8}px`,
+          height: `${8}px`,
+          border: `${2}px solid #007bff`,
           backgroundColor: "white",
           zIndex: 52,
         }}
@@ -93,11 +101,17 @@ const RenderBorder = () => {
       <div
         style={{
           position: "absolute",
-          top: `${(borderEndY - window.y1 - 2) / window.percentZoomed}px`,
-          left: `${(borderStartX - window.x1 - 4) / window.percentZoomed}px`,
-          width: `${4 / window.percentZoomed}px`,
-          height: `${4 / window.percentZoomed}px`,
-          border: `${1 / window.percentZoomed}px solid blue`,
+          top: `${
+            (borderEndY - window.y1 - 4 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          left: `${
+            (borderStartX - window.x1 - 8 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          width: `${8}px`,
+          height: `${8}px`,
+          border: `${2}px solid #007bff`,
           backgroundColor: "white",
           zIndex: 52,
         }}
@@ -105,11 +119,17 @@ const RenderBorder = () => {
       <div
         style={{
           position: "absolute",
-          top: `${(borderStartY - window.y1 - 4) / window.percentZoomed}px`,
-          left: `${(borderEndX - window.x1 - 2) / window.percentZoomed}px`,
-          width: `${4 / window.percentZoomed}px`,
-          height: `${4 / window.percentZoomed}px`,
-          border: `${1 / window.percentZoomed}px solid blue`,
+          top: `${
+            (borderStartY - window.y1 - 8 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          left: `${
+            (borderEndX - window.x1 - 4 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          width: `${8}px`,
+          height: `${8}px`,
+          border: `${2}px solid #007bff`,
           backgroundColor: "white",
           zIndex: 52,
         }}
@@ -117,11 +137,17 @@ const RenderBorder = () => {
       <div
         style={{
           position: "absolute",
-          top: `${(borderEndY - window.y1 - 2) / window.percentZoomed}px`,
-          left: `${(borderEndX - window.x1 - 2) / window.percentZoomed}px`,
-          width: `${4 / window.percentZoomed}px`,
-          height: `${4 / window.percentZoomed}px`,
-          border: `${1 / window.percentZoomed}px solid blue`,
+          top: `${
+            (borderEndY - window.y1 - 4 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          left: `${
+            (borderEndX - window.x1 - 4 * window.percentZoomed) /
+            window.percentZoomed
+          }px`,
+          width: `${8}px`,
+          height: `${8}px`,
+          border: `${2}px solid blue`,
           backgroundColor: "white",
           zIndex: 52,
         }}
