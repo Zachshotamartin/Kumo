@@ -45,3 +45,7 @@ Ensure you have the following installed:
    ```bash
    git clone https://github.com/Zachshotamartin/kumo.git
    cd kumo
+   yarn install
+   npm run start
+
+2. Or visit [Kumo](kumo-7d8e1.web.app)
