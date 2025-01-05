@@ -126,6 +126,7 @@ const WhiteBoard = () => {
           type: board.type,
           uid: board.uid,
           sharedWith: board.sharedWith,
+          backGroundColor: board.backGroundColor,
         });
       } catch (error) {
         console.error("Error updating document:", error);
@@ -729,6 +730,7 @@ const WhiteBoard = () => {
                   uid: boardData.uid,
                   id: shape.id,
                   sharedWith: boardData.sharedWith || [],
+                  backGroundColor: boardData.backGroundColor || "#313131",
                 };
 
                 dispatch(setWhiteboardData(data));
@@ -819,6 +821,7 @@ const WhiteBoard = () => {
       style={{
         cursor: selectedTool === "pointer" ? "crosshair" : "default",
         overflow: "hidden",
+        backgroundColor: board.backGroundColor,
       }}
       className={styles.whiteBoard}
       onMouseDown={handleMouseDown}

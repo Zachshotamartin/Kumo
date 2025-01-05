@@ -1,5 +1,6 @@
 // whiteBoardSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { update } from "lodash";
 
 export interface Shape {
   // type (image, text, calendar, rectangle)
@@ -57,6 +58,7 @@ interface WhiteBoardState {
   title: string | null;
   uid: string | null;
   sharedWith: string[];
+  backGroundColor: string;
 }
 
 const initialState: WhiteBoardState = {
@@ -66,6 +68,7 @@ const initialState: WhiteBoardState = {
   title: null,
   uid: null,
   sharedWith: [],
+  backGroundColor: "#313131",
 };
 
 const whiteBoardSlice = createSlice({
@@ -76,7 +79,8 @@ const whiteBoardSlice = createSlice({
       state,
       action: PayloadAction<Partial<WhiteBoardState>>
     ) => {
-      const { shapes, id, type, title, uid, sharedWith } = action.payload;
+      const { shapes, id, type, title, uid, sharedWith, backGroundColor } =
+        action.payload;
 
       state.shapes = shapes || [];
       state.id = id || null;
@@ -84,6 +88,7 @@ const whiteBoardSlice = createSlice({
       state.title = title || null;
       state.uid = uid || null;
       state.sharedWith = sharedWith || [];
+      state.backGroundColor = backGroundColor || "#313131";
     },
     addShape: (state, action: PayloadAction<Shape>) => {
       state.shapes.push(action.payload);
@@ -112,6 +117,9 @@ const whiteBoardSlice = createSlice({
         (uid) => uid !== action.payload
       );
     },
+    updateBackgroundColor: (state, action: PayloadAction<string>) => {
+      state.backGroundColor = action.payload;
+    },
   },
 });
 
@@ -122,6 +130,7 @@ export const {
   removeShape,
   share,
   removeShare,
+  updateBackgroundColor,
 } = whiteBoardSlice.actions;
 
 export default whiteBoardSlice.reducer;

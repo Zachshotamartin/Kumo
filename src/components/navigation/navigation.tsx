@@ -222,6 +222,7 @@ const Navigation = () => {
                 uid: auth.currentUser?.uid,
                 id: null,
                 sharedWith: [],
+                backGroundColor:  "",
               };
 
               dispatch(clearSelectedShapes());

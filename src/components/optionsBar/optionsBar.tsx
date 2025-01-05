@@ -9,6 +9,7 @@ import FontStyles from "../options/fontStyles";
 import BoxStyling from "../options/boxStyling";
 import BoardLink from "../options/boardLink";
 import Colors from "../options/colors";
+import WhiteboardStyles from "../options/whiteboardStyles";
 
 const OptionsBar = () => {
   const hidden = useSelector((state: any) => state.sideBar.hideOptions);
@@ -96,6 +97,27 @@ const OptionsBar = () => {
             (selectedShape.type === "text" ||
               selectedShape.type === "board") && <FontStyles />}
           {selectedShape && <Colors />}
+        </div>
+      )}
+      {hidden && (
+        <div
+          className={styles.optionsBar}
+          ref={optionsBarRef}
+          style={{ left: `${left}%`, width: `${100 - left}%` }}
+        >
+          <h3 className={styles.shapeType}>WhiteBoard</h3>
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: 5,
+              cursor: "ew-resize",
+            }}
+            onMouseDown={handleMouseDown}
+          />
+          <WhiteboardStyles />
         </div>
       )}
     </>

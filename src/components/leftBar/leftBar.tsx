@@ -32,6 +32,7 @@ const LeftBar = () => {
           shapes: [],
           type: type,
           sharedWith: [user.uid],
+          backGroundColor: "#313131",
         };
 
         const doc = await addDoc(boardsCollectionRef, data);

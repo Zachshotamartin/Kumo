@@ -35,6 +35,7 @@ const Share = () => {
       uid: board.uid,
       id: board.id,
       sharedWith: board.sharedWith,
+      backGroundColor: board.backGroundColor || "#ffffff",
     };
 
     const email = (e.target as HTMLFormElement).querySelector("input")!.value;

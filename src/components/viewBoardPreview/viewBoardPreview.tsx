@@ -32,6 +32,7 @@ const ViewBoardPreview = (props: { boards: any }) => {
           uid: boardData.uid,
           id: board,
           sharedWith: boardData.sharedWith,
+          backGroundColor: boardData.backGroundColor || "#ffffff",
         };
         console.log("Board data:", data);
         dispatch(setWhiteboardData(data));

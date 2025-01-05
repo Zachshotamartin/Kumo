@@ -29,7 +29,7 @@ const Colors = () => {
   };
 
   const updateBackgroundColor = (color: string) => {
-    console.log("made it in");
+
     dispatch(
       updateShape({
         index: selectedIdx,

@@ -69,16 +69,15 @@ const MiddleLayerSide = () => {
         shapes: [],
         type: type,
         sharedWith: [user.uid],
+        backGroundColor: "#313131",
       };
       const doc = await addDoc(boardsCollectionRef, data);
-      console.log("Document written with ID: ", doc.id);
+
       const q = query(usersCollectionRef, where("uid", "==", user?.uid));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const userDoc = querySnapshot.docs[0];
         const userData = userDoc.data();
-        console.log("hello");
-        console.log(user?.uid);
         await updateDoc(userDoc.ref, {
           [`${type}BoardsIds`]: [
             ...userData[`${type}BoardsIds`],
@@ -98,8 +97,6 @@ const MiddleLayerSide = () => {
   };
   const getStorageImageById = async (id: string) => {
     const storageRef = ref(storage, `boardPreviews/${id}.jpg`);
-    console.log(id);
-    console.log(storageRef);
     return await getDownloadURL(storageRef);
   };
 
@@ -110,9 +107,8 @@ const MiddleLayerSide = () => {
         try {
           if (boardImages.some((image: any) => image.id === board.id)) {
             // look at this please
-            continue;
+            throw new Error("Image already exists");
           }
-          console.log("getting image", board.title);
           const url = await getStorageImageById(board.id);
           dispatch(addBoardImage({ id: board.id, url: url }));
         } catch (error) {
@@ -143,6 +139,7 @@ const MiddleLayerSide = () => {
           uid: boardData.uid,
           id: board,
           sharedWith: boardData.sharedWith,
+          backGroundColor: boardData.backGroundColor || "#313131",
         };
         console.log("Board data:", data);
         dispatch(clearSelectedShapes());
