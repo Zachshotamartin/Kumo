@@ -50,6 +50,7 @@ const FontStyles = () => {
       })
     );
   };
+
   useEffect(() => {
     setFontSize(selectedShape.fontSize);
     setFontFamily(selectedShape.fontFamily);
@@ -60,20 +61,6 @@ const FontStyles = () => {
     setLineHeight(selectedShape.lineHeight);
     setLetterSpacing(selectedShape.letterSpacing);
   }, [selectedShape]);
-
-  useEffect(() => {
-    updateTextStyling();
-    console.log(
-      `fontFamily: ${fontFamily}, fontWeight: ${fontWeight}, textAlign: ${textAlign}, alignItems: ${alignItems}, textDecoration: ${textDecoration}`
-    );
-  }, [
-    fontFamily,
-    fontWeight,
-    textAlign,
-    alignItems,
-    textDecoration,
-    updateTextStyling,
-  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {

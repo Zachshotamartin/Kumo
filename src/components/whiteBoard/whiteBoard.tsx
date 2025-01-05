@@ -501,8 +501,9 @@ const WhiteBoard = () => {
       if (selectedTool === "image") {
         shape.backgroundImage = image;
       }
+
       dispatch(addShape(shape));
-      dispatch(setSelectedShapes([shapes.length])); // Select the newly created shape
+      dispatch(setSelectedShapes([shapes.length]));
     }
   };
 
@@ -638,6 +639,8 @@ const WhiteBoard = () => {
 
         if (drawing) {
           const lastShape = shapes[shapes.length - 1];
+          console.log("lastShape", lastShape);
+          console.log("drawing");
           const updatedShape: Shape = {
             ...lastShape,
             x2: x,

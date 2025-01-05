@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 import { useDispatch } from "react-redux";
@@ -19,7 +19,8 @@ const RenderText = () => {
     (state: any) => state.selected.selectedShapes
   );
   const dispatch = useDispatch<AppDispatch>();
-
+  const textareaRefs = useRef<HTMLTextAreaElement[] | null[]>([]);
+  const drawing = useSelector((state: any) => state.actions.drawing);
   const window = useSelector((state: any) => state.window);
 
   const handleMouseEnter = (index: number) => {
@@ -38,7 +39,6 @@ const RenderText = () => {
     dispatch(setHoverEndX(-100000));
     dispatch(setHoverEndY(-100000));
   };
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleBlur = (index: number) => {
     if (!shapes[index].text) {
@@ -84,9 +84,22 @@ const RenderText = () => {
     dispatch(updateShape({ index, update: updatedShape }));
   };
 
+  useEffect(() => {
+    if (
+      selectedShapes.length === 1 &&
+      shapes[selectedShapes[0]].type === "text" &&
+      !drawing
+    ) {
+      handleInputFocus(selectedShapes[0]);
+    }
+  }, [selectedShapes, drawing]);
+
   const handleInputFocus = (index: number) => {
-    if (shapes[index].type === "text") {
-      inputRef?.current?.focus();
+    if (selectedShapes.length === 1 && selectedShapes[0] === index) {
+      console.log(index);
+      if (textareaRefs.current?.[index]) {
+        textareaRefs.current[index]?.focus();
+      }
     }
   };
 
@@ -139,7 +152,7 @@ const RenderText = () => {
               onMouseLeave={handleMouseLeave}
             >
               <textarea
-                ref={inputRef}
+                ref={(el) => (textareaRefs.current[index] = el)}
                 style={{
                   display: "flex",
                   width: "100%",
@@ -195,7 +208,6 @@ const RenderText = () => {
                   handleInputChange(index, e, usedRows);
                 }}
                 onBlur={() => handleBlur(index)}
-                onFocus={() => handleInputFocus(index)}
               />
             </div>
           )}

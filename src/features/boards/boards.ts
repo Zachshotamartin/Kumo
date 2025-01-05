@@ -78,7 +78,7 @@ const boardsSlice = createSlice({
         boards: any[];
       }>
     ) => {
-      console.log("raaaa", action.payload.boards);
+     
       state.searchableBoards = action.payload.boards;
     },
     setResultsBoards: (
@@ -87,9 +87,9 @@ const boardsSlice = createSlice({
         boards: any[];
       }>
     ) => {
-      console.log("reeee", action.payload.boards);
+      
       state.resultsBoards = action.payload.boards;
-      console.log("state", state.resultsBoards);
+     
     },
   },
 });
