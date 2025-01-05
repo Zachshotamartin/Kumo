@@ -2,7 +2,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Shape } from "../whiteBoard/whiteBoardSlice";
 
-
 interface SelectedState {
   selectedShapes: Shape[];
   selectedTool: string;
@@ -21,16 +20,16 @@ interface SelectedState {
 const initialState: SelectedState = {
   selectedShapes: [],
   selectedTool: "pointer",
-  highlightStart: [0, 0],
-  highlightEnd: [0, 0],
-  borderStartX: 0,
-  borderStartY: 0,
-  borderEndX: 0,
-  borderEndY: 0,
-  hoverStartX: 0,
-  hoverStartY: 0,
-  hoverEndX: 0,
-  hoverEndY: 0,
+  highlightStart: [-100000, -100000],
+  highlightEnd: [-100000, -100000],
+  borderStartX: -100000,
+  borderStartY: -100000,
+  borderEndX: -100000,
+  borderEndY: -100000,
+  hoverStartX: -100000,
+  hoverStartY: -100000,
+  hoverEndX: -100000,
+  hoverEndY: -100000,
 };
 
 const selectedSlice = createSlice({

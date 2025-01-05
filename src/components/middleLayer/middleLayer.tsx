@@ -127,39 +127,6 @@ const MiddleLayer = () => {
     fetchImageUrls();
   }, [publicBoards, privateBoards, sharedBoards, boardImages, dispatch]);
 
-  const handleClick = async (board: string, type: string) => {
-    if (!board) {
-      console.error("Invalid board ID");
-      return;
-    }
-    const docRef = doc(db, "boards", board);
-    console.log(board);
-    try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const boardData = docSnap.data();
-        const data = {
-          shapes: boardData.shapes || [],
-          title: boardData.title || "Untitled",
-          type: boardData.type || "default",
-
-          uid: boardData.uid,
-          id: board,
-          sharedWith: boardData.sharedWith,
-        };
-        console.log("Board data:", data);
-        dispatch(clearSelectedShapes());
-        dispatch(setWhiteboardData(data));
-
-        console.log("Board selected:", board);
-      } else {
-        console.error(`No document found for board ID: ${board}`);
-      }
-    } catch (error) {
-      console.error("Error getting document:", error);
-    }
-  };
-
   return (
     <div className={styles.middleLayer}>
       <h5 className={styles.title}>{`Public (${publicBoards?.length})`}</h5>
