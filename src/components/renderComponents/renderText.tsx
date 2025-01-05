@@ -87,10 +87,15 @@ const RenderText = () => {
   useEffect(() => {
     if (
       selectedShapes.length === 1 &&
+      shapes[selectedShapes[0]] !== undefined &&
       shapes[selectedShapes[0]].type === "text" &&
       !drawing
     ) {
-      handleInputFocus(selectedShapes[0]);
+      setTimeout(() => {
+        handleInputFocus(selectedShapes[0]);
+      }, 100);
+    } else {
+      textareaRefs.current?.[selectedShapes[0]]?.blur();
     }
   }, [selectedShapes, drawing]);
 
@@ -98,6 +103,8 @@ const RenderText = () => {
     if (selectedShapes.length === 1 && selectedShapes[0] === index) {
       console.log(index);
       if (textareaRefs.current?.[index]) {
+        console.log("focus");
+        console.log(index);
         textareaRefs.current[index]?.focus();
       }
     }

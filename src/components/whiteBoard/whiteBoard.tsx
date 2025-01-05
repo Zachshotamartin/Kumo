@@ -331,6 +331,7 @@ const WhiteBoard = () => {
         ) {
           // if cursor is within a shape.
           selected = i;
+          actionsDispatch(setDrawing(false));
         }
       }
 
@@ -405,6 +406,7 @@ const WhiteBoard = () => {
         setDragOffset({ x: 0, y: 0 });
         actionsDispatch(setDragging(true));
         actionsDispatch(setMoving(true));
+
         if (!selectedShapes.includes(selected)) {
           // if something is selected but not already within the bounding box
           dispatch(setSelectedShapes([selected]));
