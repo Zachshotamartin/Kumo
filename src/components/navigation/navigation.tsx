@@ -293,7 +293,10 @@ const Navigation = () => {
             <button
               className={styles.hide}
               onClick={() => {
-                if (whiteboard.uid !== user?.uid) {
+                if (
+                  whiteboard.uid !== user?.uid &&
+                  whiteboard.type !== "private"
+                ) {
                   alert("Cannot delete someone else's board");
                   return;
                 }

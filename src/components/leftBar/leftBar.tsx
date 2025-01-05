@@ -36,6 +36,13 @@ const LeftBar = () => {
         };
 
         const doc = await addDoc(boardsCollectionRef, data);
+
+        const dataWithId = {
+          ...data,
+          id: doc.id,
+        };
+        await updateDoc(doc, dataWithId);
+
         console.log("data");
         console.log("Document written with ID: ", doc.id);
         const q = query(usersCollectionRef, where("uid", "==", user?.uid));

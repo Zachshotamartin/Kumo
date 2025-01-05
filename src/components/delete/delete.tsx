@@ -22,7 +22,7 @@ const Delete = () => {
   const board = useSelector((state: any) => state.whiteBoard);
   const dispatch = useDispatch();
   const appDispatch = useDispatch<AppDispatch>();
-
+  const user = useSelector((state: any) => state.auth);
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 

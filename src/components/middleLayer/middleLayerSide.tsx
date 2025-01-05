@@ -73,6 +73,12 @@ const MiddleLayerSide = () => {
       };
       const doc = await addDoc(boardsCollectionRef, data);
 
+      const dataWithId = {
+        ...data,
+        id: doc.id,
+      };
+      await updateDoc(doc, dataWithId);
+
       const q = query(usersCollectionRef, where("uid", "==", user?.uid));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
