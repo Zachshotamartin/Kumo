@@ -20,6 +20,7 @@ interface ActionsState {
   resizingBottom: boolean;
   hoverEdge: boolean;
   inWhiteBoard: boolean;
+  searchTerm: string;
 }
 
 const initialState: ActionsState = {
@@ -41,6 +42,7 @@ const initialState: ActionsState = {
   resizingBottom: false,
   hoverEdge: false,
   inWhiteBoard: false,
+  searchTerm: "",
 };
 
 const actionsSlice = createSlice({
@@ -191,6 +193,9 @@ const actionsSlice = createSlice({
         state.inWhiteBoard = true;
       }
     },
+    setSearchTerm: (state, action: PayloadAction<string>) => {
+      state.searchTerm = action.payload;
+    },
   },
 });
 
@@ -213,6 +218,7 @@ export const {
   setResizingBottom,
   setHoverEdge,
   setInWhiteBoard,
+  setSearchTerm
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

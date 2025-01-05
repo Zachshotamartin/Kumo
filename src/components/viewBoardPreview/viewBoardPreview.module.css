@@ -21,6 +21,23 @@
   scrollbar-color: #b4b4b4 transparent;
 }
 
+.searchContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  width: 98%;
+  padding: 1rem;
+  height: 100vh;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+  margin-bottom: 1rem;
+
+  scrollbar-gutter: stable;
+}
+
 .boardImage {
   height: 15rem;
   width: 30rem;

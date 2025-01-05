@@ -13,13 +13,14 @@ const ViewBoardPreview = (props: { boards: any }) => {
     (state: any) => state.boardImages.boardImages
   );
 
+  const searchTerm = useSelector((state: any) => state.actions.searchTerm);
+
   const handleClick = async (board: string, type: string) => {
     if (!board) {
       console.error("Invalid board ID");
       return;
     }
     const docRef = doc(db, "boards", board);
-    console.log(board);
     try {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
@@ -45,9 +46,11 @@ const ViewBoardPreview = (props: { boards: any }) => {
     }
   };
 
+  console.log("boards", boards);
+
   return (
-    <div className={styles.container}>
-      {boards.map((board: any) => {
+    <div className={searchTerm ? styles.searchContainer : styles.container}>
+      {boards?.map((board: any) => {
         return (
           <div
             className={styles.boardContainer}

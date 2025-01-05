@@ -1,0 +1,16 @@
+.searchBoards {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #b4b4b42b;
+}
+.input {
+  width: 90%;
+  padding: 0.5rem;
+  border-radius: 25px;
+  border: 1px solid #b4b4b4;
+  margin-bottom: 0.5rem;
+  margin: 1rem;
+}

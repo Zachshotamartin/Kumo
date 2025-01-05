@@ -69,7 +69,10 @@ const Navigation = () => {
       alert("board is already public");
       return;
     }
-
+    if (whiteboard.uid !== user?.uid) {
+      alert("Only owner can make board public");
+      return;
+    }
     // change board type to public
     const boardRef = doc(boardsCollectionRef, whiteboard.id);
 
@@ -79,46 +82,54 @@ const Navigation = () => {
     if (!querySnapshot.empty) {
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
-      await updateDoc(userDoc.ref, {
-        publicBoardsIds: [
-          ...userData.publicBoardsIds,
-          {
-            id: whiteboard.id,
-            title: whiteboard.title,
-            uid: whiteboard.uid,
-            type: "public",
-          },
-        ],
-        privateBoardsIds: userData.privateBoardsIds.filter(
-          (board: any) => board.id !== whiteboard.id
-        ),
-        sharedBoardsIds: userData.sharedBoardsIds.filter(
-          (board: any) => board.id !== whiteboard.id
-        ),
-      });
+      if (
+        !userData.publicBoardsIds.some(
+          (board: any) => board.id === whiteboard.id
+        )
+      ) {
+        await updateDoc(userDoc.ref, {
+          publicBoardsIds: [
+            ...userData.publicBoardsIds,
+            {
+              id: whiteboard.id,
+              title: whiteboard.title,
+              uid: whiteboard.uid,
+              type: "public",
+            },
+          ],
+          privateBoardsIds: userData.privateBoardsIds.filter(
+            (board: any) => board.id !== whiteboard.id
+          ),
+          sharedBoardsIds: userData.sharedBoardsIds.filter(
+            (board: any) => board.id !== whiteboard.id
+          ),
+        });
+      }
     }
     const users = await getDocs(
       query(usersCollectionRef, where("uid", "in", whiteboard.sharedWith))
     );
     for (const userDoc of users.docs) {
       const userData = userDoc.data();
-      await updateDoc(userDoc.ref, {
-        publicBoardsIds: [
-          ...userData.publicBoardsIds,
-          {
-            id: whiteboard.id,
-            title: whiteboard.title,
-            uid: whiteboard.uid,
-            type: "public",
-          },
-        ],
-        privateBoardsIds: userData.privateBoardsIds.filter(
-          (board: any) => board.id !== whiteboard.id
-        ),
-        sharedBoardsIds: userData.sharedBoardsIds.filter(
-          (board: any) => board.id !== whiteboard.id
-        ),
-      });
+      if (userData.uid !== whiteboard.uid) {
+        await updateDoc(userDoc.ref, {
+          publicBoardsIds: [
+            ...userData.publicBoardsIds,
+            {
+              id: whiteboard.id,
+              title: whiteboard.title,
+              uid: whiteboard.uid,
+              type: "public",
+            },
+          ],
+          privateBoardsIds: userData.privateBoardsIds.filter(
+            (board: any) => board.id !== whiteboard.id
+          ),
+          sharedBoardsIds: userData.sharedBoardsIds.filter(
+            (board: any) => board.id !== whiteboard.id
+          ),
+        });
+      }
     }
     await updateDoc(boardRef, {
       ...whiteboard,
@@ -222,7 +233,7 @@ const Navigation = () => {
                 uid: auth.currentUser?.uid,
                 id: null,
                 sharedWith: [],
-                backGroundColor:  "",
+                backGroundColor: "",
               };
 
               dispatch(clearSelectedShapes());
