@@ -10,6 +10,7 @@ import BoxStyling from "../options/boxStyling";
 import BoardLink from "../options/boardLink";
 import Colors from "../options/colors";
 import WhiteboardStyles from "../options/whiteboardStyles";
+import ImageStyling from "../options/imageStyling";
 
 const OptionsBar = () => {
   const hidden = useSelector((state: any) => state.sideBar.hideOptions);
@@ -88,6 +89,7 @@ const OptionsBar = () => {
           />
 
           {selectedShape && selectedShape.type === "board" && <BoardLink />}
+          {selectedShape && selectedShape.type === "image" && <ImageStyling />}
           {selectedShape && <Position />}
           {selectedShape && <Dimension />}
           {selectedShape && <Transform />}
