@@ -21,6 +21,7 @@ interface ActionsState {
   hoverEdge: boolean;
   inWhiteBoard: boolean;
   searchTerm: string;
+  mouseDown: boolean;
 }
 
 const initialState: ActionsState = {
@@ -43,6 +44,7 @@ const initialState: ActionsState = {
   hoverEdge: false,
   inWhiteBoard: false,
   searchTerm: "",
+  mouseDown: false,
 };
 
 const actionsSlice = createSlice({
@@ -196,6 +198,14 @@ const actionsSlice = createSlice({
     setSearchTerm: (state, action: PayloadAction<string>) => {
       state.searchTerm = action.payload;
     },
+    setMouseDown: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        state.mouseDown = false;
+      }
+      if (action.payload) {
+        state.mouseDown = true;
+      }
+    }
   },
 });
 
@@ -218,7 +228,8 @@ export const {
   setResizingBottom,
   setHoverEdge,
   setInWhiteBoard,
-  setSearchTerm
+  setSearchTerm,
+  setMouseDown,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

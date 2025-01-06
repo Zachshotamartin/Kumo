@@ -44,7 +44,7 @@ export interface Shape {
   backgroundColor: string;
   borderColor: string;
   backgroundImage?: string;
-
+  zIndex?: number;
   // recursive whiteboard
   id?: string | null;
   title?: string | null;

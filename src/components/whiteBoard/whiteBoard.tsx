@@ -35,6 +35,7 @@ import {
   setResizingRight,
   setResizingTop,
   setResizingBottom,
+  setMouseDown,
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
@@ -310,7 +311,7 @@ const WhiteBoard = () => {
     if (target.closest("button")) {
       return; // Ignore clicks on buttons
     }
-
+    actionsDispatch(setMouseDown(true));
     const boundingRect = canvasRef.current?.getBoundingClientRect();
     const x = Math.round(
       (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed + window.x1
@@ -410,6 +411,7 @@ const WhiteBoard = () => {
 
         if (!selectedShapes.includes(selected)) {
           // if something is selected but not already within the bounding box
+          console.log("selected Shapes", selected);
           dispatch(setSelectedShapes([selected]));
         }
       } else {
@@ -493,7 +495,7 @@ const WhiteBoard = () => {
             : "white",
         borderColor: "black",
         opacity: 1,
-
+        zIndex: shapes.length - 1,
         text: "",
       };
       if (selectedTool === "board") {
@@ -668,6 +670,7 @@ const WhiteBoard = () => {
   };
 
   const handleMouseUp = () => {
+    actionsDispatch(setMouseDown(false))
     actionsDispatch(setDrawing(false));
     actionsDispatch(setDragging(false));
     setDragOffset(null);

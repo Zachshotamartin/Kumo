@@ -18,15 +18,19 @@ const RenderBoxes = () => {
 
   const handleMouseEnter = (index: number) => {
     const shape = shapes.find((shape: Shape, i: number) => i === index);
-    if (shape) {
+    console.log(selectedShapes, index);
+    if (shape && !selectedShapes.includes(index)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2 + 2 * shape.borderWidth));
       dispatch(setHoverEndY(shape.y2 - 2 + 2 * shape.borderWidth));
+    } else {
+      handleMouseLeave();
     }
   };
 
   const handleMouseLeave = () => {
+    console.log("leave");
     dispatch(setHoverStartX(-100000));
     dispatch(setHoverStartY(-100000));
     dispatch(setHoverEndX(-100000));
@@ -42,7 +46,7 @@ const RenderBoxes = () => {
               style={{
                 // type
                 position: "absolute",
-                zIndex: selectedShapes.includes(index) ? 50 : 0,
+                zIndex: selectedShapes.includes(index) ? 50 : shapes.zIndex,
 
                 // position
                 top: `${
@@ -78,7 +82,7 @@ const RenderBoxes = () => {
                 opacity: `${shape.opacity}`,
               }}
               onMouseEnter={() => handleMouseEnter(index)}
-              onMouseLeave={handleMouseLeave}
+              onMouseOut={handleMouseLeave}
             ></div>
           )}
         </>

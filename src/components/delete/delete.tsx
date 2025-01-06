@@ -1,6 +1,7 @@
 import React from "react";
 import styles from "./delete.module.css";
-
+import { getStorage, ref, deleteObject } from "firebase/storage";
+import { storage } from "../../config/firebase";
 import {
   collection,
   query,
@@ -59,6 +60,14 @@ const Delete = () => {
       });
     }
 
+    const fileRef = ref(storage, `boardPreviews/${board.id}.jpg`);
+    deleteObject(fileRef)
+      .then(() => {
+        console.log("File deleted successfully");
+      })
+      .catch((error) => {
+        console.error("Error deleting file:", error);
+      });
     dispatch(setDeleting(false));
   };
 
