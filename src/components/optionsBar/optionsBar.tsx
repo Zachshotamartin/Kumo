@@ -105,7 +105,10 @@ const OptionsBar = () => {
         <div
           className={styles.optionsBar}
           ref={optionsBarRef}
-          style={{ left: `${left}%`, width: `${100 - left}%` }}
+          style={{
+            left: `${left}%`,
+            width: `${100 - left - 1}%`,
+          }}
         >
           <h3 className={styles.shapeType}>WhiteBoard</h3>
           <div
