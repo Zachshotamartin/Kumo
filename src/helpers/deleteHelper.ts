@@ -21,14 +21,6 @@ export const useDeleteSelectedShapes = () => {
         dispatch(removeShape(index));
       });
       // Update the z-indices of the remaining shapes
-      const updatedShapes = shapes.map((shape: any, i: any) => ({
-        ...shape,
-        zIndex: i,
-      }));
-      for (let i = 0; i < updatedShapes.length; i++) {
-        const shape = updatedShapes[i];
-        dispatch(updateShape({ index: i, update: shape }));
-      }
     }
   };
 

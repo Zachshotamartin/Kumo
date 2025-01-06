@@ -46,7 +46,7 @@ const RenderImages = () => {
               style={{
                 // type
                 position: "absolute",
-                zIndex: selectedShapes.includes(index) ? 50 : shapes.zIndex,
+                zIndex: selectedShapes.includes(index) ? 50 : shape.zIndex,
 
                 // position
                 top: `${

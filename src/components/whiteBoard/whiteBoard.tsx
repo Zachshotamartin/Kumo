@@ -348,54 +348,68 @@ const WhiteBoard = () => {
           dispatch(clearSelectedShapes());
           actionsDispatch(setHighlighting(false));
         }
-      }
-      let resizing = false;
-      if (selectedShapes.length > 0) {
-        if (
-          x >= borderEndX - 4 &&
-          x <= borderEndX &&
-          y <= borderEndY &&
-          y >= borderStartY
-        ) {
-          resizing = true;
-          actionsDispatch(setResizingRight(true));
-        }
-        if (
-          x >= borderStartX &&
-          x <= borderStartX + 4 &&
-          y <= borderEndY &&
-          y >= borderStartY
-        ) {
-          resizing = true;
-          actionsDispatch(setResizingLeft(true));
-        }
-        if (
-          y >= borderEndY - 4 &&
-          y <= borderEndY &&
-          x <= borderEndX &&
-          x >= borderStartX
-        ) {
-          resizing = true;
-          actionsDispatch(setResizingBottom(true));
-        }
-        if (
-          y >= borderStartY &&
-          y <= borderStartY + 4 &&
-          x <= borderEndX &&
-          x >= borderStartX
-        ) {
-          resizing = true;
-          actionsDispatch(setResizingTop(true));
-        }
-        if (resizing) {
-          // if cursor is on the border of the bounding box to resize shape
-          actionsDispatch(setResizing(true));
-          setPrevMouseX(x);
-          setPrevMouseY(y);
-          setDragOffset({ x: 0, y: 0 });
-          actionsDispatch(setDragging(true));
-          console.log("resizing");
-          return;
+
+        let resizing = false;
+        if (selectedShapes.length > 0) {
+          if (
+            x >= borderEndX - 4 &&
+            x <= borderEndX &&
+            y <= borderEndY &&
+            y >= borderStartY
+          ) {
+            resizing = true;
+            actionsDispatch(setResizingRight(true));
+          }
+          if (
+            x >= borderStartX &&
+            x <= borderStartX + 4 &&
+            y <= borderEndY &&
+            y >= borderStartY
+          ) {
+            resizing = true;
+            actionsDispatch(setResizingLeft(true));
+          }
+          if (
+            y >= borderEndY - 4 &&
+            y <= borderEndY &&
+            x <= borderEndX &&
+            x >= borderStartX
+          ) {
+            resizing = true;
+            actionsDispatch(setResizingBottom(true));
+          }
+          if (
+            y >= borderStartY &&
+            y <= borderStartY + 4 &&
+            x <= borderEndX &&
+            x >= borderStartX
+          ) {
+            resizing = true;
+            actionsDispatch(setResizingTop(true));
+          }
+          if (
+            x >= borderStartX + 4 &&
+            x <= borderEndX - 4 &&
+            y >= borderStartY + 4 &&
+            y <= borderEndY - 4
+          ) {
+            actionsDispatch(setDragging(true));
+            actionsDispatch(setMoving(true));
+            setPrevMouseX(x);
+            setPrevMouseY(y);
+            setDragOffset({ x: 0, y: 0 });
+            return;
+          }
+          if (resizing) {
+            // if cursor is on the border of the bounding box to resize shape
+            actionsDispatch(setResizing(true));
+            setPrevMouseX(x);
+            setPrevMouseY(y);
+            setDragOffset({ x: 0, y: 0 });
+            actionsDispatch(setDragging(true));
+            console.log("resizing");
+            return;
+          }
         }
       }
 
@@ -495,7 +509,7 @@ const WhiteBoard = () => {
             : "white",
         borderColor: "black",
         opacity: 1,
-        zIndex: shapes.length - 1,
+        zIndex: shapes.length,
         text: "",
       };
       if (selectedTool === "board") {
@@ -507,7 +521,7 @@ const WhiteBoard = () => {
       if (selectedTool === "image") {
         shape.backgroundImage = image;
       }
-
+      console.log(shape.zIndex);
       dispatch(addShape(shape));
       dispatch(setSelectedShapes([shapes.length]));
     }

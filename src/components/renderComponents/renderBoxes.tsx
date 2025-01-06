@@ -9,7 +9,6 @@ import {
 } from "../../features/selected/selectedSlice";
 
 const RenderBoxes = () => {
-  console.log("render boxes");
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
