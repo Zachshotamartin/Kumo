@@ -7,12 +7,12 @@ import {
   setHoverEndX,
   setHoverEndY,
 } from "../../features/selected/selectedSlice";
-const RenderBoards = () => {
+
+const RenderEllipses = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
-
   const dispatch = useDispatch();
   const window = useSelector((state: any) => state.window);
 
@@ -32,12 +32,11 @@ const RenderBoards = () => {
     dispatch(setHoverEndX(-100000));
     dispatch(setHoverEndY(-100000));
   };
-
   return (
     <>
       {shapes.map((shape: Shape, index: number) => (
         <>
-          {shape.type === "board" && (
+          {shape.type === "ellipse" && (
             <div
               key={index}
               style={{
@@ -73,32 +72,14 @@ const RenderBoards = () => {
                 }px ${shape.borderStyle}`,
 
                 // color styling
-                backgroundColor: `${shape.backgroundColor}`,
-                color: `${shape.color}`,
 
-                //backgroundImage: `url(${shape.backgroundImage})`,
-                backgroundSize: "cover",
+                backgroundColor: `${shape.backgroundColor}`,
+
                 opacity: `${shape.opacity}`,
-                display: "flex",
-                alignItems: `${shape.alignItems}`,
-                justifyContent: `${shape.textAlign}`,
               }}
               onMouseEnter={() => handleMouseEnter(index)}
               onMouseLeave={handleMouseLeave}
-            >
-              <p
-                style={{
-                  fontSize: `${shape.fontSize / window.percentZoomed}px`,
-                  fontWeight: `${shape.fontWeight}`,
-                  textDecoration: `${shape.textDecoration}`,
-                  fontFamily: `${shape.fontFamily}`,
-                  lineHeight: `${shape.lineHeight}`,
-                  color: `${shape.color}`,
-                }}
-              >
-                {shape.title}
-              </p>
-            </div>
+            ></div>
           )}
         </>
       ))}
@@ -106,4 +87,4 @@ const RenderBoards = () => {
   );
 };
 
-export default RenderBoards;
+export default RenderEllipses;

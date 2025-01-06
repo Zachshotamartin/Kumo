@@ -5,6 +5,7 @@ import text from "../../res/text.png";
 import pointer from "../../res/select.png";
 import remove from "../../res/delete.png";
 import rectangle from "../../res/rectangle.png";
+import ellipse from "../../res/ellipse.png";
 import recursive from "../../res/recursive.png";
 import { useSelector, useDispatch } from "react-redux";
 import { setSelectedTool } from "../../features/selected/selectedSlice";
@@ -56,6 +57,18 @@ const BottomBar = () => {
             selectedTool === "rectangle" ? styles.iconSelected : styles.icon
           }
           src={rectangle}
+          alt=""
+        />
+      </button>
+      <button
+        onClick={() => handleToolSwitch("ellipse")}
+        className={styles.button}
+      >
+        <img
+          className={
+            selectedTool === "ellipse" ? styles.iconSelected : styles.icon
+          }
+          src={ellipse}
           alt=""
         />
       </button>

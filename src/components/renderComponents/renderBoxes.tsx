@@ -8,7 +8,7 @@ import {
   setHoverEndY,
 } from "../../features/selected/selectedSlice";
 
-const RenderBoards = () => {
+const RenderBoxes = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
@@ -87,4 +87,4 @@ const RenderBoards = () => {
   );
 };
 
-export default RenderBoards;
+export default RenderBoxes;

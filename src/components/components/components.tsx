@@ -6,6 +6,7 @@ import image from "../../res/image.png";
 import text from "../../res/text.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
+import ellipse from "../../res/ellipse.png";
 import recursive from "../../res/recursive.png";
 const Components = () => {
   const dispatch = useDispatch();
@@ -30,6 +31,8 @@ const Components = () => {
                 ? calendar
                 : shape.type === "rectangle"
                 ? rectangle
+                : shape.type === "ellipse"
+                ? ellipse
                 : shape.type === "board"
                 ? recursive
                 : ""

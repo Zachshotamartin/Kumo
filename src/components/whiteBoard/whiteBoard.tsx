@@ -45,6 +45,7 @@ import {
 } from "../../features/selected/selectedSlice";
 import BottomBar from "../bottomBar/bottomBar";
 import RenderBoxes from "../renderComponents/renderBoxes";
+import RenderEllipses from "../renderComponents/renderEllipses";
 import RenderText from "../renderComponents/renderText";
 import RenderBoards from "../renderComponents/renderBoards";
 import RenderHighlighting from "../renderComponents/renderHighlighting";
@@ -443,6 +444,7 @@ const WhiteBoard = () => {
 
     if (
       selectedTool === "rectangle" ||
+      selectedTool === "ellipse" ||
       selectedTool === "text" ||
       selectedTool === "board" ||
       selectedTool === "calendar" ||
@@ -466,7 +468,7 @@ const WhiteBoard = () => {
         rotation: 0,
 
         // box styling
-        borderRadius: 0,
+        borderRadius: selectedTool === "ellipse" ? 1000 : 0,
         borderWidth: 0,
         borderStyle: "solid",
 
@@ -641,8 +643,7 @@ const WhiteBoard = () => {
 
         if (drawing) {
           const lastShape = shapes[shapes.length - 1];
-          console.log("lastShape", lastShape);
-          console.log("drawing");
+
           const updatedShape: Shape = {
             ...lastShape,
             x2: x,
@@ -837,6 +838,7 @@ const WhiteBoard = () => {
     >
       {grid && <RenderGridLines />}
       <RenderBoxes />
+      <RenderEllipses />
       <RenderText />
       <RenderBoards />
       <RenderImages />

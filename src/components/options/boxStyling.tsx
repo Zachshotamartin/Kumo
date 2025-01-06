@@ -44,16 +44,18 @@ const BoxStyling = () => {
     <div className={styles.container}>
       <h4 className={styles.optionHeader}>Border</h4>
       <div className={styles.labelInputGroup}>
-        <div className={styles.labelInput}>
-          <h5 className={styles.label}>Radius</h5>
-          <input
-            className={styles.numberInput}
-            type="number"
-            value={borderRadius}
-            onChange={(e) => setBorderRadius(Number(e.target.value))}
-            onKeyDown={handleKeyDown}
-          />
-        </div>
+        {selectedShape.type !== "ellipse" && (
+          <div className={styles.labelInput}>
+            <h5 className={styles.label}>Radius</h5>
+            <input
+              className={styles.numberInput}
+              type="number"
+              value={borderRadius}
+              onChange={(e) => setBorderRadius(Number(e.target.value))}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+        )}
         <div className={styles.labelInput}>
           <h5 className={styles.label}>Width</h5>
           <input
