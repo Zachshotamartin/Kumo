@@ -9,6 +9,7 @@ import {
 } from "../../features/selected/selectedSlice";
 
 const RenderBoxes = () => {
+  console.log("render boxes");
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
@@ -29,7 +30,7 @@ const RenderBoxes = () => {
   };
 
   const handleMouseLeave = () => {
-  
+    console.log("leave");
     dispatch(setHoverStartX(-100000));
     dispatch(setHoverStartY(-100000));
     dispatch(setHoverEndX(-100000));
@@ -45,7 +46,7 @@ const RenderBoxes = () => {
               style={{
                 // type
                 position: "absolute",
-                zIndex: selectedShapes.includes(index) ? 50 : shapes.zIndex,
+                zIndex: selectedShapes.includes(index) ? 50 : shape.zIndex,
 
                 // position
                 top: `${
@@ -80,7 +81,7 @@ const RenderBoxes = () => {
 
                 opacity: `${shape.opacity}`,
               }}
-              onMouseEnter={() => handleMouseEnter(index)}
+              onMouseOver={() => handleMouseEnter(index)}
               onMouseOut={handleMouseLeave}
             ></div>
           )}
