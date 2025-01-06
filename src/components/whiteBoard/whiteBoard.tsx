@@ -670,7 +670,7 @@ const WhiteBoard = () => {
   };
 
   const handleMouseUp = () => {
-    actionsDispatch(setMouseDown(false))
+    actionsDispatch(setMouseDown(false));
     actionsDispatch(setDrawing(false));
     actionsDispatch(setDragging(false));
     setDragOffset(null);

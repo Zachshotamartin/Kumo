@@ -20,7 +20,7 @@ const BottomBar = () => {
   const { handleDelete } = useDeleteSelectedShapes();
   const actionsDispatch = useDispatch();
   const dispatch = useDispatch<AppDispatch>();
-
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const handleToolSwitch = (newTool: string) => {
     actionsDispatch(setDrawing(false));
     dispatch(clearSelectedShapes());
@@ -34,6 +34,10 @@ const BottomBar = () => {
     }
   };
 
+  const handleUpdateAfterDelete = () => {
+    handleDelete();
+    console.log(shapes.length);
+  };
   return (
     <div className={styles.tools}>
       <button
@@ -122,7 +126,7 @@ const BottomBar = () => {
         />
       </button>
       <button
-        onClick={handleDelete}
+        onClick={handleUpdateAfterDelete}
         style={{ backgroundColor: "transparent" }}
         className={styles.button}
       >

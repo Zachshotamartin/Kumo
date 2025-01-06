@@ -18,7 +18,6 @@ const RenderBoxes = () => {
 
   const handleMouseEnter = (index: number) => {
     const shape = shapes.find((shape: Shape, i: number) => i === index);
-    console.log(selectedShapes, index);
     if (shape && !selectedShapes.includes(index)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
@@ -30,7 +29,7 @@ const RenderBoxes = () => {
   };
 
   const handleMouseLeave = () => {
-    console.log("leave");
+  
     dispatch(setHoverStartX(-100000));
     dispatch(setHoverStartY(-100000));
     dispatch(setHoverEndX(-100000));
