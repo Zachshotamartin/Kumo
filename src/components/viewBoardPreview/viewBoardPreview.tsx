@@ -72,7 +72,7 @@ const ViewBoardPreview = (props: { boards: any }) => {
         const data = {
           shapes: boardData.shapes || [],
           title: boardData.title || "Untitled",
-          type: "private",
+          type: boardData.type,
 
           uid: boardData.uid,
           id: board,
@@ -85,6 +85,7 @@ const ViewBoardPreview = (props: { boards: any }) => {
         const dataWithId = {
           ...data,
           id: doc.id,
+          type: "private",
         };
         await updateDoc(doc, dataWithId);
 

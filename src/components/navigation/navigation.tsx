@@ -136,6 +136,7 @@ const Navigation = () => {
       type: "public",
       sharedWith: [whiteboard.uid],
     });
+    alert("board made public");
     dispatch(setSettingsOpen(false));
   };
 
