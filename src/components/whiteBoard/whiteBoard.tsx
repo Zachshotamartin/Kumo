@@ -469,7 +469,6 @@ const WhiteBoard = () => {
       const shape: Shape = {
         // type
         type: selectedTool,
-
         // position
         x1: x,
         y1: y,

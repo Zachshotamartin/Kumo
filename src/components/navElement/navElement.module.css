@@ -4,17 +4,22 @@
   justify-content: flex-start;
   align-items: center;
   margin-left: 1rem;
-  margin: .25rem 1rem;
+  margin: 0.25rem 1rem;
 }
 
 .text {
   vertical-align: middle;
   margin: 0;
-  margin-left: .5rem;
+  margin-left: 0.5rem;
 }
 
 .icon {
   width: 25px;
   height: 25px;
   margin: 0;
+}
+
+.navElement:hover {
+  cursor: pointer;
+  color: #007bff;
 }

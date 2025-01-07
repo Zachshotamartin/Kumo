@@ -5,7 +5,7 @@ import { update } from "lodash";
 export interface Shape {
   // type (image, text, calendar, rectangle)
   type: string;
-
+  
   // positioning
   x1: number;
   y1: number;

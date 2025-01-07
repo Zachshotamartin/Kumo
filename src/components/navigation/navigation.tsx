@@ -205,13 +205,12 @@ const Navigation = () => {
   return (
     <div className={hidden ? styles.hiddenNavigation : styles.navigation}>
       <NavElement image={logo} text="Kumo" handleClick={() => {}} />
-
       <NavElement
         image={userIcon}
         text={user?.email || "User"}
         handleClick={handleClickUser}
       />
-      {userOpen && (
+      {userOpen && whiteboard.id !== null && (
         <div
           className={!hidden ? styles.dropdown : styles.dropdownHidden}
           style={{ left: !hidden ? `${width + 2}%` : "2rem" }}
@@ -221,39 +220,70 @@ const Navigation = () => {
               Home
             </button>
           )}
-          <button
-            className={styles.hide}
-            onClick={() => {
-              dispatch(removeBoardImage(whiteboard.id));
-              dispatch(setUserOpen(false));
-              const data = {
-                shapes: [],
-                title: "",
-                type: null,
-                selectedShape: null,
-                uid: auth.currentUser?.uid,
-                id: null,
-                sharedWith: [],
-                backGroundColor: "",
-              };
+          {whiteboard.id !== null && (
+            <button
+              className={styles.hide}
+              onClick={() => {
+                dispatch(removeBoardImage(whiteboard.id));
+                dispatch(setUserOpen(false));
+                const data = {
+                  shapes: [],
+                  title: "",
+                  type: null,
+                  selectedShape: null,
+                  uid: auth.currentUser?.uid,
+                  id: null,
+                  sharedWith: [],
+                  backGroundColor: "",
+                };
 
-              dispatch(clearSelectedShapes());
-              dispatch(setInWhiteBoard(false));
-              dispatch(setSharing(false));
-              appDispatch(setWhiteboardData(data));
-              auth.signOut();
-              dispatch(logout());
-            }}
-          >
-            Logout
-          </button>
+                dispatch(clearSelectedShapes());
+                dispatch(setInWhiteBoard(false));
+                dispatch(setSharing(false));
+                appDispatch(setWhiteboardData(data));
+                auth.signOut();
+                dispatch(logout());
+              }}
+            >
+              Logout
+            </button>
+          )}
         </div>
       )}
-      <NavElement
-        image={menu}
-        text="Settings"
-        handleClick={handleClickSettings}
-      />
+      {whiteboard.id !== null && (
+        <NavElement
+          image={menu}
+          text="Settings"
+          handleClick={handleClickSettings}
+        />
+      )}
+      {whiteboard.id === null && (
+        <NavElement
+          image={menu}
+          text="Logout"
+          handleClick={() => {
+            dispatch(removeBoardImage(whiteboard.id));
+            dispatch(setUserOpen(false));
+            const data = {
+              shapes: [],
+              title: "",
+              type: null,
+              selectedShape: null,
+              uid: auth.currentUser?.uid,
+              id: null,
+              sharedWith: [],
+              backGroundColor: "",
+            };
+
+            dispatch(clearSelectedShapes());
+            dispatch(setInWhiteBoard(false));
+            dispatch(setSharing(false));
+            appDispatch(setWhiteboardData(data));
+            auth.signOut();
+            dispatch(logout());
+          }}
+        />
+      )}
       {settingsOpen && whiteboard.id !== null && (
         <div
           className={!hidden ? styles.dropdown : styles.dropdownHidden}

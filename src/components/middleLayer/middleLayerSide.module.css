@@ -6,7 +6,7 @@
   flex-direction: column;
   justify-content: start;
   align-items: flex-start;
-  cursor: pointer;
+  
 
   padding-left: 1rem;
   border-top: 2px solid #b4b4b42b;
@@ -55,6 +55,13 @@
   padding: 0;
 }
 
+.createButton:hover {
+  color: #007bff;
+}
+.icon:hover {
+  color: #007bff;
+}
+
 .createBoardContainer {
   display: flex;
   flex-direction: row;
@@ -73,6 +80,9 @@
   white-space: nowrap;
   vertical-align: middle;
   user-select: none;
+}
+.boardTypeContainer:hover {
+  color: #007bff;
 }
 
 .icon {
