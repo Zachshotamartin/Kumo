@@ -43,7 +43,7 @@
   width: 30rem;
   border: 1px solid #b4b4b4;
   border-radius: 1rem;
-  object-fit: contain;
+  object-fit: fill;
   margin: 0;
 }
 .boardImage:hover {
