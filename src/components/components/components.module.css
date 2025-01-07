@@ -9,14 +9,21 @@
   cursor: pointer;
   flex: 1;
   padding-left: 1rem;
-
   padding-top: 0.5rem;
-  scrollbar-color: #b4b4b4 #444444;
-  scrollbar-width: thin;
-  scroll-margin-block-start: 1rem;
-  scrollbar-gutter: stable;
+  scrollbar-width: none; /* Set scrollbar width to none when not hovered over */
 }
 
+.components::-webkit-scrollbar {
+  width: 0px;
+  background-color: transparent;
+  color: transparent;
+}
+
+.components:hover::-webkit-scrollbar {
+  width: 5px;
+  background-color: #b4b4b4;
+  color: transparent;
+}
 
 .title {
   margin-bottom: 0;

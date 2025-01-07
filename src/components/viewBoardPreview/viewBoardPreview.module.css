@@ -5,7 +5,7 @@
   align-items: center;
   width: 98%;
   padding: 1rem;
-  min-height: 25vh;
+  min-height: 24.3vh;
   height: auto;
 
   flex-direction: row;
@@ -13,12 +13,19 @@
   overflow-y: hidden;
   scrollbar-color: transparent transparent;
   scrollbar-width: thin;
-  margin-bottom: 1rem;
+  
 
   scrollbar-gutter: stable;
 }
 .container:hover {
   scrollbar-color: #b4b4b4 transparent;
+}
+
+.container::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+  background-color: #b4b4b4;
+  color: transparent;
 }
 
 .searchContainer {
