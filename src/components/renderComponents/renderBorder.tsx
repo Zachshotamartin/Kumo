@@ -8,6 +8,7 @@ import {
   setBorderEndX,
   setBorderEndY,
 } from "../../features/selected/selectedSlice";
+
 const RenderBorder = () => {
   const dispatch = useDispatch();
   const borderStartX = useSelector((state: any) => state.selected.borderStartX);
@@ -37,10 +38,7 @@ const RenderBorder = () => {
     }, Infinity);
 
     const rightX = selectedShapesArray.reduce((maxX: number, shape: Shape) => {
-      return Math.max(
-        maxX,
-        Math.max(shape.x1, shape.x2) + 2 * shape.borderWidth
-      );
+      return Math.max(maxX, Math.max(shape.x1, shape.x2));
     }, -Infinity);
 
     const topY = selectedShapesArray.reduce((minY: number, shape: Shape) => {
@@ -48,10 +46,7 @@ const RenderBorder = () => {
     }, Infinity);
 
     const bottomY = selectedShapesArray.reduce((maxY: number, shape: Shape) => {
-      return Math.max(
-        maxY,
-        Math.max(shape.y1, shape.y2) + 2 * shape.borderWidth
-      );
+      return Math.max(maxY, Math.max(shape.y1, shape.y2));
     }, -Infinity);
 
     dispatch(setBorderStartX(leftX));

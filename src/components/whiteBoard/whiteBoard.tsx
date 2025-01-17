@@ -55,6 +55,7 @@ import RenderGridLines from "../renderComponents/renderGridLines";
 import RenderImages from "../renderComponents/renderImages";
 import RenderCalendars from "../renderComponents/renderCalendars";
 import RenderHoverBorder from "../renderComponents/renderHoverBorder";
+import RenderSnappingGuides from "../renderComponents/renderSnappingGuides";
 import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
 import image from "../../res/image.png";
@@ -862,6 +863,7 @@ const WhiteBoard = () => {
       {dragging && highlighting && <RenderHighlighting />}
       <RenderBorder />
       <RenderHoverBorder />
+      <RenderSnappingGuides />
 
       <BottomBar />
     </div>

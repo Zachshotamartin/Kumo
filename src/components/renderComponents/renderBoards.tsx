@@ -21,8 +21,8 @@ const RenderBoards = () => {
     if (shape && !selectedShapes.includes(index)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
-      dispatch(setHoverEndX(shape.x2 - 2 + 2 * shape.borderWidth));
-      dispatch(setHoverEndY(shape.y2 - 2 + 2 * shape.borderWidth));
+      dispatch(setHoverEndX(shape.x2 - 2 ));
+      dispatch(setHoverEndY(shape.y2 - 2));
     } else {
       handleMouseLeave();
     }
