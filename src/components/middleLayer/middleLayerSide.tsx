@@ -163,7 +163,7 @@ const MiddleLayerSide = () => {
   return (
     <div className={styles.middleLayer}>
       <div className={styles.createBoardContainer}>
-        <h4 className={styles.title}> Boards </h4>
+        <h6 className={styles.title}> Boards </h6>
         <button
           className={styles.createButton}
           onClick={() => {
@@ -183,18 +183,18 @@ const MiddleLayerSide = () => {
         ) : (
           <img className={styles.icon} src={right} alt="Right" />
         )}
-        <h5 className={styles.title}>{`Public (${publicBoards.length})`}</h5>
+        <h6 className={styles.title}>{`Public (${publicBoards.length})`}</h6>
       </div>
       {publicDropDown && (
         <div className={styles.boardListContainer}>
           {availableBoards?.publicBoards?.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
-              <button
+              <h6
                 className={styles.button}
                 onClick={() => handleClick(board.id, "public")}
               >
                 {board.title}
-              </button>
+              </h6>
             </div>
           ))}
         </div>
@@ -209,19 +209,19 @@ const MiddleLayerSide = () => {
         ) : (
           <img className={styles.icon} src={right} alt="Right" />
         )}
-        <h5 className={styles.title}>{`Private (${privateBoards.length})`}</h5>
+        <h6 className={styles.title}>{`Private (${privateBoards.length})`}</h6>
       </div>
 
       {privateDropDown && (
         <div className={styles.boardListContainer}>
           {availableBoards?.privateBoards?.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
-              <button
+              <h6
                 className={styles.button}
                 onClick={() => handleClick(board.id, "private")}
               >
                 {board.title}
-              </button>
+              </h6>
             </div>
           ))}
         </div>
@@ -236,19 +236,19 @@ const MiddleLayerSide = () => {
         ) : (
           <img className={styles.icon} src={right} alt="Right" />
         )}
-        <h5 className={styles.title}>{`Shared (${sharedBoards.length})`}</h5>
+        <h6 className={styles.title}>{`Shared (${sharedBoards.length})`}</h6>
       </div>
 
       {sharedDropDown && (
         <div className={styles.boardListContainer}>
           {availableBoards?.sharedBoards?.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
-              <button
+              <h6
                 className={styles.button}
                 onClick={() => handleClick(board.id, "shared")}
               >
                 {board.title}
-              </button>
+              </h6>
             </div>
           ))}
         </div>

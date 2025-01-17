@@ -36,11 +36,11 @@ const ImageStyling = () => {
 
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Image</h4>
+      <h6 className={styles.optionHeader}>Image</h6>
       <div className={styles.labelInputGroup}>
         {selectedShape?.type === "image" && (
           <div className={styles.labelInput}>
-            <h5 className={styles.label}>Select Image</h5>
+            <h6 className={styles.label}>Select Image</h6>
             <input type="file" onChange={handleFileChange} />
             {selectedFile && (
               <div>

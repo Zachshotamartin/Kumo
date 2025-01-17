@@ -29,7 +29,6 @@ const Colors = () => {
   };
 
   const updateBackgroundColor = (color: string) => {
-
     dispatch(
       updateShape({
         index: selectedIdx,
@@ -118,10 +117,10 @@ const Colors = () => {
   };
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Color</h4>
+      <h6 className={styles.optionHeader}>Color</h6>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Base</h5>
+          <h6 className={styles.label}>Base</h6>
           <input
             style={{ backgroundColor: color }}
             type="color"
@@ -131,7 +130,7 @@ const Colors = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Background</h5>
+          <h6 className={styles.label}>Background</h6>
           <input
             style={{ backgroundColor: backgroundColor }}
             type="color"
@@ -141,7 +140,7 @@ const Colors = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Border</h5>
+          <h6 className={styles.label}>Border</h6>
           <input
             style={{ backgroundColor: borderColor }}
             type="color"
@@ -151,7 +150,7 @@ const Colors = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Opacity</h5>
+          <h6 className={styles.label}>Opacity</h6>
 
           <input
             type="number"

@@ -69,10 +69,10 @@ const FontStyles = () => {
   };
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Typography</h4>
+      <h6 className={styles.optionHeader}>Typography</h6>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>size</h5>
+          <h6 className={styles.label}>size</h6>
           <input
             type="number"
             className={styles.numberInput}
@@ -82,36 +82,50 @@ const FontStyles = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>weight</h5>
+          <h6 className={styles.label}>weight</h6>
           <select
             value={fontWeight}
             onChange={(e) => setFontWeight(e.target.value)}
             className={styles.dropdown}
           >
-            <option value="lighter">lighter</option>
-            <option value="normal">normal</option>
-            <option value="bold">bold</option>
-            <option value="bolder">bolder</option>
+            <option value="lighter">
+              <h6>lighter</h6>
+            </option>
+            <option value="normal">
+              <h6>normal</h6>
+            </option>
+            <option value="bold">
+              <h6>bold</h6>
+            </option>
+            <option value="bolder">
+              <h6>bolder</h6>
+            </option>
           </select>
         </div>
       </div>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>family</h5>
+          <h6 className={styles.label}>family</h6>
           <select
             value={fontFamily}
             className={styles.dropdown}
             onChange={(e) => setFontFamily(e.target.value)}
           >
-            <option value="Arial">Arial</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Verdana">Verdana</option>
+            <option value="Arial">
+              <h6>Arial</h6>
+            </option>
+            <option value="Times New Roman">
+              <h6>Times New Roman</h6>
+            </option>
+            <option value="Verdana">
+              <h6>Verdana</h6>
+            </option>
           </select>
         </div>
       </div>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>text align</h5>
+          <h6 className={styles.label}>text align</h6>
           <div className={styles.radioGroup}>
             <img
               src={alignLeft} // Replace with your image URL
@@ -143,7 +157,7 @@ const FontStyles = () => {
         </div>
 
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>vertical align</h5>
+          <h6 className={styles.label}>vertical align</h6>
           <div className={styles.radioGroup}>
             <img
               src={alignTop}
@@ -176,7 +190,7 @@ const FontStyles = () => {
       </div>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>text decoration</h5>
+          <h6 className={styles.label}>text decoration</h6>
           <div className={styles.radioGroup}>
             <img
               src={none} // Replace with your image URL
@@ -218,7 +232,7 @@ const FontStyles = () => {
       </div>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>line height</h5>
+          <h6 className={styles.label}>line height</h6>
           <input
             type="number"
             className={styles.numberInput}
@@ -228,7 +242,7 @@ const FontStyles = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>letter spacing</h5>
+          <h6 className={styles.label}>letter spacing</h6>
           <input
             type="number"
             className={styles.numberInput}

@@ -43,10 +43,10 @@ const Position = () => {
 
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Position</h4>
+      <h6 className={styles.optionHeader}>Position</h6>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>X</h5>
+          <h6 className={styles.label}>X</h6>
           <input
             className={styles.numberInput}
             type="number"
@@ -56,7 +56,7 @@ const Position = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Y</h5>
+          <h6 className={styles.label}>Y</h6>
           <input
             className={styles.numberInput}
             type="number"

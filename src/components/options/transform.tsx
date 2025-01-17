@@ -41,10 +41,10 @@ const Transform = () => {
 
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Transform</h4>
+      <h6 className={styles.optionHeader}>Transform</h6>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Rotation</h5>
+          <h6 className={styles.label}>Rotation</h6>
           <input
             ref={inputRefRotation}
             type="number"

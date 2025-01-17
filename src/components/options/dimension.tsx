@@ -69,10 +69,10 @@ const Dimension = () => {
 
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Dimension</h4>
+      <h6 className={styles.optionHeader}>Dimension</h6>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Width</h5>
+          <h6 className={styles.label}>Width</h6>
           <input
             ref={inputRefWidth}
             type="number"
@@ -83,7 +83,7 @@ const Dimension = () => {
           />
         </div>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Height</h5>
+          <h6 className={styles.label}>Height</h6>
           <input
             ref={inputRefHeight}
             type="number"

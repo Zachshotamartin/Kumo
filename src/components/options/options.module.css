@@ -12,7 +12,6 @@
   margin: 0;
   padding: 0;
   margin-left: 1rem;
-  font-size: 0.9rem;
 }
 .labelInputGroup {
   display: flex;
@@ -33,7 +32,6 @@
   align-items: flex-start;
   width: auto;
   padding: 0;
-  font-size: 0.75rem;
   flex-basis: 0;
   flex: 1;
   flex-shrink: 1;
@@ -42,7 +40,6 @@
 .label {
   margin: 0;
   margin-right: 0;
-  font-size: 0.7rem;
   text-align: left;
   flex-basis: 0;
   flex-shrink: 1;
@@ -57,11 +54,11 @@
   border-radius: 5px;
   margin: 0;
   padding: 0.5rem;
-
+  height: 100%;
   width: calc(100% - 2rem);
   flex-grow: 1;
   flex-shrink: 1;
-  font-size: 0.75rem;
+  padding: 0.2vw;
 }
 
 .numberInput:hover {
@@ -73,10 +70,9 @@
   border-width: 2px;
   border-radius: 5px;
   margin: 0;
-  padding: 1rem;
+
   flex-grow: 1; /* Make the input take the available width */
   margin-right: 1rem; /* Add a 1rem margin to the right */
-  font-size: 0.75rem;
   width: calc(100% - 1rem);
   flex-grow: 1;
   flex-shrink: 1;
@@ -95,10 +91,9 @@
   color: white;
   border: 1px solid #b4b4b42b;
   border-radius: 5px;
-  padding: 0.5rem;
+  padding: 0.2vw;
   margin: 0;
 
-  font-size: 0.65rem;
   width: calc(100% - 1rem);
   flex-grow: 1;
   flex-shrink: 1;
@@ -108,8 +103,8 @@
 }
 
 .icon {
-  height: 15px;
-  width: 15px;
+  height: 100%;
+  width: 100%;
 }
 
 .radioInput {
@@ -118,8 +113,8 @@
 
 /* Style the image to look like a radio button */
 .radioImage {
-  height: 1.25rem;
-  width: 1.25rem;
+  height: 2rem;
+  width: auto;
   cursor: pointer;
   transition: transform 0.2s ease; /* Optional for visual effect */
   padding: 0.5rem;

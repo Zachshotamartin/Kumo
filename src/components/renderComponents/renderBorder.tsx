@@ -69,10 +69,10 @@ const RenderBorder = () => {
           left: `${(borderStartX - window.x1) / window.percentZoomed - 2}px`,
 
           width: `${
-            Math.abs(borderStartX - borderEndX) / window.percentZoomed
+            Math.abs(borderStartX - borderEndX) / window.percentZoomed + 4
           }px`,
           height: `${
-            Math.abs(borderStartY - borderEndY) / window.percentZoomed
+            Math.abs(borderStartY - borderEndY) / window.percentZoomed + 4
           }px`,
 
           border: `${2}px solid #007bff`,
@@ -103,7 +103,8 @@ const RenderBorder = () => {
           position: "absolute",
           top: `${
             (borderEndY - window.y1 - 4 * window.percentZoomed) /
-            window.percentZoomed
+              window.percentZoomed +
+            4
           }px`,
           left: `${
             (borderStartX - window.x1 - 8 * window.percentZoomed) /
@@ -125,7 +126,8 @@ const RenderBorder = () => {
           }px`,
           left: `${
             (borderEndX - window.x1 - 4 * window.percentZoomed) /
-            window.percentZoomed
+              window.percentZoomed +
+            4
           }px`,
           width: `${8}px`,
           height: `${8}px`,
@@ -139,11 +141,13 @@ const RenderBorder = () => {
           position: "absolute",
           top: `${
             (borderEndY - window.y1 - 4 * window.percentZoomed) /
-            window.percentZoomed
+              window.percentZoomed +
+            4
           }px`,
           left: `${
             (borderEndX - window.x1 - 4 * window.percentZoomed) /
-            window.percentZoomed
+              window.percentZoomed +
+            4
           }px`,
           width: `${8}px`,
           height: `${8}px`,

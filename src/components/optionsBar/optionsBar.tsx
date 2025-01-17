@@ -75,7 +75,7 @@ const OptionsBar = () => {
           ref={optionsBarRef}
           style={{ left: `${left}%`, width: `${100 - left - 1}%` }}
         >
-          <h3 className={styles.shapeType}>{selectedShape?.type}</h3>
+          <h5 className={styles.shapeType}>{selectedShape?.type}</h5>
           <div
             style={{
               position: "absolute",
@@ -110,7 +110,7 @@ const OptionsBar = () => {
             width: `${100 - left - 1}%`,
           }}
         >
-          <h3 className={styles.shapeType}>WhiteBoard</h3>
+          <h5 className={styles.shapeType}>whiteboard</h5>
           <div
             style={{
               position: "absolute",

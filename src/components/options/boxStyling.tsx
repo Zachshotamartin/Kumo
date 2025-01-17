@@ -42,11 +42,11 @@ const BoxStyling = () => {
   };
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Border</h4>
+      <h6 className={styles.optionHeader}>Border</h6>
       <div className={styles.labelInputGroup}>
         {selectedShape.type !== "ellipse" && (
           <div className={styles.labelInput}>
-            <h5 className={styles.label}>Radius</h5>
+            <h6 className={styles.label}>Radius</h6>
             <input
               className={styles.numberInput}
               type="number"
@@ -57,7 +57,7 @@ const BoxStyling = () => {
           </div>
         )}
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Width</h5>
+          <h6 className={styles.label}>Width</h6>
           <input
             type="number"
             value={borderWidth}
@@ -69,15 +69,21 @@ const BoxStyling = () => {
       </div>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Style</h5>
+          <h6 className={styles.label}>Style</h6>
           <select
             value={borderStyle}
             className={styles.dropdown}
             onChange={(e) => setBorderStyle(e.target.value)}
           >
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
+            <option value="solid">
+              <h6>Solid</h6>
+            </option>
+            <option value="dashed">
+              <h6>Dashed</h6>
+            </option>
+            <option value="dotted">
+              <h6>Dotted</h6>
+            </option>
           </select>
         </div>
       </div>

@@ -86,7 +86,7 @@ const SideBar = () => {
             cursor: cursor,
           }}
         >
-          <h4 className={styles.title}>{whiteBoard.title}</h4>
+          <h5 className={styles.title}>{whiteBoard.title}</h5>
           <Navigation />
           <MiddleLayerSide />
           <Components />

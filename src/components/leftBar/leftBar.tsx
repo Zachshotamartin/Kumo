@@ -75,7 +75,7 @@ const LeftBar = () => {
     <div className={styles.leftBar}>
       <Navigation />
       <div className={styles.createBoardContainer}>
-        <h4 className={styles.title}> Create New Board</h4>
+        <h6 className={styles.title}> Create New Board</h6>
         <div className={styles.buttonContainer}>
           <input
             className={styles.input}

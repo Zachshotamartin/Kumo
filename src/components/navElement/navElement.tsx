@@ -12,7 +12,7 @@ const NavElement = ({
   return (
     <div className={styles.navElement} onClick={handleClick}>
       <img className={styles.icon} src={image} alt="" />
-      <h5 className={styles.text}>{text}</h5>
+      <h6 className={styles.text}>{text}</h6>
     </div>
   );
 };

@@ -6,7 +6,6 @@
   flex-direction: column;
   justify-content: start;
   align-items: flex-start;
-  
 
   padding-left: 1rem;
   border-top: 2px solid #b4b4b42b;
@@ -30,6 +29,9 @@
   background-color: transparent;
   color: inherit;
   border: none;
+  cursor: pointer;
+  padding: 0;
+  padding-left: 1rem;
 }
 .button:hover {
   color: #007bff;

@@ -217,7 +217,7 @@ const Navigation = () => {
         >
           {whiteboard.id !== null && (
             <button className={styles.hide} onClick={handleHome}>
-              Home
+              <h6>Home</h6>
             </button>
           )}
           {whiteboard.id !== null && (
@@ -245,7 +245,7 @@ const Navigation = () => {
                 dispatch(logout());
               }}
             >
-              Logout
+              <h6>Logout</h6>
             </button>
           )}
         </div>
@@ -291,18 +291,18 @@ const Navigation = () => {
         >
           {whiteboard.id !== null && (
             <button className={styles.hide} onClick={handleHide}>
-              Toggle Sidebar
+              <h6>Toggle Sidebar</h6>
             </button>
           )}
 
           {whiteboard.id !== null && (
             <button className={styles.hide} onClick={handleMakePublic}>
-              Make Public
+              <h6>Make Public</h6>
             </button>
           )}
           {whiteboard.id !== null && (
             <button className={styles.hide} onClick={handleMakePrivate}>
-              Make Private
+              <h6>Make Private</h6>
             </button>
           )}
           {whiteboard.id !== null && (
@@ -317,7 +317,7 @@ const Navigation = () => {
                 dispatch(setSettingsOpen(false));
               }}
             >
-              Share Board
+              <h6>Share Board</h6>
             </button>
           )}
           {whiteboard.id !== null && (
@@ -335,7 +335,7 @@ const Navigation = () => {
                 dispatch(setSettingsOpen(false));
               }}
             >
-              Delete Board
+              <h6>Delete Board</h6>
             </button>
           )}
           {whiteboard.id !== null && (
@@ -346,7 +346,7 @@ const Navigation = () => {
                 dispatch(setSettingsOpen(false));
               }}
             >
-              Toggle Grid
+              <h6>Toggle Grid</h6>
             </button>
           )}
         </div>

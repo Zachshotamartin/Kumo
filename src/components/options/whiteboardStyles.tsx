@@ -35,10 +35,10 @@ const WhiteboardStyles = () => {
   };
   return (
     <div className={styles.container}>
-      <h4 className={styles.optionHeader}>Color</h4>
+      <h6 className={styles.optionHeader}>Color</h6>
       <div className={styles.labelInputGroup}>
         <div className={styles.labelInput}>
-          <h5 className={styles.label}>Background</h5>
+          <h6 className={styles.label}>Background</h6>
           <input
             style={{ backgroundColor: backgroundColor }}
             type="color"

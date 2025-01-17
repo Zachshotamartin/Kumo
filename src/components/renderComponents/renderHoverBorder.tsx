@@ -33,11 +33,11 @@ const RenderHoverBorder = () => {
               2 / window.percentZoomed -
               2
             }px`,
-            width: `${(hoverEndX - hoverStartX) / window.percentZoomed}px`,
-            height: `${(hoverEndY - hoverStartY) / window.percentZoomed}px`,
+            width: `${(hoverEndX - hoverStartX) / window.percentZoomed + 4}px`,
+            height: `${(hoverEndY - hoverStartY) / window.percentZoomed + 4}px`,
             border: `${2}px solid #007bff`,
             pointerEvents: "none",
-            zIndex: 100,
+            zIndex: 51,
           }}
         />
       )}

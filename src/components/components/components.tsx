@@ -17,7 +17,7 @@ const Components = () => {
   );
   return (
     <div className={styles.components}>
-      <h4 className={styles.title}>Components </h4>
+      <h6 className={styles.title}>Components </h6>
       {shapes.map((shape: any, index: number) => (
         <div key={index} className={styles.component}>
           <img
@@ -39,14 +39,14 @@ const Components = () => {
             }
             alt={shape.type}
           />
-          <h5
+          <h6
             className={
               selectedShape.includes(index) ? styles.selected : styles.text
             }
             onClick={() => dispatch(setSelectedShapes([index]))}
           >
             {shape.type}
-          </h5>
+          </h6>
         </div>
       ))}
     </div>
