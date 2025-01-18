@@ -33,26 +33,27 @@ const RenderSnappingGuides = () => {
               position: "absolute",
               top: `${
                 (Math.min(
-                  Math.max(shape.y1, shape.y2),
-                  Math.max(borderStartY, borderEndY)
+                  Math.min(shape.y1, shape.y2),
+                  Math.min(borderStartY, borderEndY)
                 ) -
                   window.y1) /
                 window.percentZoomed
               }px`,
               left: `${(shape.x1 - window.x1) / window.percentZoomed}px`,
-              width: "1px",
+              width: `2px`,
               height: `${
                 Math.abs(
-                  Math.max(
+                  Math.min(
                     Math.min(shape.y1, shape.y2),
                     Math.min(borderStartY, borderEndY)
                   ) -
-                    Math.min(
+                    Math.max(
                       Math.max(shape.y1, shape.y2),
                       Math.max(borderStartY, borderEndY)
                     )
                 ) / window.percentZoomed
               }px`,
+              zIndex: 99,
             }}
           ></div>
         )}
@@ -64,26 +65,27 @@ const RenderSnappingGuides = () => {
               position: "absolute",
               top: `${
                 (Math.min(
-                  Math.max(shape.y1, shape.y2),
-                  Math.max(borderStartY, borderEndY)
+                  Math.min(shape.y1, shape.y2),
+                  Math.min(borderStartY, borderEndY)
                 ) -
                   window.y1) /
                 window.percentZoomed
               }px`,
               left: `${(shape.x2 - window.x1) / window.percentZoomed}px`,
-              width: "1px",
+              width: `2px`,
               height: `${
                 Math.abs(
-                  Math.max(
+                  Math.min(
                     Math.min(shape.y1, shape.y2),
                     Math.min(borderStartY, borderEndY)
                   ) -
-                    Math.min(
+                    Math.max(
                       Math.max(shape.y1, shape.y2),
                       Math.max(borderStartY, borderEndY)
                     )
                 ) / window.percentZoomed
               }px`,
+              zIndex: 99,
             }}
           ></div>
         )}
@@ -96,26 +98,27 @@ const RenderSnappingGuides = () => {
               top: `${(shape.y1 - window.y1) / window.percentZoomed}px`,
               left: `${
                 (Math.min(
-                  Math.max(shape.x1, shape.x2),
-                  Math.max(borderStartX, borderEndX)
+                  Math.min(shape.x1, shape.x2),
+                  Math.min(borderStartX, borderEndX)
                 ) -
                   window.x1) /
                 window.percentZoomed
               }px`,
               width: `${
                 Math.abs(
-                  Math.max(
+                  Math.min(
                     Math.min(shape.x1, shape.x2),
                     Math.min(borderStartX, borderEndX)
                   ) -
-                    Math.min(
+                    Math.max(
                       Math.max(shape.x1, shape.x2),
                       Math.max(borderStartX, borderEndX)
                     )
                 ) / window.percentZoomed
               }px`,
 
-              height: "1px",
+              height: `2px`,
+              zIndex: 99,
             }}
           ></div>
         )}
@@ -128,25 +131,102 @@ const RenderSnappingGuides = () => {
               top: `${(shape.y2 - window.y1) / window.percentZoomed}px`,
               left: `${
                 (Math.min(
-                  Math.max(shape.x1, shape.x2),
-                  Math.max(borderStartX, borderEndX)
+                  Math.min(shape.x1, shape.x2),
+                  Math.min(borderStartX, borderEndX)
                 ) -
                   window.x1) /
                 window.percentZoomed
               }px`,
               width: `${
                 Math.abs(
-                  Math.max(
+                  Math.min(
                     Math.min(shape.x1, shape.x2),
                     Math.min(borderStartX, borderEndX)
                   ) -
-                    Math.min(
+                    Math.max(
                       Math.max(shape.x1, shape.x2),
                       Math.max(borderStartX, borderEndX)
                     )
                 ) / window.percentZoomed
               }px`,
-              height: "1px",
+              height: `2px`,
+              zIndex: 99,
+            }}
+          ></div>
+        )}
+      {(shape.y1 + Math.floor(shape.height / 2) === borderStartY ||
+        shape.y1 + Math.floor(shape.height / 2) === borderEndY ||
+        shape.y1 + Math.floor(shape.height / 2) ===
+          borderStartY + Math.floor((borderEndY - borderStartY) / 2)) &&
+        !selectedShapes.includes(index) && (
+          <div
+            style={{
+              position: "absolute",
+              top: `${
+                Math.floor(shape.y1 + shape.height / 2 - window.y1) /
+                window.percentZoomed
+              }px`,
+              left: `${
+                (Math.min(
+                  Math.min(shape.x1, shape.x2),
+                  Math.min(borderStartX, borderEndX)
+                ) -
+                  window.x1) /
+                window.percentZoomed
+              }px`,
+              width: `${
+                Math.abs(
+                  Math.min(
+                    Math.min(shape.x1, shape.x2),
+                    Math.min(borderStartX, borderEndX)
+                  ) -
+                    Math.max(
+                      Math.max(shape.x1, shape.x2),
+                      Math.max(borderStartX, borderEndX)
+                    )
+                ) / window.percentZoomed
+              }px`,
+              height: "2px",
+              backgroundColor: "red",
+              zIndex: 99,
+            }}
+          ></div>
+        )}
+      {(shape.x1 + Math.floor(shape.width / 2) === borderStartX ||
+        shape.x1 + Math.floor(shape.width / 2) === borderEndX ||
+        shape.x1 + Math.floor(shape.width / 2) ===
+          borderStartX + Math.floor((borderEndX - borderStartX) / 2)) &&
+        !selectedShapes.includes(index) && (
+          <div
+            style={{
+              position: "absolute",
+              top: `${
+                (Math.min(
+                  Math.min(shape.y1, shape.y2),
+                  Math.min(borderStartY, borderEndY)
+                ) -
+                  window.y1) /
+                window.percentZoomed
+              }px`,
+              left: `${
+                Math.floor(shape.x1 + shape.width / 2 - window.x1) /
+                window.percentZoomed
+              }px`,
+              width: "2px",
+              height: `${
+                Math.abs(
+                  Math.min(
+                    Math.min(shape.y1, shape.y2),
+                    Math.min(borderStartY, borderEndY)
+                  ) -
+                    Math.max(
+                      Math.max(shape.y1, shape.y2),
+                      Math.max(borderStartY, borderEndY)
+                    )
+                ) / window.percentZoomed
+              }px`,
+              backgroundColor: "red",
+              zIndex: 99,
             }}
           ></div>
         )}
