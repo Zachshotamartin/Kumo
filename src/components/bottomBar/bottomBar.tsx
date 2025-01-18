@@ -113,18 +113,7 @@ const BottomBar = () => {
           alt=""
         />
       </button>
-      <button
-        onClick={() => handleToolSwitch("board")}
-        className={styles.button}
-      >
-        <img
-          className={
-            selectedTool === "board" ? styles.iconSelected : styles.icon
-          }
-          src={recursive}
-          alt=""
-        />
-      </button>
+
       <button
         onClick={handleUpdateAfterDelete}
         style={{ backgroundColor: "transparent" }}

@@ -19,62 +19,60 @@ const BoardLink = () => {
     <div className={styles.container}>
       <h6 className={styles.optionHeader}>Board Link</h6>
       <div className={styles.labelInputGroup}>
-        {selectedShape?.type === "board" && (
-          <div className={styles.labelInput}>
-            <h6 className={styles.label}>link</h6>
-            <select
-              className={styles.dropdown}
-              value={selectedValue}
-              onChange={async (e) => {
-                const selectedBoardId = e.target.value;
-                if (selectedBoardId === "none") {
-                  return;
-                }
-                let selectedBoard = boardChoices.publicBoards.find(
+        <div className={styles.labelInput}>
+          <h6 className={styles.label}>link</h6>
+          <select
+            className={styles.dropdown}
+            value={selectedValue}
+            onChange={async (e) => {
+              const selectedBoardId = e.target.value;
+              if (selectedBoardId === "none") {
+                return;
+              }
+              let selectedBoard = boardChoices.publicBoards.find(
+                (board: any) => board.id === selectedBoardId
+              );
+              if (!selectedBoard) {
+                selectedBoard = boardChoices.privateBoards.find(
                   (board: any) => board.id === selectedBoardId
                 );
-                if (!selectedBoard) {
-                  selectedBoard = boardChoices.privateBoards.find(
-                    (board: any) => board.id === selectedBoardId
-                  );
-                }
-                if (!selectedBoard) {
-                  selectedBoard = boardChoices.sharedBoards.find(
-                    (board: any) => board.id === selectedBoardId
-                  );
-                }
-                dispatch(
-                  updateShape({
-                    index: selectedIdx,
-                    update: {
-                      id: selectedBoard.id,
-                      uid: selectedBoard.uid,
-                      title: selectedBoard.title,
-                    },
-                  })
+              }
+              if (!selectedBoard) {
+                selectedBoard = boardChoices.sharedBoards.find(
+                  (board: any) => board.id === selectedBoardId
                 );
-                setSelectedValue(selectedBoardId);
-              }}
-            >
-              <option value="none">none</option>
-              {boardChoices.publicBoards.map((board: any, index: number) => (
-                <option key={index} value={board.id}>
-                  <h6>{board.title + " (public)"}</h6>
-                </option>
-              ))}
-              {boardChoices.privateBoards.map((board: any, index: number) => (
-                <option key={index} value={board.id}>
-                  <h6>{board.title + " (private)"}</h6>
-                </option>
-              ))}
-              {boardChoices.sharedBoards.map((board: any, index: number) => (
-                <option key={index} value={board.id}>
-                  <h6>{board.title + " (shared)"}</h6>
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+              }
+              dispatch(
+                updateShape({
+                  index: selectedIdx,
+                  update: {
+                    id: selectedBoard.id,
+                    uid: selectedBoard.uid,
+                    title: selectedBoard.title,
+                  },
+                })
+              );
+              setSelectedValue(selectedBoardId);
+            }}
+          >
+            <option value="none">none</option>
+            {boardChoices.publicBoards.map((board: any, index: number) => (
+              <option key={index} value={board.id}>
+                <h6>{board.title + " (public)"}</h6>
+              </option>
+            ))}
+            {boardChoices.privateBoards.map((board: any, index: number) => (
+              <option key={index} value={board.id}>
+                <h6>{board.title + " (private)"}</h6>
+              </option>
+            ))}
+            {boardChoices.sharedBoards.map((board: any, index: number) => (
+              <option key={index} value={board.id}>
+                <h6>{board.title + " (shared)"}</h6>
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
   );

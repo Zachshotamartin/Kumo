@@ -88,7 +88,7 @@ const OptionsBar = () => {
             onMouseDown={handleMouseDown}
           />
 
-          {selectedShape && selectedShape.type === "board" && <BoardLink />}
+          <BoardLink />
           {selectedShape && selectedShape.type === "image" && <ImageStyling />}
           {selectedShape && <Position />}
           {selectedShape && <Dimension />}

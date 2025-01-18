@@ -544,7 +544,6 @@ const WhiteBoard = () => {
       selectedTool === "rectangle" ||
       selectedTool === "ellipse" ||
       selectedTool === "text" ||
-      selectedTool === "board" ||
       selectedTool === "calendar" ||
       selectedTool === "image"
     ) {
@@ -581,7 +580,7 @@ const WhiteBoard = () => {
         rows: 1,
 
         // color
-        color: selectedTool === "board" ? "black" : "white",
+        color: "white",
         backgroundColor:
           selectedTool === "text" ||
           selectedTool === "calendar" ||
@@ -593,9 +592,7 @@ const WhiteBoard = () => {
         zIndex: shapes.length,
         text: "",
       };
-      if (selectedTool === "board") {
-        shape.backgroundImage = boardImage;
-      }
+
       if (selectedTool === "calendar") {
         shape.backgroundImage = calendarImage;
       }
@@ -897,38 +894,37 @@ const WhiteBoard = () => {
         const shape = shapes[selected];
 
         const shapeType = shape.type;
-        if (shapeType === "board") {
-          if (shape.id) {
-            const documentRef = doc(db, "boards", shape.id);
 
-            try {
-              // Fetch document snapshot
+        if (shape.id) {
+          const documentRef = doc(db, "boards", shape.id);
 
-              const docSnap = await getDoc(documentRef);
-              setDocRef(documentRef);
+          try {
+            // Fetch document snapshot
 
-              if (docSnap.exists()) {
-                const boardData = docSnap.data();
+            const docSnap = await getDoc(documentRef);
+            setDocRef(documentRef);
 
-                const data = {
-                  shapes: boardData.shapes || [],
-                  title: boardData.title || "Untitled",
-                  type: boardData.type || "default",
-                  uid: boardData.uid,
-                  id: shape.id,
-                  sharedWith: boardData.sharedWith || [],
-                  backGroundColor: boardData.backGroundColor || "#313131",
-                };
+            if (docSnap.exists()) {
+              const boardData = docSnap.data();
 
-                dispatch(setWhiteboardData(data));
+              const data = {
+                shapes: boardData.shapes || [],
+                title: boardData.title || "Untitled",
+                type: boardData.type || "default",
+                uid: boardData.uid,
+                id: shape.id,
+                sharedWith: boardData.sharedWith || [],
+                backGroundColor: boardData.backGroundColor || "#313131",
+              };
 
-                dispatch(clearSelectedShapes());
-              } else {
-                console.error(`No document found for board ID: ${board.id}`);
-              }
-            } catch (error) {
-              console.error("Error getting document:", error);
+              dispatch(setWhiteboardData(data));
+
+              dispatch(clearSelectedShapes());
+            } else {
+              console.error(`No document found for board ID: ${board.id}`);
             }
+          } catch (error) {
+            console.error("Error getting document:", error);
           }
         }
       } else {
