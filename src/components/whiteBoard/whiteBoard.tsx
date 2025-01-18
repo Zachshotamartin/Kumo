@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
 import {
   addShape,
+  removeShape,
   updateShape,
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
@@ -282,19 +283,28 @@ const WhiteBoard = () => {
         event.preventDefault();
         actionsDispatch(setPasting(true));
         pasteShapes();
-        // } else if (event.key === "Backspace") {
-        //   // make sure that this is not focused on a textbox
-        //   event.preventDefault();
+      } else if (event.key === "Backspace") {
+        // make sure that this is not focused on a textbox
+        const target = event.target as HTMLElement | null;
 
-        //   if (selectedShapes.length > 0) {
-        //     const shapesCopy = [...selectedShapes];
-        //     const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
+        if (
+          target &&
+          (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
+        ) {
+          console.log("in an input");
+        } else {
+          event.preventDefault();
+          if (selectedShapes.length > 0) {
+            console.log("in the whiteboard");
+            const shapesCopy = [...selectedShapes];
+            const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
 
-        //     newShapes.forEach((index: number) => {
-        //       dispatch(removeShape(index));
-        //     });
-        //     dispatch(clearSelectedShapes());
-        //   }
+            newShapes.forEach((index: number) => {
+              dispatch(removeShape(index));
+            });
+            dispatch(clearSelectedShapes());
+          }
+        }
       }
     };
 
@@ -353,7 +363,7 @@ const WhiteBoard = () => {
         let resizing = false;
         if (selectedShapes.length > 0) {
           if (
-            x >= borderEndX - 4 &&
+            x >= borderEndX - 4 / window.percentZoomed &&
             x <= borderEndX &&
             y <= borderEndY &&
             y >= borderStartY
@@ -363,7 +373,7 @@ const WhiteBoard = () => {
           }
           if (
             x >= borderStartX &&
-            x <= borderStartX + 4 &&
+            x <= borderStartX + 4 / window.percentZoomed &&
             y <= borderEndY &&
             y >= borderStartY
           ) {
@@ -371,7 +381,7 @@ const WhiteBoard = () => {
             actionsDispatch(setResizingLeft(true));
           }
           if (
-            y >= borderEndY - 4 &&
+            y >= borderEndY - 4 / window.percentZoomed &&
             y <= borderEndY &&
             x <= borderEndX &&
             x >= borderStartX
@@ -381,7 +391,7 @@ const WhiteBoard = () => {
           }
           if (
             y >= borderStartY &&
-            y <= borderStartY + 4 &&
+            y <= borderStartY + 4 / window.percentZoomed &&
             x <= borderEndX &&
             x >= borderStartX
           ) {
@@ -389,10 +399,10 @@ const WhiteBoard = () => {
             actionsDispatch(setResizingTop(true));
           }
           if (
-            x >= borderStartX + 4 &&
-            x <= borderEndX - 4 &&
-            y >= borderStartY + 4 &&
-            y <= borderEndY - 4
+            x >= borderStartX + 4 / window.percentZoomed &&
+            x <= borderEndX - 4 / window.percentZoomed &&
+            y >= borderStartY + 4 / window.percentZoomed &&
+            y <= borderEndY - 4 / window.percentZoomed
           ) {
             actionsDispatch(setDragging(true));
             actionsDispatch(setMoving(true));
@@ -546,47 +556,47 @@ const WhiteBoard = () => {
 
         if (selectedShapesArray.length > 0) {
           if (
-            (x >= borderEndX - 4 &&
+            (x >= borderEndX - 4 / window.percentZoomed &&
               x <= borderEndX &&
-              y <= borderEndY - 4 &&
-              y >= borderStartY + 4) ||
+              y <= borderEndY - 4 / window.percentZoomed &&
+              y >= borderStartY + 4 / window.percentZoomed) ||
             (x >= borderStartX &&
-              x <= borderStartX + 4 &&
-              y <= borderEndY - 4 &&
-              y >= borderStartY + 4)
+              x <= borderStartX + 4 / window.percentZoomed &&
+              y <= borderEndY - 4 / window.percentZoomed &&
+              y >= borderStartY + 4 / window.percentZoomed)
           ) {
             (e.target as HTMLElement).style.cursor = "ew-resize";
           } else if (
-            (y >= borderEndY - 4 &&
+            (y >= borderEndY - 4 / window.percentZoomed &&
               y <= borderEndY &&
-              x <= borderEndX - 4 &&
-              x >= borderStartX + 4) ||
+              x <= borderEndX - 4 / window.percentZoomed &&
+              x >= borderStartX + 4 / window.percentZoomed) ||
             (y >= borderStartY &&
-              y <= borderStartY + 4 &&
-              x <= borderEndX - 4 &&
-              x >= borderStartX + 4)
+              y <= borderStartY + 4 / window.percentZoomed &&
+              x <= borderEndX - 4 / window.percentZoomed &&
+              x >= borderStartX + 4 / window.percentZoomed)
           ) {
             (e.target as HTMLElement).style.cursor = "ns-resize";
           } else if (
             (x >= borderStartX &&
-              x <= borderStartX + 4 &&
+              x <= borderStartX + 4 / window.percentZoomed &&
               y >= borderStartY &&
-              y <= borderStartY + 4) ||
-            (x >= borderEndX - 4 &&
+              y <= borderStartY + 4 / window.percentZoomed) ||
+            (x >= borderEndX - 4 / window.percentZoomed &&
               x <= borderEndX &&
-              y >= borderEndY - 4 &&
+              y >= borderEndY - 4 / window.percentZoomed &&
               y <= borderEndY)
           ) {
             (e.target as HTMLElement).style.cursor = "nwse-resize";
           } else if (
             (x >= borderStartX &&
-              x <= borderStartX + 4 &&
-              y >= borderEndY - 4 &&
+              x <= borderStartX + 4 / window.percentZoomed &&
+              y >= borderEndY - 4 / window.percentZoomed &&
               y <= borderEndY) ||
-            (x >= borderEndX - 4 &&
+            (x >= borderEndX - 4 / window.percentZoomed &&
               x <= borderEndX &&
               y >= borderStartY &&
-              y <= borderStartY + 4)
+              y <= borderStartY + 4 / window.percentZoomed)
           ) {
             (e.target as HTMLElement).style.cursor = "nesw-resize";
           } else {
