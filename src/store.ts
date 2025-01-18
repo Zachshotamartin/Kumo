@@ -8,6 +8,7 @@ import boardsSlice from "./features/boards/boards";
 import actionsSlice from "./features/actions/actionsSlice";
 import selectedSlice from "./features/selected/selectedSlice";
 import boardImagesSlice from "./features/boardImages/boardImages";
+import shapeHistorySlice from "./features/shapeHistory/shapeHistorySlice";
 
 const store = configureStore({
   reducer: {
@@ -19,6 +20,7 @@ const store = configureStore({
     actions: actionsSlice,
     selected: selectedSlice,
     boardImages: boardImagesSlice,
+    shapeHistory: shapeHistorySlice,
   },
 });
 

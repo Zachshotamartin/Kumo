@@ -67,7 +67,12 @@ import image from "../../res/image.png";
 import { setHideOptions } from "../../features/hide/hide";
 import { storage } from "../../config/firebase";
 import { ref, uploadBytes } from "firebase/storage";
-
+import {
+  initializeHistory,
+  updateHistory,
+  undo,
+  redo,
+} from "../../features/shapeHistory/shapeHistorySlice";
 const domtoimage = require("dom-to-image");
 
 const WhiteBoard = () => {
@@ -81,6 +86,7 @@ const WhiteBoard = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
+  const history = useSelector((state: any) => state.shapeHistory);
   const user = useSelector((state: any) => state.auth);
   const drawing = useSelector((state: any) => state.actions.drawing);
   const dragging = useSelector((state: any) => state.actions.dragging);
@@ -126,6 +132,20 @@ const WhiteBoard = () => {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const usersCollectionRef = collection(db, "users");
+
+  useEffect(() => {
+    dispatch(initializeHistory(shapes));
+  }, []);
+
+  useEffect(() => {
+    console.log("history", history);
+    dispatch(
+      setWhiteboardData({
+        ...board,
+        shapes: history.history[history.currentIndex],
+      })
+    );
+  }, [history]);
 
   useEffect(() => {
     if (drawing || dragging || doubleClicking) {
@@ -221,7 +241,7 @@ const WhiteBoard = () => {
         !selectedShapes.includes(index)
       ) {
         intersectsX = true;
-        console.log("intersectedX");
+       
       }
       if (
         (shape.y1 === borderStartY ||
@@ -236,7 +256,7 @@ const WhiteBoard = () => {
         !selectedShapes.includes(index)
       ) {
         intersectsY = true;
-        console.log("intersectedY");
+       
       }
     });
     if (intersectsX) {
@@ -335,7 +355,7 @@ const WhiteBoard = () => {
 
         event.preventDefault();
         copyShapes();
-      } else if (event.metaKey && event.key === "b") {
+      } else if (event.metaKey && event.key === "v") {
         event.preventDefault();
         // Debounced paste function
         if (debounceTimeoutPaste) return; // Ignore if already debounced for paste
@@ -343,6 +363,7 @@ const WhiteBoard = () => {
           () => (debounceTimeoutPaste = null),
           300
         ); // Reset after 300ms
+
         const pasteShapes = () => {
           navigator.clipboard.readText().then((copiedData) => {
             const pastedShapes = JSON.parse(copiedData);
@@ -351,22 +372,22 @@ const WhiteBoard = () => {
             });
           });
         };
-        event.preventDefault();
+
         actionsDispatch(setPasting(true));
         pasteShapes();
       } else if (event.key === "Backspace") {
-        // make sure that this is not focused on a textbox
+        // Ensure this is not focused on a textbox
         const target = event.target as HTMLElement | null;
 
         if (
           target &&
           (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
         ) {
-          console.log("in an input");
+         
         } else {
           event.preventDefault();
           if (selectedShapes.length > 0) {
-            console.log("in the whiteboard");
+            
             const shapesCopy = [...selectedShapes];
             const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
 
@@ -374,6 +395,21 @@ const WhiteBoard = () => {
               dispatch(removeShape(index));
             });
             dispatch(clearSelectedShapes());
+          }
+        }
+      } else if (event.metaKey && event.key === "z") {
+        // Undo/Redo: Command + Z
+
+        if (event.shiftKey) {
+          event.preventDefault();
+
+          if (history.currentIndex < history.history.length - 1) {
+            dispatch(redo());
+          }
+        } else {
+          event.preventDefault();
+          if (history.currentIndex > 0) {
+            dispatch(undo());
           }
         }
       }
@@ -845,6 +881,9 @@ const WhiteBoard = () => {
   };
 
   const handleMouseUp = () => {
+    if (dragging || resizing || drawing) {
+      dispatch(updateHistory(shapes));
+    }
     actionsDispatch(setMouseDown(false));
     actionsDispatch(setDrawing(false));
     actionsDispatch(setDragging(false));
