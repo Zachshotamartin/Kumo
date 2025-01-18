@@ -86,8 +86,8 @@ const RenderBorder = () => {
             (borderStartX - window.x1 - 8 * window.percentZoomed) /
             window.percentZoomed
           }px`,
-          width: `${8}px`,
-          height: `${8}px`,
+          width: `${16}px`,
+          height: `${16}px`,
           border: `${2}px solid #007bff`,
           backgroundColor: "white",
           zIndex: 52,
@@ -97,7 +97,7 @@ const RenderBorder = () => {
         style={{
           position: "absolute",
           top: `${
-            (borderEndY - window.y1 - 4 * window.percentZoomed) /
+            (borderEndY - window.y1 - 8 * window.percentZoomed) /
               window.percentZoomed +
             4
           }px`,
@@ -105,8 +105,8 @@ const RenderBorder = () => {
             (borderStartX - window.x1 - 8 * window.percentZoomed) /
             window.percentZoomed
           }px`,
-          width: `${8}px`,
-          height: `${8}px`,
+          width: `${16}px`,
+          height: `${16}px`,
           border: `${2}px solid #007bff`,
           backgroundColor: "white",
           zIndex: 52,
@@ -120,12 +120,12 @@ const RenderBorder = () => {
             window.percentZoomed
           }px`,
           left: `${
-            (borderEndX - window.x1 - 4 * window.percentZoomed) /
+            (borderEndX - window.x1 - 12 * window.percentZoomed) /
               window.percentZoomed +
             4
           }px`,
-          width: `${8}px`,
-          height: `${8}px`,
+          width: `${16}px`,
+          height: `${16}px`,
           border: `${2}px solid #007bff`,
           backgroundColor: "white",
           zIndex: 52,
@@ -135,17 +135,17 @@ const RenderBorder = () => {
         style={{
           position: "absolute",
           top: `${
-            (borderEndY - window.y1 - 4 * window.percentZoomed) /
+            (borderEndY - window.y1 - 8 * window.percentZoomed) /
               window.percentZoomed +
             4
           }px`,
           left: `${
-            (borderEndX - window.x1 - 4 * window.percentZoomed) /
+            (borderEndX - window.x1 - 12 * window.percentZoomed) /
               window.percentZoomed +
             4
           }px`,
-          width: `${8}px`,
-          height: `${8}px`,
+          width: `${16}px`,
+          height: `${16}px`,
           border: `${2}px solid blue`,
           backgroundColor: "white",
           zIndex: 52,

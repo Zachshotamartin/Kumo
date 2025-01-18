@@ -1,21 +1,26 @@
 .icon {
-  height: 30px;
-  width: 30px;
+  height: 3rem;
+  width: 3rem;
   border-radius: 10px;
-  padding: 0.5rem;
   cursor: pointer;
+  padding: 0.5rem;
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
 }
 .icon:hover {
   background-color: #007bff;
 }
 
 .iconSelected {
-  height: 30px;
-  width: 30px;
+  height: 3rem;
+  width: 3rem;
   border-radius: 10px;
-  padding: 0.5rem;
+
   cursor: pointer;
   background-color: #007bff;
+  padding: 0.5rem;
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
 }
 
 .tools {
@@ -25,7 +30,6 @@
   top: 95%;
   left: 50%;
   transform: translate(-50%, -50%);
-
   z-index: 100;
   padding: 0.5rem 0.5rem;
   border-radius: 20px;
@@ -38,4 +42,17 @@
   color: inherit;
   border: none;
   cursor: pointer;
+  padding: 0rem;
+  margin: 0rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
+
+.button:hover {
+  background-color: transparent !important;
+}
+
+
+
