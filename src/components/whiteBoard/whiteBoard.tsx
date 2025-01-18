@@ -148,6 +148,16 @@ const WhiteBoard = () => {
   }, [history]);
 
   useEffect(() => {
+    console.log("dragging", dragging);
+    if (!dragging && !resizing && !drawing) {
+      if (shapes !== history.history[history.currentIndex]) {
+        console.log("updating history");
+        dispatch(updateHistory(shapes));
+      }
+    }
+  }, [shapes, dragging, resizing, drawing]);
+
+  useEffect(() => {
     if (drawing || dragging || doubleClicking) {
       return;
     }
@@ -183,33 +193,6 @@ const WhiteBoard = () => {
     board.sharedWith,
   ]);
 
-  // useEffect(() => {
-  //   if (!docRef) {
-  //     return;
-  //   }
-  //   const unsub = onSnapshot(
-  //     docRef,
-  //     (doc: { exists: () => any; data: () => any; id: any }) => {
-  //       if (doc.exists()) {
-  //         const data = doc.data();
-  //         dispatch(
-  //           setWhiteboardData({
-  //             id: doc.id,
-  //             shapes: data?.shapes || [],
-  //             title: data?.title || "",
-  //             type: data?.type || "",
-  //             uid: data?.uid || "",
-  //             sharedWith: data?.sharedWith || [],
-  //           })
-  //         );
-  //       }
-  //     }
-  //   );
-  //   return () => {
-  //     unsub();
-  //   };
-  // }, [docRef, dispatch]);
-
   useEffect(() => {
     // figure out when the the edge of the border hits the edge of another shape.
     if (borderStartX === -100000 || borderStartY === -100000) {
@@ -241,7 +224,6 @@ const WhiteBoard = () => {
         !selectedShapes.includes(index)
       ) {
         intersectsX = true;
-       
       }
       if (
         (shape.y1 === borderStartY ||
@@ -256,7 +238,6 @@ const WhiteBoard = () => {
         !selectedShapes.includes(index)
       ) {
         intersectsY = true;
-       
       }
     });
     if (intersectsX) {
@@ -383,11 +364,9 @@ const WhiteBoard = () => {
           target &&
           (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
         ) {
-         
         } else {
           event.preventDefault();
           if (selectedShapes.length > 0) {
-            
             const shapesCopy = [...selectedShapes];
             const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
 
@@ -404,6 +383,7 @@ const WhiteBoard = () => {
           event.preventDefault();
 
           if (history.currentIndex < history.history.length - 1) {
+            console.log("trying to redo");
             dispatch(redo());
           }
         } else {
@@ -881,9 +861,6 @@ const WhiteBoard = () => {
   };
 
   const handleMouseUp = () => {
-    if (dragging || resizing || drawing) {
-      dispatch(updateHistory(shapes));
-    }
     actionsDispatch(setMouseDown(false));
     actionsDispatch(setDrawing(false));
     actionsDispatch(setDragging(false));

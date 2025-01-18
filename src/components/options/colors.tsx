@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
-
+import { updateHistory } from "../../features/shapeHistory/shapeHistorySlice";
 const Colors = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
@@ -15,6 +15,7 @@ const Colors = () => {
   const [backgroundColor, setBackgroundColor] = useState(
     selectedShape.backgroundColor
   );
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const [borderColor, setBorderColor] = useState(selectedShape.borderColor);
 
   const updateColor = (color: string) => {
@@ -26,6 +27,15 @@ const Colors = () => {
         },
       })
     );
+    // dispatch(
+    //   updateHistory([
+    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
+    //     {
+    //       ...selectedShape,
+    //       color: color,
+    //     },
+    //   ])
+    // );
   };
 
   const updateBackgroundColor = (color: string) => {
@@ -37,6 +47,15 @@ const Colors = () => {
         },
       })
     );
+    // dispatch(
+    //   updateHistory([
+    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
+    //     {
+    //       ...selectedShape,
+    //       backgroundColor: color,
+    //     },
+    //   ])
+    // );
   };
 
   const updateBorderColor = (color: string) => {
@@ -48,6 +67,15 @@ const Colors = () => {
         },
       })
     );
+    // dispatch(
+    //   updateHistory([
+    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
+    //     {
+    //       ...selectedShape,
+    //       borderColor: color,
+    //     },
+    //   ])
+    // );
   };
   useEffect(() => {
     setColor(selectedShape.color);
@@ -108,6 +136,15 @@ const Colors = () => {
         },
       })
     );
+    // dispatch(
+    //   updateHistory([
+    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
+    //     {
+    //       ...selectedShape,
+    //       opacity: opacity,
+    //     },
+    //   ])
+    // );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

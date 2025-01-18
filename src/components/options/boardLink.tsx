@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./options.module.css";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
+import { updateHistory } from "../../features/shapeHistory/shapeHistorySlice";
 const BoardLink = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
     (state: any) => state.selected.selectedShapes[0]
   );
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx
   ];
@@ -14,6 +16,10 @@ const BoardLink = () => {
   const [selectedValue, setSelectedValue] = useState(
     selectedShape?.id || "none"
   );
+
+  useEffect(() => {
+    setSelectedValue(selectedShape?.id || "none");
+  }, [selectedShape?.id]);
 
   return (
     <div className={styles.container}>
@@ -52,6 +58,20 @@ const BoardLink = () => {
                   },
                 })
               );
+              // console.log("updateding history history");
+              // dispatch(
+              //   updateHistory([
+              //     ...shapes.filter(
+              //       (shape: any, index: number) => index !== selectedIdx
+              //     ),
+              //     {
+              //       ...selectedShape,
+              //       id: selectedBoard.id,
+              //       uid: selectedBoard.uid,
+              //       title: selectedBoard.title,
+              //     },
+              //   ])
+              // );
               setSelectedValue(selectedBoardId);
             }}
           >

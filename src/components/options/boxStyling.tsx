@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
+import { updateHistory } from "../../features/shapeHistory/shapeHistorySlice";
 const BoxStyling = () => {
   const dispatch = useDispatch();
   const selectedIdx = useSelector(
@@ -10,6 +11,7 @@ const BoxStyling = () => {
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx
   ];
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const [borderRadius, setBorderRadius] = useState(selectedShape.borderRadius);
   const [borderWidth, setBorderWidth] = useState(selectedShape.borderWidth);
   const [borderStyle, setBorderStyle] = useState(selectedShape.borderStyle);
