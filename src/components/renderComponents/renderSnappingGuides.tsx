@@ -1,5 +1,5 @@
 import React from "react";
-import { useSelector } from "react-redux";
+import { useSelector} from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 
 const RenderSnappingGuides = () => {
@@ -9,6 +9,7 @@ const RenderSnappingGuides = () => {
   const borderEndX = useSelector((state: any) => state.selected.borderEndX);
   const borderEndY = useSelector((state: any) => state.selected.borderEndY);
   const window = useSelector((state: any) => state.window);
+
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );

@@ -1,5 +1,6 @@
 // authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { set } from "lodash";
 
 interface ActionsState {
   drawing: boolean;
@@ -22,6 +23,10 @@ interface ActionsState {
   inWhiteBoard: boolean;
   searchTerm: string;
   mouseDown: boolean;
+  gridSnappedX: boolean;
+  gridSnappedY: boolean;
+  gridSnappedDistanceX: number;
+  gridSnappedDistanceY: number;
 }
 
 const initialState: ActionsState = {
@@ -45,6 +50,10 @@ const initialState: ActionsState = {
   inWhiteBoard: false,
   searchTerm: "",
   mouseDown: false,
+  gridSnappedX: false,
+  gridSnappedY: false,
+  gridSnappedDistanceX: 0,
+  gridSnappedDistanceY: 0,
 };
 
 const actionsSlice = createSlice({
@@ -205,7 +214,19 @@ const actionsSlice = createSlice({
       if (action.payload) {
         state.mouseDown = true;
       }
-    }
+    },
+    setGridSnappedX: (state, action: PayloadAction<boolean>) => {
+      state.gridSnappedX = action.payload;
+    },
+    setGridSnappedY: (state, action: PayloadAction<boolean>) => {
+      state.gridSnappedY = action.payload;
+    },
+    setGridSnappedDistanceX: (state, action: PayloadAction<number>) => {
+      state.gridSnappedDistanceX = action.payload;
+    },
+    setGridSnappedDistanceY: (state, action: PayloadAction<number>) => {
+      state.gridSnappedDistanceY = action.payload;
+    },
   },
 });
 
@@ -230,6 +251,10 @@ export const {
   setInWhiteBoard,
   setSearchTerm,
   setMouseDown,
+  setGridSnappedX,
+  setGridSnappedY,
+  setGridSnappedDistanceX,
+  setGridSnappedDistanceY,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;

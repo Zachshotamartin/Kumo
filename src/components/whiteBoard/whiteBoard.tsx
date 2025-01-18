@@ -1,6 +1,6 @@
 // whiteBoard.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { throttle, debounce } from "lodash";
+import { throttle, debounce, last } from "lodash";
 
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
@@ -37,6 +37,10 @@ import {
   setResizingTop,
   setResizingBottom,
   setMouseDown,
+  setGridSnappedX,
+  setGridSnappedY,
+  setGridSnappedDistanceX,
+  setGridSnappedDistanceY,
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
@@ -101,7 +105,15 @@ const WhiteBoard = () => {
   const borderEndX = useSelector((state: any) => state.selected.borderEndX);
   const borderEndY = useSelector((state: any) => state.selected.borderEndY);
   const grid = useSelector((state: any) => state.actions.grid);
+  const gridSnappedX = useSelector((state: any) => state.actions.gridSnappedX);
+  const gridSnappedY = useSelector((state: any) => state.actions.gridSnappedY);
 
+  const gridSnappedDistanceX = useSelector(
+    (state: any) => state.actions.gridSnappedDistanceX
+  );
+  const gridSnappedDistanceY = useSelector(
+    (state: any) => state.actions.gridSnappedDistanceY
+  );
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
 
   const [prevMouseX, setPrevMouseX] = useState(0);
@@ -177,6 +189,65 @@ const WhiteBoard = () => {
   //     unsub();
   //   };
   // }, [docRef, dispatch]);
+
+  useEffect(() => {
+    // figure out when the the edge of the border hits the edge of another shape.
+    if (borderStartX === -100000 || borderStartY === -100000) {
+      return;
+    }
+    if (borderEndX === -100000 || borderEndY === -100000) {
+      return;
+    }
+
+    let intersectsX = false;
+    let intersectsY = false;
+    shapes.forEach((shape: Shape, index: number) => {
+      const middleOfShapeX = shape.x1 + Math.floor(shape.width / 2);
+      const middleOfBorderX =
+        borderStartX + Math.floor((borderEndX - borderStartX) / 2);
+      const middleOfShapeY = shape.y1 + Math.floor(shape.height / 2);
+      const middleOfBorderY =
+        borderStartY + Math.floor((borderEndY - borderStartY) / 2);
+      if (
+        (shape.x1 === borderStartX ||
+          shape.x1 === borderEndX ||
+          shape.x1 === middleOfBorderX ||
+          middleOfShapeX === borderStartX ||
+          middleOfShapeX === middleOfBorderX ||
+          middleOfShapeX === borderEndX ||
+          shape.x2 === borderStartX ||
+          shape.x2 === middleOfBorderX ||
+          shape.x2 === borderEndX) &&
+        !selectedShapes.includes(index)
+      ) {
+        intersectsX = true;
+        console.log("intersectedX");
+      }
+      if (
+        (shape.y1 === borderStartY ||
+          shape.y1 === borderEndY ||
+          shape.y1 === middleOfBorderY ||
+          middleOfShapeY === borderStartY ||
+          middleOfShapeY === middleOfBorderY ||
+          middleOfShapeY === borderEndY ||
+          shape.y2 === borderStartY ||
+          shape.y2 === middleOfBorderY ||
+          shape.y2 === borderEndY) &&
+        !selectedShapes.includes(index)
+      ) {
+        intersectsY = true;
+        console.log("intersectedY");
+      }
+    });
+    if (intersectsX) {
+      actionsDispatch(setGridSnappedX(true));
+      actionsDispatch(setGridSnappedDistanceX(0));
+    }
+    if (intersectsY) {
+      actionsDispatch(setGridSnappedY(true));
+      actionsDispatch(setGridSnappedDistanceY(0));
+    }
+  }, [borderStartX, borderStartY, borderEndX, borderEndY]);
 
   useEffect(() => {
     const generatePreview = () => {
@@ -609,13 +680,26 @@ const WhiteBoard = () => {
             selectedShapesArray.forEach((shape: Shape, index: number) => {
               const width = Math.abs(shape.x2 - shape.x1);
               const height = Math.abs(shape.y2 - shape.y1);
-
+              let offsetX = x - prevMouseX;
+              let offsetY = y - prevMouseY;
+              if (gridSnappedX) {
+                actionsDispatch(
+                  setGridSnappedDistanceX(offsetX + gridSnappedDistanceX)
+                );
+                offsetX = 0;
+              }
+              if (gridSnappedY) {
+                actionsDispatch(
+                  setGridSnappedDistanceY(offsetY + gridSnappedDistanceY)
+                );
+                offsetY = 0;
+              }
               const updatedShape: Shape = {
                 ...shape,
-                x1: shape.x1 + x - prevMouseX,
-                y1: shape.y1 + y - prevMouseY,
-                x2: shape.x2 + x - prevMouseX,
-                y2: shape.y2 + y - prevMouseY,
+                x1: shape.x1 + offsetX,
+                y1: shape.y1 + offsetY,
+                x2: shape.x2 + offsetX,
+                y2: shape.y2 + offsetY,
                 width,
                 height,
               };
@@ -628,7 +712,20 @@ const WhiteBoard = () => {
               );
             });
           }
-
+          if (
+            (gridSnappedX && gridSnappedDistanceX >= 2) ||
+            gridSnappedDistanceX <= -2
+          ) {
+            actionsDispatch(setGridSnappedX(false));
+            actionsDispatch(setGridSnappedDistanceX(0));
+          }
+          if (
+            gridSnappedY &&
+            (gridSnappedDistanceY >= 2 || gridSnappedDistanceY <= -2)
+          ) {
+            actionsDispatch(setGridSnappedY(false));
+            actionsDispatch(setGridSnappedDistanceY(0));
+          }
           setPrevMouseX(x);
           setPrevMouseY(y);
         }
@@ -639,10 +736,24 @@ const WhiteBoard = () => {
 
         if (dragging && resizing) {
           selectedShapesArray.forEach((shape: Shape, index: number) => {
-            const x1 = resizingLeft ? shape.x1 + x - prevMouseX : shape.x1;
-            const y1 = resizingTop ? shape.y1 + y - prevMouseY : shape.y1;
-            const x2 = resizingRight ? shape.x2 + x - prevMouseX : shape.x2;
-            const y2 = resizingBottom ? shape.y2 + y - prevMouseY : shape.y2;
+            let offsetX = x - prevMouseX;
+            let offsetY = y - prevMouseY;
+            if (gridSnappedX) {
+              actionsDispatch(
+                setGridSnappedDistanceX(offsetX + gridSnappedDistanceX)
+              );
+              offsetX = 0;
+            }
+            if (gridSnappedY) {
+              actionsDispatch(
+                setGridSnappedDistanceY(offsetY + gridSnappedDistanceY)
+              );
+              offsetY = 0;
+            }
+            const x1 = resizingLeft ? shape.x1 + offsetX : shape.x1;
+            const y1 = resizingTop ? shape.y1 + offsetY : shape.y1;
+            const x2 = resizingRight ? shape.x2 + offsetX : shape.x2;
+            const y2 = resizingBottom ? shape.y2 + offsetY : shape.y2;
             const width = Math.abs(x2 - x1);
             const height = Math.abs(y2 - y1);
 
@@ -663,24 +774,67 @@ const WhiteBoard = () => {
               })
             );
           });
+          if (
+            gridSnappedX &&
+            (gridSnappedDistanceX >= 2 || gridSnappedDistanceX <= -2)
+          ) {
+            actionsDispatch(setGridSnappedX(false));
+            actionsDispatch(setGridSnappedDistanceX(0));
+          }
+          if (
+            gridSnappedY &&
+            (gridSnappedDistanceY >= 2 || gridSnappedDistanceY <= -2)
+          ) {
+            actionsDispatch(setGridSnappedY(false));
+            actionsDispatch(setGridSnappedDistanceY(0));
+          }
           setPrevMouseX(x);
           setPrevMouseY(y);
         }
 
         if (drawing) {
           const lastShape = shapes[shapes.length - 1];
+          let offsetX = x - lastShape.x2;
+          let offsetY = y - lastShape.y2;
+          if (gridSnappedX) {
+            actionsDispatch(
+              setGridSnappedDistanceX(offsetX + gridSnappedDistanceX)
+            );
+            offsetX = 0;
+          }
+          if (gridSnappedY) {
+            actionsDispatch(
+              setGridSnappedDistanceY(offsetY + gridSnappedDistanceY)
+            );
+            offsetY = 0;
+          }
 
           const updatedShape: Shape = {
             ...lastShape,
-            x2: x,
-            y2: y,
-            width: Math.abs(x - lastShape.x1),
-            height: Math.abs(y - lastShape.y1),
+            x2: lastShape.x2 + offsetX,
+            y2: lastShape.y2 + offsetY,
+            width: Math.abs(lastShape.x2 + offsetX - lastShape.x1),
+            height: Math.abs(lastShape.y2 + offsetY - lastShape.y1),
             rotation: 0,
           };
           dispatch(
             updateShape({ index: shapes.length - 1, update: updatedShape })
           );
+
+          if (
+            gridSnappedX &&
+            (gridSnappedDistanceX >= 2 || gridSnappedDistanceX <= -2)
+          ) {
+            actionsDispatch(setGridSnappedX(false));
+            actionsDispatch(setGridSnappedDistanceX(0));
+          }
+          if (
+            gridSnappedY &&
+            (gridSnappedDistanceY >= 2 || gridSnappedDistanceY <= -2)
+          ) {
+            actionsDispatch(setGridSnappedY(false));
+            actionsDispatch(setGridSnappedDistanceY(0));
+          }
         }
       }, 10),
       10
