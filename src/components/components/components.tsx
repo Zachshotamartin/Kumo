@@ -13,41 +13,66 @@ const Components = () => {
   const dispatch = useDispatch();
   const board = useSelector((state: any) => state.whiteBoard);
   const shapes = board.shapes;
-  const selectedShape = useSelector(
+  const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
   const window = useSelector((state: any) => state.window);
 
-  const handleClick = (index: number) => {
-    dispatch(setSelectedShapes([index]));
-    const windowX1 = window.x1;
-    const windowY1 = window.y1;
-    const windowX2 = window.x2;
-    const windowY2 = window.y2;
+  const handleClick = (
+    index: number,
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    if (event.shiftKey && !event.metaKey) {
+      // selecte everything between the two indices
 
-    const windowWidth = window.width;
-    const windowHeight = window.height;
-    const shapeX1 = shapes[index].x1;
-    const shapeY1 = shapes[index].y1;
-    const shapeX2 = shapes[index].x2;
-    const shapeY2 = shapes[index].y2;
-
-    const isIntersecting =
-      shapeX1 < windowX2 &&
-      shapeX2 > windowX1 &&
-      shapeY1 < windowY2 &&
-      shapeY2 > windowY1;
-
-    if (!isIntersecting) {
-      dispatch(
-        setWindow({
-          ...window,
-          x1: shapeX1 - windowWidth / 2 + shapes[index].width / 2,
-          y1: shapeY1 - windowHeight / 2 + shapes[index].height / 2,
-          x2: shapeX1 + windowWidth / 2 + shapes[index].width / 2,
-          y2: shapeY1 + windowHeight / 2 + shapes[index].height / 2,
-        })
+      const min = selectedShapes.reduce((a: number, b: number) =>
+        Math.min(a, b)
       );
+      const max = selectedShapes.reduce((a: number, b: number) =>
+        Math.max(a, b)
+      );
+      const start = Math.min(index, min);
+      const end = Math.max(index, max);
+
+      const selected: number[] = [];
+      for (let i = start; i <= end; i++) {
+        selected.push(i);
+      }
+      dispatch(setSelectedShapes(selected));
+    } else if (event.metaKey && !event.shiftKey) {
+      // adds the index to selectedShapes
+      dispatch(setSelectedShapes([...selectedShapes, index]));
+    } else {
+      dispatch(setSelectedShapes([index]));
+      const windowX1 = window.x1;
+      const windowY1 = window.y1;
+      const windowX2 = window.x2;
+      const windowY2 = window.y2;
+
+      const windowWidth = window.width;
+      const windowHeight = window.height;
+      const shapeX1 = shapes[index].x1;
+      const shapeY1 = shapes[index].y1;
+      const shapeX2 = shapes[index].x2;
+      const shapeY2 = shapes[index].y2;
+
+      const isIntersecting =
+        shapeX1 < windowX2 &&
+        shapeX2 > windowX1 &&
+        shapeY1 < windowY2 &&
+        shapeY2 > windowY1;
+
+      if (!isIntersecting) {
+        dispatch(
+          setWindow({
+            ...window,
+            x1: shapeX1 - windowWidth / 2 + shapes[index].width / 2,
+            y1: shapeY1 - windowHeight / 2 + shapes[index].height / 2,
+            x2: shapeX1 + windowWidth / 2 + shapes[index].width / 2,
+            y2: shapeY1 + windowHeight / 2 + shapes[index].height / 2,
+          })
+        );
+      }
     }
   };
   return (
@@ -68,17 +93,15 @@ const Components = () => {
                 ? rectangle
                 : shape.type === "ellipse"
                 ? ellipse
-                : shape.type === "board"
-                ? recursive
                 : ""
             }
             alt={shape.type}
           />
           <h6
             className={
-              selectedShape.includes(index) ? styles.selected : styles.text
+              selectedShapes.includes(index) ? styles.selected : styles.text
             }
-            onClick={() => handleClick(index)}
+            onClick={(event) => handleClick(index, event)}
           >
             {shape.type}
           </h6>

@@ -431,6 +431,11 @@ const WhiteBoard = () => {
         ) {
           // if cursor is within a shape.
           selected = i;
+          if (e.shiftKey) {
+            if (!selectedShapes.includes(i)) {
+              dispatch(setSelectedShapes([...selectedShapes, i]));
+            }
+          }
           actionsDispatch(setDrawing(false));
         }
       }
@@ -523,8 +528,14 @@ const WhiteBoard = () => {
 
         if (!selectedShapes.includes(selected)) {
           // if something is selected but not already within the bounding box
-          console.log("selected Shapes", selected);
-          dispatch(setSelectedShapes([selected]));
+          if (e.shiftKey) {
+            console.log("shift key is pressed");
+            dispatch(setSelectedShapes([...selectedShapes, selected]));
+          }
+          if (!e.shiftKey) {
+            console.log("selected Shapes", selected);
+            dispatch(setSelectedShapes([selected]));
+          }
         }
       } else {
         if (
