@@ -50,6 +50,18 @@ const FontStyles = () => {
       })
     );
   };
+  useEffect(() => {
+    updateTextStyling();
+  }, [
+    fontSize,
+    fontFamily,
+    fontWeight,
+    textAlign,
+    alignItems,
+    textDecoration,
+    lineHeight,
+    letterSpacing,
+  ]);
 
   useEffect(() => {
     setFontSize(selectedShape.fontSize);

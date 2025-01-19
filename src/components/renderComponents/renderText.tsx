@@ -175,16 +175,17 @@ const RenderText = () => {
                       ? "0 0 0 0"
                       : shape.alignItems === "flex-end"
                       ? `${
-                          shape.height / window.percentZoomed -
-                          (shape.lineHeight * shape.rows) / window.percentZoomed
+                          (shape.height - shape.fontSize) / window.percentZoomed
                         }px 0 0 0`
                       : shape.alignItems === "center"
                       ? `${
-                          shape.height / 2 / window.percentZoomed -
-                          shape.lineHeight / 2 / window.percentZoomed
+                          (shape.height - shape.fontSize) /
+                          2 /
+                          window.percentZoomed
                         }px 0 ${
-                          shape.height / 2 / window.percentZoomed -
-                          shape.lineHeight / 2 / window.percentZoomed
+                          (shape.height - shape.fontSize) /
+                          2 /
+                          window.percentZoomed
                         }px 0`
                       : "0 0 0 0",
 
@@ -204,6 +205,7 @@ const RenderText = () => {
                     shape.letterSpacing / window.percentZoomed
                   }px`,
                   color: `${shape.color}`,
+                  verticalAlign: "center",
                 }}
                 value={shape.text}
                 onChange={(e) => {
