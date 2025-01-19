@@ -1,0 +1,23 @@
+.contextMenu {
+  position: absolute;
+  background-color: #444444;
+  border: 1px solid #b4b4b42b;
+  padding: 10px;
+  font-size: 14px;
+  z-index: 105;
+}
+
+.contextMenu ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.contextMenu li {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.contextMenu li:hover {
+  background-color: #f0f0f0;
+}

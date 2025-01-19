@@ -61,6 +61,7 @@ import RenderImages from "../renderComponents/renderImages";
 import RenderCalendars from "../renderComponents/renderCalendars";
 import RenderHoverBorder from "../renderComponents/renderHoverBorder";
 import RenderSnappingGuides from "../renderComponents/renderSnappingGuides";
+import ContextMenu from "../contextMenu/contextMenu";
 import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
 import image from "../../res/image.png";
@@ -82,7 +83,6 @@ const WhiteBoard = () => {
     (state: any) => state.selected.selectedShapes
   );
   const selectedTool = useSelector((state: any) => state.selected.selectedTool);
-
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
   const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
@@ -99,13 +99,11 @@ const WhiteBoard = () => {
   const resizingBottom = useSelector(
     (state: any) => state.actions.resizingBottom
   );
-
   const doubleClicking = useSelector(
     (state: any) => state.actions.doubleClicking
   );
   const moving = useSelector((state: any) => state.actions.moving);
   const highlighting = useSelector((state: any) => state.actions.highlighting);
-
   const borderStartX = useSelector((state: any) => state.selected.borderStartX);
   const borderStartY = useSelector((state: any) => state.selected.borderStartY);
   const borderEndX = useSelector((state: any) => state.selected.borderEndX);
@@ -113,7 +111,6 @@ const WhiteBoard = () => {
   const grid = useSelector((state: any) => state.actions.grid);
   const gridSnappedX = useSelector((state: any) => state.actions.gridSnappedX);
   const gridSnappedY = useSelector((state: any) => state.actions.gridSnappedY);
-
   const gridSnappedDistanceX = useSelector(
     (state: any) => state.actions.gridSnappedDistanceX
   );
@@ -124,13 +121,17 @@ const WhiteBoard = () => {
 
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
-
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
     null
   ); // Offset between cursor and shape position
+  const [contextMenuVisible, setContextMenuVisible] = useState(false);
+  const [contextMenuX, setContextMenuX] = useState(0);
+  const [contextMenuY, setContextMenuY] = useState(0);
+  const [contextMenuLabels, setContextMenuLabels] = useState<
+    { label: string; onClick: () => void }[]
+  >([]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
   const usersCollectionRef = collection(db, "users");
 
   useEffect(() => {
@@ -409,6 +410,13 @@ const WhiteBoard = () => {
     if (target.closest("button")) {
       return; // Ignore clicks on buttons
     }
+    if (document.getElementById("contextMenu") === target) {
+      return;
+    }
+    // if (contextMenuVisible) {
+    //   setContextMenuVisible(false);
+    // }
+
     actionsDispatch(setMouseDown(true));
     const boundingRect = canvasRef.current?.getBoundingClientRect();
     const x = Math.round(
@@ -1030,6 +1038,100 @@ const WhiteBoard = () => {
     }
   };
 
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    const boundingRect = canvasRef.current?.getBoundingClientRect();
+    const x = Math.round(
+      (event.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+        window.x1
+    );
+    const y = Math.round(
+      (event.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+        window.y1
+    );
+    let contextMenuLabels: { label: string; onClick: () => void }[] = [];
+
+    const target = event.target as HTMLElement;
+    console.log(x, y);
+
+    if (
+      x > borderStartX &&
+      x < borderEndX &&
+      y > borderStartY &&
+      y < borderEndY
+    ) {
+      console.log("inside border");
+      contextMenuLabels = [
+        {
+          label: "delete",
+          onClick: () => {
+            event.preventDefault();
+            if (selectedShapes.length > 0) {
+              const shapesCopy = [...selectedShapes];
+              const newShapes = shapesCopy.sort(
+                (a: number, b: number) => b - a
+              );
+
+              newShapes.forEach((index: number) => {
+                dispatch(removeShape(index));
+              });
+              dispatch(clearSelectedShapes());
+            }
+          },
+        },
+        {
+          label: "copy",
+          onClick: () => {
+            const copiedData = selectedShapes.map((index: number) => {
+              return shapes[index];
+            });
+            navigator.clipboard.writeText(JSON.stringify(copiedData));
+          },
+        },
+      ];
+    } else {
+      console.log("outside border");
+      contextMenuLabels = [
+        {
+          label: "paste",
+          onClick: () => {
+            navigator.clipboard.readText().then((copiedData) => {
+              const pastedShapes = JSON.parse(copiedData);
+              pastedShapes.forEach((shape: Shape) => {
+                dispatch(addShape(shape));
+              });
+            });
+          },
+        },
+        {
+          label: "undo",
+          onClick: () => {
+            if (history.currentIndex > 0) {
+              dispatch(undo());
+            }
+          },
+        },
+        {
+          label: "redo",
+          onClick: () => {
+            if (history.currentIndex < history.history.length - 1) {
+              dispatch(redo());
+            }
+          },
+        },
+      ];
+    }
+
+    event.preventDefault();
+    setContextMenuVisible(true);
+    setContextMenuLabels(contextMenuLabels);
+    setContextMenuX(event.clientX);
+    setContextMenuY(event.clientY);
+  };
+  const handleContextMenuClose = () => {
+    console.log("close context menu");
+    setContextMenuVisible(false);
+  };
+
   return (
     <div
       id="whiteboard"
@@ -1045,6 +1147,7 @@ const WhiteBoard = () => {
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
+      onContextMenu={handleContextMenu}
     >
       {grid && <RenderGridLines />}
       <RenderBoxes />
@@ -1059,6 +1162,15 @@ const WhiteBoard = () => {
       <RenderSnappingGuides />
 
       <BottomBar />
+
+      {contextMenuVisible && (
+        <ContextMenu
+          x={contextMenuX}
+          y={contextMenuY}
+          labels={contextMenuLabels}
+          onClose={handleContextMenuClose}
+        />
+      )}
     </div>
   );
 };

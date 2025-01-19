@@ -4,7 +4,7 @@ import {
   updateShape,
 } from "../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../store";
-
+import { clearSelectedShapes } from "../features/selected/selectedSlice";
 export const useDeleteSelectedShapes = () => {
   const dispatch = useDispatch<AppDispatch>();
   const selectedShapes = useSelector(
@@ -21,6 +21,7 @@ export const useDeleteSelectedShapes = () => {
         dispatch(removeShape(index));
       });
       // Update the z-indices of the remaining shapes
+      dispatch(clearSelectedShapes());
     }
   };
 

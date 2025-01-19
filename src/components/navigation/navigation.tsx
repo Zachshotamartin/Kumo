@@ -32,6 +32,11 @@ import { removeBoardImage } from "../../features/boardImages/boardImages";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 
+
+
+
+
+
 const Navigation = () => {
   const user = useSelector((state: any) => state.auth);
   const grid = useSelector((state: any) => state.actions.grid);
@@ -47,6 +52,7 @@ const Navigation = () => {
     dispatch(setHideSideBar(!hidden));
     dispatch(setSettingsOpen(false));
   };
+
   const handleHome = () => {
     const data = {
       shapes: [],
@@ -64,6 +70,7 @@ const Navigation = () => {
     appDispatch(setWhiteboardData(data));
     dispatch(setUserOpen(false));
   };
+
 
   const handleMakePublic = async () => {
     if (whiteboard.type === "public") {
@@ -194,6 +201,28 @@ const Navigation = () => {
     dispatch(setSettingsOpen(false));
   };
 
+  const handleLogout = () => {
+    dispatch(removeBoardImage(whiteboard.id));
+    dispatch(setUserOpen(false));
+    const data = {
+      shapes: [],
+      title: "",
+      type: null,
+      selectedShape: null,
+      uid: auth.currentUser?.uid,
+      id: null,
+      sharedWith: [],
+      backGroundColor: "",
+    };
+
+    dispatch(clearSelectedShapes());
+    dispatch(setInWhiteBoard(false));
+    dispatch(setSharing(false));
+    appDispatch(setWhiteboardData(data));
+    appDispatch(resetHistory());
+    auth.signOut();
+    dispatch(logout());
+  };
   const handleClickSettings = () => {
     dispatch(setSettingsOpen(!settingsOpen));
     dispatch(setUserOpen(false));
@@ -222,31 +251,7 @@ const Navigation = () => {
             </button>
           )}
           {whiteboard.id !== null && (
-            <button
-              className={styles.hide}
-              onClick={() => {
-                dispatch(removeBoardImage(whiteboard.id));
-                dispatch(setUserOpen(false));
-                const data = {
-                  shapes: [],
-                  title: "",
-                  type: null,
-                  selectedShape: null,
-                  uid: auth.currentUser?.uid,
-                  id: null,
-                  sharedWith: [],
-                  backGroundColor: "",
-                };
-
-                dispatch(clearSelectedShapes());
-                dispatch(setInWhiteBoard(false));
-                dispatch(setSharing(false));
-                appDispatch(setWhiteboardData(data));
-                appDispatch(resetHistory());
-                auth.signOut();
-                dispatch(logout());
-              }}
-            >
+            <button className={styles.hide} onClick={handleLogout}>
               <h6>Logout</h6>
             </button>
           )}
@@ -356,5 +361,4 @@ const Navigation = () => {
     </div>
   );
 };
-
 export default Navigation;
