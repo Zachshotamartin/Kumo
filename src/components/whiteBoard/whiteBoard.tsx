@@ -376,7 +376,7 @@ const WhiteBoard = () => {
             dispatch(clearSelectedShapes());
           }
         }
-      } else if (event.metaKey && event.key === "z") {
+      } else if ((event.metaKey || event.ctrlKey) && event.key === "z") {
         // Undo/Redo: Command + Z
 
         if (event.shiftKey) {

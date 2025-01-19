@@ -20,7 +20,7 @@ const OptionsBar = () => {
   const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
     selectedIdx
   ];
-  const [left, setLeft] = useState(85); // Initial left position in percentage
+  const [left, setLeft] = useState(75); // Initial left position in percentage
   const [dragging, setDragging] = useState(false);
   const [startX, setStartX] = useState(0); // Track starting position of drag
   const [startLeft, setStartLeft] = useState(left); // Track starting left value
