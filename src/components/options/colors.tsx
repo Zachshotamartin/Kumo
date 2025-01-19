@@ -27,15 +27,7 @@ const Colors = () => {
         },
       })
     );
-    // dispatch(
-    //   updateHistory([
-    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
-    //     {
-    //       ...selectedShape,
-    //       color: color,
-    //     },
-    //   ])
-    // );
+    
   };
 
   const updateBackgroundColor = (color: string) => {
@@ -47,15 +39,7 @@ const Colors = () => {
         },
       })
     );
-    // dispatch(
-    //   updateHistory([
-    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
-    //     {
-    //       ...selectedShape,
-    //       backgroundColor: color,
-    //     },
-    //   ])
-    // );
+    
   };
 
   const updateBorderColor = (color: string) => {
@@ -67,15 +51,7 @@ const Colors = () => {
         },
       })
     );
-    // dispatch(
-    //   updateHistory([
-    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
-    //     {
-    //       ...selectedShape,
-    //       borderColor: color,
-    //     },
-    //   ])
-    // );
+    
   };
   useEffect(() => {
     setColor(selectedShape.color);
@@ -136,15 +112,7 @@ const Colors = () => {
         },
       })
     );
-    // dispatch(
-    //   updateHistory([
-    //     ...shapes.filter((shape: any, index: number) => index !== selectedIdx),
-    //     {
-    //       ...selectedShape,
-    //       opacity: opacity,
-    //     },
-    //   ])
-    // );
+  
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

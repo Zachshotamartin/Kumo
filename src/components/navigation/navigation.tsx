@@ -9,7 +9,7 @@ import { setHideSideBar } from "../../features/hide/hide";
 import { logout } from "../../features/auth/authSlice";
 import { AppDispatch } from "../../store";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
-
+import { resetHistory } from "../../features/shapeHistory/shapeHistorySlice";
 import {
   collection,
   doc,
@@ -56,6 +56,7 @@ const Navigation = () => {
       id: null,
       sharedWith: [],
     };
+    appDispatch(resetHistory());
     dispatch(setSharing(false));
     dispatch(setInWhiteBoard(false));
     dispatch(removeBoardImage(whiteboard.id));
@@ -241,6 +242,7 @@ const Navigation = () => {
                 dispatch(setInWhiteBoard(false));
                 dispatch(setSharing(false));
                 appDispatch(setWhiteboardData(data));
+                appDispatch(resetHistory());
                 auth.signOut();
                 dispatch(logout());
               }}

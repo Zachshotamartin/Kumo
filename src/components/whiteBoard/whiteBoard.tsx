@@ -450,7 +450,7 @@ const WhiteBoard = () => {
         let resizing = false;
         if (selectedShapes.length > 0) {
           if (
-            x >= borderEndX - 4 / window.percentZoomed &&
+            x >= borderEndX - 10 / window.percentZoomed &&
             x <= borderEndX &&
             y <= borderEndY &&
             y >= borderStartY
@@ -460,7 +460,7 @@ const WhiteBoard = () => {
           }
           if (
             x >= borderStartX &&
-            x <= borderStartX + 4 / window.percentZoomed &&
+            x <= borderStartX + 10 / window.percentZoomed &&
             y <= borderEndY &&
             y >= borderStartY
           ) {
@@ -468,7 +468,7 @@ const WhiteBoard = () => {
             actionsDispatch(setResizingLeft(true));
           }
           if (
-            y >= borderEndY - 4 / window.percentZoomed &&
+            y >= borderEndY - 10 / window.percentZoomed &&
             y <= borderEndY &&
             x <= borderEndX &&
             x >= borderStartX
@@ -478,7 +478,7 @@ const WhiteBoard = () => {
           }
           if (
             y >= borderStartY &&
-            y <= borderStartY + 4 / window.percentZoomed &&
+            y <= borderStartY + 10 / window.percentZoomed &&
             x <= borderEndX &&
             x >= borderStartX
           ) {
@@ -486,10 +486,10 @@ const WhiteBoard = () => {
             actionsDispatch(setResizingTop(true));
           }
           if (
-            x >= borderStartX + 4 / window.percentZoomed &&
-            x <= borderEndX - 4 / window.percentZoomed &&
-            y >= borderStartY + 4 / window.percentZoomed &&
-            y <= borderEndY - 4 / window.percentZoomed
+            x >= borderStartX + 10 / window.percentZoomed &&
+            x <= borderEndX - 10 / window.percentZoomed &&
+            y >= borderStartY + 10 / window.percentZoomed &&
+            y <= borderEndY - 10 / window.percentZoomed
           ) {
             actionsDispatch(setDragging(true));
             actionsDispatch(setMoving(true));
@@ -640,47 +640,47 @@ const WhiteBoard = () => {
 
         if (selectedShapesArray.length > 0) {
           if (
-            (x >= borderEndX - 4 / window.percentZoomed &&
+            (x >= borderEndX - 10 / window.percentZoomed &&
               x <= borderEndX &&
-              y <= borderEndY - 4 / window.percentZoomed &&
-              y >= borderStartY + 4 / window.percentZoomed) ||
+              y <= borderEndY - 10 / window.percentZoomed &&
+              y >= borderStartY + 10 / window.percentZoomed) ||
             (x >= borderStartX &&
-              x <= borderStartX + 4 / window.percentZoomed &&
-              y <= borderEndY - 4 / window.percentZoomed &&
-              y >= borderStartY + 4 / window.percentZoomed)
+              x <= borderStartX + 10 / window.percentZoomed &&
+              y <= borderEndY - 10 / window.percentZoomed &&
+              y >= borderStartY + 10 / window.percentZoomed)
           ) {
             (e.target as HTMLElement).style.cursor = "ew-resize";
           } else if (
-            (y >= borderEndY - 4 / window.percentZoomed &&
+            (y >= borderEndY - 10 / window.percentZoomed &&
               y <= borderEndY &&
-              x <= borderEndX - 4 / window.percentZoomed &&
-              x >= borderStartX + 4 / window.percentZoomed) ||
+              x <= borderEndX - 10 / window.percentZoomed &&
+              x >= borderStartX + 10 / window.percentZoomed) ||
             (y >= borderStartY &&
-              y <= borderStartY + 4 / window.percentZoomed &&
-              x <= borderEndX - 4 / window.percentZoomed &&
-              x >= borderStartX + 4 / window.percentZoomed)
+              y <= borderStartY + 10 / window.percentZoomed &&
+              x <= borderEndX - 10 / window.percentZoomed &&
+              x >= borderStartX + 10 / window.percentZoomed)
           ) {
             (e.target as HTMLElement).style.cursor = "ns-resize";
           } else if (
             (x >= borderStartX &&
-              x <= borderStartX + 4 / window.percentZoomed &&
+              x <= borderStartX + 10 / window.percentZoomed &&
               y >= borderStartY &&
-              y <= borderStartY + 4 / window.percentZoomed) ||
-            (x >= borderEndX - 4 / window.percentZoomed &&
+              y <= borderStartY + 10 / window.percentZoomed) ||
+            (x >= borderEndX - 10 / window.percentZoomed &&
               x <= borderEndX &&
-              y >= borderEndY - 4 / window.percentZoomed &&
+              y >= borderEndY - 10 / window.percentZoomed &&
               y <= borderEndY)
           ) {
             (e.target as HTMLElement).style.cursor = "nwse-resize";
           } else if (
             (x >= borderStartX &&
-              x <= borderStartX + 4 / window.percentZoomed &&
-              y >= borderEndY - 4 / window.percentZoomed &&
+              x <= borderStartX + 10 / window.percentZoomed &&
+              y >= borderEndY - 10 / window.percentZoomed &&
               y <= borderEndY) ||
-            (x >= borderEndX - 4 / window.percentZoomed &&
+            (x >= borderEndX - 10 / window.percentZoomed &&
               x <= borderEndX &&
               y >= borderStartY &&
-              y <= borderStartY + 4 / window.percentZoomed)
+              y <= borderStartY + 10 / window.percentZoomed)
           ) {
             (e.target as HTMLElement).style.cursor = "nesw-resize";
           } else {
@@ -726,15 +726,17 @@ const WhiteBoard = () => {
             });
           }
           if (
-            (gridSnappedX && gridSnappedDistanceX >= 2) ||
-            gridSnappedDistanceX <= -2
+            gridSnappedX &&
+            (gridSnappedDistanceX / window.percentZoomed >= 5 ||
+              gridSnappedDistanceX / window.percentZoomed <= -5)
           ) {
             actionsDispatch(setGridSnappedX(false));
             actionsDispatch(setGridSnappedDistanceX(0));
           }
           if (
             gridSnappedY &&
-            (gridSnappedDistanceY >= 2 || gridSnappedDistanceY <= -2)
+            (gridSnappedDistanceY / window.percentZoomed >= 5 ||
+              gridSnappedDistanceY / window.percentZoomed <= -5)
           ) {
             actionsDispatch(setGridSnappedY(false));
             actionsDispatch(setGridSnappedDistanceY(0));
@@ -789,14 +791,16 @@ const WhiteBoard = () => {
           });
           if (
             gridSnappedX &&
-            (gridSnappedDistanceX >= 2 || gridSnappedDistanceX <= -2)
+            (gridSnappedDistanceX / window.percentZoomed >= 5 ||
+              gridSnappedDistanceX / window.percentZoomed <= -5)
           ) {
             actionsDispatch(setGridSnappedX(false));
             actionsDispatch(setGridSnappedDistanceX(0));
           }
           if (
             gridSnappedY &&
-            (gridSnappedDistanceY >= 2 || gridSnappedDistanceY <= -2)
+            (gridSnappedDistanceY / window.percentZoomed >= 5 ||
+              gridSnappedDistanceY / window.percentZoomed <= -5)
           ) {
             actionsDispatch(setGridSnappedY(false));
             actionsDispatch(setGridSnappedDistanceY(0));
@@ -836,14 +840,16 @@ const WhiteBoard = () => {
 
           if (
             gridSnappedX &&
-            (gridSnappedDistanceX >= 2 || gridSnappedDistanceX <= -2)
+            (gridSnappedDistanceX / window.percentZoomed >= 5 ||
+              gridSnappedDistanceX / window.percentZoomed <= -5)
           ) {
             actionsDispatch(setGridSnappedX(false));
             actionsDispatch(setGridSnappedDistanceX(0));
           }
           if (
             gridSnappedY &&
-            (gridSnappedDistanceY >= 2 || gridSnappedDistanceY <= -2)
+            (gridSnappedDistanceY / window.percentZoomed >= 5 ||
+              gridSnappedDistanceY / window.percentZoomed <= -5)
           ) {
             actionsDispatch(setGridSnappedY(false));
             actionsDispatch(setGridSnappedDistanceY(0));

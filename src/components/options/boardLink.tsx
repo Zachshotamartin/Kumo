@@ -58,37 +58,24 @@ const BoardLink = () => {
                   },
                 })
               );
-              // console.log("updateding history history");
-              // dispatch(
-              //   updateHistory([
-              //     ...shapes.filter(
-              //       (shape: any, index: number) => index !== selectedIdx
-              //     ),
-              //     {
-              //       ...selectedShape,
-              //       id: selectedBoard.id,
-              //       uid: selectedBoard.uid,
-              //       title: selectedBoard.title,
-              //     },
-              //   ])
-              // );
+             
               setSelectedValue(selectedBoardId);
             }}
           >
             <option value="none">none</option>
             {boardChoices.publicBoards.map((board: any, index: number) => (
               <option key={index} value={board.id}>
-                <h6>{board.title + " (public)"}</h6>
+                {board.title + " (public)"}
               </option>
             ))}
             {boardChoices.privateBoards.map((board: any, index: number) => (
               <option key={index} value={board.id}>
-                <h6>{board.title + " (private)"}</h6>
+                {board.title + " (private)"}
               </option>
             ))}
             {boardChoices.sharedBoards.map((board: any, index: number) => (
               <option key={index} value={board.id}>
-                <h6>{board.title + " (shared)"}</h6>
+                {board.title + " (shared)"}
               </option>
             ))}
           </select>

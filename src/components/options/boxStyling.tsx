@@ -77,15 +77,9 @@ const BoxStyling = () => {
             className={styles.dropdown}
             onChange={(e) => setBorderStyle(e.target.value)}
           >
-            <option value="solid">
-              <h6>Solid</h6>
-            </option>
-            <option value="dashed">
-              <h6>Dashed</h6>
-            </option>
-            <option value="dotted">
-              <h6>Dotted</h6>
-            </option>
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
           </select>
         </div>
       </div>

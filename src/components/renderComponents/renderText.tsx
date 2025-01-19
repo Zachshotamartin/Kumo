@@ -161,6 +161,7 @@ const RenderText = () => {
               onMouseLeave={handleMouseLeave}
             >
               <textarea
+                key={index}
                 ref={(el) => (textareaRefs.current[index] = el)}
                 style={{
                   display: "flex",

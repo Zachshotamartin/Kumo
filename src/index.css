@@ -60,6 +60,9 @@ h5 {
 h6 {
   font-size: 1rem;
 }
+option {
+  font-size: 1rem;
+}
 
 p {
   font-size: 1rem;
@@ -175,6 +178,9 @@ body {
   input {
     font-size: 0.875rem;
   }
+  option {
+    font-size: 0.875rem;
+  }
 }
 
 @media (max-width: 992px) {
@@ -200,6 +206,9 @@ body {
     font-size: 0.75rem;
   }
   input {
+    font-size: 0.75rem;
+  }
+  option {
     font-size: 0.75rem;
   }
 }
@@ -229,6 +238,9 @@ body {
   input {
     font-size: 0.7rem;
   }
+  option {
+    font-size: 0.7rem;
+  }
 }
 
 @media (max-width: 576px) {
@@ -254,6 +266,9 @@ body {
     font-size: 0.65rem;
   }
   input {
+    font-size: 0.65rem;
+  }
+  option {
     font-size: 0.65rem;
   }
 }

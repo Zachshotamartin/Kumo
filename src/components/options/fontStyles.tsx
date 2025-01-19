@@ -100,18 +100,10 @@ const FontStyles = () => {
             onChange={(e) => setFontWeight(e.target.value)}
             className={styles.dropdown}
           >
-            <option value="lighter">
-              <h6>lighter</h6>
-            </option>
-            <option value="normal">
-              <h6>normal</h6>
-            </option>
-            <option value="bold">
-              <h6>bold</h6>
-            </option>
-            <option value="bolder">
-              <h6>bolder</h6>
-            </option>
+            <option value="lighter">lighter</option>
+            <option value="normal">normal</option>
+            <option value="bold">bold</option>
+            <option value="bolder">bolder</option>
           </select>
         </div>
       </div>
@@ -123,15 +115,9 @@ const FontStyles = () => {
             className={styles.dropdown}
             onChange={(e) => setFontFamily(e.target.value)}
           >
-            <option value="Arial">
-              <h6>Arial</h6>
-            </option>
-            <option value="Times New Roman">
-              <h6>Times New Roman</h6>
-            </option>
-            <option value="Verdana">
-              <h6>Verdana</h6>
-            </option>
+            <option value="Arial">Arial</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Verdana">Verdana</option>
           </select>
         </div>
       </div>

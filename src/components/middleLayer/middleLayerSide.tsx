@@ -101,30 +101,6 @@ const MiddleLayerSide = () => {
       console.error("Error creating board:", error);
     }
   };
-  const getStorageImageById = async (id: string) => {
-    const storageRef = ref(storage, `boardPreviews/${id}.jpg`);
-    return await getDownloadURL(storageRef);
-  };
-
-  useEffect(() => {
-    const boards = [...publicBoards, ...privateBoards, ...sharedBoards];
-    const fetchImageUrls = async () => {
-      for (const board of boards) {
-        try {
-          if (boardImages.some((image: any) => image.id === board.id)) {
-            // look at this please
-            throw new Error("Image already exists");
-          }
-          const url = await getStorageImageById(board.id);
-          dispatch(addBoardImage({ id: board.id, url: url }));
-        } catch (error) {
-          console.error(`Failed to fetch image for board ${board.id}:`, error);
-        }
-      }
-    };
-
-    fetchImageUrls();
-  }, [publicBoards, privateBoards, sharedBoards, boardImages, dispatch]);
 
   const handleClick = async (board: string, type: string) => {
     if (!board) {

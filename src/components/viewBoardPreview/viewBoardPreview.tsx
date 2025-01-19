@@ -1,5 +1,4 @@
 import styles from "./viewBoardPreview.module.css";
-import boardImage from "../../res/recursive.png";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import {
   addDoc,
@@ -14,6 +13,7 @@ import {
 import { db } from "../../config/firebase";
 import { AppDispatch } from "../../store";
 import { useDispatch, useSelector } from "react-redux";
+import defaultImage from "../../res/default.jpg";
 
 const ViewBoardPreview = (props: { boards: any }) => {
   const boards = props.boards;
@@ -137,7 +137,7 @@ const ViewBoardPreview = (props: { boards: any }) => {
             <img
               src={
                 boardImages.find((image: any) => image.id === board.id)?.url ||
-                boardImage
+                defaultImage
               }
               className={styles.boardImage}
               alt={board.title}

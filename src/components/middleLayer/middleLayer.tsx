@@ -11,6 +11,7 @@ import { addBoardImage } from "../../features/boardImages/boardImages";
 import type { AppDispatch } from "../../store";
 import { getDownloadURL, ref } from "firebase/storage";
 import { storage } from "../../config/firebase";
+import defaultImage from "../../res/default.jpg";
 const usersCollectionRef = collection(db, "users");
 
 const MiddleLayer = () => {
@@ -59,13 +60,24 @@ const MiddleLayer = () => {
     const fetchImageUrls = async () => {
       for (const board of boards) {
         try {
+          // Skip if the image is already in the Redux store
           if (boardImages.some((image: any) => image.id === board.id)) {
-            // look at this please
             continue;
           }
+          // Try fetching the image URL from Firebase Storage
+          let url;
+          try {
+            url = await getStorageImageById(board.id);
+          } catch (error) {
+            console.warn(
+              `Image not found for board ${board.id}, using default image.`,
+              error
+            );
+            url = defaultImage; // Replace with your default image path
+          }
 
-          const url = await getStorageImageById(board.id);
-          dispatch(addBoardImage({ id: board.id, url: url }));
+          // Dispatch the action to add the image URL to the store
+          dispatch(addBoardImage({ id: board.id, url }));
         } catch (error) {
           console.error(`Failed to fetch image for board ${board.id}:`, error);
         }
@@ -73,7 +85,7 @@ const MiddleLayer = () => {
     };
 
     fetchImageUrls();
-  }, [publicBoards, privateBoards, sharedBoards, boardImages, dispatch]);
+  }, [publicBoards, privateBoards, sharedBoards, dispatch]);
 
   return (
     <div className={styles.middleLayer}>
