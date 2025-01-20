@@ -1221,9 +1221,7 @@ const WhiteBoard = () => {
           label: "create component",
           onClick: () => {
             event.preventDefault();
-            const component = selectedShapes.map((index: number) => {
-              return { ...shapes[index], level: shapes[index].level + 1 };
-            });
+
             const x1 = selectedShapes.reduce(
               (minX: number, index: number) => Math.min(minX, shapes[index].x1),
               Infinity
@@ -1240,18 +1238,20 @@ const WhiteBoard = () => {
               (maxY: number, index: number) => Math.max(maxY, shapes[index].y2),
               -Infinity
             );
-            const newComponent = {
-              type: "component",
-              shapes: component,
-              x1: x1,
-              y1: y1,
-              x2: x2,
-              y2: y2,
-              width: x2 - x1,
-              height: y2 - y1,
-              level: 0,
-            };
-            dispatch(addShape(newComponent));
+            const zIndex = selectedShapes.reduce(
+              (minZIndex: number, index: number) =>
+                Math.min(minZIndex, shapes[index].zIndex),
+              Infinity
+            );
+            const component = selectedShapes.map(
+              (index: number, index2: number) => {
+                return {
+                  ...shapes[index],
+                  level: shapes[index].level + 1,
+                  zIndex: zIndex + index2 + 1,
+                };
+              }
+            );
             if (selectedShapes.length > 0) {
               const shapesCopy = [...selectedShapes];
               const newShapes = shapesCopy.sort(
@@ -1262,6 +1262,52 @@ const WhiteBoard = () => {
                 dispatch(removeShape(index));
               });
               dispatch(clearSelectedShapes());
+
+              let zIndexFixedShapes = shapes.filter(
+                (shape: Shape, index: number) => {
+                  return !selectedShapes.includes(index);
+                }
+              );
+              zIndexFixedShapes = zIndexFixedShapes.sort(
+                (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+              );
+              console.log(zIndexFixedShapes);
+              console.log(zIndex);
+              zIndexFixedShapes = zIndexFixedShapes.map(
+                (shape: Shape, index: number) => {
+                  if (index < zIndex) {
+                    return {
+                      ...shape,
+                      zIndex: index,
+                    };
+                  } else {
+                    return {
+                      ...shape,
+                      zIndex: index + selectedShapes.length + 1,
+                    };
+                  }
+                }
+              );
+              console.log(zIndexFixedShapes);
+              const newComponent = {
+                type: "component",
+                shapes: component,
+                x1: x1,
+                y1: y1,
+                x2: x2,
+                y2: y2,
+                width: x2 - x1,
+                height: y2 - y1,
+                level: 0,
+                zIndex: zIndex,
+              };
+              zIndexFixedShapes.push(newComponent);
+              dispatch(
+                setWhiteboardData({
+                  ...board,
+                  shapes: zIndexFixedShapes,
+                })
+              );
             }
           },
         },

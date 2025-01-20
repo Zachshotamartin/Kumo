@@ -168,33 +168,83 @@ const Components = () => {
             borderRight: over === index ? "3px solid white" : "none",
             width: "100%",
             paddingLeft: "1rem",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
           }}
         >
-          <img
-            className={styles.icon}
-            src={
-              shape.type === "image"
-                ? image
-                : shape.type === "text"
-                ? text
-                : shape.type === "calendar"
-                ? calendar
-                : shape.type === "rectangle"
-                ? rectangle
-                : shape.type === "ellipse"
-                ? ellipse
-                : ""
-            }
-            alt={shape.type}
-          />
-          <h6
-            className={
-              selectedShapes.includes(index) ? styles.selected : styles.text
-            }
-            onClick={(event) => handleClick(index, event)}
-          >
-            {shape.type}
-          </h6>
+          <div style={{ display: "flex", flexDirection: "row" }}>
+            <img
+              className={styles.icon}
+              src={
+                shape.type === "image"
+                  ? image
+                  : shape.type === "text"
+                  ? text
+                  : shape.type === "calendar"
+                  ? calendar
+                  : shape.type === "rectangle"
+                  ? rectangle
+                  : shape.type === "ellipse"
+                  ? ellipse
+                  : shape.type === "component"
+                  ? calendar
+                  : ""
+              }
+              alt={shape.type}
+            />
+            <h6
+              className={
+                selectedShapes.includes(index) ? styles.selected : styles.text
+              }
+              onClick={(event) => handleClick(index, event)}
+            >
+              {shape.type}
+            </h6>
+          </div>
+          {shape.type === "component" && (
+            <div>
+              {shape.shapes.map((componentShape: Shape, index: number) => (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    paddingLeft: "1rem",
+                  }}
+                >
+                  <img
+                    className={styles.icon}
+                    src={
+                      componentShape.type === "image"
+                        ? image
+                        : componentShape.type === "text"
+                        ? text
+                        : componentShape.type === "calendar"
+                        ? calendar
+                        : componentShape.type === "rectangle"
+                        ? rectangle
+                        : componentShape.type === "ellipse"
+                        ? ellipse
+                        : componentShape.type === "component"
+                        ? calendar
+                        : ""
+                    }
+                    alt={componentShape.type}
+                  />
+                  <h6
+                    className={
+                      selectedShapes.includes(index)
+                        ? styles.selected
+                        : styles.text
+                    }
+                    onClick={(event) => handleClick(index, event)}
+                  >
+                    {componentShape.type}
+                  </h6>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>
