@@ -5,7 +5,7 @@ import { update } from "lodash";
 export interface Shape {
   // type (image, text, calendar, rectangle)
   type: string;
-  
+
   // positioning
   x1: number;
   y1: number;
@@ -15,40 +15,44 @@ export interface Shape {
   // dimensions
   width: number;
   height: number;
-
+  level: number;
   // transforms
-  rotation: number;
+  rotation?: number;
   flipX?: boolean;
   flipY?: boolean;
-
+  shapes?: Shape[];
   // box styling
-  borderRadius: number;
-  borderWidth: number;
-  borderStyle: string;
+  borderRadius?: number;
+  borderWidth?: number;
+  borderStyle?: string;
 
   // text styling
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  fontWeight: string;
-  textAlign: string;
-  alignItems: string;
-  textDecoration: string;
-  lineHeight: number;
-  letterSpacing: number;
-  rows: number;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: string;
+  textAlign?: string;
+  alignItems?: string;
+  textDecoration?: string;
+  lineHeight?: number;
+  letterSpacing?: number;
+  rows?: number;
 
   // color styling
-  color: string;
-  opacity: number;
-  backgroundColor: string;
-  borderColor: string;
+  color?: string;
+  opacity?: number;
+  backgroundColor?: string;
+  borderColor?: string;
   backgroundImage?: string;
   zIndex?: number;
   // recursive whiteboard
   id?: string | null;
   title?: string | null;
   uid?: string | null;
+}
+
+export interface Component {
+  shapes: number[];
 }
 
 interface WhiteBoardState {

@@ -53,7 +53,6 @@ import BottomBar from "../bottomBar/bottomBar";
 import RenderBoxes from "../renderComponents/renderBoxes";
 import RenderEllipses from "../renderComponents/renderEllipses";
 import RenderText from "../renderComponents/renderText";
-import RenderBoards from "../renderComponents/renderBoards";
 import RenderHighlighting from "../renderComponents/renderHighlighting";
 import RenderBorder from "../renderComponents/renderBorder";
 import RenderGridLines from "../renderComponents/renderGridLines";
@@ -61,6 +60,7 @@ import RenderImages from "../renderComponents/renderImages";
 import RenderCalendars from "../renderComponents/renderCalendars";
 import RenderHoverBorder from "../renderComponents/renderHoverBorder";
 import RenderSnappingGuides from "../renderComponents/renderSnappingGuides";
+import RenderComponents from "../renderComponents/renderComponents";
 import ContextMenu from "../contextMenu/contextMenu";
 import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
@@ -594,7 +594,7 @@ const WhiteBoard = () => {
         //dimension
         width: 0,
         height: 0,
-
+        level: 0,
         // transform
         rotation: 0,
 
@@ -726,15 +726,27 @@ const WhiteBoard = () => {
                 );
                 offsetY = 0;
               }
-              const updatedShape: Shape = {
+              let updatedShape: Shape = {
                 ...shape,
                 x1: shape.x1 + offsetX,
                 y1: shape.y1 + offsetY,
                 x2: shape.x2 + offsetX,
                 y2: shape.y2 + offsetY,
-                width,
-                height,
               };
+              if (shape.type === "component") {
+                updatedShape = {
+                  ...updatedShape,
+                  shapes: updatedShape.shapes?.map((componentShape: Shape) => {
+                    return {
+                      ...componentShape,
+                      x1: componentShape.x1 + offsetX,
+                      y1: componentShape.y1 + offsetY,
+                      x2: componentShape.x2 + offsetX,
+                      y2: componentShape.y2 + offsetY,
+                    };
+                  }),
+                };
+              }
 
               dispatch(
                 updateShape({
@@ -1137,8 +1149,47 @@ const WhiteBoard = () => {
           onClick: () => {
             event.preventDefault();
             const component = selectedShapes.map((index: number) => {
-              return shapes[index];
+              return { ...shapes[index], level: shapes[index].level + 1 };
             });
+            const x1 = selectedShapes.reduce(
+              (minX: number, index: number) => Math.min(minX, shapes[index].x1),
+              Infinity
+            );
+            const y1 = selectedShapes.reduce(
+              (minY: number, index: number) => Math.min(minY, shapes[index].y1),
+              Infinity
+            );
+            const x2 = selectedShapes.reduce(
+              (maxX: number, index: number) => Math.max(maxX, shapes[index].x2),
+              -Infinity
+            );
+            const y2 = selectedShapes.reduce(
+              (maxY: number, index: number) => Math.max(maxY, shapes[index].y2),
+              -Infinity
+            );
+            const newComponent = {
+              type: "component",
+              shapes: component,
+              x1: x1,
+              y1: y1,
+              x2: x2,
+              y2: y2,
+              width: x2 - x1,
+              height: y2 - y1,
+              level: 0,
+            };
+            dispatch(addShape(newComponent));
+            if (selectedShapes.length > 0) {
+              const shapesCopy = [...selectedShapes];
+              const newShapes = shapesCopy.sort(
+                (a: number, b: number) => b - a
+              );
+
+              newShapes.forEach((index: number) => {
+                dispatch(removeShape(index));
+              });
+              dispatch(clearSelectedShapes());
+            }
           },
         },
       ];
@@ -1204,16 +1255,16 @@ const WhiteBoard = () => {
       onContextMenu={handleContextMenu}
     >
       {grid && <RenderGridLines />}
-      <RenderBoxes />
-      <RenderEllipses />
-      <RenderText />
-      <RenderBoards />
-      <RenderImages />
-      <RenderCalendars />
+      <RenderBoxes shapes={shapes} />
+      <RenderEllipses shapes={shapes} />
+      <RenderText shapes={shapes} />
+      <RenderImages shapes={shapes} />
+      <RenderCalendars shapes={shapes} />
       {dragging && highlighting && <RenderHighlighting />}
       <RenderBorder />
       <RenderHoverBorder />
       <RenderSnappingGuides />
+      <RenderComponents shapes={shapes} />
 
       <BottomBar />
 

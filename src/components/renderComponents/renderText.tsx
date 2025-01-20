@@ -13,8 +13,8 @@ import {
   setHoverEndY,
 } from "../../features/selected/selectedSlice";
 import { AppDispatch } from "../../store";
-const RenderText = () => {
-  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+const RenderText = (props: any) => {
+  const { shapes } = props;
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
@@ -25,7 +25,7 @@ const RenderText = () => {
 
   const handleMouseEnter = (index: number) => {
     const shape = shapes.find((shape: Shape, i: number) => i === index);
-    if (shape && !selectedShapes.includes(index)) {
+    if (shape && !selectedShapes.includes(index) && shape.level === 0) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2));
@@ -149,7 +149,7 @@ const RenderText = () => {
                 borderRadius: `${shape.borderRadius}%`,
 
                 border: `${shape.borderColor} ${
-                  shape.borderWidth / window.percentZoomed
+                  (shape.borderWidth ?? 0) / window.percentZoomed
                 }px ${shape.borderStyle}`,
 
                 // color styling
@@ -176,15 +176,16 @@ const RenderText = () => {
                       ? "0 0 0 0"
                       : shape.alignItems === "flex-end"
                       ? `${
-                          (shape.height - shape.fontSize) / window.percentZoomed
+                          (shape.height - (shape.fontSize ?? 12)) /
+                          window.percentZoomed
                         }px 0 0 0`
                       : shape.alignItems === "center"
                       ? `${
-                          (shape.height - shape.fontSize) /
+                          (shape.height - (shape.fontSize ?? 12)) /
                           2 /
                           window.percentZoomed
                         }px 0 ${
-                          (shape.height - shape.fontSize) /
+                          (shape.height - (shape.fontSize ?? 12)) /
                           2 /
                           window.percentZoomed
                         }px 0`
@@ -196,14 +197,16 @@ const RenderText = () => {
                   textOverflow: "ellipsis",
 
                   // text styling
-                  fontSize: `${shape.fontSize / window.percentZoomed}px`,
+                  fontSize: `${
+                    (shape.fontSize ?? 12) / window.percentZoomed
+                  }px`,
                   fontFamily: `${shape.fontFamily}`,
                   fontWeight: `${shape.fontWeight}`,
                   textAlign: shape.textAlign as "left" | "right" | "center",
                   textDecoration: `${shape.textDecoration}`,
                   lineHeight: `${shape.lineHeight}`,
                   letterSpacing: `${
-                    shape.letterSpacing / window.percentZoomed
+                    (shape.letterSpacing ?? 0) / window.percentZoomed
                   }px`,
                   color: `${shape.color}`,
                   verticalAlign: "center",
@@ -212,10 +215,10 @@ const RenderText = () => {
                 onChange={(e) => {
                   const usedRows = calculateUsedRows(
                     e.target.value,
-                    shape.lineHeight * window.percentZoomed,
-                    shape.fontSize * window.percentZoomed,
+                    (shape.lineHeight ?? 1.2) * window.percentZoomed,
+                    (shape.fontSize ?? 12) * window.percentZoomed,
                     shape.width / window.percentZoomed,
-                    shape.fontFamily
+                    shape.fontFamily ?? "Arial"
                   );
                   handleInputChange(index, e, usedRows);
                 }}

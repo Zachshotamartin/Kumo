@@ -8,8 +8,9 @@ import {
   setHoverEndY,
 } from "../../features/selected/selectedSlice";
 
-const RenderImages = () => {
-  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+const RenderImages = (props: any) => {
+  const { shapes } = props;
+  
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
@@ -18,7 +19,7 @@ const RenderImages = () => {
 
   const handleMouseEnter = (index: number) => {
     const shape = shapes.find((shape: Shape, i: number) => i === index);
-    if (shape && !selectedShapes.includes(index)) {
+    if (shape && !selectedShapes.includes(index) && shape.level === 0) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2));
@@ -72,7 +73,7 @@ const RenderImages = () => {
                 borderWidth: `${shape.borderWidth}px`,
                 borderStyle: `${shape.borderStyle}`,
                 border: `${shape.borderColor} ${
-                  shape.borderWidth / window.percentZoomed
+                  (shape.borderWidth ?? 0) / window.percentZoomed
                 }px ${shape.borderStyle}`,
 
                 // color styling
