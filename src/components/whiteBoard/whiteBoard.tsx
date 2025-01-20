@@ -62,7 +62,6 @@ import RenderHoverBorder from "../renderComponents/renderHoverBorder";
 import RenderSnappingGuides from "../renderComponents/renderSnappingGuides";
 import RenderComponents from "../renderComponents/renderComponents";
 import ContextMenu from "../contextMenu/contextMenu";
-import boardImage from "../../res/recursive.png";
 import calendarImage from "../../res/calendar.png";
 import image from "../../res/image.png";
 import { setHideOptions } from "../../features/hide/hide";

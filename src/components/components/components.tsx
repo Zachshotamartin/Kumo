@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import styles from "./components.module.css";
 import { useSelector, useDispatch } from "react-redux";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
@@ -7,16 +7,88 @@ import text from "../../res/text.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
 import ellipse from "../../res/ellipse.png";
-import recursive from "../../res/recursive.png";
 import { setWindow } from "../../features/window/windowSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import { AppDispatch } from "../../store";
+import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 const Components = () => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: any) => state.whiteBoard);
   const shapes = board.shapes;
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
   const window = useSelector((state: any) => state.window);
+
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+
+  const handleDragStart = (
+    index: number,
+    event: React.DragEvent<HTMLDivElement>
+  ) => {
+    event.dataTransfer.setData("text", "");
+    event.dataTransfer.setDragImage(new Image(), 0, 0);
+    setDragging(index);
+  };
+
+  const handleDragOver = (
+    index: number,
+    event: React.DragEvent<HTMLDivElement>
+  ) => {
+    event.preventDefault();
+    setOver(index);
+  };
+
+  const handleDrop = (
+    index: number,
+    event: React.DragEvent<HTMLDivElement>
+  ) => {
+    console.log("handleDrop function executed");
+    console.log("dropped at ", index);
+    const dropElement = event.target as HTMLDivElement;
+    console.log("dropElement", dropElement);
+    let newShapes: Shape[] = [];
+    if (index === dragging) {
+      return;
+    }
+    shapes.forEach((shape: Shape, i: number) => {
+      if (dragging !== null) {
+        if (i > index && i > dragging) {
+          newShapes.push(shape);
+        } else if (i < index && i < dragging) {
+          newShapes.push(shape);
+        } else {
+          if (i === dragging) {
+            newShapes.push({
+              ...shapes[dragging],
+              zIndex: index,
+            });
+          } else if (index < dragging) {
+            newShapes.push({
+              ...shapes[i],
+              zIndex: i + 1,
+            });
+          } else if (index > dragging) {
+            newShapes.push({
+              ...shapes[i],
+              zIndex: i - 1,
+            });
+          }
+        }
+      }
+    });
+    console.log(newShapes);
+
+    dispatch(
+      setWhiteboardData({
+        ...board,
+        shapes: newShapes.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)),
+      })
+    );
+    setDragging(null);
+    setOver(null);
+  };
 
   const handleClick = (
     index: number,
@@ -75,11 +147,29 @@ const Components = () => {
       }
     }
   };
+  const sortedShapes = [...shapes].sort(
+    (a: any, b: any) => a.zIndex - b.zIndex
+  );
   return (
     <div className={styles.components}>
       <h6 className={styles.title}>Components </h6>
-      {shapes.map((shape: any, index: number) => (
-        <div key={index} className={styles.component}>
+      {sortedShapes.map((shape: any, index: number) => (
+        <div
+          key={index}
+          className={styles.component}
+          draggable={true}
+          onDragStart={(event) => handleDragStart(index, event)}
+          onDragOver={(event) => handleDragOver(index, event)}
+          onDrop={(event) => handleDrop(index, event)}
+          data-index={index}
+          data-insert-before={index % 2 === 0 ? "true" : "false"}
+          style={{
+            borderLeft: over === index ? "3px solid white" : "none",
+            borderRight: over === index ? "3px solid white" : "none",
+            width: "100%",
+            paddingLeft: "1rem",
+          }}
+        >
           <img
             className={styles.icon}
             src={
