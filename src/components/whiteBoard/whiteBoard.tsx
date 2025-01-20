@@ -1222,6 +1222,19 @@ const WhiteBoard = () => {
           onClick: () => {
             event.preventDefault();
 
+            const hasComponent = selectedShapes.some(
+              (index: number) => shapes[index].type === "component"
+            );
+            selectedShapes.forEach((shape: Shape) => {
+              console.log("shape, ", shape);
+            });
+            if (hasComponent) {
+              alert(
+                "cannot make a component with a component: not implemented as of now"
+              );
+              return;
+            }
+
             const x1 = selectedShapes.reduce(
               (minX: number, index: number) => Math.min(minX, shapes[index].x1),
               Infinity
