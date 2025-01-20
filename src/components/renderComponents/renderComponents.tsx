@@ -20,11 +20,10 @@ const RenderComponents = (props: any) => {
     (state: any) => state.selected.selectedShapes
   );
   const window = useSelector((state: any) => state.window);
-  console.log(shapes);
+
   const handleMouseEnter = (index: number) => {
     const shape = shapes.find((shape: Shape, i: number) => i === index);
 
-    console.log("entered");
     if (shape && !selectedShapes.includes(index) && shape.level === 0) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
