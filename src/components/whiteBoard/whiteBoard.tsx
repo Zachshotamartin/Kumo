@@ -846,10 +846,10 @@ const WhiteBoard = () => {
               height,
             };
             if (shape.type === "component") {
-              const shapeBorderStartX = shape.x1;
-              const shapeBorderStartY = shape.y1;
-              const shapeBorderEndX = shape.x2;
-              const shapeBorderEndY = shape.y2;
+              const shapeBorderStartX = x1;
+              const shapeBorderStartY = y1;
+              const shapeBorderEndX = x2;
+              const shapeBorderEndY = y2;
 
               updatedShape = {
                 ...updatedShape,
@@ -858,6 +858,8 @@ const WhiteBoard = () => {
                   let x2 = componentShape.x2;
                   let y1 = componentShape.y1;
                   let y2 = componentShape.y2;
+                  offsetX = offsetX / window.percentZoomed;
+                  offsetY = offsetY / window.percentZoomed;
                   if (resizingRight) {
                     let ratioX1 =
                       (x1 - shapeBorderStartX) /
