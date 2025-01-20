@@ -23,6 +23,10 @@ const Components = () => {
   const [dragging, setDragging] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
 
+  const sortedShapes = [...shapes].sort(
+    (a: any, b: any) => a.zIndex - b.zIndex
+  );
+
   const handleDragStart = (
     index: number,
     event: React.DragEvent<HTMLDivElement>
@@ -94,6 +98,13 @@ const Components = () => {
     index: number,
     event: React.MouseEvent<HTMLDivElement>
   ) => {
+    
+    dispatch(
+      setWhiteboardData({
+        ...board,
+        shapes: sortedShapes,
+      })
+    );
     if (event.shiftKey && !event.metaKey) {
       // selecte everything between the two indices
 
@@ -147,9 +158,8 @@ const Components = () => {
       }
     }
   };
-  const sortedShapes = [...shapes].sort(
-    (a: any, b: any) => a.zIndex - b.zIndex
-  );
+
+  
   return (
     <div className={styles.components}>
       <h6 className={styles.title}>Components </h6>
@@ -204,45 +214,46 @@ const Components = () => {
           </div>
           {shape.type === "component" && (
             <div>
-              {shape.shapes.map((componentShape: Shape, index: number) => (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    paddingLeft: "1rem",
-                  }}
-                >
-                  <img
-                    className={styles.icon}
-                    src={
-                      componentShape.type === "image"
-                        ? image
-                        : componentShape.type === "text"
-                        ? text
-                        : componentShape.type === "calendar"
-                        ? calendar
-                        : componentShape.type === "rectangle"
-                        ? rectangle
-                        : componentShape.type === "ellipse"
-                        ? ellipse
-                        : componentShape.type === "component"
-                        ? calendar
-                        : ""
-                    }
-                    alt={componentShape.type}
-                  />
-                  <h6
-                    className={
-                      selectedShapes.includes(index)
-                        ? styles.selected
-                        : styles.text
-                    }
-                    onClick={(event) => handleClick(index, event)}
+              {shape.shapes.map(
+                (componentShape: Shape, componentIndex: number) => (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "row",
+                      paddingLeft: "1rem",
+                    }}
                   >
-                    {componentShape.type}
-                  </h6>
-                </div>
-              ))}
+                    <img
+                      className={styles.icon}
+                      src={
+                        componentShape.type === "image"
+                          ? image
+                          : componentShape.type === "text"
+                          ? text
+                          : componentShape.type === "calendar"
+                          ? calendar
+                          : componentShape.type === "rectangle"
+                          ? rectangle
+                          : componentShape.type === "ellipse"
+                          ? ellipse
+                          : componentShape.type === "component"
+                          ? calendar
+                          : ""
+                      }
+                      alt={componentShape.type}
+                    />
+                    <h6
+                      className={
+                        selectedShapes.includes(index)
+                          ? styles.selected
+                          : styles.text
+                      }
+                    >
+                      {componentShape.type}
+                    </h6>
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>
