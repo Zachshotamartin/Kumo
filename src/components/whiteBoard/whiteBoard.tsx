@@ -407,12 +407,16 @@ const WhiteBoard = () => {
     if (target.closest("button")) {
       return; // Ignore clicks on buttons
     }
-    if (document.getElementById("contextMenu") === target) {
+    if (
+      document.getElementById("contextMenu") === target ||
+      document.getElementById("contextMenu")?.contains(target)
+    ) {
       return;
+    } else {
+      if (contextMenuVisible) {
+        setContextMenuVisible(false);
+      }
     }
-    // if (contextMenuVisible) {
-    //   setContextMenuVisible(false);
-    // }
 
     actionsDispatch(setMouseDown(true));
     const boundingRect = canvasRef.current?.getBoundingClientRect();
