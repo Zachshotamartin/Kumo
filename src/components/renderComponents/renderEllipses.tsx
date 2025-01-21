@@ -19,7 +19,7 @@ const RenderEllipses = (props: any) => {
 
   const handleMouseEnter = (index: number) => {
     const shape = shapes.find((shape: Shape, i: number) => i === index);
-    if (shape && !selectedShapes.includes(index) && shape.level === 0) {
+    if (shape && !selectedShapes.includes(index)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2));
@@ -81,8 +81,8 @@ const RenderEllipses = (props: any) => {
 
                 opacity: `${shape.opacity}`,
               }}
-              onMouseEnter={() => handleMouseEnter(index)}
-              onMouseLeave={handleMouseLeave}
+              onMouseOver={shape.level === 0 ? () => handleMouseEnter(index) : () => {}}
+              onMouseOut={shape.level === 0 ? handleMouseLeave : () => {}}
             ></div>
           )}
         </>
