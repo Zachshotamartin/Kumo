@@ -102,7 +102,7 @@ const Components = () => {
             if ([...shapes].reverse()[dragging].type !== "component") {
               newShapes.push({
                 ...shape,
-                zIndex: shapes.length - i,
+                zIndex: shapes.length - 1 - i - 1,
               });
             } else {
               newShapes.push({
