@@ -273,7 +273,7 @@ const Components = () => {
                     />
                     <h6
                       className={
-                        selectedShapes.includes(index)
+                        selectedShapes.includes(shapes.length - 1 - index)
                           ? styles.selected
                           : styles.text
                       }
