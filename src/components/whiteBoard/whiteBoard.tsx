@@ -1206,7 +1206,27 @@ const WhiteBoard = () => {
             navigator.clipboard.writeText(JSON.stringify(copiedData));
           },
         },
-        {
+      ];
+      if (shapes[selectedShapes[0]].type === "component") {
+        contextMenuLabels.push({
+          label: "unwrap component",
+          onClick: () => {
+            dispatch(
+              setWhiteboardData({
+                ...board,
+                shapes: [
+                  ...shapes.filter((shape: Shape, index: number) => {
+                    return index !== selectedShapes[0];
+                  }),
+                  ...shapes[selectedShapes[0]].shapes,
+                ],
+              })
+            );
+            dispatch(setSelectedShapes([]));
+          },
+        });
+      } else {
+        contextMenuLabels.push({
           label: "create component",
           onClick: () => {
             event.preventDefault();
@@ -1314,8 +1334,8 @@ const WhiteBoard = () => {
               );
             }
           },
-        },
-      ];
+        });
+      }
     } else {
       contextMenuLabels = [
         {
