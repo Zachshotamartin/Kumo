@@ -144,11 +144,7 @@ const WhiteBoard = () => {
 
   useEffect(() => {
     setMiddle(middleMouseButton);
-    console.log(
-      "!!!!!! middle is being set to ",
-      middleMouseButton,
-      " !!!!!!!"
-    );
+   
   }, [middleMouseButton]);
 
   useEffect(() => {
@@ -424,9 +420,9 @@ const WhiteBoard = () => {
   }, [actionsDispatch, dispatch, selectedShapes, shapes]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    console.log(e.button);
+    
     if (e.button === 1) {
-      console.log("button is middle");
+     
       const boundingRect = canvasRef.current?.getBoundingClientRect();
       const x = Math.round(
         (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed
@@ -1333,7 +1329,7 @@ const WhiteBoard = () => {
                 }
               }
             });
-            console.log(newShapes);
+            
 
             dispatch(
               setWhiteboardData({
@@ -1382,7 +1378,7 @@ const WhiteBoard = () => {
                 }
               }
             });
-            console.log(newShapes);
+           
 
             dispatch(
               setWhiteboardData({
@@ -1424,7 +1420,7 @@ const WhiteBoard = () => {
               (index: number) => shapes[index].type === "component"
             );
             selectedShapes.forEach((shape: Shape) => {
-              console.log("shape, ", shape);
+             
             });
             if (hasComponent) {
               alert(
@@ -1496,7 +1492,7 @@ const WhiteBoard = () => {
                 }
               );
 
-              console.log("zindexfixed, ", zIndexFixedShapes);
+             
               const newComponent = {
                 type: "component",
                 shapes: component,
@@ -1519,7 +1515,7 @@ const WhiteBoard = () => {
               zIndexFixedShapes = zIndexFixedShapes.sort(
                 (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
               );
-              console.log(zIndexFixedShapes);
+            
               newShapes.forEach((index: number) => {
                 dispatch(removeShape(index));
               });

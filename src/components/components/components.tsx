@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styles from "./components.module.css";
 import { useSelector, useDispatch } from "react-redux";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
@@ -23,10 +23,12 @@ const Components = () => {
 
   const [dragging, setDragging] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
-
-  const sortedShapes = [...shapes].sort(
-    (a: any, b: any) => a.zIndex - b.zIndex
+  const [sortedShapes, setSortedShapes] = useState(
+    [...shapes].sort((a: any, b: any) => a.zIndex - b.zIndex)
   );
+  useEffect(() => {
+    setSortedShapes([...shapes].sort((a: any, b: any) => a.zIndex - b.zIndex));
+  }, [shapes]);
 
   const handleDragStart = (
     index: number,
@@ -34,6 +36,7 @@ const Components = () => {
   ) => {
     event.dataTransfer.setData("text", "");
     event.dataTransfer.setDragImage(new Image(), 0, 0);
+    console.log("dragging index ", index);
     setDragging(index);
   };
 
@@ -54,10 +57,12 @@ const Components = () => {
     const dropElement = event.target as HTMLDivElement;
     console.log("dropElement", dropElement);
     let newShapes: Shape[] = [];
+    console.log([...shapes].reverse());
     if (index === dragging) {
       return;
     }
-    shapes.forEach((shape: Shape, i: number) => {
+
+    [...shapes].reverse().forEach((shape: Shape, i: number) => {
       if (dragging !== null) {
         if (i > index && i > dragging) {
           newShapes.push(shape);
@@ -66,23 +71,24 @@ const Components = () => {
         } else {
           if (i === dragging) {
             newShapes.push({
-              ...shapes[dragging],
-              zIndex: index,
+              ...shape,
+              zIndex: shapes.length - 1 - index,
             });
           } else if (index < dragging) {
             newShapes.push({
-              ...shapes[i],
-              zIndex: i + 1,
+              ...shape,
+              zIndex: shapes.length - 1 - i - 1,
             });
           } else if (index > dragging) {
             newShapes.push({
-              ...shapes[i],
-              zIndex: i - 1,
+              ...shape,
+              zIndex: shapes.length - i + 1,
             });
           }
         }
       }
     });
+    newShapes = [...newShapes].reverse();
     console.log(newShapes);
 
     dispatch(
@@ -105,6 +111,7 @@ const Components = () => {
         shapes: sortedShapes,
       })
     );
+
     if (event.shiftKey && !event.metaKey) {
       // selecte everything between the two indices
 
@@ -114,8 +121,8 @@ const Components = () => {
       const max = selectedShapes.reduce((a: number, b: number) =>
         Math.max(a, b)
       );
-      const start = Math.min(index, min);
-      const end = Math.max(index, max);
+      const start = Math.min(sortedShapes.length - 1 - index, min);
+      const end = Math.max(sortedShapes.length - 1 - index, max);
 
       const selected: number[] = [];
       for (let i = start; i <= end; i++) {
@@ -124,9 +131,11 @@ const Components = () => {
       dispatch(setSelectedShapes(selected));
     } else if (event.metaKey && !event.shiftKey) {
       // adds the index to selectedShapes
-      dispatch(setSelectedShapes([...selectedShapes, index]));
+      dispatch(
+        setSelectedShapes([...selectedShapes, sortedShapes.length - 1 - index])
+      );
     } else {
-      dispatch(setSelectedShapes([index]));
+      dispatch(setSelectedShapes([sortedShapes.length - 1 - index]));
       const windowX1 = window.x1;
       const windowY1 = window.y1;
       const windowX2 = window.x2;
@@ -134,10 +143,10 @@ const Components = () => {
 
       const windowWidth = window.width;
       const windowHeight = window.height;
-      const shapeX1 = shapes[index].x1;
-      const shapeY1 = shapes[index].y1;
-      const shapeX2 = shapes[index].x2;
-      const shapeY2 = shapes[index].y2;
+      const shapeX1 = shapes[sortedShapes.length - 1 - index].x1;
+      const shapeY1 = shapes[sortedShapes.length - 1 - index].y1;
+      const shapeX2 = shapes[sortedShapes.length - 1 - index].x2;
+      const shapeY2 = shapes[sortedShapes.length - 1 - index].y2;
 
       const isIntersecting =
         shapeX1 < windowX2 &&
@@ -149,10 +158,22 @@ const Components = () => {
         dispatch(
           setWindow({
             ...window,
-            x1: shapeX1 - windowWidth / 2 + shapes[index].width / 2,
-            y1: shapeY1 - windowHeight / 2 + shapes[index].height / 2,
-            x2: shapeX1 + windowWidth / 2 + shapes[index].width / 2,
-            y2: shapeY1 + windowHeight / 2 + shapes[index].height / 2,
+            x1:
+              shapeX1 -
+              windowWidth / 2 +
+              shapes[sortedShapes.length - 1 - index].width / 2,
+            y1:
+              shapeY1 -
+              windowHeight / 2 +
+              shapes[sortedShapes.length - 1 - index].height / 2,
+            x2:
+              shapeX1 +
+              windowWidth / 2 +
+              shapes[sortedShapes.length - 1 - index].width / 2,
+            y2:
+              shapeY1 +
+              windowHeight / 2 +
+              shapes[sortedShapes.length - 1 - index].height / 2,
           })
         );
       }
@@ -162,7 +183,8 @@ const Components = () => {
   return (
     <div className={styles.components}>
       <h6 className={styles.title}>Components </h6>
-      {sortedShapes.map((shape: any, index: number) => (
+
+      {[...sortedShapes].reverse().map((shape: any, index: number) => (
         <div
           key={index}
           className={styles.component}
@@ -210,7 +232,9 @@ const Components = () => {
             />
             <h6
               className={
-                selectedShapes.includes(index) ? styles.selected : styles.text
+                selectedShapes.includes(sortedShapes.length - 1 - index)
+                  ? styles.selected
+                  : styles.text
               }
               onClick={(event) => handleClick(index, event)}
             >
