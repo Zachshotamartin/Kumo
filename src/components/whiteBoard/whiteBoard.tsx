@@ -41,6 +41,7 @@ import {
   setGridSnappedY,
   setGridSnappedDistanceX,
   setGridSnappedDistanceY,
+  setMiddleMouseButton,
 } from "../../features/actions/actionsSlice";
 import {
   setSelectedShapes,
@@ -116,6 +117,9 @@ const WhiteBoard = () => {
   const gridSnappedDistanceY = useSelector(
     (state: any) => state.actions.gridSnappedDistanceY
   );
+  const middleMouseButton = useSelector(
+    (state: any) => state.actions.middleMouseButton
+  );
   const [docRef, setDocRef] = useState<any>(doc(db, "boards", board.id));
 
   const [prevMouseX, setPrevMouseX] = useState(0);
@@ -129,6 +133,7 @@ const WhiteBoard = () => {
   const [contextMenuLabels, setContextMenuLabels] = useState<
     { label: string; onClick: () => void }[]
   >([]);
+  const [middle, setMiddle] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const usersCollectionRef = collection(db, "users");
@@ -136,6 +141,15 @@ const WhiteBoard = () => {
   useEffect(() => {
     dispatch(initializeHistory(shapes));
   }, []);
+
+  useEffect(() => {
+    setMiddle(middleMouseButton);
+    console.log(
+      "!!!!!! middle is being set to ",
+      middleMouseButton,
+      " !!!!!!!"
+    );
+  }, [middleMouseButton]);
 
   useEffect(() => {
     dispatch(
@@ -410,247 +424,266 @@ const WhiteBoard = () => {
   }, [actionsDispatch, dispatch, selectedShapes, shapes]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.closest("button")) {
-      return; // Ignore clicks on buttons
-    }
-    if (
-      document.getElementById("contextMenu") === target ||
-      document.getElementById("contextMenu")?.contains(target)
-    ) {
-      return;
-    } else {
-      if (contextMenuVisible) {
-        setContextMenuVisible(false);
+    console.log(e.button);
+    if (e.button === 1) {
+      console.log("button is middle");
+      const boundingRect = canvasRef.current?.getBoundingClientRect();
+      const x = Math.round(
+        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed
+      );
+      const y = Math.round(
+        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed
+      );
+      actionsDispatch(setMiddleMouseButton(true));
+      console.log("X ", x, "Y ", y);
+      setPrevMouseX(x);
+      setPrevMouseY(y);
+      setDragOffset({ x: 0, y: 0 });
+    } else if (e.button === 0) {
+      const target = e.target as HTMLElement;
+      if (target.closest("button")) {
+        return; // Ignore clicks on buttons
       }
-    }
+      if (
+        document.getElementById("contextMenu") === target ||
+        document.getElementById("contextMenu")?.contains(target)
+      ) {
+        return;
+      } else {
+        if (contextMenuVisible) {
+          setContextMenuVisible(false);
+        }
+      }
 
-    actionsDispatch(setMouseDown(true));
-    const boundingRect = canvasRef.current?.getBoundingClientRect();
-    const x = Math.round(
-      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed + window.x1
-    );
-    const y = Math.round(
-      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1
-    );
+      actionsDispatch(setMouseDown(true));
+      const boundingRect = canvasRef.current?.getBoundingClientRect();
+      const x = Math.round(
+        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+          window.x1
+      );
+      const y = Math.round(
+        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
+          window.y1
+      );
 
-    if (selectedTool === "pointer") {
-      let selected: number = -1;
+      if (selectedTool === "pointer") {
+        let selected: number = -1;
 
-      for (let i = 0; i < shapes.length; i++) {
-        let shape = shapes[i];
-        if (
-          x >= Math.min(shape.x1, shape.x2) &&
-          x <= Math.max(shape.x1, shape.x2) &&
-          y >= Math.min(shape.y1, shape.y2) &&
-          y <= Math.max(shape.y1, shape.y2)
-        ) {
-          // if cursor is within a shape.
-          selected = i;
-          if (e.shiftKey) {
-            if (!selectedShapes.includes(i)) {
-              dispatch(setSelectedShapes([...selectedShapes, i]));
+        for (let i = 0; i < shapes.length; i++) {
+          let shape = shapes[i];
+          if (
+            x >= Math.min(shape.x1, shape.x2) &&
+            x <= Math.max(shape.x1, shape.x2) &&
+            y >= Math.min(shape.y1, shape.y2) &&
+            y <= Math.max(shape.y1, shape.y2)
+          ) {
+            // if cursor is within a shape.
+            selected = i;
+            if (e.shiftKey) {
+              if (!selectedShapes.includes(i)) {
+                dispatch(setSelectedShapes([...selectedShapes, i]));
+              }
             }
+            actionsDispatch(setDrawing(false));
           }
-          actionsDispatch(setDrawing(false));
-        }
-      }
-
-      if (selectedShapes.length > 0) {
-        if (
-          x < Math.min(borderStartX, borderEndX) ||
-          x > Math.max(borderStartX, borderEndX) ||
-          y < Math.min(borderStartY, borderEndY) ||
-          y > Math.max(borderStartY, borderEndY)
-        ) {
-          // if cursor is outside the bounding box
-          dispatch(clearSelectedShapes());
-          actionsDispatch(setHighlighting(false));
         }
 
-        let resizing = false;
         if (selectedShapes.length > 0) {
           if (
-            x >= borderEndX - 10 / window.percentZoomed &&
-            x <= borderEndX &&
-            y <= borderEndY &&
-            y >= borderStartY
+            x < Math.min(borderStartX, borderEndX) ||
+            x > Math.max(borderStartX, borderEndX) ||
+            y < Math.min(borderStartY, borderEndY) ||
+            y > Math.max(borderStartY, borderEndY)
           ) {
-            resizing = true;
-            actionsDispatch(setResizingRight(true));
+            // if cursor is outside the bounding box
+            dispatch(clearSelectedShapes());
+            actionsDispatch(setHighlighting(false));
           }
-          if (
-            x >= borderStartX &&
-            x <= borderStartX + 10 / window.percentZoomed &&
-            y <= borderEndY &&
-            y >= borderStartY
-          ) {
-            resizing = true;
-            actionsDispatch(setResizingLeft(true));
-          }
-          if (
-            y >= borderEndY - 10 / window.percentZoomed &&
-            y <= borderEndY &&
-            x <= borderEndX &&
-            x >= borderStartX
-          ) {
-            resizing = true;
-            actionsDispatch(setResizingBottom(true));
-          }
-          if (
-            y >= borderStartY &&
-            y <= borderStartY + 10 / window.percentZoomed &&
-            x <= borderEndX &&
-            x >= borderStartX
-          ) {
-            resizing = true;
-            actionsDispatch(setResizingTop(true));
-          }
-          if (
-            x >= borderStartX + 10 / window.percentZoomed &&
-            x <= borderEndX - 10 / window.percentZoomed &&
-            y >= borderStartY + 10 / window.percentZoomed &&
-            y <= borderEndY - 10 / window.percentZoomed
-          ) {
-            actionsDispatch(setDragging(true));
-            actionsDispatch(setMoving(true));
-            setPrevMouseX(x);
-            setPrevMouseY(y);
-            setDragOffset({ x: 0, y: 0 });
-            return;
-          }
-          if (resizing) {
-            // if cursor is on the border of the bounding box to resize shape
-            actionsDispatch(setResizing(true));
-            setPrevMouseX(x);
-            setPrevMouseY(y);
-            setDragOffset({ x: 0, y: 0 });
-            actionsDispatch(setDragging(true));
 
-            return;
+          let resizing = false;
+          if (selectedShapes.length > 0) {
+            if (
+              x >= borderEndX - 10 / window.percentZoomed &&
+              x <= borderEndX &&
+              y <= borderEndY &&
+              y >= borderStartY
+            ) {
+              resizing = true;
+              actionsDispatch(setResizingRight(true));
+            }
+            if (
+              x >= borderStartX &&
+              x <= borderStartX + 10 / window.percentZoomed &&
+              y <= borderEndY &&
+              y >= borderStartY
+            ) {
+              resizing = true;
+              actionsDispatch(setResizingLeft(true));
+            }
+            if (
+              y >= borderEndY - 10 / window.percentZoomed &&
+              y <= borderEndY &&
+              x <= borderEndX &&
+              x >= borderStartX
+            ) {
+              resizing = true;
+              actionsDispatch(setResizingBottom(true));
+            }
+            if (
+              y >= borderStartY &&
+              y <= borderStartY + 10 / window.percentZoomed &&
+              x <= borderEndX &&
+              x >= borderStartX
+            ) {
+              resizing = true;
+              actionsDispatch(setResizingTop(true));
+            }
+            if (
+              x >= borderStartX + 10 / window.percentZoomed &&
+              x <= borderEndX - 10 / window.percentZoomed &&
+              y >= borderStartY + 10 / window.percentZoomed &&
+              y <= borderEndY - 10 / window.percentZoomed
+            ) {
+              actionsDispatch(setDragging(true));
+              actionsDispatch(setMoving(true));
+              setPrevMouseX(x);
+              setPrevMouseY(y);
+              setDragOffset({ x: 0, y: 0 });
+              return;
+            }
+            if (resizing) {
+              // if cursor is on the border of the bounding box to resize shape
+              actionsDispatch(setResizing(true));
+              setPrevMouseX(x);
+              setPrevMouseY(y);
+              setDragOffset({ x: 0, y: 0 });
+              actionsDispatch(setDragging(true));
+
+              return;
+            }
           }
         }
-      }
 
-      if (selected !== -1) {
-        // if something is selected
+        if (selected !== -1) {
+          // if something is selected
 
-        setPrevMouseX(x);
-        setPrevMouseY(y);
-
-        setDragOffset({ x: 0, y: 0 });
-        actionsDispatch(setDragging(true));
-        actionsDispatch(setMoving(true));
-
-        if (!selectedShapes.includes(selected)) {
-          // if something is selected but not already within the bounding box
-          if (e.shiftKey) {
-            dispatch(setSelectedShapes([...selectedShapes, selected]));
-          }
-          if (!e.shiftKey) {
-            dispatch(setSelectedShapes([selected]));
-          }
-        }
-      } else {
-        if (
-          x > Math.min(borderStartX, borderEndX) &&
-          x < Math.max(borderStartX, borderEndX) &&
-          y > Math.min(borderStartY, borderEndY) &&
-          y < Math.max(borderStartY, borderEndY)
-        ) {
-          // if nothing is selected but cursor is still in the selected bounding box
           setPrevMouseX(x);
           setPrevMouseY(y);
 
           setDragOffset({ x: 0, y: 0 });
           actionsDispatch(setDragging(true));
           actionsDispatch(setMoving(true));
+
+          if (!selectedShapes.includes(selected)) {
+            // if something is selected but not already within the bounding box
+            if (e.shiftKey) {
+              dispatch(setSelectedShapes([...selectedShapes, selected]));
+            }
+            if (!e.shiftKey) {
+              dispatch(setSelectedShapes([selected]));
+            }
+          }
         } else {
-          // if nothing is selected
-          dispatch(clearSelectedShapes());
+          if (
+            x > Math.min(borderStartX, borderEndX) &&
+            x < Math.max(borderStartX, borderEndX) &&
+            y > Math.min(borderStartY, borderEndY) &&
+            y < Math.max(borderStartY, borderEndY)
+          ) {
+            // if nothing is selected but cursor is still in the selected bounding box
+            setPrevMouseX(x);
+            setPrevMouseY(y);
 
-          actionsDispatch(setDragging(true));
-          actionsDispatch(setHighlighting(true));
+            setDragOffset({ x: 0, y: 0 });
+            actionsDispatch(setDragging(true));
+            actionsDispatch(setMoving(true));
+          } else {
+            // if nothing is selected
+            dispatch(clearSelectedShapes());
 
-          dispatch(setHighlightStart([x, y]));
-          dispatch(setHighlightEnd([x, y]));
+            actionsDispatch(setDragging(true));
+            actionsDispatch(setHighlighting(true));
+
+            dispatch(setHighlightStart([x, y]));
+            dispatch(setHighlightEnd([x, y]));
+          }
         }
-      }
-      return;
-    }
-
-    actionsDispatch(setDrawing(true));
-
-    if (
-      selectedTool === "rectangle" ||
-      selectedTool === "ellipse" ||
-      selectedTool === "text" ||
-      selectedTool === "calendar" ||
-      selectedTool === "image"
-    ) {
-      const shape: Shape = {
-        // type
-        type: selectedTool,
-        // position
-        x1: x,
-        y1: y,
-        x2: x,
-        y2: y,
-
-        //dimension
-        width: 0,
-        height: 0,
-        level: 0,
-        // transform
-        rotation: 0,
-
-        // box styling
-        borderRadius: selectedTool === "ellipse" ? 1000 : 0,
-        borderWidth: 0,
-        borderStyle: "solid",
-
-        // font styling
-        fontSize: 12,
-        fontFamily: "Arial",
-        fontWeight: "normal",
-        textAlign: "left",
-        alignItems: "flex-start",
-        textDecoration: "none",
-        lineHeight: 1.2,
-        letterSpacing: 0,
-        rows: 1,
-
-        // color
-        color: "white",
-        backgroundColor:
-          selectedTool === "text" ||
-          selectedTool === "calendar" ||
-          selectedTool === "image"
-            ? "transparent"
-            : "white",
-        borderColor: "black",
-        opacity: 1,
-        zIndex:
-          shapes.length === 0
-            ? 0
-            : shapes[shapes.length - 1].type !== "component"
-            ? shapes[shapes.length - 1].zIndex + 1
-            : shapes[shapes.length - 1].shapes[
-                shapes[shapes.length - 1].shapes.length - 1
-              ].zIndex + 1,
-        text: "",
-      };
-      console.log(shape);
-
-      if (selectedTool === "calendar") {
-        shape.backgroundImage = calendarImage;
-      }
-      if (selectedTool === "image") {
-        shape.backgroundImage = image;
+        return;
       }
 
-      dispatch(addShape(shape));
-      dispatch(setSelectedShapes([shapes.length]));
+      actionsDispatch(setDrawing(true));
+
+      if (
+        selectedTool === "rectangle" ||
+        selectedTool === "ellipse" ||
+        selectedTool === "text" ||
+        selectedTool === "calendar" ||
+        selectedTool === "image"
+      ) {
+        const shape: Shape = {
+          // type
+          type: selectedTool,
+          // position
+          x1: x,
+          y1: y,
+          x2: x,
+          y2: y,
+
+          //dimension
+          width: 0,
+          height: 0,
+          level: 0,
+          // transform
+          rotation: 0,
+
+          // box styling
+          borderRadius: selectedTool === "ellipse" ? 1000 : 0,
+          borderWidth: 0,
+          borderStyle: "solid",
+
+          // font styling
+          fontSize: 12,
+          fontFamily: "Arial",
+          fontWeight: "normal",
+          textAlign: "left",
+          alignItems: "flex-start",
+          textDecoration: "none",
+          lineHeight: 1.2,
+          letterSpacing: 0,
+          rows: 1,
+
+          // color
+          color: "white",
+          backgroundColor:
+            selectedTool === "text" ||
+            selectedTool === "calendar" ||
+            selectedTool === "image"
+              ? "transparent"
+              : "white",
+          borderColor: "black",
+          opacity: 1,
+          zIndex:
+            shapes.length === 0
+              ? 0
+              : shapes[shapes.length - 1].type !== "component"
+              ? shapes[shapes.length - 1].zIndex + 1
+              : shapes[shapes.length - 1].shapes[
+                  shapes[shapes.length - 1].shapes.length - 1
+                ].zIndex + 1,
+          text: "",
+        };
+        console.log(shape);
+
+        if (selectedTool === "calendar") {
+          shape.backgroundImage = calendarImage;
+        }
+        if (selectedTool === "image") {
+          shape.backgroundImage = image;
+        }
+
+        dispatch(addShape(shape));
+        dispatch(setSelectedShapes([shapes.length]));
+      }
     }
   };
 
@@ -1016,35 +1049,75 @@ const WhiteBoard = () => {
     ), // Adjust the throttle delay (100ms in this case)
     [dragging, selectedShapes, dragOffset, shapes, drawing, canvasRef, dispatch]
   );
+  const debouncedMiddleMouseMove = useCallback(
+    throttle(
+      debounce((e: React.MouseEvent<HTMLDivElement>) => {
+        const boundingRect = canvasRef.current?.getBoundingClientRect();
+        const x = Math.round(
+          (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed
+        );
+        const y = Math.round(
+          (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed
+        );
+        console.log("Prev X ", prevMouseX, "Prev Y", prevMouseY);
+        let offsetX = x - prevMouseX;
+        let offsetY = y - prevMouseY;
 
+        const deltaX = offsetX * window.percentZoomed;
+        const deltaY = offsetY * window.percentZoomed;
+
+        const newWindow: WindowState = {
+          x1: window.x1 - deltaX,
+          y1: window.y1 - deltaY,
+          x2: window.x2 - deltaX,
+          y2: window.y2 - deltaY,
+          percentZoomed: window.percentZoomed,
+        };
+        dispatch(setWindow(newWindow));
+        setPrevMouseX(x);
+        setPrevMouseY(y);
+      }, 1),
+      1
+    ),
+    [prevMouseX, prevMouseY]
+  );
   // Use the throttled version in the event listener
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    debouncedMouseMove(e);
+    if (!middle) {
+      debouncedMouseMove(e);
+    } else if (middle) {
+      debouncedMiddleMouseMove(e);
+    }
   };
 
   const handleMouseUp = () => {
-    actionsDispatch(setMouseDown(false));
-    actionsDispatch(setDrawing(false));
-    actionsDispatch(setDragging(false));
-    setDragOffset(null);
-    if (selectedTool === "text") {
-      setTimeout(() => {
-        actionsDispatch(setHighlighting(false));
-        actionsDispatch(setMoving(false));
-      }, 10);
+    console.log("mouse UP");
+    if (!middleMouseButton) {
+      actionsDispatch(setMouseDown(false));
+      actionsDispatch(setDrawing(false));
+      actionsDispatch(setDragging(false));
+      setDragOffset(null);
+      if (selectedTool === "text") {
+        setTimeout(() => {
+          actionsDispatch(setHighlighting(false));
+          actionsDispatch(setMoving(false));
+        }, 10);
 
-      inputRef?.current?.focus();
+        inputRef?.current?.focus();
+      }
+
+      actionsDispatch(setSelectedTool("pointer"));
+      actionsDispatch(setHighlighting(false));
+      actionsDispatch(setMoving(false));
+      actionsDispatch(setResizing(false));
+      actionsDispatch(setResizingLeft(false));
+      actionsDispatch(setResizingRight(false));
+      actionsDispatch(setResizingTop(false));
+      actionsDispatch(setResizingBottom(false));
+      dispatch(setSelectedShapes(selectedShapes));
+    } else {
+      actionsDispatch(setMiddleMouseButton(false));
     }
-
-    actionsDispatch(setSelectedTool("pointer"));
-    actionsDispatch(setHighlighting(false));
-    actionsDispatch(setMoving(false));
-    actionsDispatch(setResizing(false));
-    actionsDispatch(setResizingLeft(false));
-    actionsDispatch(setResizingRight(false));
-    actionsDispatch(setResizingTop(false));
-    actionsDispatch(setResizingBottom(false));
-    dispatch(setSelectedShapes(selectedShapes));
   };
 
   const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1117,7 +1190,9 @@ const WhiteBoard = () => {
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     const deltaY = event.deltaY;
 
-    if (event.ctrlKey) {
+    // zoom if i use the scroll wheel
+    // zoom if I
+    if (event.metaKey || event.ctrlKey) {
       // Zoom logic
       const zoomFactor = deltaY > 0 ? 1.1 : 0.9;
 

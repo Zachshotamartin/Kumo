@@ -27,6 +27,7 @@ interface ActionsState {
   gridSnappedY: boolean;
   gridSnappedDistanceX: number;
   gridSnappedDistanceY: number;
+  middleMouseButton: boolean;
 }
 
 const initialState: ActionsState = {
@@ -54,6 +55,7 @@ const initialState: ActionsState = {
   gridSnappedY: false,
   gridSnappedDistanceX: 0,
   gridSnappedDistanceY: 0,
+  middleMouseButton: false,
 };
 
 const actionsSlice = createSlice({
@@ -227,6 +229,17 @@ const actionsSlice = createSlice({
     setGridSnappedDistanceY: (state, action: PayloadAction<number>) => {
       state.gridSnappedDistanceY = action.payload;
     },
+    setMiddleMouseButton: (state, action: PayloadAction<boolean>) => {
+      console.log("middle button being set to ", action.payload);
+      if (!action.payload) {
+        state.middleMouseButton = false;
+        console.log("set to false");
+      }
+      if (action.payload) {
+        state.middleMouseButton = true;
+        console.log("set to true");
+      }
+    },
   },
 });
 
@@ -255,6 +268,7 @@ export const {
   setGridSnappedY,
   setGridSnappedDistanceX,
   setGridSnappedDistanceY,
+  setMiddleMouseButton,
 } = actionsSlice.actions;
 
 export default actionsSlice.reducer;
