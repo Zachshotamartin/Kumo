@@ -16,8 +16,11 @@
 .contextMenu li {
   padding: 10px;
   cursor: pointer;
+  text-align: left;
 }
 
 .contextMenu li:hover {
-  background-color: #f0f0f0;
+  background-color: #007bff;
+  color: #f0f0f0;
+  
 }

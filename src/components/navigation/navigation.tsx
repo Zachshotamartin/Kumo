@@ -32,11 +32,6 @@ import { removeBoardImage } from "../../features/boardImages/boardImages";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 
-
-
-
-
-
 const Navigation = () => {
   const user = useSelector((state: any) => state.auth);
   const grid = useSelector((state: any) => state.actions.grid);
@@ -70,7 +65,6 @@ const Navigation = () => {
     appDispatch(setWhiteboardData(data));
     dispatch(setUserOpen(false));
   };
-
 
   const handleMakePublic = async () => {
     if (whiteboard.type === "public") {
@@ -202,27 +196,30 @@ const Navigation = () => {
   };
 
   const handleLogout = () => {
-    dispatch(removeBoardImage(whiteboard.id));
-    dispatch(setUserOpen(false));
-    const data = {
-      shapes: [],
-      title: "",
-      type: null,
-      selectedShape: null,
-      uid: auth.currentUser?.uid,
-      id: null,
-      sharedWith: [],
-      backGroundColor: "",
-    };
+    if (window.confirm("Are you sure you want to logout?")) {
+      dispatch(removeBoardImage(whiteboard.id));
+      dispatch(setUserOpen(false));
+      const data = {
+        shapes: [],
+        title: "",
+        type: null,
+        selectedShape: null,
+        uid: auth.currentUser?.uid,
+        id: null,
+        sharedWith: [],
+        backGroundColor: "",
+      };
 
-    dispatch(clearSelectedShapes());
-    dispatch(setInWhiteBoard(false));
-    dispatch(setSharing(false));
-    appDispatch(setWhiteboardData(data));
-    appDispatch(resetHistory());
-    auth.signOut();
-    dispatch(logout());
+      dispatch(clearSelectedShapes());
+      dispatch(setInWhiteBoard(false));
+      dispatch(setSharing(false));
+      appDispatch(setWhiteboardData(data));
+      appDispatch(resetHistory());
+      auth.signOut();
+      dispatch(logout());
+    }
   };
+
   const handleClickSettings = () => {
     dispatch(setSettingsOpen(!settingsOpen));
     dispatch(setUserOpen(false));
@@ -265,31 +262,7 @@ const Navigation = () => {
         />
       )}
       {whiteboard.id === null && (
-        <NavElement
-          image={menu}
-          text="Logout"
-          handleClick={() => {
-            dispatch(removeBoardImage(whiteboard.id));
-            dispatch(setUserOpen(false));
-            const data = {
-              shapes: [],
-              title: "",
-              type: null,
-              selectedShape: null,
-              uid: auth.currentUser?.uid,
-              id: null,
-              sharedWith: [],
-              backGroundColor: "",
-            };
-
-            dispatch(clearSelectedShapes());
-            dispatch(setInWhiteBoard(false));
-            dispatch(setSharing(false));
-            appDispatch(setWhiteboardData(data));
-            auth.signOut();
-            dispatch(logout());
-          }}
-        />
+        <NavElement image={menu} text="Logout" handleClick={handleLogout} />
       )}
       {settingsOpen && whiteboard.id !== null && (
         <div

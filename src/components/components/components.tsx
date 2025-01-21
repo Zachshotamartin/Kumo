@@ -7,6 +7,7 @@ import text from "../../res/text.png";
 import calendar from "../../res/calendar.png";
 import rectangle from "../../res/rectangle.png";
 import ellipse from "../../res/ellipse.png";
+import component from "../../res/component.png";
 import { setWindow } from "../../features/window/windowSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../../store";
@@ -98,7 +99,6 @@ const Components = () => {
     index: number,
     event: React.MouseEvent<HTMLDivElement>
   ) => {
-    
     dispatch(
       setWhiteboardData({
         ...board,
@@ -159,7 +159,6 @@ const Components = () => {
     }
   };
 
-  
   return (
     <div className={styles.components}>
       <h6 className={styles.title}>Components </h6>
@@ -183,7 +182,13 @@ const Components = () => {
             alignItems: "flex-start",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "row" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
             <img
               className={styles.icon}
               src={
@@ -198,7 +203,7 @@ const Components = () => {
                   : shape.type === "ellipse"
                   ? ellipse
                   : shape.type === "component"
-                  ? calendar
+                  ? component
                   : ""
               }
               alt={shape.type}

@@ -846,92 +846,79 @@ const WhiteBoard = () => {
               height,
             };
             if (shape.type === "component") {
-              const shapeBorderStartX = x1;
-              const shapeBorderStartY = y1;
-              const shapeBorderEndX = x2;
-              const shapeBorderEndY = y2;
-
               updatedShape = {
                 ...updatedShape,
-                shapes: updatedShape.shapes?.map((componentShape: Shape) => {
-                  let x1 = componentShape.x1;
-                  let x2 = componentShape.x2;
-                  let y1 = componentShape.y1;
-                  let y2 = componentShape.y2;
-                  offsetX = offsetX / window.percentZoomed;
-                  offsetY = offsetY / window.percentZoomed;
-                  if (resizingRight) {
-                    let ratioX1 =
-                      (x1 - shapeBorderStartX) /
-                      (shapeBorderEndX - shapeBorderStartX);
-                    let ratioX2 =
-                      (x2 - shapeBorderStartX) /
-                      (shapeBorderEndX - shapeBorderStartX);
-                    x1 =
-                      shapeBorderStartX +
-                      ratioX1 * (shapeBorderEndX + offsetX - shapeBorderStartX);
-                    x2 =
-                      shapeBorderStartX +
-                      ratioX2 * (shapeBorderEndX + offsetX - shapeBorderStartX);
-                  } else if (resizingLeft) {
-                    let ratioX1 =
-                      (shapeBorderEndX - x1) /
-                      (shapeBorderEndX - shapeBorderStartX);
-                    let ratioX2 =
-                      (shapeBorderEndX - x2) /
-                      (shapeBorderEndX - shapeBorderStartX);
-                    x1 =
-                      shapeBorderEndX -
-                      ratioX1 *
-                        (shapeBorderEndX - (shapeBorderStartX + offsetX));
-                    x2 =
-                      shapeBorderEndX -
-                      ratioX2 *
-                        (shapeBorderEndX - (shapeBorderStartX + offsetX));
-                  }
+                shapes: updatedShape.shapes?.map(
+                  (componentShape: Shape, index: number) => {
+                    let x1 = componentShape.x1;
+                    let x2 = componentShape.x2;
+                    let y1 = componentShape.y1;
+                    let y2 = componentShape.y2;
 
-                  if (resizingBottom) {
-                    let ratioY1 =
-                      (y1 - shapeBorderStartY) /
-                      (shapeBorderEndY - shapeBorderStartY);
-                    let ratioY2 =
-                      (y2 - shapeBorderStartY) /
-                      (shapeBorderEndY - shapeBorderStartY);
-                    y1 =
-                      shapeBorderStartY +
-                      ratioY1 * (shapeBorderEndY + offsetY - shapeBorderStartY);
-                    y2 =
-                      shapeBorderStartY +
-                      ratioY2 * (shapeBorderEndY + offsetY - shapeBorderStartY);
-                  } else if (resizingTop) {
-                    let ratioY1 =
-                      (shapeBorderEndY - y1) /
-                      (shapeBorderEndY - shapeBorderStartY);
-                    let ratioY2 =
-                      (shapeBorderEndY - y2) /
-                      (shapeBorderEndY - shapeBorderStartY);
-                    y1 =
-                      shapeBorderEndY -
-                      ratioY1 *
-                        (shapeBorderEndY - (shapeBorderStartY + offsetY));
-                    y2 =
-                      shapeBorderEndY -
-                      ratioY2 *
-                        (shapeBorderEndY - (shapeBorderStartY + offsetY));
-                  }
+                    if (resizingRight) {
+                      let ratioX1 =
+                        (x1 - borderStartX) / (borderEndX - borderStartX);
+                      let ratioX2 =
+                        (x2 - borderStartX) / (borderEndX - borderStartX);
+                      if (index === 0) {
+                        console.log(ratioX1, ratioX2);
+                      }
+                      x1 =
+                        borderStartX +
+                        ratioX1 * (borderEndX + offsetX - borderStartX);
+                      x2 =
+                        borderStartX +
+                        ratioX2 * (borderEndX + offsetX - borderStartX);
+                    } else if (resizingLeft) {
+                      let ratioX1 =
+                        (borderEndX - x1) / (borderEndX - borderStartX);
+                      let ratioX2 =
+                        (borderEndX - x2) / (borderEndX - borderStartX);
+                      x1 =
+                        borderEndX -
+                        ratioX1 * (borderEndX - (borderStartX + offsetX));
+                      x2 =
+                        borderEndX -
+                        ratioX2 * (borderEndX - (borderStartX + offsetX));
+                    }
 
-                  const width = Math.abs(x2 - x1);
-                  const height = Math.abs(y2 - y1);
-                  return {
-                    ...componentShape,
-                    x1: x1,
-                    y1: y1,
-                    x2: x2,
-                    y2: y2,
-                    width,
-                    height,
-                  };
-                }),
+                    if (resizingBottom) {
+                      let ratioY1 =
+                        (y1 - borderStartY) / (borderEndY - borderStartY);
+                      let ratioY2 =
+                        (y2 - borderStartY) / (borderEndY - borderStartY);
+                      y1 =
+                        borderStartY +
+                        ratioY1 * (borderEndY + offsetY - borderStartY);
+                      y2 =
+                        borderStartY +
+                        ratioY2 * (borderEndY + offsetY - borderStartY);
+                    } else if (resizingTop) {
+                      let ratioY1 =
+                        (borderEndY - y1) / (borderEndY - borderStartY);
+                      let ratioY2 =
+                        (borderEndY - y2) / (borderEndY - borderStartY);
+                      y1 =
+                        borderEndY -
+                        ratioY1 * (borderEndY - (borderStartY + offsetY));
+                      y2 =
+                        borderEndY -
+                        ratioY2 * (borderEndY - (borderStartY + offsetY));
+                    }
+
+                    const width = Math.abs(x2 - x1);
+                    const height = Math.abs(y2 - y1);
+                    return {
+                      ...componentShape,
+                      x1: x1,
+                      y1: y1,
+                      x2: x2,
+                      y2: y2,
+                      width,
+                      height,
+                    };
+                  }
+                ),
               };
             }
 
@@ -1286,8 +1273,7 @@ const WhiteBoard = () => {
               zIndexFixedShapes = zIndexFixedShapes.sort(
                 (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
               );
-              console.log(zIndexFixedShapes);
-              console.log(zIndex);
+
               zIndexFixedShapes = zIndexFixedShapes.map(
                 (shape: Shape, index: number) => {
                   if (index < zIndex) {
@@ -1317,6 +1303,9 @@ const WhiteBoard = () => {
                 zIndex: zIndex,
               };
               zIndexFixedShapes.push(newComponent);
+              zIndexFixedShapes = zIndexFixedShapes.sort(
+                (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+              );
               dispatch(
                 setWhiteboardData({
                   ...board,

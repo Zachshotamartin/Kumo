@@ -15,11 +15,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, labels }) => {
       style={{ left: x, top: y }}
       id="contextMenu"
     >
-      <ul>
+      <ul >
         {labels.map(
           (label: { label: string; onClick: () => void }, index: number) => (
             <li
               key={index}
+              
               onClick={(event) => {
                 console.log("clicked");
 
