@@ -64,26 +64,71 @@ const Components = () => {
 
     [...shapes].reverse().forEach((shape: Shape, i: number) => {
       if (dragging !== null) {
+        console.log("dragging, ", dragging);
+        console.log("index, ", index);
+        console.log("i, ", i);
+        console.log("shape, ", shape);
         if (i > index && i > dragging) {
+          console.log("less");
           newShapes.push(shape);
+          console.log(shape);
         } else if (i < index && i < dragging) {
+          console.log("more");
           newShapes.push(shape);
+          console.log(shape);
         } else {
           if (i === dragging) {
-            newShapes.push({
-              ...shape,
-              zIndex: shapes.length - 1 - index,
-            });
+            if (shape.type !== "component") {
+              newShapes.push({
+                ...shape,
+                zIndex: shapes.length - 1 - index,
+              });
+            } else {
+              newShapes.push({
+                ...shape,
+                zIndex: shapes.length - 1 - index,
+                shapes: shape.shapes?.map(
+                  (componentShape: Shape, idx: number) => {
+                    return {
+                      ...componentShape,
+                      zIndex: shapes.length - index + idx,
+                    };
+                  }
+                ),
+              });
+            }
           } else if (index < dragging) {
-            newShapes.push({
-              ...shape,
-              zIndex: shapes.length - 1 - i - 1,
-            });
+            console.log("index < dragging");
+            if ([...shapes].reverse()[dragging].type !== "component") {
+              newShapes.push({
+                ...shape,
+                zIndex: shapes.length - i,
+              });
+            } else {
+              newShapes.push({
+                ...shape,
+                zIndex:
+                  shapes.length -
+                  i -
+                  [...shapes].reverse()[dragging].shapes.length,
+              });
+            }
           } else if (index > dragging) {
-            newShapes.push({
-              ...shape,
-              zIndex: shapes.length - i + 1,
-            });
+            console.log("index > dragging");
+            if ([...shapes].reverse()[dragging].type !== "component") {
+              newShapes.push({
+                ...shape,
+                zIndex: shapes.length - i,
+              });
+            } else {
+              newShapes.push({
+                ...shape,
+                zIndex:
+                  shapes.length -
+                  i +
+                  [...shapes].reverse()[dragging].shapes.length,
+              });
+            }
           }
         }
       }

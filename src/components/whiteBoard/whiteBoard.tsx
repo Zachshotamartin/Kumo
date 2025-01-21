@@ -144,7 +144,6 @@ const WhiteBoard = () => {
 
   useEffect(() => {
     setMiddle(middleMouseButton);
-   
   }, [middleMouseButton]);
 
   useEffect(() => {
@@ -420,9 +419,7 @@ const WhiteBoard = () => {
   }, [actionsDispatch, dispatch, selectedShapes, shapes]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    
     if (e.button === 1) {
-     
       const boundingRect = canvasRef.current?.getBoundingClientRect();
       const x = Math.round(
         (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed
@@ -1329,7 +1326,6 @@ const WhiteBoard = () => {
                 }
               }
             });
-            
 
             dispatch(
               setWhiteboardData({
@@ -1378,7 +1374,6 @@ const WhiteBoard = () => {
                 }
               }
             });
-           
 
             dispatch(
               setWhiteboardData({
@@ -1419,9 +1414,7 @@ const WhiteBoard = () => {
             const hasComponent = selectedShapes.some(
               (index: number) => shapes[index].type === "component"
             );
-            selectedShapes.forEach((shape: Shape) => {
-             
-            });
+            selectedShapes.forEach((shape: Shape) => {});
             if (hasComponent) {
               alert(
                 "cannot make a component with a component: not implemented as of now"
@@ -1445,20 +1438,7 @@ const WhiteBoard = () => {
               (maxY: number, index: number) => Math.max(maxY, shapes[index].y2),
               -Infinity
             );
-            const zIndex = selectedShapes.reduce(
-              (minZIndex: number, index: number) =>
-                Math.min(minZIndex, shapes[index].zIndex),
-              Infinity
-            );
-            const component = selectedShapes.map(
-              (index: number, index2: number) => {
-                return {
-                  ...shapes[index],
-                  level: shapes[index].level + 1,
-                  zIndex: zIndex + index2 + 1,
-                };
-              }
-            );
+
             if (selectedShapes.length > 0) {
               const shapesCopy = [...selectedShapes];
               const newShapes = shapesCopy.sort(
@@ -1475,10 +1455,9 @@ const WhiteBoard = () => {
                 (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
               );
 
-              console.log(selectedShapes.length);
               zIndexFixedShapes = zIndexFixedShapes.map(
                 (shape: Shape, index: number) => {
-                  if (index < zIndex) {
+                  if (shape.type !== "component") {
                     return {
                       ...shape,
                       zIndex: index,
@@ -1486,13 +1465,42 @@ const WhiteBoard = () => {
                   } else {
                     return {
                       ...shape,
-                      zIndex: shape.zIndex + selectedShapes.length + 1,
+                      zIndex: index,
+                      shapes: shape.shapes?.map(
+                        (innerShape: Shape, idx: number) => {
+                          return {
+                            ...innerShape,
+                            zIndex: index + idx + 1,
+                          };
+                        }
+                      ),
                     };
                   }
                 }
               );
-
-             
+              let zIndex =
+                zIndexFixedShapes[zIndexFixedShapes.length - 1].zIndex + 1;
+              console.log("zindex, ", zIndex);
+              if (
+                zIndexFixedShapes[zIndexFixedShapes.length - 1].type ===
+                "component"
+              ) {
+                zIndex =
+                  zIndexFixedShapes[zIndexFixedShapes.length - 1].shapes[
+                    zIndexFixedShapes[zIndexFixedShapes.length - 1].shapes
+                      .length - 1
+                  ].zIndex + 1;
+                console.log(zIndex);
+              }
+              const component = selectedShapes.map(
+                (index: number, index2: number) => {
+                  return {
+                    ...shapes[index],
+                    level: shapes[index].level + 1,
+                    zIndex: zIndex + index2 + 1,
+                  };
+                }
+              );
               const newComponent = {
                 type: "component",
                 shapes: component,
@@ -1515,7 +1523,7 @@ const WhiteBoard = () => {
               zIndexFixedShapes = zIndexFixedShapes.sort(
                 (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
               );
-            
+
               newShapes.forEach((index: number) => {
                 dispatch(removeShape(index));
               });
