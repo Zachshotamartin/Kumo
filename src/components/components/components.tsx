@@ -108,10 +108,16 @@ const Components = () => {
               newShapes.push({
                 ...shape,
                 zIndex:
-                  shapes.length -
-                  i -
-                  [...shapes].reverse()[dragging].shapes.length,
+                  (shape.zIndex ?? 0) -
+                  [...shapes].reverse()[dragging].shapes.length -
+                  1,
               });
+              console.log(
+                "indexs, ",
+                shapes.length -
+                  i -
+                  [...shapes].reverse()[dragging].shapes.length
+              );
             }
           } else if (index > dragging) {
             console.log("index > dragging");
