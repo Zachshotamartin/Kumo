@@ -20,10 +20,10 @@ const RenderBorder = () => {
     (state: any) => state.selected.selectedShapes
   );
   const window = useSelector((state: any) => state.window);
-
+  console.log(selectedShapes);
   useEffect(() => {
     const selectedShapesArray = shapes.filter((shape: Shape, index: number) => {
-      return selectedShapes.includes(index);
+      return selectedShapes.includes(shape.id);
     });
 
     if (selectedShapesArray.length === 0) {

@@ -16,10 +16,8 @@ const RenderBoxes = (props: any) => {
   const dispatch = useDispatch();
   const window = useSelector((state: any) => state.window);
 
-  const handleMouseEnter = (index: number) => {
-    console.log("entered box");
-    const shape = shapes.find((shape: Shape, i: number) => i === index);
-    if (shape && !selectedShapes.includes(index)) {
+  const handleMouseEnter = (shape: Shape) => {
+    if (!selectedShapes.includes(shape.id)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2));
@@ -30,7 +28,6 @@ const RenderBoxes = (props: any) => {
   };
 
   const handleMouseLeave = () => {
-    console.log("leave");
     dispatch(setHoverStartX(-100000));
     dispatch(setHoverStartY(-100000));
     dispatch(setHoverEndX(-100000));
@@ -39,14 +36,17 @@ const RenderBoxes = (props: any) => {
   return (
     <>
       {shapes.map((shape: Shape, index: number) => (
-        <>
+        <div key={index}>
           {shape.type === "rectangle" && (
             <div
-              key={index}
               style={{
                 // type
                 position: "absolute",
-                zIndex: selectedShapes.includes(index) ? 50 : shape.zIndex,
+                zIndex: selectedShapes
+                  .map((shape: Shape) => shape.id)
+                  .includes(shape.id)
+                  ? 50
+                  : shape.zIndex,
 
                 // position
                 top: `${
@@ -81,11 +81,13 @@ const RenderBoxes = (props: any) => {
 
                 opacity: `${shape.opacity}`,
               }}
-              onMouseOver={shape.level === 0 ? () => handleMouseEnter(index) : () => {}}
+              onMouseOver={
+                shape.level === 0 ? () => handleMouseEnter(shape) : () => {}
+              }
               onMouseOut={shape.level === 0 ? handleMouseLeave : () => {}}
             ></div>
           )}
-        </>
+        </div>
       ))}
     </>
   );

@@ -11,7 +11,7 @@ export interface Shape {
   y1: number;
   x2: number;
   y2: number;
-
+  id: string;
   // dimensions
   width: number;
   height: number;
@@ -46,7 +46,7 @@ export interface Shape {
   backgroundImage?: string;
   zIndex?: number;
   // recursive whiteboard
-  id?: string | null;
+  boardId?: string | null;
   title?: string | null;
   uid?: string | null;
 }
@@ -63,6 +63,12 @@ interface WhiteBoardState {
   uid: string | null;
   sharedWith: string[];
   backGroundColor: string;
+  lastChangedBy: string | null;
+  currentUsers: {
+    uid: string;
+    cursorX: number;
+    cursorY: number;
+  }[];
 }
 
 const initialState: WhiteBoardState = {
@@ -73,6 +79,8 @@ const initialState: WhiteBoardState = {
   uid: null,
   sharedWith: [],
   backGroundColor: "#313131",
+  lastChangedBy: null,
+  currentUsers: [],
 };
 
 const whiteBoardSlice = createSlice({
@@ -83,8 +91,16 @@ const whiteBoardSlice = createSlice({
       state,
       action: PayloadAction<Partial<WhiteBoardState>>
     ) => {
-      const { shapes, id, type, title, uid, sharedWith, backGroundColor } =
-        action.payload;
+      const {
+        shapes,
+        id,
+        type,
+        title,
+        uid,
+        sharedWith,
+        backGroundColor,
+        currentUsers,
+      } = action.payload;
 
       state.shapes = shapes || [];
       state.id = id || null;
@@ -93,6 +109,13 @@ const whiteBoardSlice = createSlice({
       state.uid = uid || null;
       state.sharedWith = sharedWith || [];
       state.backGroundColor = backGroundColor || "#313131";
+      state.lastChangedBy = uid || null;
+      state.currentUsers = currentUsers || [];
+      console.log("setting whiteboard data");
+      if (shapes && shapes.length > 0) {
+        console.log(shapes[0].x1);
+      }
+
     },
     addShape: (state, action: PayloadAction<Shape>) => {
       state.shapes.push(action.payload);
@@ -106,9 +129,10 @@ const whiteBoardSlice = createSlice({
         state.shapes[index] = { ...state.shapes[index], ...update };
       }
     },
-    removeShape: (state, action: PayloadAction<number>) => {
+    removeShape: (state, action: PayloadAction<Shape>) => {
+      console.log("action.payload.id", action.payload.id);
       state.shapes = state.shapes.filter(
-        (shape, index) => index !== action.payload
+        (shape, index) => shape.id !== action.payload.id
       );
     },
     share: (state, action: PayloadAction<string>) => {

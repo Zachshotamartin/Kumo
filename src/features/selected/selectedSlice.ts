@@ -3,7 +3,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Shape } from "../whiteBoard/whiteBoardSlice";
 
 interface SelectedState {
-  selectedShapes: Shape[];
+  selectedShapes: number[];
   selectedTool: string;
   highlightStart: number[];
   highlightEnd: number[];

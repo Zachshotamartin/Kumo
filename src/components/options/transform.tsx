@@ -1,33 +1,64 @@
 import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
-
+import { handleBoardChange } from "../../helpers/handleBoardChange";
+import {
+  Shape,
+  setWhiteboardData,
+} from "../../features/whiteBoard/whiteBoardSlice";
 const Transform = () => {
   const dispatch = useDispatch();
-  const selectedIdx = useSelector(
-    (state: any) => state.selected.selectedShapes[0]
+  const board = useSelector((state: any) => state.whiteBoard);
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
-  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
-    selectedIdx
-  ];
-  const [rotation, setRotation] = useState(selectedShape.rotate);
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+  let selectedShape: Shape | undefined;
+  if (selectedShapes) {
+    selectedShape = shapes.find(
+      (shape: Shape, index: number) => shape.id === selectedShapes[0]
+    );
+  }
+  const [rotation, setRotation] = useState(
+    selectedShape ? selectedShape.rotation : 0
+  );
   const inputRefRotation = useRef<HTMLInputElement>(null); // Reference to the input field
+  
 
   useEffect(() => {
-    setRotation(selectedShape.rotation);
+    if (selectedShape) {
+      setRotation(selectedShape.rotation);
+    }
   }, [selectedShape]);
 
   // Update rotation in the store
   const updateRotation = () => {
     dispatch(
-      updateShape({
-        index: selectedIdx,
-        update: {
-          rotation: rotation,
-        },
+      setWhiteboardData({
+        ...board,
+        shapes: [
+          ...shapes.filter(
+            (shape: Shape, index: number) => shape.id !== selectedShape?.id
+          ),
+          {
+            ...selectedShape,
+            rotation: rotation,
+          },
+        ],
       })
     );
+    handleBoardChange({
+      ...board,
+      shapes: [
+        ...shapes.filter(
+          (shape: Shape, index: number) => shape.id !== selectedShape?.id
+        ),
+        {
+          ...selectedShape,
+          rotation: rotation,
+        },
+      ],
+    });
   };
 
   // Handle "Enter" key to update rotation

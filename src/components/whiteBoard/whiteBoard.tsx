@@ -11,7 +11,7 @@ import {
 } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
-import { db } from "../../config/firebase";
+import { db, realtimeDb } from "../../config/firebase";
 import {
   doc,
   query,
@@ -20,6 +20,7 @@ import {
   where,
   onSnapshot,
   getDoc,
+  runTransaction,
 } from "firebase/firestore";
 import { AppDispatch } from "../../store";
 import { setBoards } from "../../features/boards/boards";
@@ -62,18 +63,24 @@ import RenderCalendars from "../renderComponents/renderCalendars";
 import RenderHoverBorder from "../renderComponents/renderHoverBorder";
 import RenderSnappingGuides from "../renderComponents/renderSnappingGuides";
 import RenderComponents from "../renderComponents/renderComponents";
+import RenderCursors from "../renderComponents/renderCursors";
 import ContextMenu from "../contextMenu/contextMenu";
 import calendarImage from "../../res/calendar.png";
+
 import image from "../../res/image.png";
 import { setHideOptions } from "../../features/hide/hide";
 import { storage } from "../../config/firebase";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref as storageRef, uploadBytes } from "firebase/storage";
 import {
   initializeHistory,
   updateHistory,
   undo,
   redo,
 } from "../../features/shapeHistory/shapeHistorySlice";
+import { handleBoardChange } from "../../helpers/handleBoardChange";
+
+import { ref, onValue, off } from "firebase/database"; // For listening to Realtime Database
+import _ from "lodash";
 const domtoimage = require("dom-to-image");
 
 const WhiteBoard = () => {
@@ -84,6 +91,7 @@ const WhiteBoard = () => {
   );
   const selectedTool = useSelector((state: any) => state.selected.selectedTool);
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+
   const board = useSelector((state: any) => state.whiteBoard);
   const window = useSelector((state: any) => state.window);
   const history = useSelector((state: any) => state.shapeHistory);
@@ -138,74 +146,97 @@ const WhiteBoard = () => {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const usersCollectionRef = collection(db, "users");
 
-  useEffect(() => {
-    dispatch(initializeHistory(shapes));
-  }, []);
+  // useEffect(() => {
+  //   dispatch(initializeHistory(shapes));
+  // }, []);
 
   useEffect(() => {
     setMiddle(middleMouseButton);
   }, [middleMouseButton]);
 
-  useEffect(() => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: history.history[history.currentIndex],
-      })
-    );
-  }, [history]);
+  // useEffect(() => {
+  //   dispatch(
+  //     setWhiteboardData({
+  //       ...board,
+  //       shapes: history.history[history.currentIndex],
+  //     })
+  //   );
+  //   console.log("history being changed");
+  //   handleBoardChange({
+  //     ...board,
+  //     shapes: history.history[history.currentIndex],
+  //   });
+  // }, [history]);
+
+  // useEffect(() => {
+  //   if (!dragging && !resizing && !drawing) {
+  //     if (shapes !== history.history[history.currentIndex]) {
+  //       //dispatch(updateHistory(shapes));
+  //     }
+  //   }
+  // }, [shapes, dragging, resizing, drawing]);
 
   useEffect(() => {
-    if (!dragging && !resizing && !drawing) {
-      if (shapes !== history.history[history.currentIndex]) {
-        dispatch(updateHistory(shapes));
+    if (!board?.id) {
+      console.error("Board ID is missing or invalid!");
+      return;
+    }
+
+    const boardsRef = ref(realtimeDb, `boards/${board.id}`); // Ensure board.id is valid
+
+    const handleSnapshot = (snapshot: any) => {
+      if (!snapshot.exists()) {
+        console.log("No such board!");
+        return;
       }
-    }
-  }, [shapes, dragging, resizing, drawing]);
 
-  useEffect(() => {
-    if (drawing || dragging || doubleClicking) {
-      return;
-    }
-    if (docRef.id !== board.id) {
-      return;
-    }
-    const updateFirebase = async () => {
-      console.log({
-        shapes: board.shapes,
-        title: board.title,
-        type: board.type,
-        uid: board.uid,
-        sharedWith: board.sharedWith,
-        backGroundColor: board.backGroundColor,
-      });
-      try {
-        await updateDoc(docRef, {
-          shapes: board.shapes,
-          title: board.title,
-          type: board.type,
-          uid: board.uid,
-          sharedWith: board.sharedWith,
-          backGroundColor: board.backGroundColor,
-        });
-      } catch (error) {
-        console.error("Error updating document:", error);
+      const boardData = snapshot.val();
+      let nonSelectedShapes: Shape[] = [];
+      if (boardData.shapes) {
+        nonSelectedShapes = (boardData?.shapes).filter(
+          (shape: Shape) => !selectedShapes.includes(shape.id)
+        );
+      }
+
+      // Sort and merge shapes
+      const sortedShapes = boardData?.shapes
+        ? [
+            ...nonSelectedShapes,
+            ...shapes.filter((shape: Shape) =>
+              selectedShapes.includes(shape.id)
+            ),
+          ]
+        : [];
+
+      // Update the state only if the user is not the last editor
+
+      if (!_.isEqual(boardData.shapes ? boardData.shapes : [], board.shapes)) {
+        if (user.uid !== boardData.lastChangedBy) {
+          dispatch(
+            setWhiteboardData({
+              ...boardData,
+              shapes: sortedShapes,
+              title: boardData.title,
+              type: boardData.type,
+              uid: boardData.uid,
+              sharedWith: boardData.sharedWith,
+              backGroundColor: boardData.backGroundColor,
+              lastChangedBy: user,
+            })
+          );
+        }
       }
     };
-    updateFirebase();
-  }, [
-    user.uid,
-    board.id,
-    board.shapes,
-    board.title,
-    board.type,
-    board.uid,
-    drawing,
-    dragging,
-    doubleClicking,
-    docRef,
-    board.sharedWith,
-  ]);
+
+    const unsubscribe = onValue(boardsRef, handleSnapshot, (error: any) => {
+      console.error("Error listening to board data: ", error);
+    });
+
+    // Cleanup the listener when the component unmounts
+    return () => {
+      off(boardsRef); // Properly remove the listener
+    };
+  }, [dispatch, selectedShapes, shapes, user]);
 
   useEffect(() => {
     // figure out when the the edge of the border hits the edge of another shape.
@@ -235,7 +266,7 @@ const WhiteBoard = () => {
           shape.x2 === borderStartX ||
           shape.x2 === middleOfBorderX ||
           shape.x2 === borderEndX) &&
-        !selectedShapes.includes(index)
+        !selectedShapes.includes(shape.id)
       ) {
         intersectsX = true;
       }
@@ -249,7 +280,7 @@ const WhiteBoard = () => {
           shape.y2 === borderStartY ||
           shape.y2 === middleOfBorderY ||
           shape.y2 === borderEndY) &&
-        !selectedShapes.includes(index)
+        !selectedShapes.includes(shape.id)
       ) {
         intersectsY = true;
       }
@@ -285,7 +316,7 @@ const WhiteBoard = () => {
           const blob = new Blob([uint8Array], { type: "image/jpeg" });
 
           // Upload the Blob to Firebase Storage
-          const fileRef = ref(storage, `boardPreviews/${board.id}.jpg`);
+          const fileRef = storageRef(storage, `boardPreviews/${board.id}.jpg`);
           uploadBytes(fileRef, blob)
             .then((snapshot) => {
               console.log("File uploaded successfully!");
@@ -298,7 +329,7 @@ const WhiteBoard = () => {
           console.error("Error generating preview:", error);
         });
     };
-    console.log("generating Preview");
+
     generatePreview();
   }, [board.id]);
 
@@ -335,8 +366,8 @@ const WhiteBoard = () => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey && event.key === "c") {
         const copyShapes = () => {
-          const copiedData = selectedShapes.map((index: number) => {
-            return shapes[index];
+          const copiedData = shapes.map((shape: Shape) => {
+            return selectedShapes.includes(shape.id) ? shape : null;
           });
           navigator.clipboard.writeText(JSON.stringify(copiedData));
         };
@@ -361,9 +392,26 @@ const WhiteBoard = () => {
 
         const pasteShapes = () => {
           navigator.clipboard.readText().then((copiedData) => {
-            const pastedShapes = JSON.parse(copiedData);
-            pastedShapes.forEach((shape: Shape) => {
-              dispatch(addShape(shape));
+            let pastedShapes = JSON.parse(copiedData);
+            pastedShapes.forEach((shape: Shape, index: number) => {
+              if (shape) {
+                pastedShapes[index] = {
+                  ...shape,
+                  id:
+                    Math.random().toString(36).substring(2, 10) +
+                    new Date().getTime().toString(36),
+                };
+              }
+            });
+            dispatch(
+              setWhiteboardData({
+                ...board,
+                shapes: [...shapes, ...pastedShapes],
+              })
+            );
+            handleBoardChange({
+              ...board,
+              shapes: [...shapes, ...pastedShapes],
             });
           });
         };
@@ -381,11 +429,19 @@ const WhiteBoard = () => {
         } else {
           event.preventDefault();
           if (selectedShapes.length > 0) {
-            const shapesCopy = [...selectedShapes];
-            const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
+            const shapesCopy = shapes.filter((shape: Shape, index: number) => {
+              return !selectedShapes.includes(shape.id);
+            });
 
-            newShapes.forEach((index: number) => {
-              dispatch(removeShape(index));
+            dispatch(
+              setWhiteboardData({
+                ...board,
+                shapes: shapesCopy,
+              })
+            );
+            handleBoardChange({
+              ...board,
+              shapes: shapesCopy,
             });
             dispatch(clearSelectedShapes());
           }
@@ -428,7 +484,7 @@ const WhiteBoard = () => {
         (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed
       );
       actionsDispatch(setMiddleMouseButton(true));
-      console.log("X ", x, "Y ", y);
+
       setPrevMouseX(x);
       setPrevMouseY(y);
       setDragOffset({ x: 0, y: 0 });
@@ -471,10 +527,10 @@ const WhiteBoard = () => {
             y <= Math.max(shape.y1, shape.y2)
           ) {
             // if cursor is within a shape.
-            selected = i;
+            selected = shape.id;
             if (e.shiftKey) {
-              if (!selectedShapes.includes(i)) {
-                dispatch(setSelectedShapes([...selectedShapes, i]));
+              if (!selectedShapes.includes(selected)) {
+                dispatch(setSelectedShapes([...selectedShapes, selected]));
               }
             }
             actionsDispatch(setDrawing(false));
@@ -573,6 +629,7 @@ const WhiteBoard = () => {
               dispatch(setSelectedShapes([...selectedShapes, selected]));
             }
             if (!e.shiftKey) {
+              console.log("selected():", selected);
               dispatch(setSelectedShapes([selected]));
             }
           }
@@ -617,6 +674,9 @@ const WhiteBoard = () => {
           // type
           type: selectedTool,
           // position
+          id:
+            Math.random().toString(36).substring(2, 10) +
+            new Date().getTime().toString(36),
           x1: x,
           y1: y,
           x2: x,
@@ -646,14 +706,14 @@ const WhiteBoard = () => {
           rows: 1,
 
           // color
-          color: "white",
+          color: "#ffffff",
           backgroundColor:
             selectedTool === "text" ||
             selectedTool === "calendar" ||
             selectedTool === "image"
               ? "transparent"
-              : "white",
-          borderColor: "black",
+              : "#ffffff",
+          borderColor: "#000000",
           opacity: 1,
           zIndex:
             shapes.length === 0
@@ -665,7 +725,6 @@ const WhiteBoard = () => {
                 ].zIndex + 1,
           text: "",
         };
-        console.log(shape);
 
         if (selectedTool === "calendar") {
           shape.backgroundImage = calendarImage;
@@ -673,9 +732,29 @@ const WhiteBoard = () => {
         if (selectedTool === "image") {
           shape.backgroundImage = image;
         }
-
-        dispatch(addShape(shape));
-        dispatch(setSelectedShapes([shapes.length]));
+        dispatch(
+          setWhiteboardData({
+            ...board,
+            shapes: [...shapes, shape],
+            currentUsers: [
+              ...(board.currentUsers || []).filter(
+                (curUser: any) => curUser?.user !== user.uid
+              ),
+              { user: user.uid, cursorX: x, cursorY: y },
+            ],
+          })
+        );
+        handleBoardChange({
+          ...board,
+          shapes: [...shapes, shape],
+          currentUsers: [
+            ...(board.currentUsers || []).filter(
+              (curUser: any) => curUser?.user !== user.uid
+            ),
+            { user: user.uid, cursorX: x, cursorY: y },
+          ],
+        });
+        dispatch(setSelectedShapes([shape.id]));
       }
     }
   };
@@ -685,8 +764,11 @@ const WhiteBoard = () => {
     throttle(
       debounce((e: React.MouseEvent<HTMLDivElement>) => {
         const selectedShapesArray = shapes.filter(
-          (shape: Shape, index: number) => selectedShapes.includes(index)
+          (shape: Shape, index: number) => {
+            return selectedShapes.includes(shape.id);
+          }
         );
+
         const boundingRect = canvasRef.current?.getBoundingClientRect();
         const x = Math.round(
           (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
@@ -749,11 +831,13 @@ const WhiteBoard = () => {
 
         if (dragging && moving) {
           if (dragOffset) {
+            const updatedShapes: Shape[] = [];
             selectedShapesArray.forEach((shape: Shape, index: number) => {
               const width = Math.abs(shape.x2 - shape.x1);
               const height = Math.abs(shape.y2 - shape.y1);
               let offsetX = x - prevMouseX;
               let offsetY = y - prevMouseY;
+
               if (gridSnappedX) {
                 actionsDispatch(
                   setGridSnappedDistanceX(offsetX + gridSnappedDistanceX)
@@ -787,13 +871,44 @@ const WhiteBoard = () => {
                   }),
                 };
               }
+              updatedShapes.push(updatedShape);
+            });
 
-              dispatch(
-                updateShape({
-                  index: selectedShapes[index],
-                  update: updatedShape,
-                })
-              );
+            dispatch(
+              setWhiteboardData({
+                ...board,
+                shapes: [
+                  ...board.shapes.filter((shape: Shape, index: number) => {
+                    return !selectedShapes.includes(shape.id);
+                  }),
+                  ...updatedShapes,
+                ],
+
+                currentUsers: [
+                  ...(board.currentUsers || []).filter(
+                    (curUser: any) => curUser?.user !== user.uid
+                  ),
+                  { user: user.uid, cursorX: x, cursorY: y },
+                ],
+                lastChangedBy: user.uid,
+              })
+            );
+            console.log("dispatch called");
+            handleBoardChange({
+              ...board,
+              shapes: [
+                ...board.shapes.filter((shape: Shape, index: number) => {
+                  return !selectedShapes.includes(shape.id);
+                }),
+                ...updatedShapes,
+              ],
+              currentUsers: [
+                ...(board.currentUsers || []).filter(
+                  (curUser: any) => curUser?.user !== user.uid
+                ),
+                { user: user.uid, cursorX: x, cursorY: y },
+              ],
+              lastChangedBy: user.uid,
             });
           }
           if (
@@ -821,6 +936,8 @@ const WhiteBoard = () => {
         }
 
         if (dragging && resizing) {
+          console.log("resizing");
+          let updatedShapes: Shape[] = [];
           selectedShapesArray.forEach((shape: Shape, index: number) => {
             let offsetX = x - prevMouseX;
             let offsetY = y - prevMouseY;
@@ -902,9 +1019,7 @@ const WhiteBoard = () => {
                         (x1 - borderStartX) / (borderEndX - borderStartX);
                       let ratioX2 =
                         (x2 - borderStartX) / (borderEndX - borderStartX);
-                      if (index === 0) {
-                        console.log(ratioX1, ratioX2);
-                      }
+
                       x1 =
                         borderStartX +
                         ratioX1 * (borderEndX + offsetX - borderStartX);
@@ -963,13 +1078,40 @@ const WhiteBoard = () => {
                 ),
               };
             }
+            updatedShapes.push(updatedShape);
+          });
 
-            dispatch(
-              updateShape({
-                index: selectedShapes[index],
-                update: updatedShape,
-              })
-            );
+          dispatch(
+            setWhiteboardData({
+              ...board,
+              shapes: [
+                ...board.shapes.filter((shape: Shape, index: number) => {
+                  return !selectedShapes.includes(shape.id);
+                }),
+                ...updatedShapes,
+              ],
+              currentUsers: [
+                ...(board.currentUsers || []).filter(
+                  (curUser: any) => curUser?.user !== user.uid
+                ),
+                { user: user.uid, cursorX: x, cursorY: y },
+              ],
+            })
+          );
+          handleBoardChange({
+            ...board,
+            shapes: [
+              ...board.shapes.filter((shape: Shape, index: number) => {
+                return !selectedShapes.includes(shape.id);
+              }),
+              ...updatedShapes,
+            ],
+            currentUsers: [
+              ...(board.currentUsers || []).filter(
+                (curUser: any) => curUser?.user !== user.uid
+              ),
+              { user: user.uid, cursorX: x, cursorY: y },
+            ],
           });
           if (
             gridSnappedX &&
@@ -1017,8 +1159,30 @@ const WhiteBoard = () => {
             rotation: 0,
           };
           dispatch(
-            updateShape({ index: shapes.length - 1, update: updatedShape })
+            setWhiteboardData({
+              ...board,
+              shapes: [
+                ...board.shapes.slice(0, shapes.length - 1),
+                updatedShape,
+              ],
+              currentUsers: [
+                ...(board.currentUsers || []).filter(
+                  (curUser: any) => curUser?.user !== user.uid
+                ),
+                { user: user.uid, cursorX: x, cursorY: y },
+              ],
+            })
           );
+          handleBoardChange({
+            ...board,
+            shapes: [...board.shapes.slice(0, shapes.length - 1), updatedShape],
+            currentUsers: [
+              ...(board.currentUsers || []).filter(
+                (curUser: any) => curUser?.user !== user.uid
+              ),
+              { user: user.uid, cursorX: x, cursorY: y },
+            ],
+          });
 
           if (
             gridSnappedX &&
@@ -1052,7 +1216,7 @@ const WhiteBoard = () => {
         const y = Math.round(
           (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed
         );
-        console.log("Prev X ", prevMouseX, "Prev Y", prevMouseY);
+
         let offsetX = x - prevMouseX;
         let offsetY = y - prevMouseY;
 
@@ -1084,7 +1248,6 @@ const WhiteBoard = () => {
   };
 
   const handleMouseUp = () => {
-    console.log("mouse UP");
     if (!middleMouseButton) {
       actionsDispatch(setMouseDown(false));
       actionsDispatch(setDrawing(false));
@@ -1113,78 +1276,78 @@ const WhiteBoard = () => {
     }
   };
 
-  const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    actionsDispatch(setDoubleClicking(true));
-    const boundingRect = canvasRef.current?.getBoundingClientRect();
-    const x =
-      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-      window.x1;
-    const y =
-      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
+  // const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+  //   actionsDispatch(setDoubleClicking(true));
+  //   const boundingRect = canvasRef.current?.getBoundingClientRect();
+  //   const x =
+  //     (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+  //     window.x1;
+  //   const y =
+  //     (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
 
-    if (selectedTool === "pointer") {
-      let selected = shapes
-        .slice()
-        .reverse()
-        .findIndex(
-          (shape: Shape) =>
-            x >= Math.min(shape.x1, shape.x2) &&
-            x <= Math.max(shape.x1, shape.x2) &&
-            y >= Math.min(shape.y1, shape.y2) &&
-            y <= Math.max(shape.y1, shape.y2)
-        );
-      if (selected !== -1) {
-        selected = shapes.length - 1 - selected;
-        const shape = shapes[selected];
+  //   if (selectedTool === "pointer") {
+  //     let selected =
+  //       shapes
+  //         .slice()
+  //         .reverse()
+  //         .find(
+  //           (shape: Shape) =>
+  //             x >= Math.min(shape.x1, shape.x2) &&
+  //             x <= Math.max(shape.x1, shape.x2) &&
+  //             y >= Math.min(shape.y1, shape.y2) &&
+  //             y <= Math.max(shape.y1, shape.y2)
+  //         )?.id || -1;
+  //     if (selected !== -1) {
+  //       const shapeType = selected.type;
 
-        const shapeType = shape.type;
+  //       if (selected.id) {
+  //         // const documentRef = doc(db, "boards", shape.id);
 
-        if (shape.id) {
-          const documentRef = doc(db, "boards", shape.id);
+  //         try {
+  //           // Fetch document snapshot
 
-          try {
-            // Fetch document snapshot
+  //           const docSnap = await getDoc(documentRef);
+  //           setDocRef(documentRef);
 
-            const docSnap = await getDoc(documentRef);
-            setDocRef(documentRef);
+  //           if (docSnap.exists()) {
+  //             const boardData = docSnap.data();
 
-            if (docSnap.exists()) {
-              const boardData = docSnap.data();
+  //             const data = {
+  //               shapes: boardData.shapes || [],
+  //               title: boardData.title || "Untitled",
+  //               type: boardData.type || "default",
+  //               uid: boardData.uid,
+  //               id: shape.id,
+  //               sharedWith: boardData.sharedWith || [],
+  //               backGroundColor: boardData.backGroundColor || "#313131",
+  //               currentUsers: [
+  //                 ...board.currentUsers,
+  //                 { user: user, cursorX: x, cursorY: y },
+  //               ],
+  //             };
 
-              const data = {
-                shapes: boardData.shapes || [],
-                title: boardData.title || "Untitled",
-                type: boardData.type || "default",
-                uid: boardData.uid,
-                id: shape.id,
-                sharedWith: boardData.sharedWith || [],
-                backGroundColor: boardData.backGroundColor || "#313131",
-              };
+  //             dispatch(setWhiteboardData(data)); // !!! come back to this. This has to do with switching to a new board
 
-              dispatch(setWhiteboardData(data));
+  //             dispatch(clearSelectedShapes());
+  //           } else {
+  //             console.error(`No document found for board ID: ${board.id}`);
+  //           }
+  //         } catch (error) {
+  //           console.error("Error getting document:", error);
+  //         }
+  //       }
+  //     } else {
+  //       dispatch(clearSelectedShapes());
+  //     }
 
-              dispatch(clearSelectedShapes());
-            } else {
-              console.error(`No document found for board ID: ${board.id}`);
-            }
-          } catch (error) {
-            console.error("Error getting document:", error);
-          }
-        }
-      } else {
-        dispatch(clearSelectedShapes());
-      }
-
-      actionsDispatch(setDoubleClicking(false));
-      return;
-    }
-  };
+  //     actionsDispatch(setDoubleClicking(false));
+  //     return;
+  //   }
+  // };
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     const deltaY = event.deltaY;
 
-    // zoom if i use the scroll wheel
-    // zoom if I
     if (event.metaKey || event.ctrlKey) {
       // Zoom logic
       const zoomFactor = deltaY > 0 ? 1.1 : 0.9;
@@ -1269,13 +1432,14 @@ const WhiteBoard = () => {
           onClick: () => {
             event.preventDefault();
             if (selectedShapes.length > 0) {
-              const shapesCopy = [...selectedShapes];
-              const newShapes = shapesCopy.sort(
-                (a: number, b: number) => b - a
+              const shapesCopy = shapes.filter(
+                (shape: Shape, index: number) => {
+                  return selectedShapes.includes(shape.id);
+                }
               );
 
-              newShapes.forEach((index: number) => {
-                dispatch(removeShape(index));
+              shapesCopy.forEach((shape: Shape) => {
+                dispatch(removeShape(shape));
               });
               dispatch(clearSelectedShapes());
             }
@@ -1326,15 +1490,33 @@ const WhiteBoard = () => {
                 }
               }
             });
-
             dispatch(
               setWhiteboardData({
                 ...board,
                 shapes: newShapes.sort(
                   (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
                 ),
+                currentUsers: [
+                  ...(board.currentUsers || []).filter(
+                    (curUser: any) => curUser?.user !== user.uid
+                  ),
+                  { user: user.uid, cursorX: x, cursorY: y },
+                ],
               })
             );
+            handleBoardChange({
+              ...board,
+              shapes: newShapes.sort(
+                (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+              ),
+              currentUsers: [
+                ...(board.currentUsers || []).filter(
+                  (curUser: any) => curUser?.user !== user.uid
+                ),
+                { user: user.uid, cursorX: x, cursorY: y },
+              ],
+            });
+
             dispatch(setSelectedShapes([endIndex]));
           },
         },
@@ -1374,20 +1556,41 @@ const WhiteBoard = () => {
                 }
               }
             });
-
             dispatch(
               setWhiteboardData({
                 ...board,
                 shapes: newShapes.sort(
                   (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
                 ),
+                currentUsers: [
+                  ...(board.currentUsers || []).filter(
+                    (curUser: any) => curUser?.user !== user.uid
+                  ),
+                  { user: user.uid, cursorX: x, cursorY: y },
+                ],
               })
             );
+            handleBoardChange({
+              ...board,
+              shapes: newShapes.sort(
+                (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+              ),
+              currentUsers: [
+                ...(board.currentUsers || []).filter(
+                  (curUser: any) => curUser?.user !== user.uid
+                ),
+                { user: user.uid, cursorX: x, cursorY: y },
+              ],
+            });
+
             dispatch(setSelectedShapes([endIndex]));
           },
         },
       ];
-      if (shapes[selectedShapes[0]].type === "component") {
+      if (
+        shapes.filter((shape: Shape) => shape.id === selectedShapes[0]).type ===
+        "component"
+      ) {
         contextMenuLabels.push({
           label: "unwrap component",
           onClick: () => {
@@ -1396,13 +1599,37 @@ const WhiteBoard = () => {
                 ...board,
                 shapes: [
                   ...shapes.filter((shape: Shape, index: number) => {
-                    return index !== selectedShapes[0];
+                    return shape.id !== selectedShapes[0];
                   }),
-                  ...shapes[selectedShapes[0]].shapes,
+                  ...shapes.filter(
+                    (shape: Shape) => (shape.id = selectedShapes[0])
+                  ).shapes,
+                ],
+                currentUsers: [
+                  ...(board.currentUsers || []).filter(
+                    (curUser: any) => curUser?.user !== user.uid
+                  ),
+                  { user: user.uid, cursorX: x, cursorY: y },
                 ],
               })
             );
-            dispatch(setSelectedShapes([]));
+            handleBoardChange({
+              ...board,
+              shapes: [
+                ...shapes.filter((shape: Shape, index: number) => {
+                  return index !== selectedShapes[0];
+                }),
+                ...shapes[selectedShapes[0]].shapes,
+              ],
+              currentUsers: [
+                ...(board.currentUsers || []).filter(
+                  (curUser: any) => curUser?.user !== user.uid
+                ),
+                { user: user.uid, cursorX: x, cursorY: y },
+              ],
+            });
+
+            dispatch(clearSelectedShapes());
           },
         });
       } else {
@@ -1410,11 +1637,13 @@ const WhiteBoard = () => {
           label: "create component",
           onClick: () => {
             event.preventDefault();
-
-            const hasComponent = selectedShapes.some(
-              (index: number) => shapes[index].type === "component"
+            const selectedShapesArray = shapes.filter((shape: Shape) =>
+              selectedShapes.includes(shape.id)
             );
-            selectedShapes.forEach((shape: Shape) => {});
+            const hasComponent = selectedShapesArray.some(
+              (shape: Shape) => shape.type === "component"
+            );
+
             if (hasComponent) {
               alert(
                 "cannot make a component with a component: not implemented as of now"
@@ -1422,32 +1651,33 @@ const WhiteBoard = () => {
               return;
             }
 
-            const x1 = selectedShapes.reduce(
-              (minX: number, index: number) => Math.min(minX, shapes[index].x1),
+            const x1 = selectedShapesArray.reduce(
+              (minX: number, shape: Shape) => Math.min(minX, shape.x1),
               Infinity
             );
-            const y1 = selectedShapes.reduce(
-              (minY: number, index: number) => Math.min(minY, shapes[index].y1),
+            const y1 = selectedShapesArray.reduce(
+              (minY: number, shape: Shape) => Math.min(minY, shape.y1),
               Infinity
             );
-            const x2 = selectedShapes.reduce(
-              (maxX: number, index: number) => Math.max(maxX, shapes[index].x2),
+            const x2 = selectedShapesArray.reduce(
+              (maxX: number, shape: Shape) => Math.max(maxX, shape.x2),
               -Infinity
             );
-            const y2 = selectedShapes.reduce(
-              (maxY: number, index: number) => Math.max(maxY, shapes[index].y2),
+            const y2 = selectedShapesArray.reduce(
+              (maxY: number, shape: Shape) => Math.max(maxY, shape.y2),
               -Infinity
             );
 
             if (selectedShapes.length > 0) {
-              const shapesCopy = [...selectedShapes];
-              const newShapes = shapesCopy.sort(
-                (a: number, b: number) => b - a
+              const shapesCopy = shapes.filter(
+                (shape: Shape, index: number) => {
+                  return selectedShapes.includes(shape.id);
+                }
               );
 
               let zIndexFixedShapes = shapes.filter(
                 (shape: Shape, index: number) => {
-                  return !selectedShapes.includes(index);
+                  return !selectedShapes.includes(shape.id);
                 }
               );
 
@@ -1478,32 +1708,39 @@ const WhiteBoard = () => {
                   }
                 }
               );
-              let zIndex =
-                zIndexFixedShapes[zIndexFixedShapes.length - 1].zIndex + 1;
-              console.log("zindex, ", zIndex);
-              if (
-                zIndexFixedShapes[zIndexFixedShapes.length - 1].type ===
-                "component"
-              ) {
+              let zIndex = 1;
+              console.log(zIndexFixedShapes);
+              if (zIndexFixedShapes.length > 0) {
                 zIndex =
-                  zIndexFixedShapes[zIndexFixedShapes.length - 1].shapes[
-                    zIndexFixedShapes[zIndexFixedShapes.length - 1].shapes
-                      .length - 1
-                  ].zIndex + 1;
-                console.log(zIndex);
+                  zIndexFixedShapes[zIndexFixedShapes.length - 1]?.zIndex + 1;
+
+                if (
+                  zIndexFixedShapes[zIndexFixedShapes.length - 1]?.type ===
+                  "component"
+                ) {
+                  zIndex =
+                    zIndexFixedShapes[zIndexFixedShapes.length - 1]?.shapes[
+                      zIndexFixedShapes[zIndexFixedShapes.length - 1]?.shapes
+                        .length - 1
+                    ]?.zIndex + 1;
+                }
               }
-              const component = selectedShapes.map(
-                (index: number, index2: number) => {
+
+              const component = selectedShapesArray.map(
+                (shape: Shape, index: number) => {
                   return {
-                    ...shapes[index],
-                    level: shapes[index].level + 1,
-                    zIndex: zIndex + index2 + 1,
+                    ...shape,
+                    level: shape.level + 1,
+                    zIndex: zIndex + index + 1,
                   };
                 }
               );
               const newComponent = {
                 type: "component",
                 shapes: component,
+                id:
+                  Math.random().toString(36).substring(2, 10) +
+                  new Date().getTime().toString(36),
                 x1: x1,
                 y1: y1,
                 x2: x2,
@@ -1524,16 +1761,32 @@ const WhiteBoard = () => {
                 (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
               );
 
-              newShapes.forEach((index: number) => {
-                dispatch(removeShape(index));
+              shapesCopy.forEach((shape: Shape) => {
+                dispatch(removeShape(shape));
               });
               dispatch(clearSelectedShapes());
               dispatch(
                 setWhiteboardData({
                   ...board,
                   shapes: zIndexFixedShapes,
+                  currentUsers: [
+                    ...(board.currentUsers || []).filter(
+                      (curUser: any) => curUser?.user !== user.uid
+                    ),
+                    { user: user.uid, cursorX: x, cursorY: y },
+                  ],
                 })
               );
+              handleBoardChange({
+                ...board,
+                shapes: zIndexFixedShapes,
+                currentUsers: [
+                  ...(board.currentUsers || []).filter(
+                    (curUser: any) => curUser?.user !== user.uid
+                  ),
+                  { user: user.uid, cursorX: x, cursorY: y },
+                ],
+              });
             }
           },
         });
@@ -1545,8 +1798,27 @@ const WhiteBoard = () => {
           onClick: () => {
             navigator.clipboard.readText().then((copiedData) => {
               const pastedShapes = JSON.parse(copiedData);
-              pastedShapes.forEach((shape: Shape) => {
-                dispatch(addShape(shape));
+              dispatch(
+                setWhiteboardData({
+                  ...board,
+                  shapes: [...shapes, ...pastedShapes],
+                  currentUsers: [
+                    ...(board.currentUsers || []).filter(
+                      (curUser: any) => curUser?.user !== user.uid
+                    ),
+                    { user: user.uid, cursorX: x, cursorY: y },
+                  ],
+                })
+              );
+              handleBoardChange({
+                ...board,
+                shapes: [...shapes, ...pastedShapes],
+                currentUsers: [
+                  ...(board.currentUsers || []).filter(
+                    (curUser: any) => curUser?.user !== user.uid
+                  ),
+                  { user: user.uid, cursorX: x, cursorY: y },
+                ],
               });
             });
           },
@@ -1594,7 +1866,7 @@ const WhiteBoard = () => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
-      onDoubleClick={handleDoubleClick}
+      //onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
     >
       {grid && <RenderGridLines />}
@@ -1608,7 +1880,7 @@ const WhiteBoard = () => {
       <RenderHoverBorder />
       <RenderSnappingGuides />
       <RenderComponents shapes={shapes} />
-
+      <RenderCursors />
       <BottomBar />
 
       {contextMenuVisible && (

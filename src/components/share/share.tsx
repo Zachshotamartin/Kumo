@@ -1,118 +1,136 @@
-import React from "react";
+import React, { useState } from "react";
 import styles from "./share.module.css";
 
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  doc,
-} from "firebase/firestore";
-import { db } from "../../config/firebase";
-import {
-  setWhiteboardData,
-  share,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { ref, get, set, update, push } from "firebase/database";
+import { realtimeDb } from "../../config/firebase";
 import { useSelector, useDispatch } from "react-redux";
 import { setSharing } from "../../features/actions/actionsSlice";
 import { AppDispatch } from "../../store";
-const usersCollectionRef = collection(db, "users");
-const boardCollectionRef = collection(db, "boards");
+import { handleBoardChange } from "../../helpers/handleBoardChange";
 
 const Share = () => {
   const board = useSelector((state: any) => state.whiteBoard);
   const dispatch = useDispatch();
   const appDispatch = useDispatch<AppDispatch>();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const boardId = board.id;
-    const data = {
-      shapes: board.shapes,
-      title: board.title,
-      type: "shared",
-      uid: board.uid,
-      id: board.id,
-      sharedWith: board.sharedWith,
-      backGroundColor: board.backGroundColor || "#ffffff",
-    };
 
+    const boardId = board.id;
     const email = (e.target as HTMLFormElement).querySelector("input")!.value;
 
-    const emailQuery = query(usersCollectionRef, where("email", "==", email));
+    if (!boardId || !email) {
+      alert("Board ID or email is missing.");
+      return;
+    }
 
-    getDocs(emailQuery).then((querySnapshot) => {
-      if (querySnapshot.empty) {
+    try {
+      // Look up the user by email
+      const usersRef = ref(realtimeDb, "users");
+      const snapshot = await get(usersRef);
+      if (!snapshot.exists()) {
         alert("No matching users found.");
         return;
       }
 
+      const users = snapshot.val();
+      const userEntry = Object.entries(users).find(
+        ([_, user]: any) => user.email === email
+      );
+
+      if (!userEntry) {
+        alert("No matching users found.");
+        return;
+      }
+
+      const [userId, userData] = userEntry as [
+        string,
+        { sharedBoardsIds?: any[] }
+      ];
+
       if (board.sharedWith.includes(email)) {
-        alert("This board is already shared with this email");
+        alert("This board is already shared with this email.");
         return;
       }
 
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-      const uid = userData.uid;
-      if (uid === board.uid) {
-        alert("You cannot share this board with yourself");
+      if (userId === board.uid) {
+        alert("You cannot share this board with yourself.");
         return;
       }
-      if (!board.sharedWith.includes(uid)) {
-        data.sharedWith = [...board.sharedWith, uid];
-      }
 
-      appDispatch(share(userData.uid));
-      updateDoc(userDoc.ref, {
-        sharedBoardsIds: [
-          ...userData.sharedBoardsIds,
-          {
-            id: board.id,
-            title: board.title,
-            uid: board.uid,
-            type: "shared",
-          },
-        ],
-      });
-      appDispatch(setWhiteboardData(data));
-      const boardRef = doc(boardCollectionRef, board.id);
-      updateDoc(boardRef, {
+      // Update the board's sharedWith list
+      const updatedSharedWith = [...board.sharedWith, userId];
+      const boardRef = ref(realtimeDb, `boards/${boardId}`);
+      await update(boardRef, {
         ...board,
         type: "shared",
+        sharedWith: updatedSharedWith,
       });
-      // updates user document
-      const uidQuery = query(usersCollectionRef, where("uid", "==", board.uid));
-      getDocs(uidQuery).then((querySnapshot) => {
-        if (querySnapshot.empty) {
-          console.log("No matching documents.");
-          return;
-        }
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-        if (!userData.sharedBoardsIds.includes(board.Id)) {
-          updateDoc(userDoc.ref, {
-            privateBoardsIds: userData.privateBoardsIds.filter(
-              (whiteboard: any) => whiteboard.id !== boardId
-            ),
-            publicBoardsIds: userData.publicBoardsIds.filter(
-              (whiteboard: any) => whiteboard.id !== boardId
-            ),
-            sharedBoardsIds: [
-              ...userData.sharedBoardsIds,
-              {
-                id: board.id,
-                title: board.title,
-                uid: board.uid,
-                type: "shared",
-              },
-            ],
-          });
-        }
+
+      // Update the user's sharedBoards
+      const userBoardsRef = ref(realtimeDb, `users/${userId}`);
+
+      const newSharedBoard = {
+        id: boardId,
+        title: board.title,
+        uid: board.uid,
+        type: "shared",
+      };
+
+      const updatedBoards = [
+        ...(userData[`sharedBoardsIds`] || []),
+        {
+          id: boardId,
+          title: board.title,
+          uid: board.uid,
+          type: "shared",
+        },
+      ];
+      await update(userBoardsRef, {
+        [`sharedBoardsIds`]: updatedBoards,
       });
-      alert("Board shared to " + email + " successfully!");
-    });
+
+      // Update the owner’s boards to reflect sharing status
+      const ownerBoardsRef = ref(realtimeDb, `users/${board.uid}`);
+      const ownerSnapshot = await get(ownerBoardsRef);
+      if (ownerSnapshot.exists()) {
+        const ownerData = ownerSnapshot.val();
+
+        const updatedPrivateBoards = ownerData.privateBoardsIds
+          ? ownerData.privateBoardsIds.filter(
+              (privateBoard: any) => privateBoard.id !== boardId
+            )
+          : [];
+
+        const updatedPublicBoards = ownerData.publicBoardsIds
+          ? ownerData.publicBoardsIds.filter(
+              (publicBoard: any) => publicBoard.id !== boardId
+            )
+          : [];
+
+        const updatedSharedBoards = ownerData.sharedBoardsIds
+          ? [...ownerData.sharedBoardsIds, newSharedBoard]
+          : [newSharedBoard];
+
+        await update(ownerBoardsRef, {
+          privateBoardsIds: updatedPrivateBoards,
+          publicBoardsIds: updatedPublicBoards,
+          sharedBoardsIds: updatedSharedBoards,
+        });
+      }
+
+      // Update the state
+      handleBoardChange({
+        ...board,
+        type: "shared",
+        sharedWith: updatedSharedWith,
+      });
+
+      alert("Board shared with " + email + " successfully!");
+    } catch (error) {
+      console.error("Error sharing board:", error);
+      alert("An error occurred while sharing the board.");
+    }
   };
 
   return (

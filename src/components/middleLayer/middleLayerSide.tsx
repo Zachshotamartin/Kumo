@@ -1,53 +1,37 @@
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
-import { useDispatch } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import styles from "./middleLayerSide.module.css";
-// import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import { db } from "../../config/firebase";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-  updateDoc,
-  getDoc,
-} from "firebase/firestore";
+import { ref, onValue, push, update, get } from "firebase/database";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { setBoards } from "../../features/boards/boards";
-import { addBoardImage } from "../../features/boardImages/boardImages";
+import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import type { AppDispatch } from "../../store";
 import plus from "../../res/plus.png";
 import right from "../../res/right.png";
 import down from "../../res/down.png";
-import { clearSelectedShapes } from "../../features/selected/selectedSlice";
-import { getDownloadURL, ref } from "firebase/storage";
-import { storage } from "../../config/firebase";
-const usersCollectionRef = collection(db, "users");
-const boardsCollectionRef = collection(db, "boards");
+import { realtimeDb } from "../../config/firebase";
+
 const MiddleLayerSide = () => {
   const availableBoards = useSelector((state: any) => state.boards);
   const user = useSelector((state: any) => state.auth);
   const dispatch = useDispatch<AppDispatch>();
+
   const [publicDropDown, setPublicDropDown] = useState(false);
   const [privateDropDown, setPrivateDropDown] = useState(false);
   const [sharedDropDown, setSharedDropDown] = useState(false);
+
   const publicBoards = availableBoards.publicBoards;
   const privateBoards = availableBoards.privateBoards;
   const sharedBoards = availableBoards.sharedBoards;
-  const boardImages = useSelector(
-    (state: any) => state.boardImages.boardImages
-  );
 
+  // Fetch boards from realtimeDb
   useEffect(() => {
-    if (user?.isAuthenticated) {
-      const q = query(usersCollectionRef, where("uid", "==", user?.uid));
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        if (!querySnapshot.empty) {
-          const userDoc = querySnapshot.docs[0];
-          const userData = userDoc.data();
+    if (user?.isAuthenticated && user?.uid) {
+      const userRef = ref(realtimeDb, `users/${user.uid}`);
+
+      const unsubscribe = onValue(userRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const userData = snapshot.val();
           dispatch(
             setBoards({
               privateBoards: userData.privateBoardsIds || [],
@@ -57,82 +41,97 @@ const MiddleLayerSide = () => {
           );
         }
       });
+
       return () => unsubscribe();
     }
   }, [dispatch, user?.isAuthenticated, user?.uid]);
 
+  // Create a new board
   const createBoard = async (type: "private" | "public" | "shared") => {
     try {
-      const data = {
-        uid: user?.uid,
+      if (!user?.uid) throw new Error("User not authenticated!");
+
+      const boardData = {
+        uid: user.uid,
         title: "New Board",
         shapes: [],
         type: type,
         sharedWith: [user.uid],
         backGroundColor: "#313131",
+        lastChangedBy: user.uid,
       };
-      const doc = await addDoc(boardsCollectionRef, data);
 
-      const dataWithId = {
-        ...data,
-        id: doc.id,
+      // Push the board to the database
+      const boardsRef = ref(realtimeDb, "boards");
+      const newBoardRef = push(boardsRef);
+      const newBoardKey = newBoardRef.key;
+
+      if (!newBoardKey) throw new Error("Failed to generate board key.");
+
+      const boardDataWithId = {
+        ...boardData,
+        id: newBoardKey,
       };
-      await updateDoc(doc, dataWithId);
 
-      const q = query(usersCollectionRef, where("uid", "==", user?.uid));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-        await updateDoc(userDoc.ref, {
-          [`${type}BoardsIds`]: [
-            ...userData[`${type}BoardsIds`],
-            {
-              id: doc.id,
-              title: data.title,
-              uid: user?.uid,
-              type: data.type,
-            },
-          ],
+      await update(newBoardRef, boardDataWithId);
+
+      // Add board to the user's list
+      const userRef = ref(realtimeDb, `users/${user.uid}`);
+      const userSnapshot = await get(userRef);
+
+      if (userSnapshot.exists()) {
+        const userData = userSnapshot.val();
+
+        const updatedBoards = [
+          ...(userData[`${type}BoardsIds`] || []),
+          {
+            id: newBoardKey,
+            title: boardData.title,
+            uid: user.uid,
+            type: type,
+          },
+        ];
+
+        await update(userRef, {
+          [`${type}BoardsIds`]: updatedBoards,
         });
-        console.log("Board created successfully");
+
+        console.log("Board created and added to user's list successfully.");
       }
     } catch (error) {
       console.error("Error creating board:", error);
     }
   };
 
-  const handleClick = async (board: string, type: string) => {
+  const handleClick = async (board: string) => {
     if (!board) {
       console.error("Invalid board ID");
       return;
     }
-    const docRef = doc(db, "boards", board);
-    console.log(board);
+    const boardRef = ref(realtimeDb, `boards/${board}`);
     try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const boardData = docSnap.data();
-        const data = {
-          shapes: boardData.shapes || [],
-          title: boardData.title || "Untitled",
-          type: boardData.type || "default",
+      onValue(boardRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const boardData = snapshot.val();
+          const data = {
+            shapes: boardData.shapes || [],
+            title: boardData.title || "Untitled",
+            type: boardData.type || "default",
+            uid: boardData.uid,
+            id: board,
+            sharedWith: boardData.sharedWith,
+            backGroundColor: boardData.backGroundColor || "#313131",
+          };
 
-          uid: boardData.uid,
-          id: board,
-          sharedWith: boardData.sharedWith,
-          backGroundColor: boardData.backGroundColor || "#313131",
-        };
-        console.log("Board data:", data);
-        dispatch(clearSelectedShapes());
-        dispatch(setWhiteboardData(data));
-
-        console.log("Board selected:", board);
-      } else {
-        console.error(`No document found for board ID: ${board}`);
-      }
+          dispatch(clearSelectedShapes());
+          dispatch(setWhiteboardData(data));
+          console.log("Board selected:", data);
+        } else {
+          console.error(`No data found for board ID: ${board}`);
+        }
+      });
     } catch (error) {
-      console.error("Error getting document:", error);
+      console.error("Error retrieving board:", error);
     }
   };
 
@@ -142,14 +141,13 @@ const MiddleLayerSide = () => {
         <h6 className={styles.title}> Boards </h6>
         <button
           className={styles.createButton}
-          onClick={() => {
-            createBoard("private");
-          }}
+          onClick={() => createBoard("private")}
         >
           <img className={styles.icon} src={plus} alt="Plus" />
         </button>
       </div>
 
+      {/* Public Boards */}
       <div
         className={styles.boardTypeContainer}
         onClick={() => setPublicDropDown(!publicDropDown)}
@@ -163,11 +161,11 @@ const MiddleLayerSide = () => {
       </div>
       {publicDropDown && (
         <div className={styles.boardListContainer}>
-          {availableBoards?.publicBoards?.map((board: any, index: number) => (
+          {publicBoards.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
               <h6
                 className={styles.button}
-                onClick={() => handleClick(board.id, "public")}
+                onClick={() => handleClick(board.id)}
               >
                 {board.title}
               </h6>
@@ -176,6 +174,7 @@ const MiddleLayerSide = () => {
         </div>
       )}
 
+      {/* Private Boards */}
       <div
         className={styles.boardTypeContainer}
         onClick={() => setPrivateDropDown(!privateDropDown)}
@@ -187,14 +186,13 @@ const MiddleLayerSide = () => {
         )}
         <h6 className={styles.title}>{`Private (${privateBoards.length})`}</h6>
       </div>
-
       {privateDropDown && (
         <div className={styles.boardListContainer}>
-          {availableBoards?.privateBoards?.map((board: any, index: number) => (
+          {privateBoards.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
               <h6
                 className={styles.button}
-                onClick={() => handleClick(board.id, "private")}
+                onClick={() => handleClick(board.id)}
               >
                 {board.title}
               </h6>
@@ -203,6 +201,7 @@ const MiddleLayerSide = () => {
         </div>
       )}
 
+      {/* Shared Boards */}
       <div
         className={styles.boardTypeContainer}
         onClick={() => setSharedDropDown(!sharedDropDown)}
@@ -214,14 +213,13 @@ const MiddleLayerSide = () => {
         )}
         <h6 className={styles.title}>{`Shared (${sharedBoards.length})`}</h6>
       </div>
-
       {sharedDropDown && (
         <div className={styles.boardListContainer}>
-          {availableBoards?.sharedBoards?.map((board: any, index: number) => (
+          {sharedBoards.map((board: any, index: number) => (
             <div key={index} className={styles.board}>
               <h6
                 className={styles.button}
-                onClick={() => handleClick(board.id, "shared")}
+                onClick={() => handleClick(board.id)}
               >
                 {board.title}
               </h6>

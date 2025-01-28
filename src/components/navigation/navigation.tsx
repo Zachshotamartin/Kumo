@@ -29,9 +29,10 @@ import {
 } from "../../features/actions/actionsSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { removeBoardImage } from "../../features/boardImages/boardImages";
+import { handleBoardChange } from "../../helpers/handleBoardChange";
+import { realtimeDb } from "../../config/firebase";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
-
 const Navigation = () => {
   const user = useSelector((state: any) => state.auth);
   const grid = useSelector((state: any) => state.actions.grid);
@@ -56,7 +57,21 @@ const Navigation = () => {
       uid: user?.uid,
       id: null,
       sharedWith: [],
+      lastChangedBy: null,
+      currentUsers: [],
     };
+
+    const updatedData = {
+      ...whiteboard,
+      lastChangedBy: user?.uid,
+      currentUsers: whiteboard.currentUsers.filter(
+        (curUser: any) => curUser.user !== user?.uid
+      ),
+    };
+    console.log(updatedData);
+    console.log("trying to update board");
+    handleBoardChange(updatedData);
+
     appDispatch(resetHistory());
     dispatch(setSharing(false));
     dispatch(setInWhiteBoard(false));

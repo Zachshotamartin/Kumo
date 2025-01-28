@@ -1,16 +1,29 @@
-import { ChangeEvent, SetStateAction, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import styles from "./options.module.css";
 import { useSelector, useDispatch } from "react-redux";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
+
+import { handleBoardChange } from "../../helpers/handleBoardChange";
+import {
+  Shape,
+  setWhiteboardData,
+} from "../../features/whiteBoard/whiteBoardSlice";
+
 const ImageStyling = () => {
   const dispatch = useDispatch();
-  const selectedIdx = useSelector(
-    (state: any) => state.selected.selectedShapes[0]
+  
+  const board = useSelector((state: any) => state.whiteBoard);
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
-  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
-    selectedIdx
-  ];
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+  let selectedShape: Shape | undefined;
+  if (selectedShapes) {
+    selectedShape = shapes.find(
+      (shape: Shape, index: number) => shape.id === selectedShapes[0]
+    );
+  }
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSelectedFile(event.target.files![0]);
@@ -21,14 +34,33 @@ const ImageStyling = () => {
       const reader = new FileReader();
       reader.onload = () => {
         dispatch(
-          updateShape({
-            index: selectedIdx,
-            update: {
+          setWhiteboardData({
+            ...board,
+            shapes: [
+              ...shapes.filter(
+                (shape: Shape, index: number) => shape.id !== selectedShape?.id
+              ),
+              {
+                ...selectedShape,
+                backgroundImage:
+                  typeof reader.result === "string" ? reader.result : undefined,
+              },
+            ],
+          })
+        );
+        handleBoardChange({
+          ...board,
+          shapes: [
+            ...shapes.filter(
+              (shape: Shape, index: number) => shape.id !== selectedShape?.id
+            ),
+            {
+              ...selectedShape,
               backgroundImage:
                 typeof reader.result === "string" ? reader.result : undefined,
             },
-          })
-        );
+          ],
+        });
       };
       reader.readAsDataURL(selectedFile);
     }

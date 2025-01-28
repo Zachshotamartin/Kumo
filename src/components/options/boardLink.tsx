@@ -1,25 +1,34 @@
 import { useEffect, useState } from "react";
 import styles from "./options.module.css";
 import { useSelector, useDispatch } from "react-redux";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
-import { updateHistory } from "../../features/shapeHistory/shapeHistorySlice";
+import {
+  setWhiteboardData,
+  Shape,
+} from "../../features/whiteBoard/whiteBoardSlice";
+
+import { handleBoardChange } from "../../helpers/handleBoardChange";
 const BoardLink = () => {
   const dispatch = useDispatch();
-  const selectedIdx = useSelector(
-    (state: any) => state.selected.selectedShapes[0]
+  const board = useSelector((state: any) => state.whiteBoard);
+
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
-  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
-    selectedIdx
-  ];
+  let selectedShape: Shape | undefined;
+  if (selectedShapes) {
+    selectedShape = shapes.find(
+      (shape: Shape, index: number) => shape.id === selectedShapes[0]
+    );
+  }
   const boardChoices = useSelector((state: any) => state.boards);
   const [selectedValue, setSelectedValue] = useState(
     selectedShape?.id || "none"
   );
 
   useEffect(() => {
-    setSelectedValue(selectedShape?.id || "none");
-  }, [selectedShape?.id]);
+    setSelectedValue(selectedShape?.boardId || "none");
+  }, [selectedShape?.boardId]);
 
   return (
     <div className={styles.container}>
@@ -49,16 +58,38 @@ const BoardLink = () => {
                 );
               }
               dispatch(
-                updateShape({
-                  index: selectedIdx,
-                  update: {
-                    id: selectedBoard.id,
+                setWhiteboardData({
+                  ...board,
+                  shapes: [
+                    ...shapes.filter(
+                      (shape: Shape, index: number) =>
+                        shape.id !== selectedShape?.id
+                    ),
+                    {
+                      ...selectedShape,
+                      boardId: selectedBoard.id,
+                      uid: selectedBoard.uid,
+                      title: selectedBoard.title,
+                    },
+                  ],
+                })
+              );
+              handleBoardChange({
+                ...board,
+                shapes: [
+                  ...shapes.filter(
+                    (shape: Shape, index: number) =>
+                      shape.id !== selectedShape?.id
+                  ),
+                  {
+                    ...selectedShape,
+                    boardId: selectedBoard.id,
                     uid: selectedBoard.uid,
                     title: selectedBoard.title,
                   },
-                })
-              );
-             
+                ],
+              });
+
               setSelectedValue(selectedBoardId);
             }}
           >

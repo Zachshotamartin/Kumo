@@ -1,38 +1,76 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
-
+import { handleBoardChange } from "../../helpers/handleBoardChange";
+import {
+  Shape,
+  setWhiteboardData,
+} from "../../features/whiteBoard/whiteBoardSlice";
 const Position = () => {
   const dispatch = useDispatch();
-  const selectedIdx = useSelector(
-    (state: any) => state.selected.selectedShapes[0]
+  const board = useSelector((state: any) => state.whiteBoard);
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
-  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
-    selectedIdx
-  ];
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+  let selectedShape: Shape | undefined;
+  if (selectedShapes) {
+    selectedShape = shapes.find(
+      (shape: Shape, index: number) => shape.id === selectedShapes[0]
+    );
+  }
 
-  const [x1, setX1] = useState<number>(selectedShape.x1);
-  const [y1, setY1] = useState<number>(selectedShape.y1);
+  const [x1, setX1] = useState<number>(selectedShape ? selectedShape.x1 : 0);
+  const [y1, setY1] = useState<number>(selectedShape ? selectedShape.y1 : 0);
 
   useEffect(() => {
     // Update local state when the selected shape changes
-    setX1(selectedShape.x1);
-    setY1(selectedShape.y1);
+    if (selectedShape) {
+      setX1(selectedShape.x1);
+      setY1(selectedShape.y1);
+    }
   }, [selectedShape]);
 
   const updatePosition = () => {
+    console.log("updateingPosition");
     dispatch(
-      updateShape({
-        index: selectedIdx,
-        update: {
-          x1,
-          y1,
-          x2: selectedShape.x2 + x1 - selectedShape.x1,
-          y2: selectedShape.y2 + y1 - selectedShape.y1,
-        },
+      setWhiteboardData({
+        ...board,
+        shapes: [
+          ...shapes.filter(
+            (shape: Shape, index: number) => shape.id !== selectedShape?.id
+          ),
+          selectedShape
+            ? {
+                ...selectedShape,
+                x1,
+                y1,
+                x2: selectedShape
+                  ? selectedShape.x2 + x1 - selectedShape.x1
+                  : 0,
+                y2: selectedShape
+                  ? selectedShape.y2 + y1 - selectedShape.y1
+                  : 0,
+              }
+            : undefined,
+        ],
       })
     );
+    handleBoardChange({
+      ...board,
+      shapes: [
+        ...shapes.filter(
+          (shape: Shape, index: number) => shape.id !== selectedShape?.id
+        ),
+        {
+          ...selectedShape,
+          x1,
+          y1,
+          x2: selectedShape ? selectedShape.x2 + x1 - selectedShape.x1 : 0,
+          y2: selectedShape ? selectedShape.y2 + y1 - selectedShape.y1 : 0,
+        },
+      ],
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

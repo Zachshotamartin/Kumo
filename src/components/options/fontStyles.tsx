@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
+
 import styles from "./options.module.css";
 import alignLeft from "../../res/align-left.png";
 import alignCenter from "../../res/align-center.png";
@@ -13,31 +13,77 @@ import alignTop from "../../res/align-top.png";
 import alignMiddle from "../../res/align-middle.png";
 import alignBottom from "../../res/align-bottom.png";
 
+import { handleBoardChange } from "../../helpers/handleBoardChange";
+import {
+  Shape,
+  setWhiteboardData,
+} from "../../features/whiteBoard/whiteBoardSlice";
+
 const FontStyles = () => {
   const dispatch = useDispatch();
-  const selectedIdx = useSelector(
-    (state: any) => state.selected.selectedShapes[0]
+  const board = useSelector((state: any) => state.whiteBoard);
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
-  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
-    selectedIdx
-  ];
-  const [fontSize, setFontSize] = useState(selectedShape.fontSize);
-  const [fontFamily, setFontFamily] = useState(selectedShape.fontFamily);
-  const [fontWeight, setFontWeight] = useState(selectedShape.fontWeight);
-  const [textAlign, setTextAlign] = useState(selectedShape.textAlign);
-  const [alignItems, setAlignItems] = useState(selectedShape.alignItems);
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+  let selectedShape: Shape | undefined;
+  if (selectedShapes) {
+    selectedShape = shapes.find(
+      (shape: Shape, index: number) => shape.id === selectedShapes[0]
+    );
+  }
+  const [fontSize, setFontSize] = useState(selectedShape?.fontSize || 16);
+  const [fontFamily, setFontFamily] = useState(
+    selectedShape?.fontFamily || "Arial"
+  );
+  const [fontWeight, setFontWeight] = useState(
+    selectedShape?.fontWeight || "normal"
+  );
+  const [textAlign, setTextAlign] = useState(
+    selectedShape?.textAlign || "left"
+  );
+  const [alignItems, setAlignItems] = useState(
+    selectedShape?.alignItems || "flex-start"
+  );
   const [textDecoration, setTextDecoration] = useState(
-    selectedShape.textDecoration
+    selectedShape?.textDecoration || "none"
   );
-  const [lineHeight, setLineHeight] = useState(selectedShape.lineHeight);
+  const [lineHeight, setLineHeight] = useState(
+    selectedShape?.lineHeight || 1.5
+  );
   const [letterSpacing, setLetterSpacing] = useState(
-    selectedShape.letterSpacing
+    selectedShape?.letterSpacing || 0
   );
   const updateTextStyling = () => {
     dispatch(
-      updateShape({
-        index: selectedIdx,
-        update: {
+      setWhiteboardData({
+        ...board,
+        shapes: [
+          ...shapes.filter(
+            (shape: Shape, index: number) => shape.id !== selectedShape?.id
+          ),
+          {
+            ...selectedShape,
+            fontSize: fontSize,
+            fontFamily: fontFamily,
+            fontWeight: fontWeight,
+            textAlign: textAlign,
+            alignItems: alignItems,
+            textDecoration: textDecoration,
+            lineHeight: lineHeight,
+            letterSpacing: letterSpacing,
+          },
+        ],
+      })
+    );
+    handleBoardChange({
+      ...board,
+      shapes: [
+        shapes.filter(
+          (shape: Shape, index: number) => shape.id !== selectedShape?.id
+        ),
+        {
+          ...selectedShape,
           fontSize: fontSize,
           fontFamily: fontFamily,
           fontWeight: fontWeight,
@@ -47,8 +93,8 @@ const FontStyles = () => {
           lineHeight: lineHeight,
           letterSpacing: letterSpacing,
         },
-      })
-    );
+      ],
+    });
   };
   useEffect(() => {
     updateTextStyling();
@@ -64,14 +110,16 @@ const FontStyles = () => {
   ]);
 
   useEffect(() => {
-    setFontSize(selectedShape.fontSize);
-    setFontFamily(selectedShape.fontFamily);
-    setFontWeight(selectedShape.fontWeight);
-    setTextAlign(selectedShape.textAlign);
-    setAlignItems(selectedShape.alignItems);
-    setTextDecoration(selectedShape.textDecoration);
-    setLineHeight(selectedShape.lineHeight);
-    setLetterSpacing(selectedShape.letterSpacing);
+    if (selectedShape) {
+      setFontSize(selectedShape.fontSize || 16);
+      setFontFamily(selectedShape.fontFamily || "Arial");
+      setFontWeight(selectedShape.fontWeight || "normal");
+      setTextAlign(selectedShape.textAlign || "left");
+      setAlignItems(selectedShape.alignItems || "flex-start");
+      setTextDecoration(selectedShape.textDecoration || "none");
+      setLineHeight(selectedShape.lineHeight || 1.5);
+      setLetterSpacing(selectedShape.letterSpacing || 0);
+    }
   }, [selectedShape]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

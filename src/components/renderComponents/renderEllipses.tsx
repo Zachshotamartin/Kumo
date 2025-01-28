@@ -10,24 +10,22 @@ import {
 
 const RenderEllipses = (props: any) => {
   const { shapes } = props;
-  
+
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
   const dispatch = useDispatch();
   const window = useSelector((state: any) => state.window);
 
-  const handleMouseEnter = (index: number) => {
-    const shape = shapes.find((shape: Shape, i: number) => i === index);
-    if (shape && !selectedShapes.includes(index)) {
+  const handleMouseEnter = (shape: Shape) => {
+    if (!selectedShapes.includes(shape.id)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2));
       dispatch(setHoverEndY(shape.y2 - 2));
+    } else {
+      handleMouseLeave();
     }
-    else {
-        handleMouseLeave();
-      }
   };
 
   const handleMouseLeave = () => {
@@ -39,14 +37,17 @@ const RenderEllipses = (props: any) => {
   return (
     <>
       {shapes.map((shape: Shape, index: number) => (
-        <>
+        <div key={index}>
           {shape.type === "ellipse" && (
             <div
-              key={index}
               style={{
                 // type
                 position: "absolute",
-                zIndex: selectedShapes.includes(index) ? 50 : shape.zIndex,
+                zIndex: selectedShapes
+                  .map((shape: Shape) => shape.id)
+                  .includes(shape.id)
+                  ? 50
+                  : shape.zIndex,
 
                 // position
                 top: `${
@@ -81,11 +82,13 @@ const RenderEllipses = (props: any) => {
 
                 opacity: `${shape.opacity}`,
               }}
-              onMouseOver={shape.level === 0 ? () => handleMouseEnter(index) : () => {}}
+              onMouseOver={
+                shape.level === 0 ? () => handleMouseEnter(shape) : () => {}
+              }
               onMouseOut={shape.level === 0 ? handleMouseLeave : () => {}}
             ></div>
           )}
-        </>
+        </div>
       ))}
     </>
   );

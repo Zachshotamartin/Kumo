@@ -28,21 +28,24 @@ const RenderHighlighting = () => {
     const maxx = Math.max(highlightStartX, highlightEndX);
     const miny = Math.min(highlightStartY, highlightEndY);
     const maxy = Math.max(highlightStartY, highlightEndY);
-    const intersectingShapeIndices = shapes.reduce(
-      (indices: number[], shape: Shape, index: number) => {
+    const intersectingShapeIndices = shapes.filter(
+      (shape: Shape, index: number) => {
         if (
           shape.x1 < maxx &&
           shape.x2 > minx &&
           shape.y1 < maxy &&
           shape.y2 > miny
         ) {
-          indices.push(index);
+          return true;
         }
-        return indices;
-      },
-      []
+        return false;
+      }
     );
-    dispatch(setSelectedShapes(intersectingShapeIndices));
+    dispatch(
+      setSelectedShapes(
+        intersectingShapeIndices.map((shape: Shape) => shape.id)
+      )
+    );
   }, [
     dispatch,
     highlightEndX,

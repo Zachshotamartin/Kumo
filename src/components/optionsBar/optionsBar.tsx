@@ -11,15 +11,22 @@ import BoardLink from "../options/boardLink";
 import Colors from "../options/colors";
 import WhiteboardStyles from "../options/whiteboardStyles";
 import ImageStyling from "../options/imageStyling";
+import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 
 const OptionsBar = () => {
   const hidden = useSelector((state: any) => state.sideBar.hideOptions);
-  const selectedIdx = useSelector(
-    (state: any) => state.selected.selectedShapes[0]
+
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
-  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
-    selectedIdx
-  ];
+  const shapes = useSelector((state: any) => state.whiteBoard.shapes);
+  let selectedShape: Shape | undefined;
+  if (selectedShapes) {
+    selectedShape = shapes.find(
+      (shape: Shape, index: number) => shape.id === selectedShapes[0]
+    );
+  }
+
   const [left, setLeft] = useState(75); // Initial left position in percentage
   const [dragging, setDragging] = useState(false);
   const [startX, setStartX] = useState(0); // Track starting position of drag

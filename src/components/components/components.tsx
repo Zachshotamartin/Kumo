@@ -12,6 +12,7 @@ import { setWindow } from "../../features/window/windowSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../../store";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { handleBoardChange } from "../../helpers/handleBoardChange";
 const Components = () => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: any) => state.whiteBoard);
@@ -56,137 +57,162 @@ const Components = () => {
     console.log("dropped at ", index);
     const dropElement = event.target as HTMLDivElement;
     console.log("dropElement", dropElement);
-    let newShapes: Shape[] = [];
+
     console.log([...shapes].reverse());
     if (index === dragging) {
       return;
     }
+    let newShapes: Shape[] = [];
+    [...[...shapes].sort((a: any, b: any) => a.zIndex - b.zIndex)]
+      .reverse()
+      .forEach((shape: Shape, i: number) => {
+        if (dragging !== null) {
+          console.log("i, ", i);
 
-    [...shapes].reverse().forEach((shape: Shape, i: number) => {
-      if (dragging !== null) {
-        console.log("dragging, ", dragging);
-        console.log("index, ", index);
-        console.log("i, ", i);
-        console.log("shape, ", shape);
-        if (i > index && i > dragging) {
-          console.log("less");
-          newShapes.push(shape);
-          console.log(shape);
-        } else if (i < index && i < dragging) {
-          console.log("more");
-          newShapes.push(shape);
-          console.log(shape);
-        } else {
-          if (i === dragging) {
-            if (shape.type !== "component") {
-              newShapes.push({
-                ...shape,
-                zIndex: shapes.length - 1 - index,
-              });
-            } else {
-              newShapes.push({
-                ...shape,
-                zIndex: shapes.length - 1 - index,
-                shapes: shape.shapes?.map(
-                  (componentShape: Shape, idx: number) => {
-                    return {
-                      ...componentShape,
-                      zIndex: shapes.length - index + idx,
-                    };
-                  }
-                ),
-              });
-            }
-          } else if (index < dragging) {
-            console.log("index < dragging");
-            if ([...shapes].reverse()[dragging].type !== "component") {
-              newShapes.push({
-                ...shape,
-                zIndex: shapes.length - 1 - i - 1,
-              });
-            } else {
-              newShapes.push({
-                ...shape,
-                zIndex:
-                  (shape.zIndex ?? 0) -
-                  [...shapes].reverse()[dragging].shapes.length -
-                  1,
-              });
-              console.log(
-                "indexs, ",
-                shapes.length -
-                  i -
-                  [...shapes].reverse()[dragging].shapes.length
-              );
-            }
-          } else if (index > dragging) {
-            console.log("index > dragging");
-            if ([...shapes].reverse()[dragging].type !== "component") {
-              newShapes.push({
-                ...shape,
-                zIndex: shapes.length - i,
-              });
-            } else {
-              newShapes.push({
-                ...shape,
-                zIndex:
-                  shapes.length -
-                  i +
-                  [...shapes].reverse()[dragging].shapes.length,
-              });
+          if (i > index && i > dragging) {
+            console.log("less");
+            newShapes.push(shape);
+            console.log("newShapes", newShapes);
+          } else if (i < index && i < dragging) {
+            console.log("more");
+            newShapes.push(shape);
+            console.log("newShapes", newShapes);
+          } else {
+            if (i === dragging) {
+              if (shape.type !== "component") {
+                newShapes.push({
+                  ...shape,
+                  zIndex: shapes.length - 1 - index,
+                });
+                console.log("newShapes", newShapes);
+              } else {
+                newShapes.push({
+                  ...shape,
+                  zIndex: shapes.length - 1 - index,
+                  shapes: shape.shapes?.map(
+                    (componentShape: Shape, idx: number) => {
+                      return {
+                        ...componentShape,
+                        zIndex: shapes.length - index + idx,
+                      };
+                    }
+                  ),
+                });
+                console.log("newShapes", newShapes);
+              }
+            } else if (index < dragging) {
+              console.log("index < dragging");
+              if ([...shapes].reverse()[dragging].type !== "component") {
+                newShapes.push({
+                  ...shape,
+                  zIndex: shapes.length - 1 - i - 1,
+                });
+                console.log("newShapes", newShapes);
+              } else {
+                newShapes.push({
+                  ...shape,
+                  zIndex:
+                    (shape.zIndex ?? 0) -
+                    [...shapes].reverse()[dragging].shapes.length -
+                    1,
+                });
+                console.log("newShapes", newShapes);
+              }
+            } else if (index > dragging) {
+              console.log("index > dragging");
+              if ([...shapes].reverse()[dragging].type !== "component") {
+                newShapes.push({
+                  ...shape,
+                  zIndex: shapes.length - i,
+                });
+                console.log("newShapes", newShapes);
+              } else {
+                newShapes.push({
+                  ...shape,
+                  zIndex:
+                    shapes.length -
+                    i +
+                    [...shapes].reverse()[dragging].shapes.length,
+                });
+                console.log("newShapes", newShapes);
+              }
             }
           }
         }
-      }
-    });
+      });
+    console.log("index", index);
+    console.log("dragging", dragging);
     newShapes = [...newShapes].reverse();
-    console.log(newShapes);
 
     dispatch(
       setWhiteboardData({
         ...board,
-        shapes: newShapes.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)),
+        shapes: newShapes,
+        lastChangedBy: localStorage.getItem("user"),
       })
     );
+    handleBoardChange({
+      ...board,
+      shapes: newShapes,
+    });
+
     setDragging(null);
     setOver(null);
   };
 
   const handleClick = (
-    index: number,
+    shape: Shape,
     event: React.MouseEvent<HTMLDivElement>
   ) => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: sortedShapes,
-      })
-    );
+    handleBoardChange({
+      ...board,
+      shapes: sortedShapes,
+    });
+    const selectedShapesArray = shapes.filter((shape: Shape, index: number) => {
+      return selectedShapes.includes(shape.id);
+    });
 
-    if (event.shiftKey && !event.metaKey) {
-      // selecte everything between the two indices
+    if (event.shiftKey && !event.metaKey && selectedShapesArray.length > 0) {
+      // select everything between the two indices
+      let newSelectedShapes: Shape[] = [];
 
-      const min = selectedShapes.reduce((a: number, b: number) =>
-        Math.min(a, b)
-      );
-      const max = selectedShapes.reduce((a: number, b: number) =>
-        Math.max(a, b)
-      );
-      const start = Math.min(sortedShapes.length - 1 - index, min);
-      const end = Math.max(sortedShapes.length - 1 - index, max);
-
-      const selected: number[] = [];
-      for (let i = start; i <= end; i++) {
-        selected.push(i);
+      const minShape = selectedShapesArray.reduce((a: Shape, b: Shape) => {
+        return (a.zIndex ?? 0) < (b.zIndex ?? 0) ? a : b;
+      });
+      const maxShape = selectedShapesArray.reduce((a: Shape, b: Shape) => {
+        return (a.zIndex ?? 0) > (b.zIndex ?? 0) ? a : b;
+      });
+      if ((shape.zIndex ?? 0) <= (minShape.zIndex ?? 0)) {
+        newSelectedShapes = shapes.filter(
+          (selectShape: Shape, index: number) => {
+            return (
+              (selectShape.zIndex ?? 0) <= maxShape.zIndex &&
+              (selectShape.zIndex ?? 0) >= (shape.zIndex ?? 0)
+            );
+          }
+        );
       }
-      dispatch(setSelectedShapes(selected));
+      if ((shape.zIndex ?? 0) >= (maxShape.zIndex ?? 0)) {
+        newSelectedShapes = shapes.filter(
+          (selectShape: Shape, index: number) => {
+            return (
+              (selectShape.zIndex ?? 0) <= (shape.zIndex ?? 0) &&
+              (selectShape.zIndex ?? 0) >= (minShape.zIndex ?? 0)
+            );
+          }
+        );
+      }
+
+      console.log("newSelectedShapes", newSelectedShapes);
+
+      dispatch(
+        setSelectedShapes(newSelectedShapes.map((shape: Shape) => shape.id))
+      );
     } else if (event.metaKey && !event.shiftKey) {
       // adds the index to selectedShapes
-      dispatch(
-        setSelectedShapes([...selectedShapes, sortedShapes.length - 1 - index])
-      );
+      dispatch(setSelectedShapes([...selectedShapes, shape.id]));
     } else {
-      dispatch(setSelectedShapes([sortedShapes.length - 1 - index]));
+      dispatch(setSelectedShapes([shape.id]));
       const windowX1 = window.x1;
       const windowY1 = window.y1;
       const windowX2 = window.x2;
@@ -194,10 +220,10 @@ const Components = () => {
 
       const windowWidth = window.width;
       const windowHeight = window.height;
-      const shapeX1 = shapes[sortedShapes.length - 1 - index].x1;
-      const shapeY1 = shapes[sortedShapes.length - 1 - index].y1;
-      const shapeX2 = shapes[sortedShapes.length - 1 - index].x2;
-      const shapeY2 = shapes[sortedShapes.length - 1 - index].y2;
+      const shapeX1 = shape.x1;
+      const shapeY1 = shape.y1;
+      const shapeX2 = shape.x2;
+      const shapeY2 = shape.y2;
 
       const isIntersecting =
         shapeX1 < windowX2 &&
@@ -209,22 +235,10 @@ const Components = () => {
         dispatch(
           setWindow({
             ...window,
-            x1:
-              shapeX1 -
-              windowWidth / 2 +
-              shapes[sortedShapes.length - 1 - index].width / 2,
-            y1:
-              shapeY1 -
-              windowHeight / 2 +
-              shapes[sortedShapes.length - 1 - index].height / 2,
-            x2:
-              shapeX1 +
-              windowWidth / 2 +
-              shapes[sortedShapes.length - 1 - index].width / 2,
-            y2:
-              shapeY1 +
-              windowHeight / 2 +
-              shapes[sortedShapes.length - 1 - index].height / 2,
+            x1: shapeX1 - windowWidth / 2 + shape.width / 2,
+            y1: shapeY1 - windowHeight / 2 + shape.height / 2,
+            x2: shapeX1 + windowWidth / 2 + shape.width / 2,
+            y2: shapeY1 + windowHeight / 2 + shape.height / 2,
           })
         );
       }
@@ -283,11 +297,11 @@ const Components = () => {
             />
             <h6
               className={
-                selectedShapes.includes(sortedShapes.length - 1 - index)
+                selectedShapes.includes(shape.id)
                   ? styles.selected
                   : styles.text
               }
-              onClick={(event) => handleClick(index, event)}
+              onClick={(event) => handleClick(shape, event)}
             >
               {shape.type}
             </h6>

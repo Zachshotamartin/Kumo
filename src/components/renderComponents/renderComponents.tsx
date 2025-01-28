@@ -21,11 +21,8 @@ const RenderComponents = (props: any) => {
   );
   const window = useSelector((state: any) => state.window);
 
-  const handleMouseEnter = (index: number) => {
-    const shape = shapes.find((shape: Shape, i: number) => i === index);
-    console.log(shape);
-    console.log("entered component");
-    if (shape && !selectedShapes.includes(index) && shape.level === 0) {
+  const handleMouseEnter = (shape: Shape) => {
+    if (shape && !selectedShapes.includes(shape.id) && shape.level === 0) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2));
@@ -46,7 +43,7 @@ const RenderComponents = (props: any) => {
       {shapes.map((component: Shape, index: number) => (
         <div
           key={index}
-          onMouseEnter={() => handleMouseEnter(index)}
+          onMouseEnter={() => handleMouseEnter(component)}
           onMouseLeave={handleMouseLeave}
         >
           {component.type === "component" && (

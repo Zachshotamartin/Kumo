@@ -1,5 +1,5 @@
 import React from "react";
-import { useSelector} from "react-redux";
+import { useSelector } from "react-redux";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 
 const RenderSnappingGuides = () => {
@@ -27,7 +27,7 @@ const RenderSnappingGuides = () => {
       }}
     >
       {(borderStartX === shape.x1 || borderEndX === shape.x1) &&
-        !selectedShapes.includes(index) && (
+        !selectedShapes.includes(shape.id) && (
           <div
             style={{
               backgroundColor: "red",
@@ -59,7 +59,7 @@ const RenderSnappingGuides = () => {
           ></div>
         )}
       {(borderStartX === shape.x2 || borderEndX === shape.x2) &&
-        !selectedShapes.includes(index) && (
+        !selectedShapes.includes(shape.id) && (
           <div
             style={{
               backgroundColor: "red",
@@ -91,7 +91,7 @@ const RenderSnappingGuides = () => {
           ></div>
         )}
       {(borderStartY === shape.y1 || borderEndY === shape.y1) &&
-        !selectedShapes.includes(index) && (
+        !selectedShapes.includes(shape.id) && (
           <div
             style={{
               backgroundColor: "red",
@@ -124,7 +124,7 @@ const RenderSnappingGuides = () => {
           ></div>
         )}
       {(borderStartY === shape.y2 || borderEndY === shape.y2) &&
-        !selectedShapes.includes(index) && (
+        !selectedShapes.includes(shape.id) && (
           <div
             style={{
               backgroundColor: "red",
@@ -159,7 +159,7 @@ const RenderSnappingGuides = () => {
         shape.y1 + Math.floor(shape.height / 2) === borderEndY ||
         shape.y1 + Math.floor(shape.height / 2) ===
           borderStartY + Math.floor((borderEndY - borderStartY) / 2)) &&
-        !selectedShapes.includes(index) && (
+        !selectedShapes.includes(shape.id) && (
           <div
             style={{
               position: "absolute",
@@ -197,7 +197,7 @@ const RenderSnappingGuides = () => {
         shape.x1 + Math.floor(shape.width / 2) === borderEndX ||
         shape.x1 + Math.floor(shape.width / 2) ===
           borderStartX + Math.floor((borderEndX - borderStartX) / 2)) &&
-        !selectedShapes.includes(index) && (
+        !selectedShapes.includes(shape.id) && (
           <div
             style={{
               position: "absolute",

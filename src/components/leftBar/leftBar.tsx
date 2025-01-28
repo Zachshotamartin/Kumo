@@ -12,11 +12,14 @@ import {
 import { useSelector } from "react-redux";
 import Navigation from "../navigation/navigation";
 import MiddleLayerSide from "../middleLayer/middleLayerSide";
-import { db } from "../../config/firebase";
+import { db, realtimeDb } from "../../config/firebase";
+import { getDatabase, ref, push, update, get } from "firebase/database";
+
 const LeftBar = () => {
+  const user = localStorage.getItem("user");
   const usersCollectionRef = collection(db, "users");
   const boardsCollectionRef = collection(db, "boards");
-  const user = useSelector((state: any) => state.auth);
+  const userState = useSelector((state: any) => state.auth);
   const [boardName, setBoardName] = React.useState("");
 
   const handleBoardName = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,45 +28,60 @@ const LeftBar = () => {
 
   const createBoard = async (type: "private" | "public" | "shared") => {
     try {
-      if (user.uid) {
-        const data = {
-          uid: user?.uid,
+      const db = getDatabase();
+      if (userState.uid) {
+        // Create a new board object
+        const boardData = {
+          uid: userState?.uid,
           title: boardName || "Untitled",
           shapes: [],
           type: type,
-          sharedWith: [user.uid],
+          sharedWith: [userState.uid],
           backGroundColor: "#313131",
+          lastChangedBy: user,
+          currentUsers: [],
         };
 
-        const doc = await addDoc(boardsCollectionRef, data);
+        // Reference to the boards collection in the database
+        const boardsRef = ref(db, "boards");
 
-        const dataWithId = {
-          ...data,
-          id: doc.id,
+        // Push the board data to generate a new unique board ID
+        const newBoardRef = push(boardsRef);
+        const newBoardKey = newBoardRef.key;
+
+        // Add the generated board ID to the board data
+        const boardDataWithId = {
+          ...boardData,
+          id: newBoardKey,
         };
-        await updateDoc(doc, dataWithId);
 
-        console.log("data");
-        console.log("Document written with ID: ", doc.id);
-        const q = query(usersCollectionRef, where("uid", "==", user?.uid));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          const userDoc = querySnapshot.docs[0];
-          const userData = userDoc.data();
-          console.log("hello");
-          console.log(user?.uid);
-          await updateDoc(userDoc.ref, {
-            [`${type}BoardsIds`]: [
-              ...userData[`${type}BoardsIds`],
-              {
-                id: doc.id,
-                title: data.title,
-                uid: user?.uid,
-                type: data.type,
-              },
-            ],
+        // Write the board data to the database
+        await update(newBoardRef, boardDataWithId);
+        console.log("Board created with ID:", newBoardKey);
+
+        // Update the user's board list
+        const userRef = ref(db, `users/${userState?.uid}`);
+        const userSnapshot = await get(userRef);
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.val();
+
+          // Add the new board to the user's board list
+          const updatedBoards = [
+            ...(userData[`${type}BoardsIds`] || []),
+            {
+              id: newBoardKey,
+              title: boardData.title,
+              uid: userState?.uid,
+              type: boardData.type,
+            },
+          ];
+
+          // Update the user's board list in the database
+          await update(userRef, {
+            [`${type}BoardsIds`]: updatedBoards,
           });
-          console.log("Board created successfully");
+
+          console.log("Board added to user's list successfully");
         }
       }
     } catch (error) {

@@ -8,11 +8,8 @@ import {
 } from "firebase/auth";
 import { useDispatch } from "react-redux";
 import { login } from "../../features/auth/authSlice";
-import { db } from "../../config/firebase";
-import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { getDatabase, ref, set, get, child } from "firebase/database";
 import logo from "../../res/logo3.png";
-
-const usersCollectionRef = collection(db, "users");
 
 const HomePage = () => {
   const dispatch = useDispatch();
@@ -28,6 +25,9 @@ const HomePage = () => {
         email,
         password
       );
+
+      const db = getDatabase();
+      const userRef = ref(db, `users/${userCredential.user.uid}`);
       const data = {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
@@ -36,8 +36,11 @@ const HomePage = () => {
         publicBoardsIds: [],
         sharedBoardsIds: [],
       };
-      await addDoc(usersCollectionRef, data);
 
+      // Store user in Realtime Database
+      await set(userRef, data);
+
+      // Dispatch login action
       dispatch(login({ uid: userCredential.user.uid, email: email }));
     } catch (error: any) {
       if (error.code === "auth/email-already-in-use") {
@@ -47,8 +50,13 @@ const HomePage = () => {
             email,
             password
           );
+
+          // Dispatch login action
           dispatch(
-            login({ uid: auth.currentUser?.uid || "", email: email })
+            login({
+              uid: userCredential.user.uid || "",
+              email: userCredential.user.email || "",
+            })
           );
         } catch (signInError) {
           setError("Invalid credentials. Please try again.");
@@ -62,16 +70,16 @@ const HomePage = () => {
   const handleGoogleLogin = async () => {
     try {
       const userCredential = await signInWithPopup(auth, provider);
-      dispatch(
-        login({
-          uid: auth.currentUser?.uid || "",
-          email: auth.currentUser?.email || "",
-        })
+      console.log(userCredential);
+      localStorage.setItem("user", userCredential.user.uid);
+      const db = getDatabase();
+      const userRef = ref(db, `users/${userCredential.user.uid}`);
+
+      // Check if user already exists in Realtime Database
+      const userSnapshot = await get(
+        child(ref(db), `users/${userCredential.user.uid}`)
       );
-      const userRef = collection(db, "users");
-      const q = query(userRef, where("uid", "==", userCredential.user.uid));
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
+      if (!userSnapshot.exists()) {
         const data = {
           uid: userCredential.user.uid,
           email: userCredential.user.email,
@@ -80,8 +88,18 @@ const HomePage = () => {
           publicBoardsIds: [],
           sharedBoardsIds: [],
         };
-        await addDoc(usersCollectionRef, data);
+
+        // Store user in Realtime Database
+        await set(userRef, data);
       }
+
+      // Dispatch login action
+      dispatch(
+        login({
+          uid: userCredential.user.uid || "",
+          email: userCredential.user.email || "",
+        })
+      );
     } catch (err: any) {
       setError(err.message || "An error occurred with Google login.");
     }

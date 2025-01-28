@@ -1,6 +1,7 @@
 import { useDispatch, useSelector } from "react-redux";
 import {
   removeShape,
+  Shape,
   updateShape,
 } from "../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../store";
@@ -15,10 +16,14 @@ export const useDeleteSelectedShapes = () => {
   const handleDelete = () => {
     if (selectedShapes.length > 0) {
       console.log(shapes.length);
+
       const shapesCopy = [...selectedShapes];
-      const newShapes = shapesCopy.sort((a: number, b: number) => b - a);
-      newShapes.forEach((index: number) => {
-        dispatch(removeShape(index));
+      const newShapes = shapes.filter((shape: Shape) => {
+        return shapesCopy.includes(shape.id);
+      });
+      console.log("newShapes", newShapes);
+      newShapes.forEach((shape: Shape) => {
+        dispatch(removeShape(shape));
       });
       // Update the z-indices of the remaining shapes
       dispatch(clearSelectedShapes());

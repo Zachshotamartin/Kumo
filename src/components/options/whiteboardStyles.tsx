@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
 import { updateBackgroundColor } from "../../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../../store";
+import { handleBoardChange } from "../../helpers/handleBoardChange";
 
 const WhiteboardStyles = () => {
   const dispatch = useDispatch<AppDispatch>();
-
+  const board = useSelector((state: any) => state.whiteBoard);
   const backgroundColor = useSelector(
     (state: any) => state.whiteBoard.backGroundColor
   );
@@ -15,7 +16,16 @@ const WhiteboardStyles = () => {
 
   const handleUpdateBackgroundColor = (color: string) => {
     if (color) {
-      dispatch(updateBackgroundColor(color));
+      dispatch(
+        setWhiteboardData({
+          ...board,
+          backGroundColor: color,
+        })
+      );
+      handleBoardChange({
+        ...board,
+        backGroundColor: color,
+      });
     }
   };
 

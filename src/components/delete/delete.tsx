@@ -39,7 +39,7 @@ const Delete = () => {
     deleteDoc(boardRef).then(() => {
       // deletes doc from redux
 
-      appDispatch(setWhiteboardData({}));
+      appDispatch(setWhiteboardData({})); // !!! look at this and see.
     });
 
     const users = await getDocs(

@@ -1,75 +1,139 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { updateShape } from "../../features/whiteBoard/whiteBoardSlice";
+import {
+  setWhiteboardData,
+} from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
-import { updateHistory } from "../../features/shapeHistory/shapeHistorySlice";
+
+import { handleBoardChange } from "../../helpers/handleBoardChange";
+import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 const Colors = () => {
   const dispatch = useDispatch();
-  const selectedIdx = useSelector(
-    (state: any) => state.selected.selectedShapes[0]
-  );
-  const selectedShape = useSelector((state: any) => state.whiteBoard.shapes)[
-    selectedIdx
-  ];
-  const [color, setColor] = useState(selectedShape.color);
-  const [backgroundColor, setBackgroundColor] = useState(
-    selectedShape.backgroundColor
+  
+  const board = useSelector((state: any) => state.whiteBoard);
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
   );
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
-  const [borderColor, setBorderColor] = useState(selectedShape.borderColor);
-
+  let selectedShape: Shape | undefined;
+  if (selectedShapes) {
+    selectedShape = shapes.find(
+      (shape: Shape, index: number) => shape.id === selectedShapes[0]
+    );
+  }
+  const [color, setColor] = useState(selectedShape ? selectedShape.color : "#000000");
+  const [backgroundColor, setBackgroundColor] = useState(
+    selectedShape ? selectedShape.backgroundColor : "#ffffff"
+  );
+  
+  const [borderColor, setBorderColor] = useState(selectedShape ? selectedShape.borderColor : "#000000");
+  
   const updateColor = (color: string) => {
     dispatch(
-      updateShape({
-        index: selectedIdx,
-        update: {
-          color: color,
-        },
+      setWhiteboardData({
+        ...board,
+        shapes: [
+          ...shapes.filter(
+            (shape: Shape, index: number) => shape.id !== selectedShape?.id
+          ),
+          {
+            ...selectedShape,
+            color: color,
+          },
+        ],
       })
     );
-    
+    handleBoardChange({
+      ...board,
+      shapes: [
+        ...shapes.filter(
+          (shape: Shape, index: number) => shape.id !== selectedShape?.id
+        ),
+        {
+          ...selectedShape,
+          color: color,
+        },
+      ],
+    });
   };
 
   const updateBackgroundColor = (color: string) => {
     dispatch(
-      updateShape({
-        index: selectedIdx,
-        update: {
-          backgroundColor: color,
-        },
+      setWhiteboardData({
+        ...board,
+        shapes: [
+          ...shapes.filter(
+            (shape: Shape, index: number) => shape.id !== selectedShape?.id
+          ),
+          {
+            ...selectedShape,
+            backgroundColor: color,
+          },
+        ],
       })
     );
-    
+    handleBoardChange({
+      ...board,
+      shapes: [
+        ...shapes.filter(
+          (shape: Shape, index: number) => shape.id !== selectedShape?.id
+        ),
+        {
+          ...selectedShape,
+          backgroundColor: color,
+        },
+      ],
+    });
   };
 
   const updateBorderColor = (color: string) => {
     dispatch(
-      updateShape({
-        index: selectedIdx,
-        update: {
-          borderColor: color,
-        },
+      setWhiteboardData({
+        ...board,
+        shapes: [
+          ...shapes.filter(
+            (shape: Shape, index: number) => shape.id !== selectedShape?.id
+          ),
+          {
+            ...selectedShape,
+            borderColor: color,
+          },
+        ],
       })
     );
-    
+    handleBoardChange({
+      ...board,
+      shapes: [
+        ...shapes.filter(
+          (shape: Shape, index: number) => shape.id !== selectedShape?.id
+        ),
+        {
+          ...selectedShape,
+          borderColor: color,
+        },
+      ],
+    });
   };
   useEffect(() => {
-    setColor(selectedShape.color);
-    setBorderColor(selectedShape.borderColor);
-    setBackgroundColor(selectedShape.backgroundColor);
+    if (selectedShape) {
+      setColor(selectedShape.color);
+      setBorderColor(selectedShape.borderColor);
+      setBackgroundColor(selectedShape.backgroundColor);
+    }
   }, [selectedShape]);
 
   useEffect(() => {
-    updateBackgroundColor(backgroundColor);
+    updateBackgroundColor(backgroundColor || "#ffffff");
   }, [backgroundColor]);
 
   useEffect(() => {
-    updateBorderColor(borderColor);
+    updateBorderColor(borderColor || "#000000");
   }, [borderColor]);
 
   useEffect(() => {
-    updateColor(color);
+    updateColor(color || "#000000");
   }, [color]);
+
 
   const handleColorChange = (color: any) => {
     console.log("trying to change color");
@@ -92,7 +156,7 @@ const Colors = () => {
       setBorderColor(color);
     }
   };
-  const [opacity, setOpacity] = useState(selectedShape.opacity);
+  const [opacity, setOpacity] = useState(selectedShape ? selectedShape.opacity : 1);
 
   const handleSetOpacity = (value: number) => {
     if (value > 1) setOpacity(1);
@@ -100,19 +164,38 @@ const Colors = () => {
     else setOpacity(value);
   };
   useEffect(() => {
-    setOpacity(selectedShape.opacity);
+    if (selectedShape) {
+      setOpacity(selectedShape.opacity);
+    }
   }, [selectedShape]);
 
   const updateOpacity = () => {
     dispatch(
-      updateShape({
-        index: selectedIdx,
-        update: {
-          opacity: opacity,
-        },
+      setWhiteboardData({
+        ...board,
+        shapes: [
+          ...shapes.filter(
+            (shape: Shape, index: number) => shape.id !== selectedShape?.id
+          ),
+          {
+            ...selectedShape,
+            opacity: opacity,
+          },
+        ],
       })
     );
-  
+    handleBoardChange({
+      ...board,
+      shapes: [
+        ...shapes.filter(
+          (shape: Shape, index: number) => shape.id !== selectedShape?.id
+        ),
+        {
+          ...selectedShape,
+          opacity: opacity,
+        },
+      ],
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
