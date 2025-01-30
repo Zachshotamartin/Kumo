@@ -6,7 +6,9 @@ import { setSelectedShapes } from "../../features/selected/selectedSlice";
 const RenderHighlighting = () => {
   const dispatch = useDispatch();
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
-
+  const selectedShapes = useSelector(
+    (state: any) => state.selected.selectedShapes
+  );
   const highlightStartX = useSelector(
     (state: any) => state.selected.highlightStart[0]
   );
@@ -41,17 +43,35 @@ const RenderHighlighting = () => {
         return false;
       }
     );
-    dispatch(
-      setSelectedShapes(
-        intersectingShapeIndices.map((shape: Shape) => shape.id)
-      )
+    const intersectingShapeIds = intersectingShapeIndices.map(
+      (shape: Shape) => shape.id
     );
+    let isSame = true;
+    if (selectedShapes.length !== intersectingShapeIds.length) {
+      console.log("dispatch");
+      dispatch(setSelectedShapes(intersectingShapeIds));
+      return;
+    } else {
+      // check inner elements
+      for (let i = 0; i < selectedShapes.length; i++) {
+        if (!intersectingShapeIds.includes(selectedShapes[i])) {
+          isSame = false;
+        }
+      }
+    }
+
+    if (!isSame) {
+      console.log("not same");
+      console.log(selectedShapes, intersectingShapeIds);
+      dispatch(setSelectedShapes(intersectingShapeIds));
+    }
   }, [
     dispatch,
     highlightEndX,
     highlightEndY,
     highlightStartX,
     highlightStartY,
+    selectedShapes,
     shapes,
   ]);
 

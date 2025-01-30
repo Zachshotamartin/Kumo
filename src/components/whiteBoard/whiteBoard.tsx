@@ -161,7 +161,7 @@ const WhiteBoard = () => {
         shapes: history.history[history.currentIndex],
       })
     );
-    
+
     handleBoardChange({
       ...board,
       shapes: history.history[history.currentIndex],
@@ -211,6 +211,7 @@ const WhiteBoard = () => {
       // Update the state only if the user is not the last editor
 
       if (!_.isEqual(boardData.shapes ? boardData.shapes : [], board.shapes)) {
+        console.log("Board data changed!");
         if (user.uid !== boardData.lastChangedBy) {
           dispatch(
             setWhiteboardData({
@@ -830,6 +831,7 @@ const WhiteBoard = () => {
         }
 
         if (dragging && moving) {
+          console.log("moving");
           if (dragOffset) {
             const updatedShapes: Shape[] = [];
             selectedShapesArray.forEach((shape: Shape, index: number) => {
@@ -930,10 +932,12 @@ const WhiteBoard = () => {
         }
 
         if (dragging && highlighting) {
+          
           dispatch(setHighlightEnd([x, y]));
         }
 
         if (dragging && resizing) {
+          console.log("resizing");
           let updatedShapes: Shape[] = [];
           selectedShapesArray.forEach((shape: Shape, index: number) => {
             let offsetX = x - prevMouseX;
@@ -1131,6 +1135,7 @@ const WhiteBoard = () => {
         }
 
         if (drawing) {
+          console.log("drawing");
           const lastShape = shapes[shapes.length - 1];
           let offsetX = x - lastShape.x2;
           let offsetY = y - lastShape.y2;
@@ -1590,7 +1595,6 @@ const WhiteBoard = () => {
           return selectedShapes.includes(shape.id);
         })[0].type === "component"
       ) {
-        
         contextMenuLabels.push({
           label: "unwrap component",
           onClick: () => {

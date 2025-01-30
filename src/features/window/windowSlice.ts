@@ -51,6 +51,7 @@ const windowSlice = createSlice({
     setSideBarWidth: (state, action: PayloadAction<number>) => {
       state.sideBarWidth = action.payload;
     },
+    
   },
 });
 
