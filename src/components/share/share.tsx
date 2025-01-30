@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styles from "./share.module.css";
 
 import { ref, get, set, update, push } from "firebase/database";
@@ -12,6 +12,22 @@ const Share = () => {
   const board = useSelector((state: any) => state.whiteBoard);
   const dispatch = useDispatch();
   const appDispatch = useDispatch<AppDispatch>();
+
+  // Close form when Escape key is pressed
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        dispatch(setSharing(false));
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [dispatch]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -135,6 +151,14 @@ const Share = () => {
 
   return (
     <div className={styles.shareContainer}>
+      {/* Title and Description */}
+      <h2 className={styles.shareTitle}>Share Your Board</h2>
+      <p className={styles.shareDescription}>
+        Enter the email of the person you’d like to share this board with. Once
+        shared, they will have access to view and collaborate.
+      </p>
+
+      {/* Wrap the input and button inside a form */}
       <form className={styles.shareForm} onSubmit={handleSubmit}>
         <input
           className={styles.shareInput}
@@ -145,6 +169,7 @@ const Share = () => {
           <button
             className={styles.closeButton}
             onClick={() => dispatch(setSharing(false))}
+            type="button"
           >
             Close
           </button>

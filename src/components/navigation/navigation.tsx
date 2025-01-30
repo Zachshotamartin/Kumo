@@ -31,9 +31,12 @@ import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { removeBoardImage } from "../../features/boardImages/boardImages";
 import { handleBoardChange } from "../../helpers/handleBoardChange";
 import { realtimeDb } from "../../config/firebase";
+import { useEffect, useRef } from "react";
 const usersCollectionRef = collection(db, "users");
 const boardsCollectionRef = collection(db, "boards");
 const Navigation = () => {
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const user = useSelector((state: any) => state.auth);
   const grid = useSelector((state: any) => state.actions.grid);
 
@@ -44,6 +47,33 @@ const Navigation = () => {
   const userOpen = useSelector((state: any) => state.actions.userOpen);
   const settingsOpen = useSelector((state: any) => state.actions.settingsOpen);
   const width = useSelector((state: any) => state.window.sideBarWidth);
+
+  useEffect(() => {
+    const handleClickOutside = (event: { target: any }) => {
+      // Check if the click target is inside either the user or settings dropdown
+      const userDropdownClicked = userDropdownRef.current?.contains(
+        event.target
+      );
+      const settingsDropdownClicked = settingsDropdownRef.current?.contains(
+        event.target
+      );
+
+      // If neither dropdown is clicked, close both dropdowns
+      if (!userDropdownClicked && !settingsDropdownClicked) {
+        if (userOpen) dispatch(setUserOpen(false)); // Close user dropdown
+        if (settingsOpen) dispatch(setSettingsOpen(false)); // Close settings dropdown
+      }
+    };
+
+    // Add event listener for clicks
+    document.addEventListener("mousedown", handleClickOutside);
+
+    // Clean up the event listener on component unmount
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [userOpen, settingsOpen, dispatch]);
+
   const handleHide = () => {
     dispatch(setHideSideBar(!hidden));
     dispatch(setSettingsOpen(false));
@@ -60,14 +90,16 @@ const Navigation = () => {
       lastChangedBy: null,
       currentUsers: [],
     };
-
+    const useruid = localStorage.getItem("user");
     const updatedData = {
       ...whiteboard,
       lastChangedBy: user?.uid,
       currentUsers: whiteboard.currentUsers.filter(
-        (curUser: any) => curUser.user !== user?.uid
+        (curUser: any) => curUser.user !== useruid
       ),
     };
+    console.log(useruid);
+    console.log(whiteboard.currentUsers[0].user);
     console.log(updatedData);
     console.log("trying to update board");
     handleBoardChange(updatedData);
@@ -224,6 +256,16 @@ const Navigation = () => {
         sharedWith: [],
         backGroundColor: "",
       };
+      const useruid = localStorage.getItem("user");
+      const updatedData = {
+        ...whiteboard,
+        lastChangedBy: user?.uid,
+        currentUsers: whiteboard.currentUsers.filter(
+          (curUser: any) => curUser.user !== useruid
+        ),
+      };
+
+      handleBoardChange(updatedData);
 
       dispatch(clearSelectedShapes());
       dispatch(setInWhiteBoard(false));
@@ -254,6 +296,7 @@ const Navigation = () => {
       />
       {userOpen && whiteboard.id !== null && (
         <div
+          ref={userDropdownRef}
           className={!hidden ? styles.dropdown : styles.dropdownHidden}
           style={{ left: !hidden ? `${width + 2}%` : "2rem" }}
         >
@@ -281,6 +324,7 @@ const Navigation = () => {
       )}
       {settingsOpen && whiteboard.id !== null && (
         <div
+          ref={settingsDropdownRef}
           className={!hidden ? styles.dropdown : styles.dropdownHidden}
           style={{ left: !hidden ? `${width + 2}%` : "2rem" }}
         >

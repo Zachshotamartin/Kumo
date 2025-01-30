@@ -22,6 +22,7 @@ const RenderComponents = (props: any) => {
   const window = useSelector((state: any) => state.window);
 
   const handleMouseEnter = (shape: Shape) => {
+    console.log("entered");
     if (shape && !selectedShapes.includes(shape.id) && shape.level === 0) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
@@ -78,9 +79,6 @@ const RenderComponents = (props: any) => {
                     )}
                     {shape.type === "calendar" && (
                       <RenderCalendars shapes={[shape]} />
-                    )}
-                    {shape.type === "component" && (
-                      <RenderComponents shapes={[shape]} />
                     )}
                   </>
                 ))}

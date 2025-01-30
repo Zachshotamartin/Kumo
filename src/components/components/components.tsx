@@ -37,7 +37,7 @@ const Components = () => {
   ) => {
     event.dataTransfer.setData("text", "");
     event.dataTransfer.setDragImage(new Image(), 0, 0);
-    console.log("dragging index ", index);
+
     setDragging(index);
   };
 
@@ -53,12 +53,8 @@ const Components = () => {
     index: number,
     event: React.DragEvent<HTMLDivElement>
   ) => {
-    console.log("handleDrop function executed");
-    console.log("dropped at ", index);
     const dropElement = event.target as HTMLDivElement;
-    console.log("dropElement", dropElement);
 
-    console.log([...shapes].reverse());
     if (index === dragging) {
       return;
     }
@@ -67,16 +63,10 @@ const Components = () => {
       .reverse()
       .forEach((shape: Shape, i: number) => {
         if (dragging !== null) {
-          console.log("i, ", i);
-
           if (i > index && i > dragging) {
-            console.log("less");
             newShapes.push(shape);
-            console.log("newShapes", newShapes);
           } else if (i < index && i < dragging) {
-            console.log("more");
             newShapes.push(shape);
-            console.log("newShapes", newShapes);
           } else {
             if (i === dragging) {
               if (shape.type !== "component") {
@@ -84,7 +74,6 @@ const Components = () => {
                   ...shape,
                   zIndex: shapes.length - 1 - index,
                 });
-                console.log("newShapes", newShapes);
               } else {
                 newShapes.push({
                   ...shape,
@@ -98,16 +87,13 @@ const Components = () => {
                     }
                   ),
                 });
-                console.log("newShapes", newShapes);
               }
             } else if (index < dragging) {
-              console.log("index < dragging");
               if ([...shapes].reverse()[dragging].type !== "component") {
                 newShapes.push({
                   ...shape,
                   zIndex: shapes.length - 1 - i - 1,
                 });
-                console.log("newShapes", newShapes);
               } else {
                 newShapes.push({
                   ...shape,
@@ -116,7 +102,6 @@ const Components = () => {
                     [...shapes].reverse()[dragging].shapes.length -
                     1,
                 });
-                console.log("newShapes", newShapes);
               }
             } else if (index > dragging) {
               console.log("index > dragging");
@@ -125,7 +110,6 @@ const Components = () => {
                   ...shape,
                   zIndex: shapes.length - i,
                 });
-                console.log("newShapes", newShapes);
               } else {
                 newShapes.push({
                   ...shape,
@@ -134,14 +118,12 @@ const Components = () => {
                     i +
                     [...shapes].reverse()[dragging].shapes.length,
                 });
-                console.log("newShapes", newShapes);
               }
             }
           }
         }
       });
-    console.log("index", index);
-    console.log("dragging", dragging);
+
     newShapes = [...newShapes].reverse();
 
     dispatch(
@@ -202,8 +184,6 @@ const Components = () => {
           }
         );
       }
-
-      console.log("newSelectedShapes", newSelectedShapes);
 
       dispatch(
         setSelectedShapes(newSelectedShapes.map((shape: Shape) => shape.id))
@@ -338,7 +318,7 @@ const Components = () => {
                     />
                     <h6
                       className={
-                        selectedShapes.includes(shapes.length - 1 - index)
+                        selectedShapes.includes(shape.id)
                           ? styles.selected
                           : styles.text
                       }

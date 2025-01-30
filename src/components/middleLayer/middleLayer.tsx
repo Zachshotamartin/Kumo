@@ -91,16 +91,24 @@ const MiddleLayer = () => {
     <div className={styles.middleLayer}>
       {searchTerm === "" && (
         <>
-          <h5 className={styles.title}>{`Public (${publicBoards?.length})`}</h5>
-          <ViewBoardPreview boards={publicBoards} />
-
-          <h5
-            className={styles.title}
-          >{`Private (${privateBoards?.length})`}</h5>
-          <ViewBoardPreview boards={privateBoards} />
-
-          <h5 className={styles.title}>{`Shared (${sharedBoards?.length})`}</h5>
-          <ViewBoardPreview boards={sharedBoards} />
+          <div className={styles.boardRow}>
+            <h5
+              className={styles.title}
+            >{`Public (${publicBoards?.length})`}</h5>
+            <ViewBoardPreview boards={publicBoards} />
+          </div>
+          <div className={styles.boardRow}>
+            <h5
+              className={styles.title}
+            >{`Private (${privateBoards?.length})`}</h5>
+            <ViewBoardPreview boards={privateBoards} />
+          </div>
+          <div className={styles.boardRow}>
+            <h5
+              className={styles.title}
+            >{`Shared (${sharedBoards?.length})`}</h5>
+            <ViewBoardPreview boards={sharedBoards} />
+          </div>
         </>
       )}
       {searchTerm !== "" && (

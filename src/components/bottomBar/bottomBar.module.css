@@ -1,40 +1,47 @@
 .icon {
-  height: 3rem;
-  width: 3rem;
+  height: 2rem;
+  width: 2rem;
   border-radius: 10px;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0.4rem;
   margin-left: 0.5rem;
   margin-right: 0.5rem;
+  transition: background-color 0.3s, transform 0.2s;
 }
+
 .icon:hover {
   background-color: #007bff;
+  transform: scale(1.1);
 }
 
 .iconSelected {
-  height: 3rem;
-  width: 3rem;
+  height: 2rem;
+  width: 2rem;
   border-radius: 10px;
-
   cursor: pointer;
   background-color: #007bff;
-  padding: 0.5rem;
+  padding: 0.4rem;
   margin-left: 0.5rem;
   margin-right: 0.5rem;
+  transition: background-color 0.3s, transform 0.2s;
 }
 
 .tools {
-  position: absolute;
-  display: flex;
-
-  top: 95%;
+  position: fixed;
+  bottom: 1rem;
   left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 100;
-  padding: 0.5rem 0.5rem;
-  border-radius: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem;
   background-color: #444444;
+  border-radius: 20px;
   border: 1px solid white;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  width: auto;
+  max-width: 700px;
 }
 
 .button {
@@ -42,17 +49,30 @@
   color: inherit;
   border: none;
   cursor: pointer;
-  padding: 0rem;
-  margin: 0rem;
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
+  padding: 0;
+  margin: 0;
+  transition: transform 0.2s ease-in-out;
 }
 
 .button:hover {
-  background-color: transparent !important;
+  transform: scale(1.1);
+  background-color: transparent;
 }
 
+.button:focus {
+  outline: none;
+}
 
+@media (max-width: 768px) {
+  .tools {
+    padding: 0.5rem;
+  }
 
+  .icon {
+    height: 1.5rem;
+    width: 1.5rem;
+  }
+}

@@ -17,6 +17,7 @@ const RenderBoxes = (props: any) => {
   const window = useSelector((state: any) => state.window);
 
   const handleMouseEnter = (shape: Shape) => {
+    console.log("entered");
     if (!selectedShapes.includes(shape.id)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
@@ -41,6 +42,7 @@ const RenderBoxes = (props: any) => {
             <div
               style={{
                 // type
+                pointerEvents: shape.level === 0 ? "all" : "none",
                 position: "absolute",
                 zIndex: selectedShapes
                   .map((shape: Shape) => shape.id)
@@ -81,10 +83,10 @@ const RenderBoxes = (props: any) => {
 
                 opacity: `${shape.opacity}`,
               }}
-              onMouseOver={
+              onMouseEnter={
                 shape.level === 0 ? () => handleMouseEnter(shape) : () => {}
               }
-              onMouseOut={shape.level === 0 ? handleMouseLeave : () => {}}
+              onMouseOut={handleMouseLeave}
             ></div>
           )}
         </div>

@@ -1,7 +1,7 @@
 .navigation {
   display: flex;
   flex-direction: column;
-  border-top: 2px solid #b4b4b42b;
+  border-bottom: 2px solid #b4b4b42b;
 
   overflow-x: hidden;
   overflow-y: visible;
@@ -22,6 +22,13 @@
   color: white;
   border: none;
   cursor: pointer;
+  border-bottom: 2px solid #b4b4b42b;
+  width: 100%;
+  text-align: left;
+}
+
+.hide h6 {
+  font-size: 14px;
 }
 
 .hiddenNavigation {
@@ -37,19 +44,16 @@
 .dropdown {
   display: flex;
   position: fixed;
-  top: 4rem;
+  top: 1rem;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
 
-  border: 2px solid #b4b4b42b;
-  border-radius: 10px;
+  border: 1px solid #b4b4b42b;
+
   background-color: #444444;
   z-index: 100;
   padding: 0.5rem;
-}
-.dropdown button:hover {
-  color: #007bff;
 }
 
 .dropdownHidden {
@@ -60,12 +64,8 @@
   justify-content: flex-start;
   align-items: flex-start;
 
-  border: 2px solid #b4b4b42b;
-  border-radius: 10px;
+  border: 1px solid #b4b4b42b;
   background-color: #444444;
   z-index: 100;
   padding: 0.5rem;
-}
-.dropdownHidden button:hover {
-  color: #007bff;
 }

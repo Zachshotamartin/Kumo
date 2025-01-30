@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import styles from "./delete.module.css";
-import { getStorage, ref, deleteObject } from "firebase/storage";
+import { ref, deleteObject } from "firebase/storage";
 import { storage } from "../../config/firebase";
 import {
   collection,
@@ -11,11 +11,13 @@ import {
   doc,
   deleteDoc,
 } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { db, realtimeDb } from "../../config/firebase";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { useSelector, useDispatch } from "react-redux";
 import { setDeleting } from "../../features/actions/actionsSlice";
 import { AppDispatch } from "../../store";
+import { ref as dbRef, get, remove, update } from "firebase/database";
+
 const usersCollectionRef = collection(db, "users");
 const boardCollectionRef = collection(db, "boards");
 
@@ -23,7 +25,23 @@ const Delete = () => {
   const board = useSelector((state: any) => state.whiteBoard);
   const dispatch = useDispatch();
   const appDispatch = useDispatch<AppDispatch>();
-  const user = useSelector((state: any) => state.auth);
+
+  // Close form when Escape key is pressed
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault(); // Prevent default behavior for Escape key
+        dispatch(setDeleting(false));
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [dispatch]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -34,52 +52,87 @@ const Delete = () => {
       alert("Incorrect title");
       return;
     }
-    // delete doc from firebase
-    const boardRef = doc(boardCollectionRef, board.id);
-    deleteDoc(boardRef).then(() => {
-      // deletes doc from redux
 
-      appDispatch(setWhiteboardData({})); // !!! look at this and see.
-    });
+    try {
+      // 1. Delete from Realtime Database
+      const boardRef = dbRef(realtimeDb, `boards/${board.id}`);
+      await remove(boardRef); // Deleting board data
 
-    const users = await getDocs(
-      query(usersCollectionRef, where("uid", "in", board.sharedWith))
-    );
-    for (const userDoc of users.docs) {
-      const userData = userDoc.data();
-      await updateDoc(userDoc.ref, {
-        publicBoardsIds: userData.publicBoardsIds.filter(
-          (whiteboard: any) => board.id !== whiteboard.id
-        ),
-        privateBoardsIds: userData.privateBoardsIds.filter(
-          (whiteboard: any) => board.id !== whiteboard.id
-        ),
-        sharedBoardsIds: userData.sharedBoardsIds.filter(
-          (whiteboard: any) => board.id !== whiteboard.id
-        ),
-      });
+      // 2. Remove board from users' shared lists in Realtime Database
+      const usersRef = dbRef(realtimeDb, "users");
+      const snapshot = await get(usersRef);
+      if (!snapshot.exists()) {
+        console.error("No users found in Realtime Database");
+        return;
+      }
+
+      const users = snapshot.val();
+      for (const userId of board.sharedWith) {
+        const userRef = dbRef(realtimeDb, `users/${userId}`);
+        const userDataSnapshot = await get(userRef);
+
+        if (userDataSnapshot.exists()) {
+          const userData = userDataSnapshot.val();
+
+          // Remove the board from the user's lists
+          const updatedPublicBoardsIds =
+            userData.publicBoardsIds?.filter(
+              (whiteboard: any) => whiteboard.id !== board.id
+            ) || [];
+
+          const updatedPrivateBoardsIds =
+            userData.privateBoardsIds?.filter(
+              (whiteboard: any) => whiteboard.id !== board.id
+            ) || [];
+
+          const updatedSharedBoardsIds =
+            userData.sharedBoardsIds?.filter(
+              (whiteboard: any) => whiteboard.id !== board.id
+            ) || [];
+
+          // Update the user's data in Realtime Database
+          await update(userRef, {
+            publicBoardsIds: updatedPublicBoardsIds,
+            privateBoardsIds: updatedPrivateBoardsIds,
+            sharedBoardsIds: updatedSharedBoardsIds,
+          });
+        }
+      }
+
+      // 3. Delete the board's image from Firebase Storage
+      const fileRef = ref(storage, `boardPreviews/${board.id}.jpg`);
+      await deleteObject(fileRef)
+        .then(() => {
+          console.log("File deleted successfully");
+        })
+        .catch((error) => {
+          console.error("Error deleting file:", error);
+        });
+
+      // 4. Reset Redux state
+      appDispatch(setWhiteboardData({}));
+      dispatch(setDeleting(false));
+      alert("Board deleted successfully.");
+    } catch (error) {
+      console.error("Error deleting board:", error);
+      alert("An error occurred while deleting the board.");
     }
-
-    const fileRef = ref(storage, `boardPreviews/${board.id}.jpg`);
-    deleteObject(fileRef)
-      .then(() => {
-        console.log("File deleted successfully");
-      })
-      .catch((error) => {
-        console.error("Error deleting file:", error);
-      });
-    dispatch(setDeleting(false));
   };
 
   return (
     <div className={styles.deleteContainer}>
+      {/* Title and Description */}
+      <h2 className={styles.deleteTitle}>Delete Board</h2>
+      <p className={styles.deleteDescription}>
+        Deleting this board is **permanent** and cannot be undone. Please
+        confirm by entering the board title below.
+      </p>
+
       <form className={styles.deleteForm} onSubmit={handleSubmit}>
         <label className={styles.deleteLabel}>
-          Deletion is permanent. You will not be able to recover this board
-          after deletion. Please enter the title as listed below to confirm
-          deletion:
+          Enter the board title to confirm deletion:
         </label>
-        <h3 className={styles.deleteTitle}>{board.title}</h3>
+        <h3 className={styles.confirmTitle}>{board.title}</h3>
         <input
           className={styles.deleteInput}
           type="text"
@@ -89,6 +142,7 @@ const Delete = () => {
           <button
             className={styles.closeButton}
             onClick={() => dispatch(setDeleting(false))}
+            type="button"
           >
             Close
           </button>

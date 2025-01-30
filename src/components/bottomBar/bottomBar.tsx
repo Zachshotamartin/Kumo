@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/img-redundant-alt */
 import React from "react";
 import styles from "./bottomBar.module.css";
 import image from "../../res/image.png";
@@ -36,7 +37,6 @@ const BottomBar = () => {
 
   const handleUpdateAfterDelete = () => {
     handleDelete();
-    console.log(shapes.length);
   };
   return (
     <div className={styles.tools}>
@@ -49,7 +49,7 @@ const BottomBar = () => {
             selectedTool === "pointer" ? styles.iconSelected : styles.icon
           }
           src={pointer}
-          alt=""
+          alt="select pointer"
         />
       </button>
       <button
@@ -61,7 +61,7 @@ const BottomBar = () => {
             selectedTool === "rectangle" ? styles.iconSelected : styles.icon
           }
           src={rectangle}
-          alt=""
+          alt="select rectangle"
         />
       </button>
       <button
@@ -73,7 +73,7 @@ const BottomBar = () => {
             selectedTool === "ellipse" ? styles.iconSelected : styles.icon
           }
           src={ellipse}
-          alt=""
+          alt="select ellipse"
         />
       </button>
       <button
@@ -85,7 +85,7 @@ const BottomBar = () => {
             selectedTool === "text" ? styles.iconSelected : styles.icon
           }
           src={text}
-          alt=""
+          alt="select text"
         />
       </button>
 
@@ -110,7 +110,7 @@ const BottomBar = () => {
             selectedTool === "image" ? styles.iconSelected : styles.icon
           }
           src={image}
-          alt=""
+          alt="select image"
         />
       </button>
 

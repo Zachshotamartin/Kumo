@@ -31,7 +31,7 @@ const RenderText = (props: any) => {
 
   const dispatch = useDispatch<AppDispatch>();
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
-  console.log(textareaRefs);
+
   const drawing = useSelector((state: any) => state.actions.drawing);
   const window = useSelector((state: any) => state.window);
 
@@ -155,84 +155,89 @@ const RenderText = (props: any) => {
 
   return (
     <>
-      {shapes.map((shape: Shape) => (
-        <div
-          key={shape.id}
-          style={{
-            position: "absolute",
-            zIndex: selectedShapes.includes(shape.id) ? 50 : shape.zIndex,
-            top: `${
-              ((shape.y1 > shape.y2 ? shape.y2 : shape.y1) - window.y1) /
-                window.percentZoomed -
-              (selectedShapes.includes(shape.id) ? 1 : 0)
-            }px`,
-            left: `${
-              ((shape.x1 > shape.x2 ? shape.x2 : shape.x1) - window.x1) /
-                window.percentZoomed -
-              (selectedShapes.includes(shape.id) ? 1 : 0)
-            }px`,
-            width: `${shape.width / window.percentZoomed}px`,
-            height: `${shape.height / window.percentZoomed}px`,
-            transform: `rotate(${shape.rotation || 0}deg)`,
-            borderRadius: `${shape.borderRadius}%`,
-            border: `${shape.borderColor} ${
-              (shape.borderWidth ?? 0) / window.percentZoomed
-            }px ${shape.borderStyle}`,
-            opacity: `${shape.opacity}`,
-            backgroundColor: `${shape.backgroundColor}`,
-            pointerEvents: "auto", // Ensure it allows interaction
-          }}
-          // onDoubleClick={() => {
-          //   // Focus the textarea on double-click
-          //   const textarea = textareaRefs.current[shape.id];
-          //   if (textarea) {
-          //     textarea.focus();
-          //   }
-          //   console.log(`Shape ${shape.id} double-clicked`);
-          // }}
-        >
-          <textarea
-            key={shape.id}
-            ref={(el) => (textareaRefs.current[shape.id] = el)}
-            style={{
-              display: "flex",
-              width: "100%",
-              height: "100%",
-              backgroundColor: "transparent",
-              resize: "none",
-              outline: "none",
-              border: "none",
-              overflow: "hidden",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              zIndex: 10,
-              color: shape.color,
-              fontSize: `${(shape.fontSize ?? 12) / window.percentZoomed}px`,
-              fontFamily: `${shape.fontFamily}`,
-              fontWeight: `${shape.fontWeight}`,
-              textAlign: shape.textAlign as "left" | "right" | "center",
-              lineHeight: `${shape.lineHeight}`,
-              letterSpacing: `${
-                (shape.letterSpacing ?? 0) / window.percentZoomed
-              }px`,
-              position: "relative",
-              pointerEvents: "none", // Prevent interactions like clicks or single focus
-            }}
-            value={shape.text}
-            onChange={(e) => {
-              const usedRows = calculateUsedRows(
-                e.target.value,
-                (shape.lineHeight ?? 1.2) * window.percentZoomed,
-                (shape.fontSize ?? 12) * window.percentZoomed,
-                shape.width / window.percentZoomed,
-                shape.fontFamily ?? "Arial"
-              );
-              handleInputChange(shape.id, e, usedRows);
-            }}
-            //onBlur={() => handleBlur(shape.id)}
-          />
-        </div>
-      ))}
+      {shapes.map(
+        (shape: Shape) =>
+          shape.type === "text" && (
+            <div
+              key={shape.id}
+              style={{
+                position: "absolute",
+                zIndex: selectedShapes.includes(shape.id) ? 50 : shape.zIndex,
+                top: `${
+                  ((shape.y1 > shape.y2 ? shape.y2 : shape.y1) - window.y1) /
+                    window.percentZoomed -
+                  (selectedShapes.includes(shape.id) ? 1 : 0)
+                }px`,
+                left: `${
+                  ((shape.x1 > shape.x2 ? shape.x2 : shape.x1) - window.x1) /
+                    window.percentZoomed -
+                  (selectedShapes.includes(shape.id) ? 1 : 0)
+                }px`,
+                width: `${shape.width / window.percentZoomed}px`,
+                height: `${shape.height / window.percentZoomed}px`,
+                transform: `rotate(${shape.rotation || 0}deg)`,
+                borderRadius: `${shape.borderRadius}%`,
+                border: `${shape.borderColor} ${
+                  (shape.borderWidth ?? 0) / window.percentZoomed
+                }px ${shape.borderStyle}`,
+                opacity: `${shape.opacity}`,
+                backgroundColor: `${shape.backgroundColor}`,
+                pointerEvents: "auto", // Ensure it allows interaction
+              }}
+              // onDoubleClick={() => {
+              //   // Focus the textarea on double-click
+              //   const textarea = textareaRefs.current[shape.id];
+              //   if (textarea) {
+              //     textarea.focus();
+              //   }
+              //   console.log(`Shape ${shape.id} double-clicked`);
+              // }}
+            >
+              <textarea
+                key={shape.id}
+                ref={(el) => (textareaRefs.current[shape.id] = el)}
+                style={{
+                  display: "flex",
+                  width: "100%",
+                  height: "100%",
+                  backgroundColor: "transparent",
+                  resize: "none",
+                  outline: "none",
+                  border: "none",
+                  overflow: "hidden",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  zIndex: 10,
+                  color: shape.color,
+                  fontSize: `${
+                    (shape.fontSize ?? 12) / window.percentZoomed
+                  }px`,
+                  fontFamily: `${shape.fontFamily}`,
+                  fontWeight: `${shape.fontWeight}`,
+                  textAlign: shape.textAlign as "left" | "right" | "center",
+                  lineHeight: `${shape.lineHeight}`,
+                  letterSpacing: `${
+                    (shape.letterSpacing ?? 0) / window.percentZoomed
+                  }px`,
+                  position: "relative",
+                  pointerEvents: "none", // Prevent interactions like clicks or single focus
+                }}
+                value={shape.text}
+                onChange={(e) => {
+                  const usedRows = calculateUsedRows(
+                    e.target.value,
+                    (shape.lineHeight ?? 1.2) * window.percentZoomed,
+                    (shape.fontSize ?? 12) * window.percentZoomed,
+                    shape.width / window.percentZoomed,
+                    shape.fontFamily ?? "Arial"
+                  );
+                  handleInputChange(shape.id, e, usedRows);
+                }}
+                //onBlur={() => handleBlur(shape.id)}
+              />
+            </div>
+          )
+      )}
     </>
   );
 };

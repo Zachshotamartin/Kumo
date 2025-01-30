@@ -18,6 +18,7 @@ const RenderImages = (props: any) => {
   const window = useSelector((state: any) => state.window);
 
   const handleMouseEnter = (shape: Shape) => {
+    console.log("entered");
     if (!selectedShapes.includes(shape.id)) {
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
@@ -84,10 +85,10 @@ const RenderImages = (props: any) => {
                 backgroundSize: "cover",
                 opacity: `${shape.opacity}`,
               }}
-              onMouseOver={
+              onMouseEnter={
                 shape.level === 0 ? () => handleMouseEnter(shape) : () => {}
               }
-              onMouseOut={shape.level === 0 ? handleMouseLeave : () => {}}
+              onMouseOut={handleMouseLeave}
             ></div>
           )}
         </div>

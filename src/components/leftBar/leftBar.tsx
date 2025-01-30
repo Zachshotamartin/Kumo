@@ -57,7 +57,7 @@ const LeftBar = () => {
 
         // Write the board data to the database
         await update(newBoardRef, boardDataWithId);
-        console.log("Board created with ID:", newBoardKey);
+       
 
         // Update the user's board list
         const userRef = ref(db, `users/${userState?.uid}`);

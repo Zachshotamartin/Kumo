@@ -17,10 +17,10 @@
   padding: 10px;
   cursor: pointer;
   text-align: left;
+  border-bottom: 2px solid #b4b4b42b;
 }
 
 .contextMenu li:hover {
-  background-color: #007bff;
+  background-color: #0056b3;
   color: #f0f0f0;
-  
 }

@@ -20,13 +20,12 @@ const updateBoard = async (newBoard: any) => {
     const currentData = snapshot.val();
 
     let updatedData = { ...currentData };
-    console.log("database values", updatedData);
-    console.log("new values", newBoard);
-    const equal = _.isEqual(updatedData.shapes || [], newBoard.shapes);
-    if (equal) {
-      console.log("equal");
-      return;
-    }
+
+    // const equal = _.isEqual(updatedData.shapes || [], newBoard.shapes);
+    // if (equal) {
+    //   console.log("equal");
+    //   return;
+    // }
     const sortedShapes = newBoard.shapes;
 
     updatedData.lastChangedBy = user;
@@ -36,6 +35,7 @@ const updateBoard = async (newBoard: any) => {
       lastChangedBy: user,
     })
       .then(() => {
+        console.log("new board", newBoard);
         console.log("Board successfully updated.");
       })
       .catch((error) => {
@@ -50,6 +50,5 @@ const updateBoard = async (newBoard: any) => {
 const throttledUpdateBoard = _.throttle(updateBoard, 100, { trailing: true });
 
 export const handleBoardChange = async (newBoard: any) => {
-  console.log("trying");
   await throttledUpdateBoard(newBoard);
 };

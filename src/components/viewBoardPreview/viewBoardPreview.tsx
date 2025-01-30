@@ -56,9 +56,8 @@ const ViewBoardPreview = (props: { boards: any }) => {
               { user: user?.uid, cursorX: 0, cursorY: 0 },
             ],
           };
-          console.log(data);
+
           dispatch(setWhiteboardData(data));
-          console.log("Board selected:", data);
         } else {
           console.error(`No board found with ID: ${board}`);
         }
@@ -127,7 +126,6 @@ const ViewBoardPreview = (props: { boards: any }) => {
             privateBoardsIds: updatedBoards,
           });
 
-          console.log("Board copy created and added to private boards.");
           alert("A copy of this board has been added to private boards.");
         }
 

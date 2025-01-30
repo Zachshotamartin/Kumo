@@ -22,7 +22,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, labels }) => {
               key={index}
               
               onClick={(event) => {
-                console.log("clicked");
+        
 
                 // event.stopPropagation();
                 label.onClick();

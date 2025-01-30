@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import {
-  setWhiteboardData,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
 
 import { handleBoardChange } from "../../helpers/handleBoardChange";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 const Colors = () => {
   const dispatch = useDispatch();
-  
+
   const board = useSelector((state: any) => state.whiteBoard);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
@@ -21,13 +19,17 @@ const Colors = () => {
       (shape: Shape, index: number) => shape.id === selectedShapes[0]
     );
   }
-  const [color, setColor] = useState(selectedShape ? selectedShape.color : "#000000");
+  const [color, setColor] = useState(
+    selectedShape ? selectedShape.color : "#000000"
+  );
   const [backgroundColor, setBackgroundColor] = useState(
     selectedShape ? selectedShape.backgroundColor : "#ffffff"
   );
-  
-  const [borderColor, setBorderColor] = useState(selectedShape ? selectedShape.borderColor : "#000000");
-  
+
+  const [borderColor, setBorderColor] = useState(
+    selectedShape ? selectedShape.borderColor : "#000000"
+  );
+
   const updateColor = (color: string) => {
     dispatch(
       setWhiteboardData({
@@ -134,20 +136,14 @@ const Colors = () => {
     updateColor(color || "#000000");
   }, [color]);
 
-
   const handleColorChange = (color: any) => {
-    console.log("trying to change color");
     if (color) {
-      console.log(color);
       setColor(color);
     }
   };
   const handleBackgroundColorChange = (color: any) => {
-    console.log("trying to change color");
-    console.log(color);
     if (color) {
       setBackgroundColor(color);
-      console.log(color);
     }
   };
 
@@ -156,7 +152,9 @@ const Colors = () => {
       setBorderColor(color);
     }
   };
-  const [opacity, setOpacity] = useState(selectedShape ? selectedShape.opacity : 1);
+  const [opacity, setOpacity] = useState(
+    selectedShape ? selectedShape.opacity : 1
+  );
 
   const handleSetOpacity = (value: number) => {
     if (value > 1) setOpacity(1);

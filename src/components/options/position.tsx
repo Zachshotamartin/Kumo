@@ -32,7 +32,7 @@ const Position = () => {
   }, [selectedShape]);
 
   const updatePosition = () => {
-    console.log("updateingPosition");
+
     dispatch(
       setWhiteboardData({
         ...board,

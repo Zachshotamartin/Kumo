@@ -8,8 +8,8 @@
   align-items: flex-start;
 
   padding-left: 1rem;
-  border-top: 2px solid #b4b4b42b;
-  border-bottom: 2px solid #b4b4b42b;
+
+  border-bottom: 1px solid #b4b4b42b; 
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
 }

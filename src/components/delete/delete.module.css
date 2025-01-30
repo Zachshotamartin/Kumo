@@ -1,91 +1,163 @@
+/* Centered modal container */
 .deleteContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 30%;
-  width: 30%;
+  width: 35%;
+  min-width: 320px;
+  max-width: 500px;
+  padding: 2rem;
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: #444444;
-  border: 1px solid #b4b4b4;
-  border-radius: 25px;
+  background-color: #333; /* Darker background for better contrast */
+  border: 1px solid #666; /* Softer border color */
+  border-radius: 12px;
+  box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2);
   z-index: 100;
 }
 
+/* Form layout */
 .deleteForm {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  width: 100%;
 }
 
+/* Warning label */
 .deleteLabel {
-  padding: 2rem;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
-  font-size: 1.25rem;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #f8f8f8;
+
+  padding: 0 1rem;
 }
 
+/* Title to confirm */
+
+/* Title */
 .deleteTitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+/* Description */
+.deleteDescription {
+  font-size: 1rem;
+  color: #ff6961; /* Warning red */
+  text-align: center;
+
+  padding: 0 1rem;
+}
+
+/* Board title to confirm */
+.confirmTitle {
   padding: 0.5rem;
   margin: 0.5rem;
+  margin-bottom: 1rem;
   border-radius: 5px;
   color: white;
   font-size: 1rem;
   font-weight: bold;
+  background-color: #222;
+  text-align: center;
 }
-
+/* Input field */
 .deleteInput {
-  width: 50%;
-  padding: 0.5rem;
-  margin: 0.5rem;
-  border: 1px solid #b4b4b4;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #888;
   border-radius: 5px;
-  background-color: #444444;
+  background-color: #222;
   color: white;
   font-size: 1rem;
+  text-align: center;
+  transition: border-color 0.3s ease;
 }
+
+.deleteInput:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+/* Button container */
 .buttonContainer {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  padding-bottom: 0.5rem;
-  width: 50%;
-  padding: 0.5rem;
-  margin: 0.5rem;
-}
-.deleteButton {
-  margin: 0.5rem;
-  width: 50%;
-  border: none;
-  border-radius: 5px;
-  background-color: #444444;
-  color: white;
-  cursor: pointer;
-  font-size: 1rem;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 0.5rem;
 }
 
-.deleteButton:hover {
-  background-color: #007bff;
-  color: #ffffff;
-}
-
+/* Shared button styles */
+.deleteButton,
 .closeButton {
-  margin: 0.5rem;
-  width: 50%;
+  flex: 1;
+
+  padding: 0.75rem;
   border: none;
   border-radius: 5px;
-  background-color: #444444;
-  color: white;
-  cursor: pointer;
   font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+/* Close button */
+.closeButton {
+  background-color: #555;
+  color: white;
 }
 
 .closeButton:hover {
-  background-color: #007bff;
-  color: #ffffff;
+  background-color: #777;
+  transform: scale(1.05);
+}
+
+/* Delete button */
+.deleteButton {
+  background-color: #d9534f;
+  color: white;
+}
+
+.deleteButton:hover {
+  background-color: #c9302c;
+  transform: scale(1.05);
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .deleteContainer {
+    width: 90%;
+    padding: 1.5rem;
+  }
+
+  .deleteLabel {
+    font-size: 1rem;
+  }
+
+  .deleteTitle {
+    font-size: 1.1rem;
+  }
+
+  .deleteInput {
+    font-size: 0.9rem;
+    padding: 0.6rem;
+  }
+
+  .deleteButton,
+  .closeButton {
+    font-size: 0.9rem;
+    padding: 0.6rem;
+  }
 }

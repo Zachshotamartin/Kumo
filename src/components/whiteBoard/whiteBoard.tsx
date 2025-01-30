@@ -146,35 +146,35 @@ const WhiteBoard = () => {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const usersCollectionRef = collection(db, "users");
 
-  // useEffect(() => {
-  //   dispatch(initializeHistory(shapes));
-  // }, []);
+  useEffect(() => {
+    dispatch(initializeHistory(shapes));
+  }, []);
 
   useEffect(() => {
     setMiddle(middleMouseButton);
   }, [middleMouseButton]);
 
-  // useEffect(() => {
-  //   dispatch(
-  //     setWhiteboardData({
-  //       ...board,
-  //       shapes: history.history[history.currentIndex],
-  //     })
-  //   );
-  //   console.log("history being changed");
-  //   handleBoardChange({
-  //     ...board,
-  //     shapes: history.history[history.currentIndex],
-  //   });
-  // }, [history]);
+  useEffect(() => {
+    dispatch(
+      setWhiteboardData({
+        ...board,
+        shapes: history.history[history.currentIndex],
+      })
+    );
+    
+    handleBoardChange({
+      ...board,
+      shapes: history.history[history.currentIndex],
+    });
+  }, [history]);
 
-  // useEffect(() => {
-  //   if (!dragging && !resizing && !drawing) {
-  //     if (shapes !== history.history[history.currentIndex]) {
-  //       //dispatch(updateHistory(shapes));
-  //     }
-  //   }
-  // }, [shapes, dragging, resizing, drawing]);
+  useEffect(() => {
+    if (!dragging && !resizing && !drawing) {
+      if (shapes !== history.history[history.currentIndex]) {
+        dispatch(updateHistory(shapes));
+      }
+    }
+  }, [shapes, dragging, resizing, drawing]);
 
   useEffect(() => {
     if (!board?.id) {
@@ -459,6 +459,7 @@ const WhiteBoard = () => {
         } else {
           event.preventDefault();
           if (history.currentIndex > 0) {
+            console.log("trying to undo");
             dispatch(undo());
           }
         }
@@ -629,7 +630,6 @@ const WhiteBoard = () => {
               dispatch(setSelectedShapes([...selectedShapes, selected]));
             }
             if (!e.shiftKey) {
-              console.log("selected():", selected);
               dispatch(setSelectedShapes([selected]));
             }
           }
@@ -833,8 +833,6 @@ const WhiteBoard = () => {
           if (dragOffset) {
             const updatedShapes: Shape[] = [];
             selectedShapesArray.forEach((shape: Shape, index: number) => {
-              const width = Math.abs(shape.x2 - shape.x1);
-              const height = Math.abs(shape.y2 - shape.y1);
               let offsetX = x - prevMouseX;
               let offsetY = y - prevMouseY;
 
@@ -893,7 +891,7 @@ const WhiteBoard = () => {
                 lastChangedBy: user.uid,
               })
             );
-            console.log("dispatch called");
+
             handleBoardChange({
               ...board,
               shapes: [
@@ -936,7 +934,6 @@ const WhiteBoard = () => {
         }
 
         if (dragging && resizing) {
-          console.log("resizing");
           let updatedShapes: Shape[] = [];
           selectedShapesArray.forEach((shape: Shape, index: number) => {
             let offsetX = x - prevMouseX;
@@ -1587,10 +1584,13 @@ const WhiteBoard = () => {
           },
         },
       ];
+
       if (
-        shapes.filter((shape: Shape) => shape.id === selectedShapes[0]).type ===
-        "component"
+        shapes.filter((shape: Shape) => {
+          return selectedShapes.includes(shape.id);
+        })[0].type === "component"
       ) {
+        
         contextMenuLabels.push({
           label: "unwrap component",
           onClick: () => {
@@ -1602,8 +1602,8 @@ const WhiteBoard = () => {
                     return shape.id !== selectedShapes[0];
                   }),
                   ...shapes.filter(
-                    (shape: Shape) => (shape.id = selectedShapes[0])
-                  ).shapes,
+                    (shape: Shape) => shape.id === selectedShapes[0]
+                  )[0].shapes,
                 ],
                 currentUsers: [
                   ...(board.currentUsers || []).filter(
@@ -1617,9 +1617,11 @@ const WhiteBoard = () => {
               ...board,
               shapes: [
                 ...shapes.filter((shape: Shape, index: number) => {
-                  return index !== selectedShapes[0];
+                  return shape.id !== selectedShapes[0];
                 }),
-                ...shapes[selectedShapes[0]].shapes,
+                ...shapes.filter(
+                  (shape: Shape) => shape.id === selectedShapes[0]
+                )[0].shapes,
               ],
               currentUsers: [
                 ...(board.currentUsers || []).filter(
@@ -1709,7 +1711,7 @@ const WhiteBoard = () => {
                 }
               );
               let zIndex = 1;
-              console.log(zIndexFixedShapes);
+
               if (zIndexFixedShapes.length > 0) {
                 zIndex =
                   zIndexFixedShapes[zIndexFixedShapes.length - 1]?.zIndex + 1;

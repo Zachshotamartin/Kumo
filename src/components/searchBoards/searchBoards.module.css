@@ -4,7 +4,7 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  border: 1px solid #b4b4b42b;
+   border-bottom: 1px solid #b4b4b42b; 
 }
 .input {
   flex: 1;

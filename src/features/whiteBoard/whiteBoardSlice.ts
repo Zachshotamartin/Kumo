@@ -111,11 +111,6 @@ const whiteBoardSlice = createSlice({
       state.backGroundColor = backGroundColor || "#313131";
       state.lastChangedBy = uid || null;
       state.currentUsers = currentUsers || [];
-      console.log("setting whiteboard data");
-      if (shapes && shapes.length > 0) {
-        console.log(shapes[0].x1);
-      }
-
     },
     addShape: (state, action: PayloadAction<Shape>) => {
       state.shapes.push(action.payload);
@@ -130,7 +125,6 @@ const whiteBoardSlice = createSlice({
       }
     },
     removeShape: (state, action: PayloadAction<Shape>) => {
-      console.log("action.payload.id", action.payload.id);
       state.shapes = state.shapes.filter(
         (shape, index) => shape.id !== action.payload.id
       );

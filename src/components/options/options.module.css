@@ -50,12 +50,12 @@
   background-color: #444444;
   color: white;
   border: 1px solid #b4b4b42b;
-  height: 1rem;
+
   border-radius: 5px;
   margin: 0;
   padding: 0.5rem;
   height: 100%;
-  width: calc(100% - 2rem);
+  width: calc(100% - 1rem);
   flex-grow: 1;
   flex-shrink: 1;
   padding: 0.2vw;
@@ -70,9 +70,10 @@
   border-width: 2px;
   border-radius: 5px;
   margin: 0;
-
+  padding: 0.5rem;
+  height: 100%;
   flex-grow: 1; /* Make the input take the available width */
-  margin-right: 1rem; /* Add a 1rem margin to the right */
+
   width: calc(100% - 1rem);
   flex-grow: 1;
   flex-shrink: 1;
