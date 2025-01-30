@@ -1473,45 +1473,89 @@ const WhiteBoard = () => {
         {
           label: "move to top",
           onClick: () => {
-            const endIndex = shapes.length - 1;
-            const startIndex = selectedShapes[0];
+            const startShape = shapes.find(
+              (shape: Shape) => shape.id === selectedShapes[0]
+            );
+            if (!startShape) return;
+            const startIndex = startShape.zIndex;
+            const endShape = shapes.reduce((prev: Shape, current: Shape) => {
+              return (prev.zIndex ?? 0) > (current.zIndex ?? 0)
+                ? prev
+                : current;
+            });
+
+            let shapeSize = 1;
+            if (startShape.type === "component") {
+              shapeSize += startShape.shapes.length;
+            }
+
+            const endIndex =
+              (endShape.zIndex ?? 0) -
+              shapeSize +
+              (endShape.type !== "component"
+                ? 1
+                : 1 + startShape.shapes.length);
 
             let newShapes: Shape[] = [];
-            if (endIndex === startIndex) {
-              return;
-            }
-            shapes.forEach((shape: Shape, i: number) => {
+            console.log("startShape", startShape);
+            console.log("endShape", endShape);
+            console.log("startIndex", startIndex);
+            console.log("endIndex", endIndex);
+            console.log("shapeSize", shapeSize);
+
+            shapes.forEach((shape: Shape) => {
               if (startIndex !== null) {
-                if (i > endIndex && i > startIndex) {
+                if ((shape.zIndex ?? 0) < startIndex) {
                   newShapes.push(shape);
-                } else if (i < endIndex && i < startIndex) {
-                  newShapes.push(shape);
-                } else {
-                  if (i === startIndex) {
+                }
+                if ((shape.zIndex ?? 0) === startIndex) {
+                  if (shape.type !== "component") {
                     newShapes.push({
-                      ...shapes[startIndex],
+                      ...shape,
                       zIndex: endIndex,
                     });
-                  } else if (endIndex < startIndex) {
+                  } else {
                     newShapes.push({
-                      ...shapes[i],
-                      zIndex: i + 1,
+                      ...shape,
+                      zIndex: endIndex,
+                      shapes: shape.shapes?.map((componentShape: Shape) => {
+                        return {
+                          ...componentShape,
+                          zIndex:
+                            endIndex +
+                            (componentShape.zIndex ?? 0) -
+                            (shape.zIndex ?? 0),
+                        };
+                      }),
                     });
-                  } else if (endIndex > startIndex) {
+                  }
+                }
+                if ((shape.zIndex ?? 0) > startIndex) {
+                  if (shape.type !== "component") {
                     newShapes.push({
-                      ...shapes[i],
-                      zIndex: i - 1,
+                      ...shape,
+                      zIndex: (shape.zIndex ?? 0) - shapeSize,
+                    });
+                  } else {
+                    newShapes.push({
+                      ...shape,
+                      zIndex: (shape.zIndex ?? 0) - shapeSize,
+                      shapes: shape.shapes?.map((componentShape: Shape) => {
+                        return {
+                          ...componentShape,
+                          zIndex: (componentShape.zIndex ?? 0) - shapeSize,
+                        };
+                      }),
                     });
                   }
                 }
               }
             });
+            console.log(newShapes);
             dispatch(
               setWhiteboardData({
                 ...board,
-                shapes: newShapes.sort(
-                  (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
-                ),
+                shapes: newShapes,
                 currentUsers: [
                   ...(board.currentUsers || []).filter(
                     (curUser: any) => curUser?.user !== user.uid
@@ -1522,9 +1566,7 @@ const WhiteBoard = () => {
             );
             handleBoardChange({
               ...board,
-              shapes: newShapes.sort(
-                (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
-              ),
+              shapes: newShapes,
               currentUsers: [
                 ...(board.currentUsers || []).filter(
                   (curUser: any) => curUser?.user !== user.uid
@@ -1539,45 +1581,58 @@ const WhiteBoard = () => {
         {
           label: "move to bottom",
           onClick: () => {
-            const endIndex = 0;
-            const startIndex = selectedShapes[0];
+            const startShape = shapes.find(
+              (shape: Shape) => shape.id === selectedShapes[0]
+            );
+            if (!startShape) return;
+
+            const startIndex = startShape.zIndex;
+            if (startIndex === 0) return; // Already at the bottom
+
+            let shapeSize = 1;
+            if (startShape.type === "component") {
+              shapeSize += startShape.shapes.length;
+            }
 
             let newShapes: Shape[] = [];
-            if (endIndex === startIndex) {
-              return;
-            }
-            shapes.forEach((shape: Shape, i: number) => {
-              if (startIndex !== null) {
-                if (i > endIndex && i > startIndex) {
-                  newShapes.push(shape);
-                } else if (i < endIndex && i < startIndex) {
-                  newShapes.push(shape);
+
+            console.log("Moving shape to bottom:", startShape);
+
+            shapes.forEach((shape: Shape) => {
+              if (shape.id === startShape.id) {
+                // Move selected shape to zIndex = 0
+                if (shape.type !== "component") {
+                  newShapes.push({ ...shape, zIndex: 0 });
                 } else {
-                  if (i === startIndex) {
-                    newShapes.push({
-                      ...shapes[startIndex],
-                      zIndex: endIndex,
-                    });
-                  } else if (endIndex < startIndex) {
-                    newShapes.push({
-                      ...shapes[i],
-                      zIndex: i + 1,
-                    });
-                  } else if (endIndex > startIndex) {
-                    newShapes.push({
-                      ...shapes[i],
-                      zIndex: i - 1,
-                    });
-                  }
+                  newShapes.push({
+                    ...shape,
+                    zIndex: 0,
+                    shapes: shape.shapes?.map((componentShape: Shape) => ({
+                      ...componentShape,
+                      zIndex: (componentShape.zIndex ?? 0) - startIndex, // Adjust nested shapes
+                    })),
+                  });
+                }
+              } else {
+                // Shift all shapes above startIndex downwards
+                if ((shape.zIndex ?? 0) < startIndex) {
+                  newShapes.push({
+                    ...shape,
+                    zIndex: (shape.zIndex ?? 0) + shapeSize,
+                  });
+                } else {
+                  newShapes.push(shape);
                 }
               }
             });
+
+            console.log("Updated shapes after moving to bottom:", newShapes);
+
+            // Update board state
             dispatch(
               setWhiteboardData({
                 ...board,
-                shapes: newShapes.sort(
-                  (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
-                ),
+                shapes: newShapes,
                 currentUsers: [
                   ...(board.currentUsers || []).filter(
                     (curUser: any) => curUser?.user !== user.uid
@@ -1586,11 +1641,10 @@ const WhiteBoard = () => {
                 ],
               })
             );
+
             handleBoardChange({
               ...board,
-              shapes: newShapes.sort(
-                (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
-              ),
+              shapes: newShapes,
               currentUsers: [
                 ...(board.currentUsers || []).filter(
                   (curUser: any) => curUser?.user !== user.uid
@@ -1599,7 +1653,7 @@ const WhiteBoard = () => {
               ],
             });
 
-            dispatch(setSelectedShapes([endIndex]));
+            dispatch(setSelectedShapes([0])); // Select shape at bottom
           },
         },
       ];
@@ -1728,7 +1782,7 @@ const WhiteBoard = () => {
                   }
                 }
               );
-              let zIndex = 1;
+              let zIndex = 0;
 
               if (zIndexFixedShapes.length > 0) {
                 zIndex =

@@ -25,6 +25,7 @@
   border-bottom: 2px solid #b4b4b42b;
   width: 100%;
   text-align: left;
+  border-radius: 0;
 }
 
 .hide h6 {

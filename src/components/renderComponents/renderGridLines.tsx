@@ -9,7 +9,7 @@ const RenderGridLines = () => {
   for (
     let i =
       ((0 - window.y1) % (window.initialHeight / 20)) / window.percentZoomed;
-    i < window.initialHeight;
+    i < window.initialHeight * 2;
     i += window.initialHeight / 20 / window.percentZoomed
   ) {
     horizontalGridLines.push(
@@ -32,7 +32,7 @@ const RenderGridLines = () => {
   for (
     let i =
       ((0 - window.x1) % (window.initialHeight / 20)) / window.percentZoomed;
-    i < window.initialHeight * 3;
+    i < window.initialHeight * 5;
     i += window.initialHeight / 20 / window.percentZoomed
   ) {
     verticalGridLines.push(
