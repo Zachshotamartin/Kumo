@@ -79,7 +79,7 @@ import {
 } from "../../features/shapeHistory/shapeHistorySlice";
 import { handleBoardChange } from "../../helpers/handleBoardChange";
 
-import { ref, onValue, off } from "firebase/database"; // For listening to Realtime Database
+import { ref, onValue, off, update } from "firebase/database"; // For listening to Realtime Database
 import _ from "lodash";
 const domtoimage = require("dom-to-image");
 
@@ -932,7 +932,6 @@ const WhiteBoard = () => {
         }
 
         if (dragging && highlighting) {
-          
           dispatch(setHighlightEnd([x, y]));
         }
 
@@ -1278,74 +1277,89 @@ const WhiteBoard = () => {
     }
   };
 
-  // const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-  //   actionsDispatch(setDoubleClicking(true));
-  //   const boundingRect = canvasRef.current?.getBoundingClientRect();
-  //   const x =
-  //     (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-  //     window.x1;
-  //   const y =
-  //     (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
+  const handleDoubleClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+    console.log("double click");
+    actionsDispatch(setDoubleClicking(true));
 
-  //   if (selectedTool === "pointer") {
-  //     let selected =
-  //       shapes
-  //         .slice()
-  //         .reverse()
-  //         .find(
-  //           (shape: Shape) =>
-  //             x >= Math.min(shape.x1, shape.x2) &&
-  //             x <= Math.max(shape.x1, shape.x2) &&
-  //             y >= Math.min(shape.y1, shape.y2) &&
-  //             y <= Math.max(shape.y1, shape.y2)
-  //         )?.id || -1;
-  //     if (selected !== -1) {
-  //       const shapeType = selected.type;
+    const boundingRect = canvasRef.current?.getBoundingClientRect();
+    const x =
+      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
+      window.x1;
+    const y =
+      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
 
-  //       if (selected.id) {
-  //         // const documentRef = doc(db, "boards", shape.id);
+    if (selectedTool !== "pointer") {
+      actionsDispatch(setDoubleClicking(false));
+      return;
+    }
 
-  //         try {
-  //           // Fetch document snapshot
+    const selectedShape = shapes
+      .slice()
+      .reverse()
+      .find(
+        (shape: Shape) =>
+          x >= Math.min(shape.x1, shape.x2) &&
+          x <= Math.max(shape.x1, shape.x2) &&
+          y >= Math.min(shape.y1, shape.y2) &&
+          y <= Math.max(shape.y1, shape.y2)
+      );
 
-  //           const docSnap = await getDoc(documentRef);
-  //           setDocRef(documentRef);
+    if (!selectedShape?.boardId) {
+      dispatch(clearSelectedShapes());
+      actionsDispatch(setDoubleClicking(false));
+      return;
+    }
 
-  //           if (docSnap.exists()) {
-  //             const boardData = docSnap.data();
+    const nextBoardId = selectedShape.boardId;
+    const nextBoardRef = ref(realtimeDb, `boards/${nextBoardId}`);
+    const curBoardRef = ref(realtimeDb, `boards/${board.id}`);
 
-  //             const data = {
-  //               shapes: boardData.shapes || [],
-  //               title: boardData.title || "Untitled",
-  //               type: boardData.type || "default",
-  //               uid: boardData.uid,
-  //               id: shape.id,
-  //               sharedWith: boardData.sharedWith || [],
-  //               backGroundColor: boardData.backGroundColor || "#313131",
-  //               currentUsers: [
-  //                 ...board.currentUsers,
-  //                 { user: user, cursorX: x, cursorY: y },
-  //               ],
-  //             };
+    if (!board?.id || typeof board.id !== "string") {
+      console.error("Invalid current board ID:", board?.id);
+      actionsDispatch(setDoubleClicking(false));
+      return;
+    }
 
-  //             dispatch(setWhiteboardData(data)); // !!! come back to this. This has to do with switching to a new board
+    try {
+      onValue(nextBoardRef, (snapshot) => {
+        if (!snapshot.exists()) {
+          console.error(`No data found for board ID: ${nextBoardId}`);
+          actionsDispatch(setDoubleClicking(false));
+          return;
+        }
 
-  //             dispatch(clearSelectedShapes());
-  //           } else {
-  //             console.error(`No document found for board ID: ${board.id}`);
-  //           }
-  //         } catch (error) {
-  //           console.error("Error getting document:", error);
-  //         }
-  //       }
-  //     } else {
-  //       dispatch(clearSelectedShapes());
-  //     }
+        const boardData = snapshot.val();
+        if (!boardData || typeof boardData !== "object") {
+          console.error("Invalid board data:", boardData);
+          actionsDispatch(setDoubleClicking(false));
+          return;
+        }
 
-  //     actionsDispatch(setDoubleClicking(false));
-  //     return;
-  //   }
-  // };
+        const useruid = localStorage.getItem("user");
+        const updatedCurrentUsers =
+          board.currentUsers?.filter(
+            (curUser: any) => curUser.user !== useruid
+          ) || [];
+
+        const updatedCurrentBoard = {
+          ...board,
+          lastChangedBy: user?.uid,
+          currentUsers: updatedCurrentUsers,
+        };
+
+        console.log("Switching to board:", nextBoardId, boardData);
+
+        update(curBoardRef, updatedCurrentBoard);
+        dispatch(clearSelectedShapes());
+        dispatch(setWhiteboardData({ ...boardData, id: nextBoardId }));
+
+        actionsDispatch(setDoubleClicking(false));
+      });
+    } catch (error) {
+      console.error("Error switching boards:", error);
+      actionsDispatch(setDoubleClicking(false));
+    }
+  };
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     const deltaY = event.deltaY;
@@ -1872,7 +1886,7 @@ const WhiteBoard = () => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
-      //onDoubleClick={handleDoubleClick}
+      onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
     >
       {grid && <RenderGridLines />}

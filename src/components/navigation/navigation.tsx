@@ -98,6 +98,7 @@ const Navigation = () => {
         (curUser: any) => curUser.user !== useruid
       ),
     };
+    
     console.log(useruid);
     console.log(whiteboard.currentUsers[0].user);
     console.log(updatedData);
