@@ -58,71 +58,142 @@ const Components = () => {
     if (index === dragging) {
       return;
     }
+    console.log("dragging", dragging);
+    console.log("over", over);
+    console.log("index", index);
+    console.log("sortedShapes", sortedShapes.reverse());
+    const startShape = shapes.find(
+      (shape: Shape) => shape.id === sortedShapes[dragging ?? 0].id
+    );
+    const startZIndex = startShape?.zIndex;
+    const endShape = shapes.find(
+      (shape: Shape) => shape.id === sortedShapes[over ?? 0].id
+    );
+    const endZIndex = endShape?.zIndex;
+    let startShapeSize = 1;
+    if (startShape?.type === "component") {
+      startShapeSize += startShape.shapes.length;
+    }
+    let endShapeSize = 1;
+    if (endShape?.type === "component") {
+      endShapeSize += endShape.shapes.length;
+    }
+    console.log("startZIndex", startZIndex);
+    console.log("endZIndex", endZIndex);
+    console.log("startShape", startShape);
+    console.log("endShape", endShape);
+
     let newShapes: Shape[] = [];
-    [...[...shapes].sort((a: any, b: any) => a.zIndex - b.zIndex)]
-      .reverse()
-      .forEach((shape: Shape, i: number) => {
-        if (dragging !== null) {
-          if (i > index && i > dragging) {
-            newShapes.push(shape);
-          } else if (i < index && i < dragging) {
-            newShapes.push(shape);
-          } else {
-            if (i === dragging) {
+    shapes.forEach((shape: Shape, i: number) => {
+      if (dragging !== null) {
+        // for all shapes that are outside of the bounds of the start and end // do nothing.
+        if (
+          (shape.zIndex ?? 0) < startZIndex &&
+          (shape.zIndex ?? 0) < endZIndex
+        ) {
+          console.log("out of bounds", shape);
+          newShapes.push(shape);
+        } else if (
+          (shape.zIndex ?? 0) > startZIndex &&
+          (shape.zIndex ?? 0) > endZIndex
+        ) {
+          console.log("out of bounds", shape);
+          newShapes.push(shape);
+        } else {
+          if (startZIndex === endZIndex) {
+            return; // do nothing because the shapes are already in the right order.
+          } else if (startZIndex < endZIndex) {
+            // move the shapes back by the shapeSize
+            // move start shape to the new position
+            if (shape.id === startShape?.id) {
+              let finalZIndex = endZIndex;
+              console.log(finalZIndex);
+              if (endShape.type === "component") {
+                finalZIndex += endShape.shapes.length + 1;
+              }
               if (shape.type !== "component") {
                 newShapes.push({
                   ...shape,
-                  zIndex: shapes.length - 1 - index,
+                  zIndex: finalZIndex - 1,
                 });
+                console.log("placed shape");
               } else {
                 newShapes.push({
                   ...shape,
-                  zIndex: shapes.length - 1 - index,
-                  shapes: shape.shapes?.map(
-                    (componentShape: Shape, idx: number) => {
-                      return {
-                        ...componentShape,
-                        zIndex: shapes.length - index + idx,
-                      };
-                    }
-                  ),
+                  zIndex: finalZIndex - startShapeSize,
+                  shapes: shape.shapes?.map((componentShape: Shape) => ({
+                    ...componentShape,
+                    zIndex:
+                      (componentShape.zIndex ?? 0) -
+                      startShapeSize -
+                      startZIndex +
+                      finalZIndex, // Adjust nested shapes
+                  })),
                 });
               }
-            } else if (index < dragging) {
-              if ([...shapes].reverse()[dragging].type !== "component") {
+            } else {
+              console.log("not moved", shape);
+              if (shape.type !== "component") {
                 newShapes.push({
                   ...shape,
-                  zIndex: shapes.length - 1 - i - 1,
+                  zIndex: (shape.zIndex ?? 0) - startShapeSize,
                 });
               } else {
                 newShapes.push({
                   ...shape,
-                  zIndex:
-                    (shape.zIndex ?? 0) -
-                    [...shapes].reverse()[dragging].shapes.length -
-                    1,
+                  zIndex: (shape.zIndex ?? 0) - startShapeSize,
+                  shapes: shape.shapes?.map((componentShape: Shape) => ({
+                    ...componentShape,
+                    zIndex: (componentShape.zIndex ?? 0) - startShapeSize, // Adjust nested shapes
+                  })),
                 });
               }
-            } else if (index > dragging) {
-              console.log("index > dragging");
-              if ([...shapes].reverse()[dragging].type !== "component") {
+            }
+          } else if (startZIndex > endZIndex) {
+            // move all shapes forward by the shapeSize
+            // move start shape to the new position
+            if (shape.id === startShape?.id) {
+              let finalZIndex = endZIndex;
+
+              console.log("moved", shape);
+              if (shape.type !== "component") {
                 newShapes.push({
                   ...shape,
-                  zIndex: shapes.length - i,
+                  zIndex: finalZIndex,
                 });
               } else {
                 newShapes.push({
                   ...shape,
-                  zIndex:
-                    shapes.length -
-                    i +
-                    [...shapes].reverse()[dragging].shapes.length,
+                  zIndex: finalZIndex,
+                  shapes: shape.shapes?.map((componentShape: Shape) => ({
+                    ...componentShape,
+                    zIndex:
+                      (componentShape.zIndex ?? 0) - startZIndex + finalZIndex, // Adjust nested shapes
+                  })),
+                });
+              }
+            } else {
+              if (shape.type !== "component") {
+                newShapes.push({
+                  ...shape,
+                  zIndex: (shape.zIndex ?? 0) + startShapeSize,
+                });
+              } else {
+                newShapes.push({
+                  ...shape,
+                  zIndex: (shape.zIndex ?? 0) + startShapeSize,
+                  shapes: shape.shapes?.map((componentShape: Shape) => ({
+                    ...componentShape,
+                    zIndex: (componentShape.zIndex ?? 0) + startShapeSize, // Adjust nested shapes
+                  })),
                 });
               }
             }
           }
         }
-      });
+      }
+      console.log("last shape changed", newShapes);
+    });
 
     newShapes = [...newShapes].reverse();
 
