@@ -101,8 +101,6 @@ const RenderText = (props: any) => {
     const textarea = textareaRefs.current[id];
     if (textarea && e.target !== textarea) {
       textarea.focus(); // Focus on the textarea if clicked outside it
-     
-      
     }
   };
 
@@ -151,7 +149,7 @@ const RenderText = (props: any) => {
                 rows={1}
                 style={{
                   width: "100%",
-                  backgroundColor: "black",
+                  backgroundColor: "transparent",
                   height: "auto",
                   resize: "none",
                   outline: "none",
@@ -159,6 +157,7 @@ const RenderText = (props: any) => {
                   overflow: "hidden",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
+                  textDecoration: shape.textDecoration,
                   zIndex: 10,
                   color: shape.color,
                   fontSize: `${
