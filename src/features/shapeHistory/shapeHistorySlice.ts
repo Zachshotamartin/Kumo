@@ -30,18 +30,18 @@ const shapeHistorySlice = createSlice({
 
       // Branch history if not at the end
       if (state.currentIndex < state.history.length - 1) {
-        console.log("branching history");
+ 
         state.history.splice(state.currentIndex + 1);
       }
 
       // Add the new payload
-      console.log("adding to history");
+     
       state.history.push(action.payload);
       state.currentIndex++;
 
       // Enforce history limit (max 50 entries)
       if (state.history.length > 50) {
-        console.log("history limit reached");
+        
         state.history.shift(); // Remove the oldest entry
         state.currentIndex = Math.max(0, state.currentIndex - 1); // Adjust index
       }

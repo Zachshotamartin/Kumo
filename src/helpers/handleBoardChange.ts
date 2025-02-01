@@ -35,8 +35,8 @@ const updateBoard = async (newBoard: any) => {
       lastChangedBy: user,
     })
       .then(() => {
-        console.log("new board", newBoard);
-        console.log("Board successfully updated.");
+        // console.log("new board", newBoard);
+        // console.log("Board successfully updated.");
       })
       .catch((error) => {
         console.error("Error updating board:", error);

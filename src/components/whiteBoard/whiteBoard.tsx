@@ -1,27 +1,14 @@
 // whiteBoard.tsx
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { throttle, debounce, last } from "lodash";
+import { throttle, debounce } from "lodash";
 
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
-import {
-  addShape,
-  removeShape,
-  updateShape,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { removeShape } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
 import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
 import { db, realtimeDb } from "../../config/firebase";
-import {
-  doc,
-  query,
-  updateDoc,
-  collection,
-  where,
-  onSnapshot,
-  getDoc,
-  runTransaction,
-} from "firebase/firestore";
+import { doc, query, collection, where, onSnapshot } from "firebase/firestore";
 import { AppDispatch } from "../../store";
 import { setBoards } from "../../features/boards/boards";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
@@ -50,6 +37,7 @@ import {
   clearSelectedShapes,
   setHighlightStart,
   setHighlightEnd,
+  clearHover,
 } from "../../features/selected/selectedSlice";
 import BottomBar from "../bottomBar/bottomBar";
 import RenderBoxes from "../renderComponents/renderBoxes";
@@ -211,8 +199,8 @@ const WhiteBoard = () => {
       // Update the state only if the user is not the last editor
 
       if (!_.isEqual(boardData.shapes ? boardData.shapes : [], board.shapes)) {
-        console.log("Board data changed!");
         if (user.uid !== boardData.lastChangedBy) {
+          console.log("not last changed by");
           dispatch(
             setWhiteboardData({
               ...boardData,
@@ -831,7 +819,6 @@ const WhiteBoard = () => {
         }
 
         if (dragging && moving) {
-          console.log("moving");
           if (dragOffset) {
             const updatedShapes: Shape[] = [];
             selectedShapesArray.forEach((shape: Shape, index: number) => {
@@ -936,7 +923,6 @@ const WhiteBoard = () => {
         }
 
         if (dragging && resizing) {
-          console.log("resizing");
           let updatedShapes: Shape[] = [];
           selectedShapesArray.forEach((shape: Shape, index: number) => {
             let offsetX = x - prevMouseX;
@@ -1134,7 +1120,6 @@ const WhiteBoard = () => {
         }
 
         if (drawing) {
-          console.log("drawing");
           const lastShape = shapes[shapes.length - 1];
           let offsetX = x - lastShape.x2;
           let offsetY = y - lastShape.y2;
@@ -1453,7 +1438,6 @@ const WhiteBoard = () => {
                   return selectedShapes.includes(shape.id);
                 }
               );
-
               shapesCopy.forEach((shape: Shape) => {
                 dispatch(removeShape(shape));
               });
@@ -1497,11 +1481,6 @@ const WhiteBoard = () => {
                 : 1 + startShape.shapes.length);
 
             let newShapes: Shape[] = [];
-            console.log("startShape", startShape);
-            console.log("endShape", endShape);
-            console.log("startIndex", startIndex);
-            console.log("endIndex", endIndex);
-            console.log("shapeSize", shapeSize);
 
             shapes.forEach((shape: Shape) => {
               if (startIndex !== null) {
@@ -1551,7 +1530,7 @@ const WhiteBoard = () => {
                 }
               }
             });
-            console.log(newShapes);
+
             dispatch(
               setWhiteboardData({
                 ...board,
@@ -1596,8 +1575,6 @@ const WhiteBoard = () => {
 
             let newShapes: Shape[] = [];
 
-            console.log("Moving shape to bottom:", startShape);
-
             shapes.forEach((shape: Shape) => {
               if (shape.id === startShape.id) {
                 // Move selected shape to zIndex = 0
@@ -1625,8 +1602,6 @@ const WhiteBoard = () => {
                 }
               }
             });
-
-            console.log("Updated shapes after moving to bottom:", newShapes);
 
             // Update board state
             dispatch(

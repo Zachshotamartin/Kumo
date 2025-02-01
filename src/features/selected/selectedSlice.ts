@@ -82,6 +82,12 @@ const selectedSlice = createSlice({
     setHoverEndY: (state, action: PayloadAction<number>) => {
       state.hoverEndY = action.payload;
     },
+    clearHover: (state) => {
+      state.hoverStartX = -100000;
+      state.hoverStartY = -100000;
+      state.hoverEndX = -100000;
+      state.hoverEndY = -100000;
+    }
   },
 });
 
@@ -100,6 +106,7 @@ export const {
   setHoverStartY,
   setHoverEndX,
   setHoverEndY,
+  clearHover,
 } = selectedSlice.actions;
 
 export default selectedSlice.reducer;
