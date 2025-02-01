@@ -74,9 +74,10 @@ const RenderHighlighting = () => {
     selectedShapes,
     shapes,
   ]);
-
+ 
   return (
     <div
+     
       style={{
         position: "absolute",
         top: `${

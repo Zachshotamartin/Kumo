@@ -19,8 +19,11 @@ const RenderText = (props: any) => {
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
+  const mouseDown = useSelector((state: any) => state.actions.mouseDown);
+  const selectedShape = shapes.find(
+    (shape: Shape, index: number) => shape.id === selectedShapes[0]
+  );
   const window = useSelector((state: any) => state.window);
-
   const dispatch = useDispatch<AppDispatch>();
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
@@ -30,10 +33,18 @@ const RenderText = (props: any) => {
         adjustHeight(shape.id);
       }
     });
+
+    const existingIds = shapes.map((shape: Shape) => shape.id);
+    for (const id in textareaRefs.current) {
+      if (!existingIds.includes(id)) {
+        delete textareaRefs.current[id];
+      }
+    }
   }, [shapes]);
 
   const handleMouseEnter = (shape: Shape) => {
     if (!selectedShapes.includes(shape.id)) {
+      console.log("entered");
       dispatch(setHoverStartX(shape.x1 - 2));
       dispatch(setHoverStartY(shape.y1 - 2));
       dispatch(setHoverEndX(shape.x2 - 2));
@@ -64,7 +75,7 @@ const RenderText = (props: any) => {
         adjustHeight(shape.id);
       }
     });
-  });
+  }, [shapes, window.percentZoomed]);
   const handleInputChange = (
     id: string,
     e: React.ChangeEvent<HTMLTextAreaElement>
@@ -97,10 +108,22 @@ const RenderText = (props: any) => {
     requestAnimationFrame(() => adjustHeight(id)); // Ensure height updates smoothly
   };
 
-  const handleDivClick = (id: string, e: React.MouseEvent) => {
+  useEffect(() => {
+    console.log("focusing");
+
+    if (selectedShapes.length === 1 && selectedShape?.type === "text") {
+      console.log("focused");
+      handleInputFocus(selectedShapes[0]);
+      console.log(textareaRefs.current[selectedShapes[0]]);
+    }
+  }, [selectedShapes, selectedShape, mouseDown]);
+
+  const handleInputFocus = (id: string) => {
     const textarea = textareaRefs.current[id];
-    if (textarea && e.target !== textarea) {
-      textarea.focus(); // Focus on the textarea if clicked outside it
+    if (textarea) {
+      requestAnimationFrame(() => {
+        textarea.focus();
+      });
     }
   };
 
@@ -112,7 +135,6 @@ const RenderText = (props: any) => {
             <div
               onMouseEnter={() => handleMouseEnter(shape)}
               onMouseLeave={handleMouseLeave}
-              onClick={(e) => handleDivClick(shape.id, e)} // Focus textarea when div is clicked
               key={shape.id}
               style={{
                 position: "absolute",
@@ -140,7 +162,7 @@ const RenderText = (props: any) => {
                 }px ${shape.borderStyle}`,
                 opacity: `${shape.opacity}`,
                 backgroundColor: `${shape.backgroundColor}`,
-                pointerEvents: "auto",
+                pointerEvents: "none",
               }}
             >
               <textarea
@@ -172,9 +194,17 @@ const RenderText = (props: any) => {
                   }px`,
                   padding: 0,
                   margin: 0,
+                  pointerEvents: "all",
                 }}
                 value={shape.text}
                 onChange={(e) => handleInputChange(shape.id, e)}
+                onBlur={(e) => {
+                  console.log("blurred");
+                  if (selectedShapes.includes(shape.id)) {
+                    e.preventDefault();
+                    console.log("notBlurred");
+                  }
+                }}
               />
             </div>
           )

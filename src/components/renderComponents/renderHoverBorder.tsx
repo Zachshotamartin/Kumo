@@ -16,11 +16,12 @@ const RenderHoverBorder = () => {
   const window = useSelector((state: any) => state.window);
 
   const mouseDown = useSelector((state: any) => state.actions.mouseDown);
-
+  
   return (
     <>
       {!mouseDown && (
         <div
+         
           style={{
             position: "absolute",
             top: `${

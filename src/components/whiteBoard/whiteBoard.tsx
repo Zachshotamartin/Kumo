@@ -410,7 +410,7 @@ const WhiteBoard = () => {
       } else if (event.key === "Backspace") {
         // Ensure this is not focused on a textbox
         const target = event.target as HTMLElement | null;
-
+        console.log(target);
         if (
           target &&
           (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
