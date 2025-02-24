@@ -1,4 +1,4 @@
-import { ref, runTransaction, get } from "firebase/database";
+import { ref, get } from "firebase/database";
 import _ from "lodash";
 import { realtimeDb } from "../config/firebase";
 import { update } from "firebase/database";
