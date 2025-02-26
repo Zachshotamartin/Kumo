@@ -1,5 +1,5 @@
 import { Dispatch } from "react";
-import { Shape } from "../../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../../classes/shape";
 import { setWhiteboardData } from "../../../features/whiteBoard/whiteBoardSlice";
 import { handleBoardChange } from "../../../helpers/handleBoardChange";
 import { clearSelectedShapes } from "../../../features/selected/selectedSlice";
@@ -21,17 +21,12 @@ export const deleteShapes = (
       const shapesCopy = shapes.filter((shape: Shape, index: number) => {
         return !selectedShapes.includes(shape.id);
       });
-
-      dispatch(
-        setWhiteboardData({
-          ...board,
-          shapes: shapesCopy,
-        })
-      );
-      handleBoardChange({
+      const data = {
         ...board,
         shapes: shapesCopy,
-      });
+      };
+      dispatch(setWhiteboardData(data));
+      handleBoardChange(data);
       dispatch(clearSelectedShapes());
     }
   }

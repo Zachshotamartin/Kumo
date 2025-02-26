@@ -2,10 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./options.module.css";
 import { handleBoardChange } from "../../helpers/handleBoardChange";
-import {
-  Shape,
-  setWhiteboardData,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 const Position = () => {
   const dispatch = useDispatch();
   const board = useSelector((state: any) => state.whiteBoard);
@@ -32,45 +30,25 @@ const Position = () => {
   }, [selectedShape]);
 
   const updatePosition = () => {
-
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          selectedShape
-            ? {
-                ...selectedShape,
-                x1,
-                y1,
-                x2: selectedShape
-                  ? selectedShape.x2 + x1 - selectedShape.x1
-                  : 0,
-                y2: selectedShape
-                  ? selectedShape.y2 + y1 - selectedShape.y1
-                  : 0,
-              }
-            : undefined,
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
           (shape: Shape, index: number) => shape.id !== selectedShape?.id
         ),
-        {
-          ...selectedShape,
-          x1,
-          y1,
-          x2: selectedShape ? selectedShape.x2 + x1 - selectedShape.x1 : 0,
-          y2: selectedShape ? selectedShape.y2 + y1 - selectedShape.y1 : 0,
-        },
+        selectedShape
+          ? {
+              ...selectedShape,
+              x1,
+              y1,
+              x2: selectedShape ? selectedShape.x2 + x1 - selectedShape.x1 : 0,
+              y2: selectedShape ? selectedShape.y2 + y1 - selectedShape.y1 : 0,
+            }
+          : undefined,
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

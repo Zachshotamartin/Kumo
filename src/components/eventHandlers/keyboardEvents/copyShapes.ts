@@ -1,4 +1,4 @@
-import { Shape } from "../../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../../classes/shape";
 
 export const copyShapes = (shapes: Shape[], selectedShapes: string[]) => {
   const copiedData = shapes.map((shape: Shape) => {

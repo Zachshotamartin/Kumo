@@ -1,5 +1,5 @@
 import { Dispatch } from "react";
-import { Shape } from "../../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../../classes/shape";
 import { setWhiteboardData } from "../../../features/whiteBoard/whiteBoardSlice";
 import { handleBoardChange } from "../../../helpers/handleBoardChange";
 
@@ -21,15 +21,13 @@ export const pasteShapes = (
         };
       }
     });
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [...shapes, ...pastedShapes],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [...shapes, ...pastedShapes],
-    });
+    }
+    dispatch(
+      setWhiteboardData(data)
+    );
+    handleBoardChange(data);
   });
 };

@@ -11,7 +11,7 @@ import BoardLink from "../options/boardLink";
 import Colors from "../options/colors";
 import WhiteboardStyles from "../options/whiteboardStyles";
 import ImageStyling from "../options/imageStyling";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 
 const OptionsBar = () => {
   const hidden = useSelector((state: any) => state.sideBar.hideOptions);

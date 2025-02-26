@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import {
-  setWhiteboardData,
-  Shape,
-
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
+import { Shape } from "../../classes/shape";
 
 import { handleBoardChange } from "../../helpers/handleBoardChange";
 const BoxStyling = () => {
@@ -21,41 +18,31 @@ const BoxStyling = () => {
     );
   }
   const board = useSelector((state: any) => state.whiteBoard);
-  
-  const [borderRadius, setBorderRadius] = useState(selectedShape?.borderRadius || 0);
-  const [borderWidth, setBorderWidth] = useState(selectedShape?.borderWidth || 0);
-  const [borderStyle, setBorderStyle] = useState(selectedShape?.borderStyle || "solid");
+
+  const [borderRadius, setBorderRadius] = useState(
+    selectedShape?.borderRadius || 0
+  );
+  const [borderWidth, setBorderWidth] = useState(
+    selectedShape?.borderWidth || 0
+  );
+  const [borderStyle, setBorderStyle] = useState(
+    selectedShape?.borderStyle || "solid"
+  );
 
   useEffect(() => {
-      if (selectedShape) {
-        setBorderRadius(selectedShape.borderRadius || 0);
-        setBorderWidth(selectedShape.borderWidth || 0);
-        setBorderStyle(selectedShape.borderStyle || "solid");
-      }
-    }, [selectedShape]);
+    if (selectedShape) {
+      setBorderRadius(selectedShape.borderRadius || 0);
+      setBorderWidth(selectedShape.borderWidth || 0);
+      setBorderStyle(selectedShape.borderStyle || "solid");
+    }
+  }, [selectedShape]);
 
   useEffect(() => {
     updateBox();
   }, [borderStyle]);
 
   const updateBox = () => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            borderRadius: borderRadius,
-            borderWidth: borderWidth,
-            borderStyle: borderStyle,
-          },
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
@@ -68,7 +55,9 @@ const BoxStyling = () => {
           borderStyle: borderStyle,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {

@@ -14,10 +14,8 @@ import alignMiddle from "../../res/align-middle.png";
 import alignBottom from "../../res/align-bottom.png";
 
 import { handleBoardChange } from "../../helpers/handleBoardChange";
-import {
-  Shape,
-  setWhiteboardData,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 
 const FontStyles = () => {
   const dispatch = useDispatch();
@@ -55,31 +53,10 @@ const FontStyles = () => {
     selectedShape?.letterSpacing || 0
   );
   const updateTextStyling = () => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            fontSize: fontSize,
-            fontFamily: fontFamily,
-            fontWeight: fontWeight,
-            textAlign: textAlign,
-            alignItems: alignItems,
-            textDecoration: textDecoration,
-            lineHeight: lineHeight,
-            letterSpacing: letterSpacing,
-          },
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
-        shapes.filter(
+        ...shapes.filter(
           (shape: Shape, index: number) => shape.id !== selectedShape?.id
         ),
         {
@@ -94,7 +71,9 @@ const FontStyles = () => {
           letterSpacing: letterSpacing,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
   useEffect(() => {
     updateTextStyling();

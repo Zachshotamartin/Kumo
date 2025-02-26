@@ -11,8 +11,9 @@ import component from "../../res/component.png";
 import { setWindow } from "../../features/window/windowSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../../store";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape, ShapeFunctions } from "../../classes/shape";
 import { handleBoardChange } from "../../helpers/handleBoardChange";
+
 const Components = () => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: any) => state.whiteBoard);
@@ -112,41 +113,45 @@ const Components = () => {
                 finalZIndex += endShape.shapes.length + 1;
               }
               if (shape.type !== "component") {
-                newShapes.push({
-                  ...shape,
-                  zIndex: finalZIndex - 1,
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: finalZIndex - 1,
+                  })
+                );
                 console.log("placed shape");
               } else {
-                newShapes.push({
-                  ...shape,
-                  zIndex: finalZIndex - startShapeSize,
-                  shapes: shape.shapes?.map((componentShape: Shape) => ({
-                    ...componentShape,
-                    zIndex:
-                      (componentShape.zIndex ?? 0) -
-                      startShapeSize -
-                      startZIndex +
-                      finalZIndex, // Adjust nested shapes
-                  })),
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: finalZIndex - startShapeSize,
+                    shapes: shape.shapes?.map((componentShape: Shape) => ({
+                      ...componentShape,
+                      zIndex:
+                        (componentShape.zIndex ?? 0) -
+                        startShapeSize -
+                        startZIndex +
+                        finalZIndex, // Adjust nested shapes
+                    })),
+                  })
+                );
               }
             } else {
               console.log("not moved", shape);
               if (shape.type !== "component") {
-                newShapes.push({
-                  ...shape,
-                  zIndex: (shape.zIndex ?? 0) - startShapeSize,
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: (shape.zIndex ?? 0) - startShapeSize,
+                  })
+                );
               } else {
-                newShapes.push({
-                  ...shape,
-                  zIndex: (shape.zIndex ?? 0) - startShapeSize,
-                  shapes: shape.shapes?.map((componentShape: Shape) => ({
-                    ...componentShape,
-                    zIndex: (componentShape.zIndex ?? 0) - startShapeSize, // Adjust nested shapes
-                  })),
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: (shape.zIndex ?? 0) - startShapeSize,
+                    shapes: shape.shapes?.map((componentShape: Shape) => ({
+                      ...componentShape,
+                      zIndex: (componentShape.zIndex ?? 0) - startShapeSize, // Adjust nested shapes
+                    })),
+                  })
+                );
               }
             }
           } else if (startZIndex > endZIndex) {
@@ -157,36 +162,42 @@ const Components = () => {
 
               console.log("moved", shape);
               if (shape.type !== "component") {
-                newShapes.push({
-                  ...shape,
-                  zIndex: finalZIndex,
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: finalZIndex,
+                  })
+                );
               } else {
-                newShapes.push({
-                  ...shape,
-                  zIndex: finalZIndex,
-                  shapes: shape.shapes?.map((componentShape: Shape) => ({
-                    ...componentShape,
-                    zIndex:
-                      (componentShape.zIndex ?? 0) - startZIndex + finalZIndex, // Adjust nested shapes
-                  })),
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: finalZIndex,
+                    shapes: shape.shapes?.map((componentShape: Shape) => ({
+                      ...componentShape,
+                      zIndex:
+                        (componentShape.zIndex ?? 0) -
+                        startZIndex +
+                        finalZIndex, // Adjust nested shapes
+                    })),
+                  })
+                );
               }
             } else {
               if (shape.type !== "component") {
-                newShapes.push({
-                  ...shape,
-                  zIndex: (shape.zIndex ?? 0) + startShapeSize,
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: (shape.zIndex ?? 0) + startShapeSize,
+                  })
+                );
               } else {
-                newShapes.push({
-                  ...shape,
-                  zIndex: (shape.zIndex ?? 0) + startShapeSize,
-                  shapes: shape.shapes?.map((componentShape: Shape) => ({
-                    ...componentShape,
-                    zIndex: (componentShape.zIndex ?? 0) + startShapeSize, // Adjust nested shapes
-                  })),
-                });
+                newShapes.push(
+                  ShapeFunctions.updateShape(shape, {
+                    zIndex: (shape.zIndex ?? 0) + startShapeSize,
+                    shapes: shape.shapes?.map((componentShape: Shape) => ({
+                      ...componentShape,
+                      zIndex: (componentShape.zIndex ?? 0) + startShapeSize, // Adjust nested shapes
+                    })),
+                  })
+                );
               }
             }
           }
@@ -196,18 +207,13 @@ const Components = () => {
     });
 
     newShapes = [...newShapes].reverse();
-
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: newShapes,
-        lastChangedBy: localStorage.getItem("user"),
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: newShapes,
-    });
+      lastChangedBy: localStorage.getItem("user"),
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
 
     setDragging(null);
     setOver(null);

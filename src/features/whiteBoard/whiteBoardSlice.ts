@@ -1,59 +1,6 @@
 // whiteBoardSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { update } from "lodash";
-
-export interface Shape {
-  // type (image, text, calendar, rectangle)
-  type: string;
-
-  // positioning
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  id: string;
-  // dimensions
-  width: number;
-  height: number;
-  level: number;
-  // transforms
-  rotation?: number;
-  flipX?: boolean;
-  flipY?: boolean;
-  shapes?: Shape[];
-  // box styling
-  borderRadius?: number;
-  borderWidth?: number;
-  borderStyle?: string;
-
-  // text styling
-  text?: string;
-  fontSize?: number;
-  fontFamily?: string;
-  fontWeight?: string;
-  textAlign?: string;
-  alignItems?: string;
-  textDecoration?: string;
-  lineHeight?: number;
-  letterSpacing?: number;
-  rows?: number;
-
-  // color styling
-  color?: string;
-  opacity?: number;
-  backgroundColor?: string;
-  borderColor?: string;
-  backgroundImage?: string;
-  zIndex?: number;
-  // recursive whiteboard
-  boardId?: string | null;
-  title?: string | null;
-  uid?: string | null;
-}
-
-export interface Component {
-  shapes: number[];
-}
+import { Shape } from "../../classes/shape";
 
 interface WhiteBoardState {
   shapes: Shape[];
@@ -102,7 +49,10 @@ const whiteBoardSlice = createSlice({
         currentUsers,
       } = action.payload;
 
-      state.shapes = shapes || [];
+      state.shapes =
+        shapes?.map((shape) => {
+          return shape;
+        }) || [];
       state.id = id || null;
       state.type = type || null;
       state.title = title || null;

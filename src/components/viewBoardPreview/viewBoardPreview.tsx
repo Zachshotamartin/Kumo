@@ -58,6 +58,7 @@ const ViewBoardPreview = (props: { boards: any }) => {
           };
 
           dispatch(setWhiteboardData(data));
+          console.log("whiteboard Data set to ", data);
         } else {
           console.error(`No board found with ID: ${board}`);
         }

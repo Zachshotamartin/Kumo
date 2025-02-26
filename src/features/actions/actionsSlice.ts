@@ -1,6 +1,5 @@
 // authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { set } from "lodash";
 
 interface ActionsState {
   drawing: boolean;
@@ -56,6 +55,7 @@ const initialState: ActionsState = {
   gridSnappedDistanceX: 0,
   gridSnappedDistanceY: 0,
   middleMouseButton: false,
+
 };
 
 const actionsSlice = createSlice({

@@ -1,9 +1,9 @@
 import { useDispatch, useSelector } from "react-redux";
 import {
   removeShape,
-  Shape,
   updateShape,
 } from "../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../classes/shape";
 import { AppDispatch } from "../store";
 import { clearSelectedShapes } from "../features/selected/selectedSlice";
 export const useDeleteSelectedShapes = () => {

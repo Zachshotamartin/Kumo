@@ -2,10 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./options.module.css";
 import { handleBoardChange } from "../../helpers/handleBoardChange";
-import {
-  Shape,
-  setWhiteboardData,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 const Transform = () => {
   const dispatch = useDispatch();
   const board = useSelector((state: any) => state.whiteBoard);
@@ -23,7 +21,6 @@ const Transform = () => {
     selectedShape ? selectedShape.rotation : 0
   );
   const inputRefRotation = useRef<HTMLInputElement>(null); // Reference to the input field
-  
 
   useEffect(() => {
     if (selectedShape) {
@@ -33,21 +30,7 @@ const Transform = () => {
 
   // Update rotation in the store
   const updateRotation = () => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            rotation: rotation,
-          },
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
@@ -58,7 +41,9 @@ const Transform = () => {
           rotation: rotation,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
 
   // Handle "Enter" key to update rotation

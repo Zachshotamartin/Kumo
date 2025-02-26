@@ -3,14 +3,12 @@ import styles from "./options.module.css";
 import { useSelector, useDispatch } from "react-redux";
 
 import { handleBoardChange } from "../../helpers/handleBoardChange";
-import {
-  Shape,
-  setWhiteboardData,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 
 const ImageStyling = () => {
   const dispatch = useDispatch();
-  
+
   const board = useSelector((state: any) => state.whiteBoard);
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
@@ -23,7 +21,6 @@ const ImageStyling = () => {
     );
   }
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSelectedFile(event.target.files![0]);
@@ -33,22 +30,7 @@ const ImageStyling = () => {
     if (selectedFile) {
       const reader = new FileReader();
       reader.onload = () => {
-        dispatch(
-          setWhiteboardData({
-            ...board,
-            shapes: [
-              ...shapes.filter(
-                (shape: Shape, index: number) => shape.id !== selectedShape?.id
-              ),
-              {
-                ...selectedShape,
-                backgroundImage:
-                  typeof reader.result === "string" ? reader.result : undefined,
-              },
-            ],
-          })
-        );
-        handleBoardChange({
+        const data = {
           ...board,
           shapes: [
             ...shapes.filter(
@@ -60,7 +42,9 @@ const ImageStyling = () => {
                 typeof reader.result === "string" ? reader.result : undefined,
             },
           ],
-        });
+        };
+        dispatch(setWhiteboardData(data));
+        handleBoardChange(data);
       };
       reader.readAsDataURL(selectedFile);
     }

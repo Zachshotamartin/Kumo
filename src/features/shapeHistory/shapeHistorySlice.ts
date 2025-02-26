@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-import { Shape } from "../whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 
 interface ShapeHistoryState {
   history: Shape[][];

@@ -4,7 +4,7 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
 
 import { handleBoardChange } from "../../helpers/handleBoardChange";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 const Colors = () => {
   const dispatch = useDispatch();
 
@@ -31,21 +31,7 @@ const Colors = () => {
   );
 
   const updateColor = (color: string) => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            color: color,
-          },
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
@@ -56,25 +42,13 @@ const Colors = () => {
           color: color,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
 
   const updateBackgroundColor = (color: string) => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            backgroundColor: color,
-          },
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
@@ -85,25 +59,13 @@ const Colors = () => {
           backgroundColor: color,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
 
   const updateBorderColor = (color: string) => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            borderColor: color,
-          },
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
@@ -114,7 +76,9 @@ const Colors = () => {
           borderColor: color,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
   useEffect(() => {
     if (selectedShape) {
@@ -168,21 +132,7 @@ const Colors = () => {
   }, [selectedShape]);
 
   const updateOpacity = () => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            opacity: opacity,
-          },
-        ],
-      })
-    );
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
@@ -193,7 +143,9 @@ const Colors = () => {
           opacity: opacity,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+    handleBoardChange(data);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

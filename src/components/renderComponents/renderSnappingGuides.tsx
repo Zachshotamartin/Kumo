@@ -1,6 +1,6 @@
 import React from "react";
 import { useSelector } from "react-redux";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 
 const RenderSnappingGuides = () => {
   const shapes = useSelector((state: any) => state.whiteBoard.shapes);
@@ -17,6 +17,23 @@ const RenderSnappingGuides = () => {
     return null;
   }
 
+  for (let shape of shapes) {
+    if (!selectedShapes.includes(shape.id)) {
+      if (borderStartX === shape.x1 || borderEndX === shape.x1) {
+        console.log("shape", shape.y1, shape.y2);
+        console.log("border", borderStartY, borderEndY);
+        console.log("window", window.y1, window.percentZoomed);
+        console.log(
+          "ayyyy",
+          Math.min(
+            Math.min(shape.y1, shape.y2),
+            Math.min(borderStartY, borderEndY)
+          )
+        );
+      }
+    }
+  }
+  
   return shapes.map((shape: Shape, index: number) => (
     <div
       key={index}
@@ -32,14 +49,10 @@ const RenderSnappingGuides = () => {
             style={{
               backgroundColor: "red",
               position: "absolute",
-              top: `${
-                (Math.min(
+              top: `${(Math.min(
                   Math.min(shape.y1, shape.y2),
                   Math.min(borderStartY, borderEndY)
-                ) -
-                  window.y1) /
-                window.percentZoomed
-              }px`,
+                ) - window.y1) / window.percentZoomed}px`,
               left: `${(shape.x1 - window.x1) / window.percentZoomed}px`,
               width: `2px`,
               height: `${

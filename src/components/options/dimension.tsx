@@ -1,12 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import {
-  setWhiteboardData,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import styles from "./options.module.css";
 
 import { handleBoardChange } from "../../helpers/handleBoardChange";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 
 const Dimension = () => {
   const dispatch = useDispatch();
@@ -33,7 +31,6 @@ const Dimension = () => {
   const inputRefWidth = useRef<HTMLInputElement>(null);
   const inputRefHeight = useRef<HTMLInputElement>(null);
 
-
   useEffect(() => {
     if (selectedShape) {
       setWidth(Math.abs(selectedShape.x2 - selectedShape.x1));
@@ -43,45 +40,7 @@ const Dimension = () => {
 
   // Handle the update for both width and height
   const updateDimensions = () => {
-    dispatch(
-      setWhiteboardData({
-        ...board,
-        shapes: [
-          ...shapes.filter(
-            (shape: Shape, index: number) => shape.id !== selectedShape?.id
-          ),
-          {
-            ...selectedShape,
-            x1:
-              selectedShape && selectedShape.x1 > selectedShape.x2
-                ? selectedShape.x2
-                : selectedShape?.x1 ?? 0,
-            y1:
-              selectedShape && selectedShape.y1 > selectedShape.y2
-                ? selectedShape.y2
-                : selectedShape?.y1 ?? 0,
-            x2:
-              selectedShape &&
-              (selectedShape && selectedShape.x1 <= selectedShape.x2
-                ? selectedShape.x2
-                : selectedShape?.x1 ?? 0) +
-                width -
-                Math.abs(selectedShape?.x2 - selectedShape?.x1),
-            y2:
-              selectedShape &&
-              (selectedShape && selectedShape.y1 <= selectedShape.y2
-                ? selectedShape.y2
-                : selectedShape?.y1 ?? 0) +
-                height -
-                Math.abs(selectedShape?.y2 - selectedShape?.y1),
-            width,
-            height,
-          },
-        ],
-      })
-    );
-
-    handleBoardChange({
+    const data = {
       ...board,
       shapes: [
         ...shapes.filter(
@@ -98,22 +57,27 @@ const Dimension = () => {
               ? selectedShape.y2
               : selectedShape?.y1 ?? 0,
           x2:
+            selectedShape &&
             (selectedShape && selectedShape.x1 <= selectedShape.x2
               ? selectedShape.x2
               : selectedShape?.x1 ?? 0) +
-            width -
-            Math.abs((selectedShape?.x2 ?? 0) - (selectedShape?.x1 ?? 0)),
+              width -
+              Math.abs(selectedShape?.x2 - selectedShape?.x1),
           y2:
+            selectedShape &&
             (selectedShape && selectedShape.y1 <= selectedShape.y2
               ? selectedShape.y2
               : selectedShape?.y1 ?? 0) +
-            height -
-            Math.abs((selectedShape?.y2 ?? 0) - (selectedShape?.y1 ?? 0)),
+              height -
+              Math.abs(selectedShape?.y2 - selectedShape?.y1),
           width,
           height,
         },
       ],
-    });
+    };
+    dispatch(setWhiteboardData(data));
+
+    handleBoardChange(data);
   };
 
   // Handle "Enter" key to submit

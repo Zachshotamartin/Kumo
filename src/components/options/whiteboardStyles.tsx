@@ -16,16 +16,12 @@ const WhiteboardStyles = () => {
 
   const handleUpdateBackgroundColor = (color: string) => {
     if (color) {
-      dispatch(
-        setWhiteboardData({
-          ...board,
-          backGroundColor: color,
-        })
-      );
-      handleBoardChange({
+      const data = {
         ...board,
         backGroundColor: color,
-      });
+      };
+      dispatch(setWhiteboardData(data));
+      handleBoardChange(data);
     }
   };
 

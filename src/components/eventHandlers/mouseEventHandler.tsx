@@ -1,14 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { throttle, debounce } from "lodash";
 import { useSelector, useDispatch } from "react-redux";
-import styles from "./whiteBoard.module.css";
 import { removeShape } from "../../features/whiteBoard/whiteBoardSlice";
 import { setWindow, WindowState } from "../../features/window/windowSlice";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
-import { db, realtimeDb } from "../../config/firebase";
-import { query, collection, where, onSnapshot } from "firebase/firestore";
+import { Shape } from "../../classes/shape";
+import { realtimeDb } from "../../config/firebase";
 import { AppDispatch } from "../../store";
-import { setBoards } from "../../features/boards/boards";
+import { ShapeFunctions } from "../../classes/shape";
+import { changeCursor } from "../../helpers/cursorHelper";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import {
   setDrawing,
@@ -16,7 +15,6 @@ import {
   setDoubleClicking,
   setMoving,
   setHighlighting,
- 
   setResizing,
   setResizingLeft,
   setResizingRight,
@@ -37,23 +35,12 @@ import {
   setHighlightEnd,
 } from "../../features/selected/selectedSlice";
 
-import calendarImage from "../../res/calendar.png";
-import image from "../../res/image.png";
-import { setHideOptions } from "../../features/hide/hide";
-import { storage } from "../../config/firebase";
-import { ref as storageRef, uploadBytes } from "firebase/storage";
-import {
-  initializeHistory,
-  updateHistory,
-  undo,
-  redo,
-} from "../../features/shapeHistory/shapeHistorySlice";
+import { undo, redo } from "../../features/shapeHistory/shapeHistorySlice";
 import { handleBoardChange } from "../../helpers/handleBoardChange";
-import { ref, onValue, off, update } from "firebase/database"; // For listening to Realtime Database
-import _ from "lodash";
-import KeyboardEventHandler from "../eventHandlers/keyboardEventHandler";
+import { ref, onValue, update } from "firebase/database"; // For listening to Realtime Database
+
 import WhiteBoard from "../whiteBoard/whiteBoard";
-const domtoimage = require("dom-to-image");
+import ContextMenu from "../contextMenu/contextMenu";
 
 const MouseEventHandler = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -96,7 +83,7 @@ const MouseEventHandler = () => {
   );
   const moving = useSelector((state: any) => state.actions.moving);
   const highlighting = useSelector((state: any) => state.actions.highlighting);
-  const grid = useSelector((state: any) => state.actions.grid);
+
   const gridSnappedX = useSelector((state: any) => state.actions.gridSnappedX);
   const gridSnappedY = useSelector((state: any) => state.actions.gridSnappedY);
   const gridSnappedDistanceX = useSelector(
@@ -112,6 +99,8 @@ const MouseEventHandler = () => {
   // UseStates //
   const [prevMouseX, setPrevMouseX] = useState(0);
   const [prevMouseY, setPrevMouseY] = useState(0);
+  const [prevMouseXAbsolute, setPrevMouseXAbsolute] = useState(0);
+  const [prevMouseYAbsolute, setPrevMouseYAbsolute] = useState(0);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(
     null
   ); // Offset between cursor and shape position
@@ -128,21 +117,49 @@ const MouseEventHandler = () => {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Realtime DB
-  const usersCollectionRef = collection(db, "users");
+  // const usersCollectionRef = collection(db, "users");
 
+  /*
+    Middle Mouse Triggered UseEffect:
+    Responsibility -> To allow checking if the middle mouse button is pressed down.
+  */
+  useEffect(() => {
+    setMiddle(middleMouseButton);
+    console.log("middle", middleMouseButton);
+  }, [middleMouseButton]);
+
+  const getMousePosition = (e: React.MouseEvent<HTMLDivElement>) => {
+    const boundingRect = canvasRef.current?.getBoundingClientRect();
+    const x = Math.round(
+      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed + window.x1
+    );
+    const y = Math.round(
+      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1
+    );
+    setPrevMouseX(x);
+    setPrevMouseY(y);
+
+    return { x, y };
+  };
+  const getMousePositionAbsolute = (e: React.MouseEvent<HTMLDivElement>) => {
+    const boundingRect = canvasRef.current?.getBoundingClientRect();
+    const xAbs = Math.round(
+      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed
+    );
+    const yAbs = Math.round(
+      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed
+    );
+    setPrevMouseXAbsolute(xAbs);
+    setPrevMouseYAbsolute(yAbs);
+
+    return { xAbs, yAbs };
+  };
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const { x, y } = getMousePosition(e);
+    const { xAbs, yAbs } = getMousePositionAbsolute(e);
     if (e.button === 1) {
-      const boundingRect = canvasRef.current?.getBoundingClientRect();
-      const x = Math.round(
-        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed
-      );
-      const y = Math.round(
-        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed
-      );
       actionsDispatch(setMiddleMouseButton(true));
 
-      setPrevMouseX(x);
-      setPrevMouseY(y);
       setDragOffset({ x: 0, y: 0 });
     } else if (e.button === 0) {
       const target = e.target as HTMLElement;
@@ -159,21 +176,11 @@ const MouseEventHandler = () => {
           setContextMenuVisible(false);
         }
       }
-
       actionsDispatch(setMouseDown(true));
-      const boundingRect = canvasRef.current?.getBoundingClientRect();
-      const x = Math.round(
-        (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-          window.x1
-      );
-      const y = Math.round(
-        (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-          window.y1
-      );
 
       if (selectedTool === "pointer") {
-        let selected: number = -1;
-
+        let selected: string = "";
+        let intersects = [];
         for (let i = 0; i < shapes.length; i++) {
           let shape = shapes[i];
           if (
@@ -183,13 +190,20 @@ const MouseEventHandler = () => {
             y <= Math.max(shape.y1, shape.y2)
           ) {
             // if cursor is within a shape.
-            selected = shape.id;
-            if (e.shiftKey) {
-              if (!selectedShapes.includes(selected)) {
-                dispatch(setSelectedShapes([...selectedShapes, selected]));
-              }
-            }
+            intersects.push(shape);
+
             actionsDispatch(setDrawing(false));
+          }
+        }
+        console.log(intersects);
+        if (intersects.length > 0) {
+          selected = intersects.reduce((largest: Shape, shape: Shape) => {
+            return shape.zIndex > largest.zIndex ? shape : largest;
+          }).id;
+          if (e.shiftKey) {
+            if (!selectedShapes.includes(selected)) {
+              dispatch(setSelectedShapes([...selectedShapes, selected]));
+            }
           }
         }
 
@@ -266,7 +280,7 @@ const MouseEventHandler = () => {
           }
         }
 
-        if (selected !== -1) {
+        if (selected) {
           // if something is selected
 
           setDragOffset({ x: 0, y: 0 });
@@ -317,81 +331,9 @@ const MouseEventHandler = () => {
         selectedTool === "calendar" ||
         selectedTool === "image"
       ) {
-        const shape: Shape = {
-          // type
-          type: selectedTool,
-          // position
-          id:
-            Math.random().toString(36).substring(2, 10) +
-            new Date().getTime().toString(36),
-          x1: x,
-          y1: y,
-          x2: x,
-          y2: y,
+        let shape = ShapeFunctions.createShape(selectedTool, x, y, shapes);
 
-          //dimension
-          width: 0,
-          height: 0,
-          level: 0,
-          // transform
-          rotation: 0,
-
-          // box styling
-          borderRadius: selectedTool === "ellipse" ? 1000 : 0,
-          borderWidth: 0,
-          borderStyle: "solid",
-
-          // font styling
-          fontSize: 12,
-          fontFamily: "Arial",
-          fontWeight: "normal",
-          textAlign: "left",
-          alignItems: "flex-start",
-          textDecoration: "none",
-          lineHeight: 1.2,
-          letterSpacing: 0,
-          rows: 1,
-
-          // color
-          color: "#ffffff",
-          backgroundColor:
-            selectedTool === "text" ||
-            selectedTool === "calendar" ||
-            selectedTool === "image"
-              ? "transparent"
-              : "#ffffff",
-          borderColor: "#000000",
-          opacity: 1,
-          zIndex:
-            shapes.length === 0
-              ? 0
-              : shapes[shapes.length - 1].type !== "component"
-              ? shapes[shapes.length - 1].zIndex + 1
-              : shapes[shapes.length - 1].shapes[
-                  shapes[shapes.length - 1].shapes.length - 1
-                ].zIndex + 1,
-          text: "",
-        };
-
-        if (selectedTool === "calendar") {
-          shape.backgroundImage = calendarImage;
-        }
-        if (selectedTool === "image") {
-          shape.backgroundImage = image;
-        }
-        dispatch(
-          setWhiteboardData({
-            ...board,
-            shapes: [...shapes, shape],
-            currentUsers: [
-              ...(board.currentUsers || []).filter(
-                (curUser: any) => curUser?.user !== user.uid
-              ),
-              { user: user.uid, cursorX: x, cursorY: y },
-            ],
-          })
-        );
-        handleBoardChange({
+        const data = {
           ...board,
           shapes: [...shapes, shape],
           currentUsers: [
@@ -400,7 +342,10 @@ const MouseEventHandler = () => {
             ),
             { user: user.uid, cursorX: x, cursorY: y },
           ],
-        });
+        };
+
+        dispatch(setWhiteboardData(data));
+        handleBoardChange(data);
         dispatch(setSelectedShapes([shape.id]));
       }
     }
@@ -414,66 +359,21 @@ const MouseEventHandler = () => {
           }
         );
 
-        const boundingRect = canvasRef.current?.getBoundingClientRect();
-        const x = Math.round(
-          (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-            window.x1
-        );
-        const y = Math.round(
-          (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-            window.y1
-        );
-        setPrevMouseX(x);
-        setPrevMouseY(y);
+        const { x, y } = getMousePosition(e);
+
+        const { xAbs, yAbs } = getMousePositionAbsolute(e);
 
         if (selectedShapesArray.length > 0) {
-          if (
-            (x >= borderEndX - 10 / window.percentZoomed &&
-              x <= borderEndX &&
-              y <= borderEndY - 10 / window.percentZoomed &&
-              y >= borderStartY + 10 / window.percentZoomed) ||
-            (x >= borderStartX &&
-              x <= borderStartX + 10 / window.percentZoomed &&
-              y <= borderEndY - 10 / window.percentZoomed &&
-              y >= borderStartY + 10 / window.percentZoomed)
-          ) {
-            (e.target as HTMLElement).style.cursor = "ew-resize";
-          } else if (
-            (y >= borderEndY - 10 / window.percentZoomed &&
-              y <= borderEndY &&
-              x <= borderEndX - 10 / window.percentZoomed &&
-              x >= borderStartX + 10 / window.percentZoomed) ||
-            (y >= borderStartY &&
-              y <= borderStartY + 10 / window.percentZoomed &&
-              x <= borderEndX - 10 / window.percentZoomed &&
-              x >= borderStartX + 10 / window.percentZoomed)
-          ) {
-            (e.target as HTMLElement).style.cursor = "ns-resize";
-          } else if (
-            (x >= borderStartX &&
-              x <= borderStartX + 10 / window.percentZoomed &&
-              y >= borderStartY &&
-              y <= borderStartY + 10 / window.percentZoomed) ||
-            (x >= borderEndX - 10 / window.percentZoomed &&
-              x <= borderEndX &&
-              y >= borderEndY - 10 / window.percentZoomed &&
-              y <= borderEndY)
-          ) {
-            (e.target as HTMLElement).style.cursor = "nwse-resize";
-          } else if (
-            (x >= borderStartX &&
-              x <= borderStartX + 10 / window.percentZoomed &&
-              y >= borderEndY - 10 / window.percentZoomed &&
-              y <= borderEndY) ||
-            (x >= borderEndX - 10 / window.percentZoomed &&
-              x <= borderEndX &&
-              y >= borderStartY &&
-              y <= borderStartY + 10 / window.percentZoomed)
-          ) {
-            (e.target as HTMLElement).style.cursor = "nesw-resize";
-          } else {
-            (e.target as HTMLElement).style.cursor = "default";
-          }
+          changeCursor(
+            x,
+            y,
+            e,
+            borderStartX,
+            borderEndX,
+            borderStartY,
+            borderEndY,
+            window
+          );
         }
 
         if (dragging && moving) {
@@ -495,51 +395,11 @@ const MouseEventHandler = () => {
                 );
                 offsetY = 0;
               }
-              let updatedShape: Shape = {
-                ...shape,
-                x1: shape.x1 + offsetX,
-                y1: shape.y1 + offsetY,
-                x2: shape.x2 + offsetX,
-                y2: shape.y2 + offsetY,
-              };
-              if (shape.type === "component") {
-                updatedShape = {
-                  ...updatedShape,
-                  shapes: updatedShape.shapes?.map((componentShape: Shape) => {
-                    return {
-                      ...componentShape,
-                      x1: componentShape.x1 + offsetX,
-                      y1: componentShape.y1 + offsetY,
-                      x2: componentShape.x2 + offsetX,
-                      y2: componentShape.y2 + offsetY,
-                    };
-                  }),
-                };
-              }
-              updatedShapes.push(updatedShape);
+              updatedShapes.push(
+                ShapeFunctions.moveShape(shape, offsetX, offsetY)
+              );
             });
-
-            dispatch(
-              setWhiteboardData({
-                ...board,
-                shapes: [
-                  ...board.shapes.filter((shape: Shape, index: number) => {
-                    return !selectedShapes.includes(shape.id);
-                  }),
-                  ...updatedShapes,
-                ],
-
-                currentUsers: [
-                  ...(board.currentUsers || []).filter(
-                    (curUser: any) => curUser?.user !== user.uid
-                  ),
-                  { user: user.uid, cursorX: x, cursorY: y },
-                ],
-                lastChangedBy: user.uid,
-              })
-            );
-
-            handleBoardChange({
+            const data = {
               ...board,
               shapes: [
                 ...board.shapes.filter((shape: Shape, index: number) => {
@@ -547,6 +407,7 @@ const MouseEventHandler = () => {
                 }),
                 ...updatedShapes,
               ],
+
               currentUsers: [
                 ...(board.currentUsers || []).filter(
                   (curUser: any) => curUser?.user !== user.uid
@@ -554,7 +415,10 @@ const MouseEventHandler = () => {
                 { user: user.uid, cursorX: x, cursorY: y },
               ],
               lastChangedBy: user.uid,
-            });
+            };
+            dispatch(setWhiteboardData(data));
+
+            handleBoardChange(data);
           }
           if (
             gridSnappedX &&
@@ -597,157 +461,23 @@ const MouseEventHandler = () => {
               offsetY = 0;
             }
 
-            let x1 = shape.x1;
-            let x2 = shape.x2;
-            let y1 = shape.y1;
-            let y2 = shape.y2;
-
-            /*
-                    Things to consider:
-                      Current functionality allows resizing of regular shapes, groups of shapes, and components and the shapes within
-                      Does not work for rounded widths -> This causes shapes to drift from eachother.
-                      Does not work when anchor edge gets dragged past the other edge to reverse the shape.
-                  */
-
-            if (resizingRight) {
-              let ratioX1 = (x1 - borderStartX) / (borderEndX - borderStartX);
-              let ratioX2 = (x2 - borderStartX) / (borderEndX - borderStartX);
-              x1 =
-                borderStartX + ratioX1 * (borderEndX + offsetX - borderStartX);
-              x2 =
-                borderStartX + ratioX2 * (borderEndX + offsetX - borderStartX);
-            } else if (resizingLeft) {
-              let ratioX1 = (borderEndX - x1) / (borderEndX - borderStartX);
-              let ratioX2 = (borderEndX - x2) / (borderEndX - borderStartX);
-              x1 =
-                borderEndX - ratioX1 * (borderEndX - (borderStartX + offsetX));
-              x2 =
-                borderEndX - ratioX2 * (borderEndX - (borderStartX + offsetX));
-            }
-
-            if (resizingBottom) {
-              let ratioY1 = (y1 - borderStartY) / (borderEndY - borderStartY);
-              let ratioY2 = (y2 - borderStartY) / (borderEndY - borderStartY);
-              y1 =
-                borderStartY + ratioY1 * (borderEndY + offsetY - borderStartY);
-              y2 =
-                borderStartY + ratioY2 * (borderEndY + offsetY - borderStartY);
-            } else if (resizingTop) {
-              let ratioY1 = (borderEndY - y1) / (borderEndY - borderStartY);
-              let ratioY2 = (borderEndY - y2) / (borderEndY - borderStartY);
-              y1 =
-                borderEndY - ratioY1 * (borderEndY - (borderStartY + offsetY));
-              y2 =
-                borderEndY - ratioY2 * (borderEndY - (borderStartY + offsetY));
-            }
-
-            const width = Math.abs(x2 - x1);
-            const height = Math.abs(y2 - y1);
-
-            let updatedShape: Shape = {
-              ...shape,
-              x1: x1,
-              y1: y1,
-              x2: x2,
-              y2: y2,
-              width,
-              height,
-            };
-            if (shape.type === "component") {
-              updatedShape = {
-                ...updatedShape,
-                shapes: updatedShape.shapes?.map(
-                  (componentShape: Shape, index: number) => {
-                    let x1 = componentShape.x1;
-                    let x2 = componentShape.x2;
-                    let y1 = componentShape.y1;
-                    let y2 = componentShape.y2;
-
-                    if (resizingRight) {
-                      let ratioX1 =
-                        (x1 - borderStartX) / (borderEndX - borderStartX);
-                      let ratioX2 =
-                        (x2 - borderStartX) / (borderEndX - borderStartX);
-
-                      x1 =
-                        borderStartX +
-                        ratioX1 * (borderEndX + offsetX - borderStartX);
-                      x2 =
-                        borderStartX +
-                        ratioX2 * (borderEndX + offsetX - borderStartX);
-                    } else if (resizingLeft) {
-                      let ratioX1 =
-                        (borderEndX - x1) / (borderEndX - borderStartX);
-                      let ratioX2 =
-                        (borderEndX - x2) / (borderEndX - borderStartX);
-                      x1 =
-                        borderEndX -
-                        ratioX1 * (borderEndX - (borderStartX + offsetX));
-                      x2 =
-                        borderEndX -
-                        ratioX2 * (borderEndX - (borderStartX + offsetX));
-                    }
-
-                    if (resizingBottom) {
-                      let ratioY1 =
-                        (y1 - borderStartY) / (borderEndY - borderStartY);
-                      let ratioY2 =
-                        (y2 - borderStartY) / (borderEndY - borderStartY);
-                      y1 =
-                        borderStartY +
-                        ratioY1 * (borderEndY + offsetY - borderStartY);
-                      y2 =
-                        borderStartY +
-                        ratioY2 * (borderEndY + offsetY - borderStartY);
-                    } else if (resizingTop) {
-                      let ratioY1 =
-                        (borderEndY - y1) / (borderEndY - borderStartY);
-                      let ratioY2 =
-                        (borderEndY - y2) / (borderEndY - borderStartY);
-                      y1 =
-                        borderEndY -
-                        ratioY1 * (borderEndY - (borderStartY + offsetY));
-                      y2 =
-                        borderEndY -
-                        ratioY2 * (borderEndY - (borderStartY + offsetY));
-                    }
-
-                    const width = Math.abs(x2 - x1);
-                    const height = Math.abs(y2 - y1);
-                    return {
-                      ...componentShape,
-                      x1: x1,
-                      y1: y1,
-                      x2: x2,
-                      y2: y2,
-                      width,
-                      height,
-                    };
-                  }
-                ),
-              };
-            }
-            updatedShapes.push(updatedShape);
+            updatedShapes.push(
+              ShapeFunctions.resizeShape(
+                shape,
+                borderStartX,
+                borderEndX,
+                borderStartY,
+                borderEndY,
+                offsetX,
+                offsetY,
+                resizingTop,
+                resizingBottom,
+                resizingLeft,
+                resizingRight
+              )
+            );
           });
-
-          dispatch(
-            setWhiteboardData({
-              ...board,
-              shapes: [
-                ...board.shapes.filter((shape: Shape, index: number) => {
-                  return !selectedShapes.includes(shape.id);
-                }),
-                ...updatedShapes,
-              ],
-              currentUsers: [
-                ...(board.currentUsers || []).filter(
-                  (curUser: any) => curUser?.user !== user.uid
-                ),
-                { user: user.uid, cursorX: x, cursorY: y },
-              ],
-            })
-          );
-          handleBoardChange({
+          const data = {
             ...board,
             shapes: [
               ...board.shapes.filter((shape: Shape, index: number) => {
@@ -761,7 +491,9 @@ const MouseEventHandler = () => {
               ),
               { user: user.uid, cursorX: x, cursorY: y },
             ],
-          });
+          };
+          dispatch(setWhiteboardData(data));
+          handleBoardChange(data);
           if (
             gridSnappedX &&
             (gridSnappedDistanceX / window.percentZoomed >= 5 ||
@@ -797,30 +529,14 @@ const MouseEventHandler = () => {
             offsetY = 0;
           }
 
-          const updatedShape: Shape = {
-            ...lastShape,
+          let updatedShape = ShapeFunctions.updateShape(lastShape, {
             x2: lastShape.x2 + offsetX,
             y2: lastShape.y2 + offsetY,
             width: Math.abs(lastShape.x2 + offsetX - lastShape.x1),
             height: Math.abs(lastShape.y2 + offsetY - lastShape.y1),
             rotation: 0,
-          };
-          dispatch(
-            setWhiteboardData({
-              ...board,
-              shapes: [
-                ...board.shapes.slice(0, shapes.length - 1),
-                updatedShape,
-              ],
-              currentUsers: [
-                ...(board.currentUsers || []).filter(
-                  (curUser: any) => curUser?.user !== user.uid
-                ),
-                { user: user.uid, cursorX: x, cursorY: y },
-              ],
-            })
-          );
-          handleBoardChange({
+          });
+          const data = {
             ...board,
             shapes: [...board.shapes.slice(0, shapes.length - 1), updatedShape],
             currentUsers: [
@@ -829,7 +545,9 @@ const MouseEventHandler = () => {
               ),
               { user: user.uid, cursorX: x, cursorY: y },
             ],
-          });
+          };
+          dispatch(setWhiteboardData(data));
+          handleBoardChange(data);
 
           if (
             gridSnappedX &&
@@ -854,38 +572,29 @@ const MouseEventHandler = () => {
     [dragging, selectedShapes, dragOffset, shapes, drawing, canvasRef, dispatch]
   );
   const debouncedMiddleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      throttle(
-        debounce(() => {
-          const boundingRect = canvasRef.current?.getBoundingClientRect();
-          const x = Math.round(
-            (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed
-          );
-          const y = Math.round(
-            (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed
-          );
-          setPrevMouseX(x);
-          setPrevMouseY(y);
+    throttle(
+      debounce((e: React.MouseEvent<HTMLDivElement>) => {
+        console.log("middle mouse called");
+        let { xAbs, yAbs } = getMousePositionAbsolute(e);
 
-          let offsetX = x - prevMouseX;
-          let offsetY = y - prevMouseY;
+        let offsetX = xAbs - prevMouseXAbsolute;
+        let offsetY = yAbs - prevMouseYAbsolute;
 
-          const deltaX = offsetX * window.percentZoomed;
-          const deltaY = offsetY * window.percentZoomed;
+        const deltaX = offsetX;
+        const deltaY = offsetY;
 
-          const newWindow: WindowState = {
-            x1: window.x1 - deltaX,
-            y1: window.y1 - deltaY,
-            x2: window.x2 - deltaX,
-            y2: window.y2 - deltaY,
-            percentZoomed: window.percentZoomed,
-          };
-          dispatch(setWindow(newWindow));
-        }, 1),
-        1
-      );
-    },
-    [prevMouseX, prevMouseY]
+        const newWindow: WindowState = {
+          x1: window.x1 - deltaX,
+          y1: window.y1 - deltaY,
+          x2: window.x2 - deltaX,
+          y2: window.y2 - deltaY,
+          percentZoomed: window.percentZoomed,
+        };
+        dispatch(setWindow(newWindow));
+      }, 1),
+      1
+    ),
+    [prevMouseX, prevMouseY, dispatch, window]
   );
   // Use the throttled version in the event listener
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -927,12 +636,8 @@ const MouseEventHandler = () => {
     console.log("double click");
     actionsDispatch(setDoubleClicking(true));
 
-    const boundingRect = canvasRef.current?.getBoundingClientRect();
-    const x =
-      (e.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-      window.x1;
-    const y =
-      (e.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed + window.y1;
+    const { x, y } = getMousePosition(e);
+    const { xAbs, yAbs } = getMousePositionAbsolute(e);
 
     if (selectedTool !== "pointer") {
       actionsDispatch(setDoubleClicking(false));
@@ -1013,13 +718,10 @@ const MouseEventHandler = () => {
       // Zoom logic
       const zoomFactor = deltaY > 0 ? 1.1 : 0.9;
 
-      const boundingRect = canvasRef.current?.getBoundingClientRect();
-      const cursorX =
-        (event.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-        window.x1;
-      const cursorY =
-        (event.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-        window.y1;
+      const { x, y } = getMousePosition(event);
+      const { xAbs, yAbs } = getMousePositionAbsolute(event);
+      const cursorX = x;
+      const cursorY = y;
       if (
         window.percentZoomed * zoomFactor < 4 &&
         window.percentZoomed * zoomFactor > 0.05
@@ -1067,15 +769,9 @@ const MouseEventHandler = () => {
     }
   };
   const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
-    const boundingRect = canvasRef.current?.getBoundingClientRect();
-    const x = Math.round(
-      (event.clientX - (boundingRect?.left ?? 0)) * window.percentZoomed +
-        window.x1
-    );
-    const y = Math.round(
-      (event.clientY - (boundingRect?.top ?? 0)) * window.percentZoomed +
-        window.y1
-    );
+    let { x, y } = getMousePosition(event);
+    x += window.x1;
+    y += window.y1;
     let contextMenuLabels: { label: string; onClick: () => void }[] = [];
 
     // const target = event.target as HTMLElement;
@@ -1189,20 +885,7 @@ const MouseEventHandler = () => {
                 }
               }
             });
-
-            dispatch(
-              setWhiteboardData({
-                ...board,
-                shapes: newShapes,
-                currentUsers: [
-                  ...(board.currentUsers || []).filter(
-                    (curUser: any) => curUser?.user !== user.uid
-                  ),
-                  { user: user.uid, cursorX: x, cursorY: y },
-                ],
-              })
-            );
-            handleBoardChange({
+            const data = {
               ...board,
               shapes: newShapes,
               currentUsers: [
@@ -1211,7 +894,9 @@ const MouseEventHandler = () => {
                 ),
                 { user: user.uid, cursorX: x, cursorY: y },
               ],
-            });
+            };
+            dispatch(setWhiteboardData(data));
+            handleBoardChange(data);
 
             dispatch(setSelectedShapes([endIndex]));
           },
@@ -1263,20 +948,7 @@ const MouseEventHandler = () => {
             });
 
             // Update board state
-            dispatch(
-              setWhiteboardData({
-                ...board,
-                shapes: newShapes,
-                currentUsers: [
-                  ...(board.currentUsers || []).filter(
-                    (curUser: any) => curUser?.user !== user.uid
-                  ),
-                  { user: user.uid, cursorX: x, cursorY: y },
-                ],
-              })
-            );
-
-            handleBoardChange({
+            const data = {
               ...board,
               shapes: newShapes,
               currentUsers: [
@@ -1285,7 +957,10 @@ const MouseEventHandler = () => {
                 ),
                 { user: user.uid, cursorX: x, cursorY: y },
               ],
-            });
+            };
+            dispatch(setWhiteboardData(data));
+
+            handleBoardChange(data);
 
             dispatch(setSelectedShapes([0])); // Select shape at bottom
           },
@@ -1300,26 +975,7 @@ const MouseEventHandler = () => {
         contextMenuLabels.push({
           label: "unwrap component",
           onClick: () => {
-            dispatch(
-              setWhiteboardData({
-                ...board,
-                shapes: [
-                  ...shapes.filter((shape: Shape, index: number) => {
-                    return shape.id !== selectedShapes[0];
-                  }),
-                  ...shapes.filter(
-                    (shape: Shape) => shape.id === selectedShapes[0]
-                  )[0].shapes,
-                ],
-                currentUsers: [
-                  ...(board.currentUsers || []).filter(
-                    (curUser: any) => curUser?.user !== user.uid
-                  ),
-                  { user: user.uid, cursorX: x, cursorY: y },
-                ],
-              })
-            );
-            handleBoardChange({
+            const data = {
               ...board,
               shapes: [
                 ...shapes.filter((shape: Shape, index: number) => {
@@ -1335,7 +991,9 @@ const MouseEventHandler = () => {
                 ),
                 { user: user.uid, cursorX: x, cursorY: y },
               ],
-            });
+            };
+            dispatch(setWhiteboardData(data));
+            handleBoardChange(data);
 
             dispatch(clearSelectedShapes());
           },
@@ -1351,7 +1009,9 @@ const MouseEventHandler = () => {
             const hasComponent = selectedShapesArray.some(
               (shape: Shape) => shape.type === "component"
             );
-
+            const shapesCopy = shapes.filter((shape: Shape, index: number) => {
+              return selectedShapes.includes(shape.id);
+            });
             if (hasComponent) {
               alert(
                 "cannot make a component with a component: not implemented as of now"
@@ -1359,133 +1019,17 @@ const MouseEventHandler = () => {
               return;
             }
 
-            const x1 = selectedShapesArray.reduce(
-              (minX: number, shape: Shape) => Math.min(minX, shape.x1),
-              Infinity
+            const zIndexFixedShapes = ShapeFunctions.createComponent(
+              selectedShapesArray,
+              selectedShapes,
+              shapes
             );
-            const y1 = selectedShapesArray.reduce(
-              (minY: number, shape: Shape) => Math.min(minY, shape.y1),
-              Infinity
-            );
-            const x2 = selectedShapesArray.reduce(
-              (maxX: number, shape: Shape) => Math.max(maxX, shape.x2),
-              -Infinity
-            );
-            const y2 = selectedShapesArray.reduce(
-              (maxY: number, shape: Shape) => Math.max(maxY, shape.y2),
-              -Infinity
-            );
-
-            if (selectedShapes.length > 0) {
-              const shapesCopy = shapes.filter(
-                (shape: Shape, index: number) => {
-                  return selectedShapes.includes(shape.id);
-                }
-              );
-
-              let zIndexFixedShapes = shapes.filter(
-                (shape: Shape, index: number) => {
-                  return !selectedShapes.includes(shape.id);
-                }
-              );
-
-              zIndexFixedShapes = zIndexFixedShapes.sort(
-                (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
-              );
-
-              zIndexFixedShapes = zIndexFixedShapes.map(
-                (shape: Shape, index: number) => {
-                  if (shape.type !== "component") {
-                    return {
-                      ...shape,
-                      zIndex: index,
-                    };
-                  } else {
-                    return {
-                      ...shape,
-                      zIndex: index,
-                      shapes: shape.shapes?.map(
-                        (innerShape: Shape, idx: number) => {
-                          return {
-                            ...innerShape,
-                            zIndex: index + idx + 1,
-                          };
-                        }
-                      ),
-                    };
-                  }
-                }
-              );
-              let zIndex = 0;
-
-              if (zIndexFixedShapes.length > 0) {
-                zIndex =
-                  zIndexFixedShapes[zIndexFixedShapes.length - 1]?.zIndex + 1;
-
-                if (
-                  zIndexFixedShapes[zIndexFixedShapes.length - 1]?.type ===
-                  "component"
-                ) {
-                  zIndex =
-                    zIndexFixedShapes[zIndexFixedShapes.length - 1]?.shapes[
-                      zIndexFixedShapes[zIndexFixedShapes.length - 1]?.shapes
-                        .length - 1
-                    ]?.zIndex + 1;
-                }
-              }
-
-              const component = selectedShapesArray.map(
-                (shape: Shape, index: number) => {
-                  return {
-                    ...shape,
-                    level: shape.level + 1,
-                    zIndex: zIndex + index + 1,
-                  };
-                }
-              );
-              const newComponent = {
-                type: "component",
-                shapes: component,
-                id:
-                  Math.random().toString(36).substring(2, 10) +
-                  new Date().getTime().toString(36),
-                x1: x1,
-                y1: y1,
-                x2: x2,
-                y2: y2,
-                width: x2 - x1,
-                height: y2 - y1,
-                level: 0,
-                zIndex: zIndex,
-                backgroundColor: "none",
-                borderColor: "none",
-                borderRadius: 0,
-                borderStyle: "none",
-                borderWidth: "none",
-                color: "none",
-              };
-              zIndexFixedShapes.push(newComponent);
-              zIndexFixedShapes = zIndexFixedShapes.sort(
-                (a: Shape, b: Shape) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
-              );
-
+            if (zIndexFixedShapes) {
               shapesCopy.forEach((shape: Shape) => {
                 dispatch(removeShape(shape));
               });
               dispatch(clearSelectedShapes());
-              dispatch(
-                setWhiteboardData({
-                  ...board,
-                  shapes: zIndexFixedShapes,
-                  currentUsers: [
-                    ...(board.currentUsers || []).filter(
-                      (curUser: any) => curUser?.user !== user.uid
-                    ),
-                    { user: user.uid, cursorX: x, cursorY: y },
-                  ],
-                })
-              );
-              handleBoardChange({
+              const data = {
                 ...board,
                 shapes: zIndexFixedShapes,
                 currentUsers: [
@@ -1494,7 +1038,9 @@ const MouseEventHandler = () => {
                   ),
                   { user: user.uid, cursorX: x, cursorY: y },
                 ],
-              });
+              };
+              dispatch(setWhiteboardData(data));
+              handleBoardChange(data);
             }
           },
         });
@@ -1506,19 +1052,7 @@ const MouseEventHandler = () => {
           onClick: () => {
             navigator.clipboard.readText().then((copiedData) => {
               const pastedShapes = JSON.parse(copiedData);
-              dispatch(
-                setWhiteboardData({
-                  ...board,
-                  shapes: [...shapes, ...pastedShapes],
-                  currentUsers: [
-                    ...(board.currentUsers || []).filter(
-                      (curUser: any) => curUser?.user !== user.uid
-                    ),
-                    { user: user.uid, cursorX: x, cursorY: y },
-                  ],
-                })
-              );
-              handleBoardChange({
+              const data = {
                 ...board,
                 shapes: [...shapes, ...pastedShapes],
                 currentUsers: [
@@ -1527,7 +1061,9 @@ const MouseEventHandler = () => {
                   ),
                   { user: user.uid, cursorX: x, cursorY: y },
                 ],
-              });
+              };
+              dispatch(setWhiteboardData(data));
+              handleBoardChange(data);
             });
           },
         },
@@ -1556,6 +1092,9 @@ const MouseEventHandler = () => {
     setContextMenuX(event.clientX);
     setContextMenuY(event.clientY);
   };
+  const handleContextMenuClose = () => {
+    setContextMenuVisible(false);
+  };
 
   return (
     <div
@@ -1566,6 +1105,16 @@ const MouseEventHandler = () => {
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
     >
+      <p>{`${window.x1} ${window.y1}`}</p>
+      <p>{`${window.percentZoomed}`}</p>
+      {contextMenuVisible && (
+        <ContextMenu
+          x={contextMenuX}
+          y={contextMenuY}
+          labels={contextMenuLabels}
+          onClose={handleContextMenuClose}
+        />
+      )}
       <WhiteBoard />
     </div>
   );

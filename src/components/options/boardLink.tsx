@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import styles from "./options.module.css";
 import { useSelector, useDispatch } from "react-redux";
-import {
-  setWhiteboardData,
-  Shape,
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 
 import { handleBoardChange } from "../../helpers/handleBoardChange";
 const BoardLink = () => {
@@ -57,24 +55,7 @@ const BoardLink = () => {
                   (board: any) => board.id === selectedBoardId
                 );
               }
-              dispatch(
-                setWhiteboardData({
-                  ...board,
-                  shapes: [
-                    ...shapes.filter(
-                      (shape: Shape, index: number) =>
-                        shape.id !== selectedShape?.id
-                    ),
-                    {
-                      ...selectedShape,
-                      boardId: selectedBoard.id,
-                      uid: selectedBoard.uid,
-                      title: selectedBoard.title,
-                    },
-                  ],
-                })
-              );
-              handleBoardChange({
+              const data = {
                 ...board,
                 shapes: [
                   ...shapes.filter(
@@ -88,7 +69,9 @@ const BoardLink = () => {
                     title: selectedBoard.title,
                   },
                 ],
-              });
+              };
+              dispatch(setWhiteboardData(data));
+              handleBoardChange(data);
 
               setSelectedValue(selectedBoardId);
             }}

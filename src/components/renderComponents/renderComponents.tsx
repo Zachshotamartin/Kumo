@@ -1,6 +1,6 @@
 import React from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Shape } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 import RenderBoxes from "../renderComponents/renderBoxes";
 import RenderText from "../renderComponents/renderText";
 import RenderEllipses from "../renderComponents/renderEllipses";

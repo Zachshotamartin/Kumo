@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
   setWhiteboardData,
-  Shape,
+
 } from "../../features/whiteBoard/whiteBoardSlice";
+import { Shape } from "../../classes/shape";
 import {
   setHoverStartX,
   setHoverStartY,
