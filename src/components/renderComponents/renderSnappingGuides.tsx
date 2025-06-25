@@ -9,243 +9,224 @@ const RenderSnappingGuides = () => {
   const borderEndX = useSelector((state: any) => state.selected.borderEndX);
   const borderEndY = useSelector((state: any) => state.selected.borderEndY);
   const window = useSelector((state: any) => state.window);
-
   const selectedShapes = useSelector(
     (state: any) => state.selected.selectedShapes
   );
-  if (borderStartX === -100000 || borderStartY === -100000) {
+  const dragging = useSelector((state: any) => state.actions.dragging);
+
+  // Don't render if no selection, not dragging, or no active movement
+  if (borderStartX === -100000 || borderStartY === -100000 || !dragging) {
     return null;
   }
 
-  for (let shape of shapes) {
-    if (!selectedShapes.includes(shape.id)) {
-      if (borderStartX === shape.x1 || borderEndX === shape.x1) {
-        console.log("shape", shape.y1, shape.y2);
-        console.log("border", borderStartY, borderEndY);
-        console.log("window", window.y1, window.percentZoomed);
-        console.log(
-          "ayyyy",
-          Math.min(
-            Math.min(shape.y1, shape.y2),
-            Math.min(borderStartY, borderEndY)
-          )
-        );
-      }
-    }
-  }
-  
-  return shapes.map((shape: Shape, index: number) => (
+  const guides: Array<{
+    type: "vertical" | "horizontal";
+    coordinate: number;
+    startCoord: number;
+    endCoord: number;
+    color: string;
+  }> = [];
+
+  // Helper function to convert world coordinates to screen coordinates
+  const worldToScreen = (worldX: number, worldY: number) => ({
+    x: (worldX - window.x1) / window.percentZoomed,
+    y: (worldY - window.y1) / window.percentZoomed,
+  });
+
+  // Get viewport bounds in world coordinates
+  const viewportBounds = {
+    left: window.x1,
+    right: window.x2,
+    top: window.y1,
+    bottom: window.y2,
+  };
+
+  // Helper function to check if a shape intersects with the viewport
+  const isShapeVisible = (shape: Shape): boolean => {
+    const shapeLeft = Math.min(shape.x1, shape.x2);
+    const shapeRight = Math.max(shape.x1, shape.x2);
+    const shapeTop = Math.min(shape.y1, shape.y2);
+    const shapeBottom = Math.max(shape.y1, shape.y2);
+
+    // Standard rectangle intersection test
+    return !(
+      shapeRight < viewportBounds.left ||
+      shapeLeft > viewportBounds.right ||
+      shapeBottom < viewportBounds.top ||
+      shapeTop > viewportBounds.bottom
+    );
+  };
+
+  // Get selection bounds
+  const selectionBounds = {
+    left: Math.min(borderStartX, borderEndX),
+    right: Math.max(borderStartX, borderEndX),
+    top: Math.min(borderStartY, borderEndY),
+    bottom: Math.max(borderStartY, borderEndY),
+    centerX: (borderStartX + borderEndX) / 2,
+    centerY: (borderStartY + borderEndY) / 2,
+  };
+
+  // Filter shapes to only include visible ones that are not selected
+  const visibleShapes = shapes.filter(
+    (shape: Shape) =>
+      !selectedShapes.includes(shape.id) && isShapeVisible(shape)
+  );
+
+  // Check each visible shape for alignment with selection
+  visibleShapes.forEach((shape: Shape) => {
+    const shapeBounds = {
+      left: Math.min(shape.x1, shape.x2),
+      right: Math.max(shape.x1, shape.x2),
+      top: Math.min(shape.y1, shape.y2),
+      bottom: Math.max(shape.y1, shape.y2),
+      centerX: (shape.x1 + shape.x2) / 2,
+      centerY: (shape.y1 + shape.y2) / 2,
+    };
+
+    // Check for vertical alignment (left, right, center)
+    const verticalAlignments = [
+      {
+        selectionCoord: selectionBounds.left,
+        shapeCoords: [shapeBounds.left, shapeBounds.right, shapeBounds.centerX],
+      },
+      {
+        selectionCoord: selectionBounds.right,
+        shapeCoords: [shapeBounds.left, shapeBounds.right, shapeBounds.centerX],
+      },
+      {
+        selectionCoord: selectionBounds.centerX,
+        shapeCoords: [shapeBounds.left, shapeBounds.right, shapeBounds.centerX],
+      },
+    ];
+
+    verticalAlignments.forEach(({ selectionCoord, shapeCoords }) => {
+      shapeCoords.forEach((shapeCoord) => {
+        if (Math.abs(selectionCoord - shapeCoord) < 1) {
+          // Allow for small floating point differences
+          // Calculate the span between the two objects vertically
+          const topBound = Math.min(selectionBounds.top, shapeBounds.top);
+          const bottomBound = Math.max(
+            selectionBounds.bottom,
+            shapeBounds.bottom
+          );
+
+          guides.push({
+            type: "vertical",
+            coordinate: selectionCoord,
+            startCoord: topBound,
+            endCoord: bottomBound,
+            color: "#ff0000",
+          });
+        }
+      });
+    });
+
+    // Check for horizontal alignment (top, bottom, center)
+    const horizontalAlignments = [
+      {
+        selectionCoord: selectionBounds.top,
+        shapeCoords: [shapeBounds.top, shapeBounds.bottom, shapeBounds.centerY],
+      },
+      {
+        selectionCoord: selectionBounds.bottom,
+        shapeCoords: [shapeBounds.top, shapeBounds.bottom, shapeBounds.centerY],
+      },
+      {
+        selectionCoord: selectionBounds.centerY,
+        shapeCoords: [shapeBounds.top, shapeBounds.bottom, shapeBounds.centerY],
+      },
+    ];
+
+    horizontalAlignments.forEach(({ selectionCoord, shapeCoords }) => {
+      shapeCoords.forEach((shapeCoord) => {
+        if (Math.abs(selectionCoord - shapeCoord) < 1) {
+          // Allow for small floating point differences
+          // Calculate the span between the two objects horizontally
+          const leftBound = Math.min(selectionBounds.left, shapeBounds.left);
+          const rightBound = Math.max(selectionBounds.right, shapeBounds.right);
+
+          guides.push({
+            type: "horizontal",
+            coordinate: selectionCoord,
+            startCoord: leftBound,
+            endCoord: rightBound,
+            color: "#ff0000",
+          });
+        }
+      });
+    });
+  });
+
+  // Remove duplicate guides
+  const uniqueGuides = guides.filter(
+    (guide, index, arr) =>
+      arr.findIndex(
+        (g) =>
+          g.type === guide.type &&
+          Math.abs(g.coordinate - guide.coordinate) < 1 &&
+          Math.abs(g.startCoord - guide.startCoord) < 1 &&
+          Math.abs(g.endCoord - guide.endCoord) < 1
+      ) === index
+  );
+
+  return (
     <div
-      key={index}
       style={{
-        backgroundColor: "transparent",
-        border: "none",
         position: "absolute",
+        top: 0,
+        left: 0,
+        pointerEvents: "none",
+        zIndex: 99,
       }}
     >
-      {(borderStartX === shape.x1 || borderEndX === shape.x1) &&
-        !selectedShapes.includes(shape.id) && (
-          <div
-            style={{
-              backgroundColor: "red",
-              position: "absolute",
-              top: `${(Math.min(
-                  Math.min(shape.y1, shape.y2),
-                  Math.min(borderStartY, borderEndY)
-                ) - window.y1) / window.percentZoomed}px`,
-              left: `${(shape.x1 - window.x1) / window.percentZoomed}px`,
-              width: `2px`,
-              height: `${
-                Math.abs(
-                  Math.min(
-                    Math.min(shape.y1, shape.y2),
-                    Math.min(borderStartY, borderEndY)
-                  ) -
-                    Math.max(
-                      Math.max(shape.y1, shape.y2),
-                      Math.max(borderStartY, borderEndY)
-                    )
-                ) / window.percentZoomed
-              }px`,
-              zIndex: 99,
-            }}
-          ></div>
-        )}
-      {(borderStartX === shape.x2 || borderEndX === shape.x2) &&
-        !selectedShapes.includes(shape.id) && (
-          <div
-            style={{
-              backgroundColor: "red",
-              position: "absolute",
-              top: `${
-                (Math.min(
-                  Math.min(shape.y1, shape.y2),
-                  Math.min(borderStartY, borderEndY)
-                ) -
-                  window.y1) /
-                window.percentZoomed
-              }px`,
-              left: `${(shape.x2 - window.x1) / window.percentZoomed}px`,
-              width: `2px`,
-              height: `${
-                Math.abs(
-                  Math.min(
-                    Math.min(shape.y1, shape.y2),
-                    Math.min(borderStartY, borderEndY)
-                  ) -
-                    Math.max(
-                      Math.max(shape.y1, shape.y2),
-                      Math.max(borderStartY, borderEndY)
-                    )
-                ) / window.percentZoomed
-              }px`,
-              zIndex: 99,
-            }}
-          ></div>
-        )}
-      {(borderStartY === shape.y1 || borderEndY === shape.y1) &&
-        !selectedShapes.includes(shape.id) && (
-          <div
-            style={{
-              backgroundColor: "red",
-              position: "absolute",
-              top: `${(shape.y1 - window.y1) / window.percentZoomed}px`,
-              left: `${
-                (Math.min(
-                  Math.min(shape.x1, shape.x2),
-                  Math.min(borderStartX, borderEndX)
-                ) -
-                  window.x1) /
-                window.percentZoomed
-              }px`,
-              width: `${
-                Math.abs(
-                  Math.min(
-                    Math.min(shape.x1, shape.x2),
-                    Math.min(borderStartX, borderEndX)
-                  ) -
-                    Math.max(
-                      Math.max(shape.x1, shape.x2),
-                      Math.max(borderStartX, borderEndX)
-                    )
-                ) / window.percentZoomed
-              }px`,
+      {uniqueGuides.map((guide, index) => {
+        if (guide.type === "vertical") {
+          const screenX = worldToScreen(guide.coordinate, 0).x;
+          const screenStartY = worldToScreen(0, guide.startCoord).y;
+          const screenEndY = worldToScreen(0, guide.endCoord).y;
+          const lineHeight = Math.abs(screenEndY - screenStartY);
 
-              height: `2px`,
-              zIndex: 99,
-            }}
-          ></div>
-        )}
-      {(borderStartY === shape.y2 || borderEndY === shape.y2) &&
-        !selectedShapes.includes(shape.id) && (
-          <div
-            style={{
-              backgroundColor: "red",
-              position: "absolute",
-              top: `${(shape.y2 - window.y1) / window.percentZoomed}px`,
-              left: `${
-                (Math.min(
-                  Math.min(shape.x1, shape.x2),
-                  Math.min(borderStartX, borderEndX)
-                ) -
-                  window.x1) /
-                window.percentZoomed
-              }px`,
-              width: `${
-                Math.abs(
-                  Math.min(
-                    Math.min(shape.x1, shape.x2),
-                    Math.min(borderStartX, borderEndX)
-                  ) -
-                    Math.max(
-                      Math.max(shape.x1, shape.x2),
-                      Math.max(borderStartX, borderEndX)
-                    )
-                ) / window.percentZoomed
-              }px`,
-              height: `2px`,
-              zIndex: 99,
-            }}
-          ></div>
-        )}
-      {(shape.y1 + Math.floor(shape.height / 2) === borderStartY ||
-        shape.y1 + Math.floor(shape.height / 2) === borderEndY ||
-        shape.y1 + Math.floor(shape.height / 2) ===
-          borderStartY + Math.floor((borderEndY - borderStartY) / 2)) &&
-        !selectedShapes.includes(shape.id) && (
-          <div
-            style={{
-              position: "absolute",
-              top: `${
-                Math.floor(shape.y1 + shape.height / 2 - window.y1) /
-                window.percentZoomed
-              }px`,
-              left: `${
-                (Math.min(
-                  Math.min(shape.x1, shape.x2),
-                  Math.min(borderStartX, borderEndX)
-                ) -
-                  window.x1) /
-                window.percentZoomed
-              }px`,
-              width: `${
-                Math.abs(
-                  Math.min(
-                    Math.min(shape.x1, shape.x2),
-                    Math.min(borderStartX, borderEndX)
-                  ) -
-                    Math.max(
-                      Math.max(shape.x1, shape.x2),
-                      Math.max(borderStartX, borderEndX)
-                    )
-                ) / window.percentZoomed
-              }px`,
-              height: "2px",
-              backgroundColor: "red",
-              zIndex: 99,
-            }}
-          ></div>
-        )}
-      {(shape.x1 + Math.floor(shape.width / 2) === borderStartX ||
-        shape.x1 + Math.floor(shape.width / 2) === borderEndX ||
-        shape.x1 + Math.floor(shape.width / 2) ===
-          borderStartX + Math.floor((borderEndX - borderStartX) / 2)) &&
-        !selectedShapes.includes(shape.id) && (
-          <div
-            style={{
-              position: "absolute",
-              top: `${
-                (Math.min(
-                  Math.min(shape.y1, shape.y2),
-                  Math.min(borderStartY, borderEndY)
-                ) -
-                  window.y1) /
-                window.percentZoomed
-              }px`,
-              left: `${
-                Math.floor(shape.x1 + shape.width / 2 - window.x1) /
-                window.percentZoomed
-              }px`,
-              width: "2px",
-              height: `${
-                Math.abs(
-                  Math.min(
-                    Math.min(shape.y1, shape.y2),
-                    Math.min(borderStartY, borderEndY)
-                  ) -
-                    Math.max(
-                      Math.max(shape.y1, shape.y2),
-                      Math.max(borderStartY, borderEndY)
-                    )
-                ) / window.percentZoomed
-              }px`,
-              backgroundColor: "red",
-              zIndex: 99,
-            }}
-          ></div>
-        )}
+          return (
+            <div
+              key={`v-${index}`}
+              style={{
+                position: "absolute",
+                left: `${screenX}px`,
+                top: `${Math.min(screenStartY, screenEndY)}px`,
+                width: "2px",
+                height: `${lineHeight}px`,
+                backgroundColor: guide.color,
+                opacity: 0.8,
+                pointerEvents: "none",
+              }}
+            />
+          );
+        } else {
+          const screenY = worldToScreen(0, guide.coordinate).y;
+          const screenStartX = worldToScreen(guide.startCoord, 0).x;
+          const screenEndX = worldToScreen(guide.endCoord, 0).x;
+          const lineWidth = Math.abs(screenEndX - screenStartX);
+
+          return (
+            <div
+              key={`h-${index}`}
+              style={{
+                position: "absolute",
+                left: `${Math.min(screenStartX, screenEndX)}px`,
+                top: `${screenY}px`,
+                width: `${lineWidth}px`,
+                height: "2px",
+                backgroundColor: guide.color,
+                opacity: 0.8,
+                pointerEvents: "none",
+              }}
+            />
+          );
+        }
+      })}
     </div>
-  ));
+  );
 };
 
 export default RenderSnappingGuides;

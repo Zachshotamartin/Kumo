@@ -44,6 +44,7 @@ const MiddleLayerSide = () => {
 
       return () => unsubscribe();
     }
+    return undefined;
   }, [dispatch, user?.isAuthenticated, user?.uid]);
 
   // Create a new board
@@ -161,16 +162,25 @@ const MiddleLayerSide = () => {
       </div>
       {publicDropDown && (
         <div className={styles.boardListContainer}>
-          {publicBoards.map((board: any, index: number) => (
-            <div key={index} className={styles.board}>
-              <h6
-                className={styles.button}
-                onClick={() => handleClick(board.id)}
-              >
-                {board.title}
-              </h6>
+          {publicBoards.length === 0 ? (
+            <div className={styles.emptyState}>
+              <span className={styles.emptyMessage}>No public boards yet</span>
+              <span className={styles.emptyHint}>
+                Create one with the + button above
+              </span>
             </div>
-          ))}
+          ) : (
+            publicBoards.map((board: any, index: number) => (
+              <div key={index} className={styles.board}>
+                <h6
+                  className={styles.button}
+                  onClick={() => handleClick(board.id)}
+                >
+                  {board.title}
+                </h6>
+              </div>
+            ))
+          )}
         </div>
       )}
 
@@ -188,16 +198,25 @@ const MiddleLayerSide = () => {
       </div>
       {privateDropDown && (
         <div className={styles.boardListContainer}>
-          {privateBoards.map((board: any, index: number) => (
-            <div key={index} className={styles.board}>
-              <h6
-                className={styles.button}
-                onClick={() => handleClick(board.id)}
-              >
-                {board.title}
-              </h6>
+          {privateBoards.length === 0 ? (
+            <div className={styles.emptyState}>
+              <span className={styles.emptyMessage}>No private boards yet</span>
+              <span className={styles.emptyHint}>
+                Create one with the + button above
+              </span>
             </div>
-          ))}
+          ) : (
+            privateBoards.map((board: any, index: number) => (
+              <div key={index} className={styles.board}>
+                <h6
+                  className={styles.button}
+                  onClick={() => handleClick(board.id)}
+                >
+                  {board.title}
+                </h6>
+              </div>
+            ))
+          )}
         </div>
       )}
 
@@ -215,16 +234,25 @@ const MiddleLayerSide = () => {
       </div>
       {sharedDropDown && (
         <div className={styles.boardListContainer}>
-          {sharedBoards.map((board: any, index: number) => (
-            <div key={index} className={styles.board}>
-              <h6
-                className={styles.button}
-                onClick={() => handleClick(board.id)}
-              >
-                {board.title}
-              </h6>
+          {sharedBoards.length === 0 ? (
+            <div className={styles.emptyState}>
+              <span className={styles.emptyMessage}>No shared boards yet</span>
+              <span className={styles.emptyHint}>
+                Boards shared with you will appear here
+              </span>
             </div>
-          ))}
+          ) : (
+            sharedBoards.map((board: any, index: number) => (
+              <div key={index} className={styles.board}>
+                <h6
+                  className={styles.button}
+                  onClick={() => handleClick(board.id)}
+                >
+                  {board.title}
+                </h6>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 
 import { useSelector, useDispatch } from "react-redux";
 import styles from "./whiteBoard.module.css";
+import { ErrorBoundary } from "../ErrorBoundary";
 
 import { Shape } from "../../classes/shape";
 import { db, realtimeDb } from "../../config/firebase";
@@ -26,17 +27,14 @@ import RenderSnappingGuides from "../renderComponents/renderSnappingGuides";
 import RenderComponents from "../renderComponents/renderComponents";
 import RenderCursors from "../renderComponents/renderCursors";
 
-import {
-  initializeHistory,
-  updateHistory,
-} from "../../features/shapeHistory/shapeHistorySlice";
+import { initializeHistory } from "../../features/shapeHistory/shapeHistorySlice";
 import { handleBoardChange } from "../../helpers/handleBoardChange";
 import { ref, onValue, off } from "firebase/database"; // For listening to Realtime Database
 import _ from "lodash";
-import KeyboardEventHandler from "../eventHandlers/keyboardEventHandler";
+import EnhancedKeyboardHandler from "../eventHandlers/EnhancedKeyboardHandler";
+import ShortcutsHelpDialog from "../ui/ShortcutsHelpDialog";
 import GeneratePreview from "../../effects/generatePreview";
 import Intersections from "../../effects/intersections";
-import History from "../../effects/history";
 import DBListener from "../../effects/dbListener";
 import ComponentVisibility from "../../effects/visibilityEffects";
 
@@ -79,6 +77,7 @@ const WhiteBoard = () => {
 
   // UseStates //
   const [middle, setMiddle] = useState(false);
+  const [shortcutsHelpVisible, setShortcutsHelpVisible] = useState(false);
 
   // Use Refs //
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -96,43 +95,25 @@ const WhiteBoard = () => {
   }, []);
 
   /*
-    Middle Mouse Triggered UseEffect:
-    Responsibility -> To allow checking if the middle mouse button is pressed down.
-  */
-
-  /*
     ctrl z / ctrl shift z useEffect:
-    Responsibility -> This updates the whiteboard data to previous or next in the history
-                      when undo or redo is called and updates the data in the realtime db.
+    Responsibility -> This updates the whiteboard data when undo or redo is called 
+                      and updates the data in the realtime db.
   */
   useEffect(() => {
-    dispatch(
-      setWhiteboardData({
+    if (history?.history?.[history.currentIndex]) {
+      dispatch(
+        setWhiteboardData({
+          ...board,
+          shapes: history.history[history.currentIndex],
+        })
+      );
+
+      handleBoardChange({
         ...board,
         shapes: history.history[history.currentIndex],
-      })
-    );
-
-    handleBoardChange({
-      ...board,
-      shapes: history.history[history.currentIndex],
-    });
-  }, [history]);
-
-  /*
-    Update History useEffect:
-    Responsibility -> Updates the history state with a new board update when 
-                      a change is made. Can only happen if the no further actions
-                      such as any mouse clicks are currently occurring.
-  */
-  useEffect(() => {
-    if (!dragging && !resizing && !drawing) {
-      console.log("updating history");
-      if (shapes !== history.history[history.currentIndex]) {
-        dispatch(updateHistory(shapes));
-      }
+      });
     }
-  }, [dragging, resizing, drawing]);
+  }, [history.currentIndex]);
 
   /*
     DB update useEffect:
@@ -199,6 +180,28 @@ const WhiteBoard = () => {
     };
   }, [dispatch, selectedShapes, shapes, user]);
 
+  // Handle shortcuts help dialog toggle
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Show shortcuts help with Cmd/Ctrl + /
+      if ((event.metaKey || event.ctrlKey) && event.key === "/") {
+        event.preventDefault();
+        setShortcutsHelpVisible(true);
+      }
+      // Also handle F1 key for help
+      if (event.key === "F1") {
+        event.preventDefault();
+        setShortcutsHelpVisible(true);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   /*
     userBoards useEffect:
     Responsibility -> Gets the available boards for the user to change to.
@@ -209,16 +212,19 @@ const WhiteBoard = () => {
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         if (!querySnapshot.empty) {
           const userDoc = querySnapshot.docs[0];
-          const userData = userDoc.data();
-          setBoards({
-            privateBoards: userData.privateBoardsIds || [],
-            publicBoards: userData.publicBoardsIds || [],
-            sharedBoards: userData.sharedBoardsIds || [],
-          });
+          if (userDoc) {
+            const userData = userDoc.data();
+            setBoards({
+              privateBoards: userData.privateBoardsIds || [],
+              publicBoards: userData.publicBoardsIds || [],
+              sharedBoards: userData.sharedBoardsIds || [],
+            });
+          }
         }
       });
       return () => unsubscribe();
     }
+    return undefined;
   }, [board, user?.uid, usersCollectionRef]);
 
   return (
@@ -233,27 +239,100 @@ const WhiteBoard = () => {
       className={styles.whiteBoard}
     >
       {grid && <RenderGridLines />}
-      <RenderBoxes shapes={shapes} />
-      <RenderEllipses shapes={shapes} />
-      <RenderText shapes={shapes} />
-      <RenderImages shapes={shapes} />
-      <RenderCalendars shapes={shapes} />
-      {dragging && highlighting && <RenderHighlighting />}
-      <RenderBorder />
-      <RenderHoverBorder />
-      <RenderSnappingGuides />
-      <RenderComponents shapes={shapes} />
-      <RenderCursors />
-      <BottomBar />
 
-      {/* handlers */}
-      <KeyboardEventHandler />
+      {/* Shape rendering with error boundaries and optimization utilities */}
+      <ErrorBoundary
+        fallback={
+          <div
+            style={{ position: "absolute", top: 10, left: 10, color: "red" }}
+          >
+            ⚠️ Shape rendering error
+          </div>
+        }
+        onError={(error) => console.error("Shape rendering error:", error)}
+      >
+        <RenderBoxes shapes={shapes} />
+        <RenderEllipses shapes={shapes} />
+        <RenderText shapes={shapes} />
+        <RenderImages shapes={shapes} />
+        <RenderCalendars shapes={shapes} />
+        <RenderComponents shapes={shapes} />
+      </ErrorBoundary>
+
+      {/* UI elements with separate error boundary */}
+      <ErrorBoundary
+        fallback={
+          <div
+            style={{ position: "absolute", top: 30, left: 10, color: "orange" }}
+          >
+            ⚠️ UI rendering error
+          </div>
+        }
+      >
+        {dragging && highlighting && <RenderHighlighting />}
+        <RenderBorder />
+        <RenderHoverBorder />
+        <RenderSnappingGuides />
+        <RenderCursors />
+        <BottomBar />
+      </ErrorBoundary>
+
+      {/* Floating help button */}
+      <button
+        onClick={() => setShortcutsHelpVisible(true)}
+        style={{
+          position: "fixed",
+          bottom: "20px",
+          right: "20px",
+          width: "48px",
+          height: "48px",
+          borderRadius: "50%",
+          background: "rgba(20, 20, 25, 0.9)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.15)",
+          color: "rgba(255, 255, 255, 0.8)",
+          fontSize: "18px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 100,
+          transition: "all 0.2s ease",
+          boxShadow:
+            "0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+          fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "rgba(99, 102, 241, 0.2)";
+          e.currentTarget.style.color = "rgba(255, 255, 255, 1)";
+          e.currentTarget.style.transform = "scale(1.1)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "rgba(20, 20, 25, 0.9)";
+          e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
+          e.currentTarget.style.transform = "scale(1)";
+        }}
+        title="Keyboard Shortcuts (Cmd/Ctrl + / or F1)"
+      >
+        ?
+      </button>
+
+      {/* Enhanced keyboard handler with context menu and shortcuts */}
+      <EnhancedKeyboardHandler>
+        <div style={{ display: "none" }}></div>
+      </EnhancedKeyboardHandler>
+
+      {/* Shortcuts help dialog */}
+      <ShortcutsHelpDialog
+        visible={shortcutsHelpVisible}
+        onClose={() => setShortcutsHelpVisible(false)}
+      />
 
       {/* effects */}
       <ComponentVisibility />
       <Intersections />
       <GeneratePreview />
-      {/* <History /> */}
     </div>
   );
 };

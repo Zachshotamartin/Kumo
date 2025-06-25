@@ -39,10 +39,14 @@ const Position = () => {
         selectedShape
           ? {
               ...selectedShape,
-              x1,
-              y1,
-              x2: selectedShape ? selectedShape.x2 + x1 - selectedShape.x1 : 0,
-              y2: selectedShape ? selectedShape.y2 + y1 - selectedShape.y1 : 0,
+              x1: Math.round(x1),
+              y1: Math.round(y1),
+              x2: selectedShape
+                ? Math.round(selectedShape.x2 + x1 - selectedShape.x1)
+                : 0,
+              y2: selectedShape
+                ? Math.round(selectedShape.y2 + y1 - selectedShape.y1)
+                : 0,
             }
           : undefined,
       ],

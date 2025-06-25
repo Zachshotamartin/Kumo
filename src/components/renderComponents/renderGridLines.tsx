@@ -6,12 +6,16 @@ const RenderGridLines = () => {
 
   const horizontalGridLines: JSX.Element[] = [];
   const verticalGridLines: JSX.Element[] = [];
+  const gridSpacing = window.initialHeight / 20 / window.percentZoomed;
+  const majorGridSpacing = gridSpacing * 5; // Every 5th line is major
+
   for (
     let i =
       ((0 - window.y1) % (window.initialHeight / 20)) / window.percentZoomed;
     i < window.initialHeight * 2;
-    i += window.initialHeight / 20 / window.percentZoomed
+    i += gridSpacing
   ) {
+    const isMajorLine = Math.abs(i % majorGridSpacing) < 1;
     horizontalGridLines.push(
       <div
         key={i}
@@ -21,9 +25,11 @@ const RenderGridLines = () => {
           left: `${0}px`,
           top: `${i}px`,
           width: "100%",
-          height: `1px`,
-          backgroundColor: "white",
-          opacity: 0.1,
+          height: `${isMajorLine ? 1 : 1}px`,
+          background: isMajorLine
+            ? "rgba(255, 255, 255, 0.15)"
+            : "rgba(255, 255, 255, 0.06)",
+          pointerEvents: "none",
         }}
       ></div>
     );
@@ -33,8 +39,9 @@ const RenderGridLines = () => {
     let i =
       ((0 - window.x1) % (window.initialHeight / 20)) / window.percentZoomed;
     i < window.initialHeight * 5;
-    i += window.initialHeight / 20 / window.percentZoomed
+    i += gridSpacing
   ) {
+    const isMajorLine = Math.abs(i % majorGridSpacing) < 1;
     verticalGridLines.push(
       <div
         key={i}
@@ -43,10 +50,12 @@ const RenderGridLines = () => {
           position: "absolute",
           left: `${i}px`,
           top: `${0}px`,
-          width: `1px`,
+          width: `${isMajorLine ? 1 : 1}px`,
           height: "100%",
-          backgroundColor: "white",
-          opacity: 0.1,
+          background: isMajorLine
+            ? "rgba(255, 255, 255, 0.15)"
+            : "rgba(255, 255, 255, 0.06)",
+          pointerEvents: "none",
         }}
       ></div>
     );

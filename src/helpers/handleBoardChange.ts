@@ -19,7 +19,7 @@ const updateBoard = async (newBoard: any) => {
 
     const currentData = snapshot.val();
 
-    let updatedData = { ...currentData };
+    const updatedData = { ...currentData };
 
     // const equal = _.isEqual(updatedData.shapes || [], newBoard.shapes);
     // if (equal) {

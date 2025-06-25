@@ -1,9 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import {
-  setWhiteboardData,
-
-} from "../../features/whiteBoard/whiteBoardSlice";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { Shape } from "../../classes/shape";
 import {
   setHoverStartX,
@@ -156,7 +153,9 @@ const RenderText = (props: any) => {
                 }px`,
                 width: `${shape.width / window.percentZoomed}px`,
                 height: `${shape.height / window.percentZoomed}px`, // Ensure it has a height
-                transform: `rotate(${shape.rotation || 0}deg)`,
+                transform: `rotate(${shape.rotation || 0}deg) scaleX(${
+                  shape.flipX ? -1 : 1
+                }) scaleY(${shape.flipY ? -1 : 1})`,
                 borderRadius: `${shape.borderRadius}%`,
                 border: `${shape.borderColor} ${
                   (shape.borderWidth ?? 0) / window.percentZoomed

@@ -1,25 +1,40 @@
 .navElement {
   display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
   align-items: center;
-  margin-left: 1rem;
-  margin: 0.25rem 1rem;
-}
-
-.text {
-  vertical-align: middle;
-  margin: 0;
-  margin-left: 0.5rem;
-}
-
-.icon {
-  width: 20px;
-  height: 20px;
-  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
 }
 
 .navElement:hover {
-  cursor: pointer;
-  color: #007bff;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  transition: color 0.3s ease;
+}
+
+.navElement:hover .text {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+.navElement:hover .icon {
+  opacity: 1;
 }

@@ -17,7 +17,12 @@ const GeneratePreview = () => {
           image.src = dataUrl;
 
           // Correctly convert the dataUrl to a Blob
-          const byteString = atob(dataUrl.split(",")[1]); // Decode Base64 string
+          const base64Data = dataUrl.split(",")[1];
+          if (!base64Data) {
+            console.error("Invalid data URL format");
+            return;
+          }
+          const byteString = atob(base64Data); // Decode Base64 string
           const arrayBuffer = new ArrayBuffer(byteString.length);
           const uint8Array = new Uint8Array(arrayBuffer);
 

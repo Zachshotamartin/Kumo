@@ -64,9 +64,9 @@ const RenderEllipses = (props: any) => {
                 height: `${shape.height / window.percentZoomed}px`,
 
                 // transforms
-                transform: `rotate(${shape.rotation}deg)`,
-                // flipX?: boolean;
-                // flipY?: boolean;
+                transform: `rotate(${shape.rotation}deg) scaleX(${
+                  shape.flipX ? -1 : 1
+                }) scaleY(${shape.flipY ? -1 : 1})`,
 
                 // box styling
                 borderRadius: `${shape.borderRadius}%`,

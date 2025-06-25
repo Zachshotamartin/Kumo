@@ -1,5 +1,10 @@
 import { WindowState } from "../features/window/windowSlice";
+import { ResizeHandleDetection } from "../utils/ResizeHandleDetection";
 
+/**
+ * @deprecated Use ResizeHandleDetection.getResizeDirection() directly for better zoom-aware behavior
+ * This function is maintained for backward compatibility but will be removed in future versions
+ */
 export function changeCursor(
   x: number,
   y: number,
@@ -10,53 +15,62 @@ export function changeCursor(
   borderEndY: number,
   window: WindowState
 ): void {
-  if (window.percentZoomed) {
-    if (
-      (x >= borderEndX - 10 / window.percentZoomed &&
-        x <= borderEndX &&
-        y <= borderEndY - 10 / window.percentZoomed &&
-        y >= borderStartY + 10 / window.percentZoomed) ||
-      (x >= borderStartX &&
-        x <= borderStartX + 10 / window.percentZoomed &&
-        y <= borderEndY - 10 / window.percentZoomed &&
-        y >= borderStartY + 10 / window.percentZoomed)
-    ) {
-      (e.target as HTMLElement).style.cursor = "ew-resize";
-    } else if (
-      (y >= borderEndY - 10 / window.percentZoomed &&
-        y <= borderEndY &&
-        x <= borderEndX - 10 / window.percentZoomed &&
-        x >= borderStartX + 10 / window.percentZoomed) ||
-      (y >= borderStartY &&
-        y <= borderStartY + 10 / window.percentZoomed &&
-        x <= borderEndX - 10 / window.percentZoomed &&
-        x >= borderStartX + 10 / window.percentZoomed)
-    ) {
-      (e.target as HTMLElement).style.cursor = "ns-resize";
-    } else if (
-      (x >= borderStartX &&
-        x <= borderStartX + 10 / window.percentZoomed &&
-        y >= borderStartY &&
-        y <= borderStartY + 10 / window.percentZoomed) ||
-      (x >= borderEndX - 10 / window.percentZoomed &&
-        x <= borderEndX &&
-        y >= borderEndY - 10 / window.percentZoomed &&
-        y <= borderEndY)
-    ) {
-      (e.target as HTMLElement).style.cursor = "nwse-resize";
-    } else if (
-      (x >= borderStartX &&
-        x <= borderStartX + 10 / window.percentZoomed &&
-        y >= borderEndY - 10 / window.percentZoomed &&
-        y <= borderEndY) ||
-      (x >= borderEndX - 10 / window.percentZoomed &&
-        x <= borderEndX &&
-        y >= borderStartY &&
-        y <= borderStartY + 10 / window.percentZoomed)
-    ) {
-      (e.target as HTMLElement).style.cursor = "nesw-resize";
-    } else {
-      (e.target as HTMLElement).style.cursor = "default";
-    }
-  }
+  // Handle undefined percentZoomed by defaulting to 1.0 (100% zoom)
+  const windowWithZoom = {
+    ...window,
+    percentZoomed: window.percentZoomed ?? 1.0,
+  };
+
+  // Use the new ResizeHandleDetection utility for consistent zoom-aware behavior
+  const point = { x, y };
+  const bounds = {
+    startX: borderStartX,
+    startY: borderStartY,
+    endX: borderEndX,
+    endY: borderEndY,
+  };
+
+  const resizeResult = ResizeHandleDetection.getResizeDirection(
+    point,
+    bounds,
+    windowWithZoom
+  );
+
+  // Apply the cursor
+  (e.target as HTMLElement).style.cursor = resizeResult.cursor;
+}
+
+/**
+ * New improved cursor detection function using ResizeHandleDetection utility
+ * Provides zoom-aware cursor behavior with consistent handle sizes
+ */
+export function getZoomAwareCursor(
+  x: number,
+  y: number,
+  borderStartX: number,
+  borderEndX: number,
+  borderStartY: number,
+  borderEndY: number,
+  window: WindowState
+): string {
+  // Handle undefined percentZoomed by defaulting to 1.0 (100% zoom)
+  const windowWithZoom = {
+    ...window,
+    percentZoomed: window.percentZoomed ?? 1.0,
+  };
+
+  const point = { x, y };
+  const bounds = {
+    startX: borderStartX,
+    startY: borderStartY,
+    endX: borderEndX,
+    endY: borderEndY,
+  };
+
+  const resizeResult = ResizeHandleDetection.getResizeDirection(
+    point,
+    bounds,
+    windowWithZoom
+  );
+  return resizeResult.cursor;
 }

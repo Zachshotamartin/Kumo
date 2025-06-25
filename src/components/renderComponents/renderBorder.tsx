@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape } from "../../classes/shape";
+import { ResizeHandleDetection } from "../../utils/ResizeHandleDetection";
 
 import {
   setBorderStartX,
@@ -55,102 +56,208 @@ const RenderBorder = () => {
     dispatch(setBorderEndY(bottomY));
   }, [dispatch, selectedShapes, shapes]);
 
+  // Calculate border dimensions and position consistently
+  const borderLeft = (borderStartX - window.x1) / window.percentZoomed;
+  const borderTop = (borderStartY - window.y1) / window.percentZoomed;
+  const borderWidth =
+    Math.abs(borderEndX - borderStartX) / window.percentZoomed;
+  const borderHeight =
+    Math.abs(borderEndY - borderStartY) / window.percentZoomed;
+
+  // Use ResizeHandleDetection utility for consistent sizing across zoom levels
+  const windowWithZoom = {
+    ...window,
+    percentZoomed: window.percentZoomed ?? 1.0,
+  };
+  const debugInfo = ResizeHandleDetection.getDebugInfo(windowWithZoom);
+
+  // Convert world coordinates to screen coordinates for visual handles
+  const cornerHandleScreenSize = Math.max(
+    6,
+    Math.min(12, debugInfo.cornerHandleSize / windowWithZoom.percentZoomed)
+  );
+  const edgeHandleScreenSize = Math.max(
+    6,
+    Math.min(12, debugInfo.edgeHandleSize / windowWithZoom.percentZoomed)
+  );
+
+  // Hit areas are larger (converted from world coordinates to screen coordinates)
+  const cornerHitAreaSize = Math.max(
+    12,
+    Math.min(20, debugInfo.cornerHandleSize / windowWithZoom.percentZoomed)
+  );
+  const edgeHitAreaSize = Math.max(
+    12,
+    Math.min(20, debugInfo.edgeHandleSize / windowWithZoom.percentZoomed)
+  );
+
+  const borderPadding = 2;
+
+  // Create handles with both visual and hit area components
+  const createHandle = (
+    top: number,
+    left: number,
+    cursor: string,
+    testId?: string,
+    isEdge: boolean = false
+  ) => {
+    const visualSize = isEdge ? edgeHandleScreenSize : cornerHandleScreenSize;
+    const hitSize = isEdge ? edgeHitAreaSize : cornerHitAreaSize;
+    const visualOffset = visualSize / 2;
+    const hitAreaOffset = hitSize / 2;
+
+    return (
+      <div key={`handle-${cursor}-${testId}`}>
+        {/* Invisible hit area - larger for easier interaction */}
+        <div
+          data-testid={testId ? `hit-area-${testId}` : undefined}
+          style={{
+            position: "absolute",
+            top: `${top - hitAreaOffset}px`,
+            left: `${left - hitAreaOffset}px`,
+            width: `${hitSize}px`,
+            height: `${hitSize}px`,
+            cursor,
+            zIndex: 53,
+            backgroundColor: "transparent",
+            border: "none",
+          }}
+        />
+        {/* Visual handle - smaller and styled */}
+        <div
+          data-testid={testId ? `visual-${testId}` : undefined}
+          style={{
+            position: "absolute",
+            top: `${top - visualOffset}px`,
+            left: `${left - visualOffset}px`,
+            width: `${visualSize}px`,
+            height: `${visualSize}px`,
+            border: `2px solid rgba(99, 102, 241, 0.9)`,
+            backgroundColor: "white",
+            borderRadius: "50%",
+            boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+            zIndex: 52,
+            pointerEvents: "none", // Let the hit area handle events
+          }}
+        />
+      </div>
+    );
+  };
+
+  // Debug overlay (only in development)
+  const showDebugInfo = process.env.NODE_ENV === "development" && false; // Set to true to enable debug
+
   return (
     <>
+      {/* Selection border */}
       <div
         style={{
           position: "absolute",
-          top: `${(borderStartY - window.y1) / window.percentZoomed - 2}px`,
-          left: `${(borderStartX - window.x1) / window.percentZoomed - 2}px`,
-
-          width: `${
-            Math.abs(borderStartX - borderEndX) / window.percentZoomed + 4
-          }px`,
-          height: `${
-            Math.abs(borderStartY - borderEndY) / window.percentZoomed + 4
-          }px`,
-
-          border: `${2}px solid #007bff`,
-          backgroundColor: "transparent",
+          top: `${borderTop - borderPadding}px`,
+          left: `${borderLeft - borderPadding}px`,
+          width: `${borderWidth + borderPadding * 2}px`,
+          height: `${borderHeight + borderPadding * 2}px`,
+          border: `2px solid rgba(99, 102, 241, 0.8)`,
+          backgroundColor: "rgba(99, 102, 241, 0.05)",
+          borderRadius: "4px",
+          boxShadow:
+            "0 0 0 1px rgba(99, 102, 241, 0.2), 0 4px 12px rgba(99, 102, 241, 0.15)",
           zIndex: 51,
+          pointerEvents: "none",
         }}
-      ></div>
-      <div
-        style={{
-          position: "absolute",
-          top: `${
-            (borderStartY - window.y1 - 8 * window.percentZoomed) /
-            window.percentZoomed
-          }px`,
-          left: `${
-            (borderStartX - window.x1 - 8 * window.percentZoomed) /
-            window.percentZoomed
-          }px`,
-          width: `${16}px`,
-          height: `${16}px`,
-          border: `${2}px solid #007bff`,
-          backgroundColor: "white",
-          zIndex: 52,
-        }}
-      ></div>
-      <div
-        style={{
-          position: "absolute",
-          top: `${
-            (borderEndY - window.y1 - 8 * window.percentZoomed) /
-              window.percentZoomed +
-            4
-          }px`,
-          left: `${
-            (borderStartX - window.x1 - 8 * window.percentZoomed) /
-            window.percentZoomed
-          }px`,
-          width: `${16}px`,
-          height: `${16}px`,
-          border: `${2}px solid #007bff`,
-          backgroundColor: "white",
-          zIndex: 52,
-        }}
-      ></div>
-      <div
-        style={{
-          position: "absolute",
-          top: `${
-            (borderStartY - window.y1 - 8 * window.percentZoomed) /
-            window.percentZoomed
-          }px`,
-          left: `${
-            (borderEndX - window.x1 - 12 * window.percentZoomed) /
-              window.percentZoomed +
-            4
-          }px`,
-          width: `${16}px`,
-          height: `${16}px`,
-          border: `${2}px solid #007bff`,
-          backgroundColor: "white",
-          zIndex: 52,
-        }}
-      ></div>
-      <div
-        style={{
-          position: "absolute",
-          top: `${
-            (borderEndY - window.y1 - 8 * window.percentZoomed) /
-              window.percentZoomed +
-            4
-          }px`,
-          left: `${
-            (borderEndX - window.x1 - 12 * window.percentZoomed) /
-              window.percentZoomed +
-            4
-          }px`,
-          width: `${16}px`,
-          height: `${16}px`,
-          border: `${2}px solid blue`,
-          backgroundColor: "white",
-          zIndex: 52,
-        }}
-      ></div>
+      />
+
+      {/* Corner handles */}
+      {createHandle(
+        borderTop - borderPadding,
+        borderLeft - borderPadding,
+        "nw-resize",
+        "top-left",
+        false
+      )}
+      {createHandle(
+        borderTop - borderPadding,
+        borderLeft + borderWidth + borderPadding,
+        "ne-resize",
+        "top-right",
+        false
+      )}
+      {createHandle(
+        borderTop + borderHeight + borderPadding,
+        borderLeft - borderPadding,
+        "sw-resize",
+        "bottom-left",
+        false
+      )}
+      {createHandle(
+        borderTop + borderHeight + borderPadding,
+        borderLeft + borderWidth + borderPadding,
+        "se-resize",
+        "bottom-right",
+        false
+      )}
+
+      {/* Edge handles */}
+      {createHandle(
+        borderTop - borderPadding,
+        borderLeft + borderWidth / 2,
+        "n-resize",
+        "top-edge",
+        true
+      )}
+      {createHandle(
+        borderTop + borderHeight + borderPadding,
+        borderLeft + borderWidth / 2,
+        "s-resize",
+        "bottom-edge",
+        true
+      )}
+      {createHandle(
+        borderTop + borderHeight / 2,
+        borderLeft - borderPadding,
+        "w-resize",
+        "left-edge",
+        true
+      )}
+      {createHandle(
+        borderTop + borderHeight / 2,
+        borderLeft + borderWidth + borderPadding,
+        "e-resize",
+        "right-edge",
+        true
+      )}
+
+      {/* Debug info overlay */}
+      {showDebugInfo && (
+        <div
+          style={{
+            position: "absolute",
+            top: `${borderTop + borderHeight + 20}px`,
+            left: `${borderLeft}px`,
+            background: "rgba(0, 0, 0, 0.8)",
+            color: "white",
+            padding: "8px",
+            borderRadius: "4px",
+            fontSize: "11px",
+            fontFamily: "monospace",
+            zIndex: 60,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <div>Zoom: {(debugInfo.zoomFactor * 100).toFixed(0)}%</div>
+          <div>
+            Corner Handle: {debugInfo.cornerHandleSize.toFixed(1)}px (world)
+          </div>
+          <div>
+            Edge Handle: {debugInfo.edgeHandleSize.toFixed(1)}px (world)
+          </div>
+          <div>
+            Visual Corner: {cornerHandleScreenSize.toFixed(1)}px (screen)
+          </div>
+          <div>Hit Corner: {cornerHitAreaSize.toFixed(1)}px (screen)</div>
+          <div>Type: {debugInfo.scalingType}</div>
+        </div>
+      )}
     </>
   );
 };

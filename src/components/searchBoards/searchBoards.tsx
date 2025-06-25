@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import styles from "./searchBoards.module.css";
 import { useDispatch, useSelector } from "react-redux";
 import { setSearchTerm } from "../../features/actions/actionsSlice";

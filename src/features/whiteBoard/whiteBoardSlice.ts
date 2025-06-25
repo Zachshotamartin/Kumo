@@ -71,7 +71,12 @@ const whiteBoardSlice = createSlice({
     ) => {
       const { index, update } = action.payload;
       if (state.shapes[index]) {
-        state.shapes[index] = { ...state.shapes[index], ...update };
+        // Directly mutate the shape properties using Immer
+        Object.entries(update).forEach(([key, value]) => {
+          if (value !== undefined && state.shapes[index]) {
+            (state.shapes[index] as any)[key] = value;
+          }
+        });
       }
     },
     removeShape: (state, action: PayloadAction<Shape>) => {

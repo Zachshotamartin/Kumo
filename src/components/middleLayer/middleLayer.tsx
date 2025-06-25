@@ -49,6 +49,7 @@ const MiddleLayer = () => {
       // Return cleanup function
       return () => unsubscribe();
     }
+    return undefined;
   }, [dispatch, user?.isAuthenticated, user?.uid]);
 
   const getStorageImageById = async (id: string) => {
@@ -85,6 +86,7 @@ const MiddleLayer = () => {
     };
 
     fetchImageUrls();
+    return undefined;
   }, [publicBoards, privateBoards, sharedBoards, boardImages, dispatch]);
 
   return (

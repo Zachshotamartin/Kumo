@@ -1,74 +1,94 @@
 .leftBar {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-
-  margin-top: 0;
-  flex: 0.2;
-
-  overflow-x: hidden;
-  text-align: left;
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.02);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0;
+  overflow: hidden;
 }
 
 .title {
-  margin-bottom: 0;
+  margin: 0 0 12px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
 
 .createButton {
-  background-color: transparent;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
-  height: 100%;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
-  border: none;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.createButton:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.createButton:active {
+  transform: translateY(0);
 }
 
 .icon {
-  height: 20px;
-  width: 20px;
-  margin: 0;
-  padding: 0;
-}
-.icon:hover {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) invert(1);
   opacity: 0.8;
-  cursor: pointer;
-  transform: scale(1.1);
-  color: white;
+  transition: all 0.3s ease;
 }
+
+.createButton:hover .icon {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
 .createBoardContainer {
-   border-bottom: 1px solid #b4b4b42b; 
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  align-content: flex-start;
-  overflow-x: hidden;
-  justify-content: flex-start;
-  padding-left: 1rem;
-  padding-top: 0.5rem;
-  padding-left: 1rem;
-}
-.input {
-  padding: 0.5rem 1rem;
-  border: 1px solid #b4b4b42b;
-  border-radius: 5px;
-  background-color: #444444;
-  color: white;
-  flex: 1;
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.01);
   margin: 0;
-  margin-right: 0.5rem;
-  vertical-align: middle;
 }
 
 .buttonContainer {
   display: flex;
-  flex-direction: row;
-  justify-content: flex-start;
   align-items: center;
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  margin-right: 2rem;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: white;
+  font-size: 13px;
+  font-weight: 400;
+  transition: all 0.3s ease;
+}
+
+.input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+}
+
+.input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
 }

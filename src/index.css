@@ -1,3 +1,6 @@
+/* Import Inter font from Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
 /* Base Reset */
 *,
 *::before,
@@ -14,16 +17,16 @@ body {
   height: 100%;
   touch-action: none;
   overscroll-behavior: none;
-  background-color: #313131;
-  color: #ffffff;
-  font-family: "inter", "Roboto", BlinkMacSystemFont, "Segoe UI", "Oxygen",
-    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
     sans-serif;
-  font-size: 16px; /* Default font size for desktop */
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.5;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1;
 }
 
 /* Typography */
@@ -33,57 +36,75 @@ h3,
 h4,
 h5,
 h6 {
-  font-weight: 400;
-  line-height: 1.5;
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.01em;
 }
 
 h1 {
-  font-size: 2.5rem;
+  font-size: 2rem;
+  font-weight: 700;
 }
 
 h2 {
-  font-size: 2rem;
+  font-size: 1.75rem;
+  font-weight: 600;
 }
 
 h3 {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
 h4 {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 h5 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
+  font-weight: 600;
 }
 
 h6 {
-  font-size: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
+
 option {
-  font-size: 1rem;
+  font-size: 0.875rem;
+  background: rgba(15, 23, 42, 0.95);
+  color: white;
 }
 
 p {
-  font-size: 1rem;
+  font-size: 0.875rem;
   margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 400;
 }
 
 code {
   font-family: "Source Code Pro", Menlo, Monaco, Consolas, "Courier New",
     monospace;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.8em;
 }
 
 /* Links */
 a {
-  color: #007bff;
+  color: #64748b;
   text-decoration: none;
-  transition: color 0.2s ease-in-out;
+  transition: all 0.3s ease;
+  font-weight: 500;
 }
 
 a:hover {
-  color: #0056b3;
-  text-decoration: underline;
+  color: #94a3b8;
+  text-decoration: none;
 }
 
 /* Buttons */
@@ -93,13 +114,23 @@ input[type="submit"] {
   font: inherit;
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
-  transition: background 0.2s ease-in-out;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  font-size: 0.875rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 button:hover {
-  background-color: #0056b3;
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
 }
 
 /* Form Elements */
@@ -107,168 +138,106 @@ input,
 textarea,
 select {
   font: inherit;
-  border: 1px solid #ccc;
-  border-radius: 0.25rem;
-  padding: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.75rem;
   margin-bottom: 1rem;
   width: 100%;
-  font-size: 1rem;
+  font-size: 0.875rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: white;
+  transition: all 0.3s ease;
+  font-weight: 400;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
 }
 
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: #007bff;
+  border-color: rgba(255, 255, 255, 0.3);
   outline: none;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
 }
 
-/* Scrollbar Styles */
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Global Scrollbar Styles */
 ::-webkit-scrollbar {
-  width: 0;
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: #007bff;
-  border-radius: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #313131;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
 }
 
-/* Enable Scrollbar for Large Screens */
-@media (min-width: 1200px) {
-  ::-webkit-scrollbar {
-    width: 10px;
-  }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  transition: background 0.3s ease;
 }
 
-/* Disable Text Selection */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* Disable Text Selection for UI Elements */
 body {
-  -webkit-user-select: none; /* Safari */
-  -moz-user-select: none; /* Firefox */
-  -ms-user-select: none; /* IE/Edge */
-  user-select: none; /* Standard */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection for content */
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
 }
 
 /* Responsive Font Sizes */
 @media (max-width: 1200px) {
   html {
-    font-size: 15px;
-  }
-  h1 {
-    font-size: 2.25rem;
-  }
-  h2 {
-    font-size: 1.875rem;
-  }
-  h3 {
-    font-size: 1.625rem;
-  }
-  h4 {
-    font-size: 1.375rem;
-  }
-  h5 {
-    font-size: 1.125rem;
-  }
-  h6 {
-    font-size: 0.875rem;
-  }
-  input {
-    font-size: 0.875rem;
-  }
-  option {
-    font-size: 0.875rem;
+    font-size: 13px;
   }
 }
 
 @media (max-width: 992px) {
   html {
-    font-size: 14px;
-  }
-  h1 {
-    font-size: 2rem;
-  }
-  h2 {
-    font-size: 1.75rem;
-  }
-  h3 {
-    font-size: 1.5rem;
-  }
-  h4 {
-    font-size: 1.25rem;
-  }
-  h5 {
-    font-size: 1rem;
-  }
-  h6 {
-    font-size: 0.75rem;
-  }
-  input {
-    font-size: 0.75rem;
-  }
-  option {
-    font-size: 0.75rem;
+    font-size: 12px;
   }
 }
 
 @media (max-width: 768px) {
   html {
-    font-size: 13px;
-  }
-  h1 {
-    font-size: 1.75rem;
-  }
-  h2 {
-    font-size: 1.5rem;
-  }
-  h3 {
-    font-size: 1.25rem;
-  }
-  h4 {
-    font-size: 1rem;
-  }
-  h5 {
-    font-size: 0.875rem;
-  }
-  h6 {
-    font-size: 0.7rem;
-  }
-  input {
-    font-size: 0.7rem;
-  }
-  option {
-    font-size: 0.7rem;
+    font-size: 11px;
   }
 }
 
 @media (max-width: 576px) {
   html {
-    font-size: 12px;
-  }
-  h1 {
-    font-size: 1.5rem;
-  }
-  h2 {
-    font-size: 1.25rem;
-  }
-  h3 {
-    font-size: 1.125rem;
-  }
-  h4 {
-    font-size: 0.875rem;
-  }
-  h5 {
-    font-size: 0.75rem;
-  }
-  h6 {
-    font-size: 0.65rem;
-  }
-  input {
-    font-size: 0.65rem;
-  }
-  option {
-    font-size: 0.65rem;
+    font-size: 10px;
   }
 }

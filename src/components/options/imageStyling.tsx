@@ -23,7 +23,8 @@ const ImageStyling = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setSelectedFile(event.target.files![0]);
+    const file = event.target.files?.[0] || null;
+    setSelectedFile(file);
   };
 
   useEffect(() => {

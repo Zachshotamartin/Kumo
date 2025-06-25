@@ -98,7 +98,7 @@ const Navigation = () => {
         (curUser: any) => curUser.user !== useruid
       ),
     };
-    
+
     console.log(useruid);
     console.log(whiteboard.currentUsers[0].user);
     console.log(updatedData);
@@ -131,29 +131,25 @@ const Navigation = () => {
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
       const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-      if (
-        !userData.publicBoardsIds.some(
-          (board: any) => board.id === whiteboard.id
-        )
-      ) {
-        await updateDoc(userDoc.ref, {
-          publicBoardsIds: [
-            ...userData.publicBoardsIds,
-            {
-              id: whiteboard.id,
-              title: whiteboard.title,
-              uid: whiteboard.uid,
-              type: "public",
-            },
-          ],
-          privateBoardsIds: userData.privateBoardsIds.filter(
-            (board: any) => board.id !== whiteboard.id
-          ),
-          sharedBoardsIds: userData.sharedBoardsIds.filter(
-            (board: any) => board.id !== whiteboard.id
-          ),
-        });
+      if (userDoc) {
+        const userData = userDoc.data();
+        if (
+          !userData.publicBoardsIds.some(
+            (board: any) => board.id === whiteboard.id
+          )
+        ) {
+          await updateDoc(userDoc.ref, {
+            publicBoardsIds: [
+              ...userData.publicBoardsIds,
+              {
+                id: whiteboard.id,
+                title: whiteboard.title,
+                uid: user?.uid,
+                type: "public",
+              },
+            ],
+          });
+        }
       }
     }
     const users = await getDocs(
@@ -227,18 +223,20 @@ const Navigation = () => {
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
       const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-      await updateDoc(userDoc.ref, {
-        privateBoardsIds: [
-          ...userData.privateBoardsIds,
-          {
-            id: whiteboard.id,
-            title: whiteboard.title,
-            uid: whiteboard.uid,
-            type: "private",
-          },
-        ],
-      });
+      if (userDoc) {
+        const userData = userDoc.data();
+        await updateDoc(userDoc.ref, {
+          privateBoardsIds: [
+            ...userData.privateBoardsIds,
+            {
+              id: whiteboard.id,
+              title: whiteboard.title,
+              uid: user?.uid,
+              type: "private",
+            },
+          ],
+        });
+      }
     }
     dispatch(setSettingsOpen(false));
   };
