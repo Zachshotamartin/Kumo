@@ -26,7 +26,7 @@ This document records the initial audit themes and how the rebuild addressed the
 - Firebase session restoration, lazy route-level UI loading, and explicit loading/error/empty states.
 - Vite migration and removal of unreachable legacy subsystems and stale implementation notes.
 - Responsive, keyboard-operable auth, dashboard, toolbar, layers, canvas, inspector, menus, and dialogs.
-- One GitHub Actions pipeline for validation, tests, browser smoke coverage, trusted preview deployments, production deployment, and Firebase rules.
+- One GitHub Actions pipeline for validation, tests, browser smoke coverage, and trusted Vercel preview/production deployments, with Firebase rules released separately.
 
 ## Intentional boundaries
 

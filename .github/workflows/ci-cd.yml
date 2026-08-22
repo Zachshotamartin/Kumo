@@ -23,10 +23,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -74,8 +74,8 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -102,8 +102,8 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -112,17 +112,6 @@ jobs:
         run: yarn verify:vercel-account
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      - name: Synchronize server environment with Vercel
-        run: yarn sync:vercel-env
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}
-      - name: Deploy database and storage rules
-        run: yarn firebase deploy --only database,storage --project kumo-7d8e1 --non-interactive
       - name: Pull Vercel production configuration
         run: yarn vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build production artifacts
