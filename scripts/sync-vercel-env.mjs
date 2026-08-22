@@ -34,7 +34,7 @@ for (const [key, value] of Object.entries(variables)) {
       "env",
       "add",
       key,
-      "production,preview,development",
+      "production,preview",
       "--force",
       "--sensitive",
       "--yes",
