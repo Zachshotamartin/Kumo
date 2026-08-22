@@ -2,25 +2,17 @@
 import { configureStore } from "@reduxjs/toolkit";
 import authSlice from "./features/auth/authSlice";
 import whiteBoardSlice from "./features/whiteBoard/whiteBoardSlice";
-import windowSlice from "./features/window/windowSlice";
-import sideBarSlice from "./features/hide/hide";
-import boardsSlice from "./features/boards/boards";
 import actionsSlice from "./features/actions/actionsSlice";
 import selectedSlice from "./features/selected/selectedSlice";
-import boardImagesSlice from "./features/boardImages/boardImages";
-import shapeHistorySlice from "./features/shapeHistory/shapeHistorySlice";
+import editorSlice from "./features/editor/editorSlice";
 
 const store = configureStore({
   reducer: {
     auth: authSlice,
     whiteBoard: whiteBoardSlice,
-    window: windowSlice,
-    sideBar: sideBarSlice,
-    boards: boardsSlice,
     actions: actionsSlice,
     selected: selectedSlice,
-    boardImages: boardImagesSlice,
-    shapeHistory: shapeHistorySlice,
+    editor: editorSlice,
   },
 });
 

@@ -1,83 +1,73 @@
 import "./App.css";
-import WorkSpace from "./components/workSpace/workSpace";
-import HomePage from "./components/homepage/homePage";
+import { lazy, Suspense, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import MiddlePage from "./components/middlePage/middlePage";
-import { useEffect } from "react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "./config/firebase";
-import { setSearchableBoards } from "./features/boards/boards";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./config/firebase";
+import { login, logout, setAuthInitialized } from "./features/auth/authSlice";
+import { ensureUserProfile } from "./firebase/services/userRepository";
+import { AppDispatch, RootState } from "./store";
+
+const WorkSpace = lazy(() => import("./components/workSpace/workSpace"));
+const HomePage = lazy(() => import("./components/homepage/homePage"));
+const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
+
+const LoadingScreen = () => (
+  <div className="app-loading" role="status">
+    <span className="app-loading-mark">K</span>
+    <span>Loading Kumo</span>
+  </div>
+);
+
 function App() {
-  const user = useSelector((state: any) => state.auth);
-  const whiteBoard = useSelector((state: any) => state.whiteBoard);
-  const dispatch = useDispatch();
-
-  const boardCollectionRef = collection(db, "boards");
+  const user = useSelector((state: RootState) => state.auth);
+  const whiteBoard = useSelector((state: RootState) => state.whiteBoard);
+  const dispatch = useDispatch<AppDispatch>();
 
   useEffect(() => {
-    const preventZoom = (e: {
-      ctrlKey: any;
-      key: string;
-      type: string;
-      preventDefault: () => void;
-    }) => {
-      // Prevent zoom with Ctrl + Scroll or Ctrl + +/- keys
-      if (
-        (e.ctrlKey && (e.key === "+" || e.key === "-" || e.key === "=")) ||
-        (e.ctrlKey && e.type === "wheel")
-      ) {
-        e.preventDefault();
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) {
+        dispatch(logout());
+        return;
       }
-    };
-
-    const preventWheelZoom = (e: {
-      ctrlKey: any;
-      preventDefault: () => void;
-    }) => {
-      if (e.ctrlKey) {
-        e.preventDefault();
-      }
-    };
-
-    // Attach event listeners
-    document.addEventListener("keydown", preventZoom);
-    document.addEventListener("wheel", preventWheelZoom, { passive: false });
-
-    // Cleanup on unmount
-    return () => {
-      document.removeEventListener("keydown", preventZoom);
-      document.removeEventListener("wheel", preventWheelZoom);
-    };
-  }, []);
-  useEffect(() => {
-    const search = query(boardCollectionRef, where("type", "==", "public"));
-
-    const unsubscribe = onSnapshot(search, (querySnapshot) => {
-      const boards: any = [];
-      querySnapshot.forEach((doc) => {
-        boards.push({
-          id: doc.id,
-          title: doc.data().title,
-          uid: doc.data().uid,
-        });
-      });
-
-      dispatch(setSearchableBoards({ boards: boards }));
+      dispatch(
+        login({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email ?? "",
+        })
+      );
+      void ensureUserProfile(
+        firebaseUser.uid,
+        firebaseUser.email,
+        firebaseUser.providerData.some((profile) => profile.providerId === "google.com")
+          ? "google"
+          : "email"
+      );
     });
-
     return () => unsubscribe();
-  }, [boardCollectionRef, dispatch]);
+  }, [dispatch]);
+
+  useEffect(() => {
+    const fallback = window.setTimeout(() => dispatch(setAuthInitialized()), 5000);
+    return () => window.clearTimeout(fallback);
+  }, [dispatch]);
+
+  if (!user.isInitialized) return <LoadingScreen />;
 
   return (
-    <div className="App">
-      {!user?.isAuthenticated ? (
-        <HomePage />
-      ) : whiteBoard.id !== null ? (
-        <WorkSpace />
-      ) : (
-        <MiddlePage />
-      )}
-    </div>
+    <>
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <div className="App" id="main-content">
+        <Suspense fallback={<LoadingScreen />}>
+          {!user.isAuthenticated ? (
+            <HomePage />
+          ) : whiteBoard.id !== null ? (
+            <WorkSpace />
+          ) : (
+            <MiddlePage />
+          )}
+        </Suspense>
+      </div>
+    </>
   );
 }
 

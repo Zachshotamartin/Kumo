@@ -1,0 +1,9 @@
+.git
+.github
+coverage
+node_modules
+playwright-report
+test-results
+tests
+*.log
+gha-creds-*.json

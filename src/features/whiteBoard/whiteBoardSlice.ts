@@ -1,21 +1,27 @@
 // whiteBoardSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Shape } from "../../classes/shape";
+import { normalizeShape } from "../../editor/geometry";
 
-interface WhiteBoardState {
+export interface WhiteBoardState {
   shapes: Shape[];
   id: string | null;
   type: string | null;
   title: string | null;
   uid: string | null;
   sharedWith: string[];
+  members: Record<string, "owner" | "editor" | "viewer">;
   backGroundColor: string;
   lastChangedBy: string | null;
   currentUsers: {
     uid: string;
+    label?: string;
     cursorX: number;
     cursorY: number;
   }[];
+  schemaVersion: number;
+  revision: number;
+  updatedAt: number | null;
 }
 
 const initialState: WhiteBoardState = {
@@ -25,9 +31,13 @@ const initialState: WhiteBoardState = {
   title: null,
   uid: null,
   sharedWith: [],
+  members: {},
   backGroundColor: "#313131",
   lastChangedBy: null,
   currentUsers: [],
+  schemaVersion: 2,
+  revision: 0,
+  updatedAt: null,
 };
 
 const whiteBoardSlice = createSlice({
@@ -45,69 +55,78 @@ const whiteBoardSlice = createSlice({
         title,
         uid,
         sharedWith,
+        members,
         backGroundColor,
         currentUsers,
+        lastChangedBy,
+        schemaVersion,
+        revision,
+        updatedAt,
       } = action.payload;
 
-      state.shapes =
-        shapes?.map((shape) => {
-          return shape;
-        }) || [];
-      state.id = id || null;
-      state.type = type || null;
-      state.title = title || null;
-      state.uid = uid || null;
-      state.sharedWith = sharedWith || [];
-      state.backGroundColor = backGroundColor || "#313131";
-      state.lastChangedBy = uid || null;
-      state.currentUsers = currentUsers || [];
+      state.shapes = (shapes ?? []).map(normalizeShape);
+      state.id = id ?? null;
+      state.type = type ?? null;
+      state.title = title ?? null;
+      state.uid = uid ?? null;
+      state.sharedWith = sharedWith ?? [];
+      state.members = members ?? {};
+      state.backGroundColor = backGroundColor ?? "#313131";
+      state.lastChangedBy = lastChangedBy ?? null;
+      state.currentUsers = currentUsers ?? [];
+      state.schemaVersion = schemaVersion ?? 2;
+      state.revision = revision ?? 0;
+      state.updatedAt = updatedAt ?? null;
     },
-    addShape: (state, action: PayloadAction<Shape>) => {
-      state.shapes.push(action.payload);
-    },
-    updateShape: (
-      state,
-      action: PayloadAction<{ index: number; update: Partial<Shape> }>
-    ) => {
-      const { index, update } = action.payload;
-      if (state.shapes[index]) {
-        // Directly mutate the shape properties using Immer
-        Object.entries(update).forEach(([key, value]) => {
-          if (value !== undefined && state.shapes[index]) {
-            (state.shapes[index] as any)[key] = value;
-          }
-        });
-      }
-    },
-    removeShape: (state, action: PayloadAction<Shape>) => {
-      state.shapes = state.shapes.filter(
-        (shape, index) => shape.id !== action.payload.id
-      );
+    replaceShapes: (state, action: PayloadAction<Shape[]>) => {
+      state.shapes = action.payload.map(normalizeShape);
     },
     share: (state, action: PayloadAction<string>) => {
       if (!state.sharedWith.includes(action.payload)) {
         state.sharedWith.push(action.payload);
       }
+      state.members[action.payload] = "editor";
     },
     removeShare: (state, action: PayloadAction<string>) => {
       state.sharedWith = state.sharedWith.filter(
         (uid) => uid !== action.payload
       );
+      delete state.members[action.payload];
     },
     updateBackgroundColor: (state, action: PayloadAction<string>) => {
       state.backGroundColor = action.payload;
+    },
+    updateTitle: (state, action: PayloadAction<string>) => {
+      state.title = action.payload;
+    },
+    updateVisibility: (
+      state,
+      action: PayloadAction<"private" | "public" | "shared">
+    ) => {
+      state.type = action.payload;
+    },
+    setLastChangedBy: (state, action: PayloadAction<string | null>) => {
+      state.lastChangedBy = action.payload;
+    },
+    setCurrentUsers: (
+      state,
+      action: PayloadAction<WhiteBoardState["currentUsers"]>
+    ) => {
+      state.currentUsers = action.payload;
     },
   },
 });
 
 export const {
   setWhiteboardData,
-  addShape,
-  updateShape,
-  removeShape,
+  replaceShapes,
   share,
   removeShare,
   updateBackgroundColor,
+  updateTitle,
+  updateVisibility,
+  setLastChangedBy,
+  setCurrentUsers,
 } = whiteBoardSlice.actions;
 
 export default whiteBoardSlice.reducer;

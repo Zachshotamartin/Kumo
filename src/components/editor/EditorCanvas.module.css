@@ -1,0 +1,151 @@
+.canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.canvas:focus-visible {
+  box-shadow: inset 0 0 0 2px #ef6f4d;
+}
+
+.shapeLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.shape {
+  position: absolute;
+  box-sizing: border-box;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  transform-origin: center;
+  pointer-events: none;
+}
+
+.selectedShape {
+  will-change: left, top, width, height;
+}
+
+.textContent {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.textEditor {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  pointer-events: auto;
+}
+
+.placeholderGlyph,
+.boardLabel {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  font-weight: 700;
+}
+
+.selectionBox {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid #ef6f4d;
+  pointer-events: none;
+  z-index: 10000;
+}
+
+.resizeHandle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  background: #fffdfa;
+  border: 2px solid #ef6f4d;
+  border-radius: 2px;
+  pointer-events: auto;
+}
+
+.resizeHandle:focus-visible {
+  outline: 2px solid #fffdfa;
+  outline-offset: 2px;
+}
+
+.marquee {
+  position: absolute;
+  z-index: 9999;
+  box-sizing: border-box;
+  background: rgba(239, 111, 77, 0.13);
+  border: 1px solid rgba(239, 111, 77, 0.9);
+  pointer-events: none;
+}
+
+.remoteCursor {
+  position: absolute;
+  z-index: 12000;
+  display: flex;
+  align-items: flex-start;
+  color: #79c2ff;
+  pointer-events: none;
+}
+
+.cursorArrow {
+  font-size: 13px;
+  transform: rotate(-25deg);
+}
+
+.cursorLabel {
+  margin: 10px 0 0 2px;
+  padding: 3px 6px;
+  color: #101114;
+  font-size: 11px;
+  font-weight: 700;
+  background: #79c2ff;
+  border-radius: 3px;
+}
+
+.contextMenu {
+  position: fixed;
+  z-index: 20000;
+  display: grid;
+  width: 190px;
+  padding: 6px;
+  background: #1f2023;
+  border: 1px solid #3a3c40;
+  border-radius: 8px;
+  box-shadow: 0 16px 38px rgba(6, 7, 8, 0.38);
+}
+
+.contextMenu button {
+  min-height: 34px;
+  padding: 0 10px;
+  color: #f1f0ed;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+}
+
+.contextMenu button:hover,
+.contextMenu button:focus-visible {
+  background: #303236;
+  outline: none;
+}

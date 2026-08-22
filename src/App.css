@@ -1,38 +1,63 @@
-.App {
-  text-align: center;
+.App { min-height: 100dvh; }
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 99999;
+  padding: 10px 14px;
+  color: #17181a;
+  font-weight: 700;
+  text-decoration: none;
+  background: #fffaf4;
+  border: 2px solid #ef6f4d;
+  border-radius: 5px;
+  transform: translateY(-160%);
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
+.skip-link:focus { transform: translateY(0); }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.app-loading {
   display: flex;
-  flex-direction: column;
+  min-height: 100dvh;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  gap: 12px;
+  color: #aaa9a4;
+  font: 600 13px/1 "Avenir Next", "Segoe UI", sans-serif;
+  background: #1b1c1e;
 }
 
-.App-link {
-  color: #61dafb;
+.app-loading-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: #17181a;
+  background: #ef6f4d;
+  border-radius: 6px 6px 6px 2px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.fatal-error {
+  display: grid;
+  min-height: 100dvh;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  padding: 24px;
+  color: #f3f0e8;
+  text-align: center;
+  background: #1b1c1e;
+}
+
+.fatal-error p { margin: 0; font-size: 18px; }
+
+.fatal-error button {
+  min-height: 42px;
+  padding: 0 18px;
+  color: #17181a;
+  font-weight: 750;
+  background: #ef6f4d;
+  border: 0;
+  border-radius: 6px;
 }

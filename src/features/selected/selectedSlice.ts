@@ -1,10 +1,10 @@
 // authSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { Shape } from "../../classes/shape";
+import { EditorTool } from "../../editor/types";
 
 interface SelectedState {
-  selectedShapes: number[];
-  selectedTool: string;
+  selectedShapes: string[];
+  selectedTool: EditorTool;
   highlightStart: number[];
   highlightEnd: number[];
   borderStartX: number;
@@ -36,14 +36,16 @@ const selectedSlice = createSlice({
   name: "selected",
   initialState,
   reducers: {
-    setSelectedShapes: (state, action: PayloadAction<any>) => {
-      state.selectedShapes = action.payload;
+    setSelectedShapes: (state, action: PayloadAction<string[]>) => {
+      state.selectedShapes = [...new Set(action.payload)];
     },
-    setSelectedTool: (state, action: PayloadAction<string>) => {
+    setSelectedTool: (state, action: PayloadAction<EditorTool>) => {
       state.selectedTool = action.payload;
     },
-    addSelectedShape: (state, action: PayloadAction<any>) => {
-      state.selectedShapes.push(action.payload);
+    addSelectedShape: (state, action: PayloadAction<string>) => {
+      if (!state.selectedShapes.includes(action.payload)) {
+        state.selectedShapes.push(action.payload);
+      }
     },
     clearSelectedShapes: (state) => {
       state.selectedShapes = [];

@@ -1,0 +1,59 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "boards": {
+      "$boardId": {
+        ".read": "auth != null && (data.child('ownerId').val() === auth.uid || data.child('uid').val() === auth.uid || data.child('visibility').val() === 'public' || data.child('type').val() === 'public' || data.child('members').child(auth.uid).exists())",
+        ".write": "auth != null && ((!data.exists() && newData.child('ownerId').val() === auth.uid && newData.child('members').child(auth.uid).val() === 'owner') || data.child('ownerId').val() === auth.uid || data.child('uid').val() === auth.uid || (data.child('members').child(auth.uid).val() === 'editor' && newData.child('ownerId').val() === data.child('ownerId').val() && newData.child('visibility').val() === data.child('visibility').val() && newData.child('members').val() === data.child('members').val()))",
+        ".validate": "!newData.exists() || (newData.child('id').val() === $boardId && newData.child('ownerId').isString() && newData.child('title').isString() && newData.child('members').child(newData.child('ownerId').val()).val() === 'owner')",
+        "title": { ".validate": "newData.isString() && newData.val().length <= 120" },
+        "visibility": { ".validate": "newData.val() === 'private' || newData.val() === 'public'" },
+        "backgroundColor": { ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)" },
+        "revision": { ".validate": "newData.isNumber() && newData.val() >= data.val()" },
+        "members": {
+          "$uid": {
+            ".validate": "!newData.exists() || newData.val() === 'owner' || newData.val() === 'editor' || newData.val() === 'viewer'"
+          }
+        },
+        "shapesById": {
+          "$shapeId": {
+            ".validate": "!newData.exists() || (newData.child('id').val() === $shapeId && newData.child('type').isString() && newData.child('x1').isNumber() && newData.child('y1').isNumber() && newData.child('x2').isNumber() && newData.child('y2').isNumber())"
+          }
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "!newData.exists() || newData.child('uid').val() === auth.uid"
+      }
+    },
+    "userBoards": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$boardId": {
+          ".write": "auth != null && (auth.uid === $uid || root.child('boards').child($boardId).child('ownerId').val() === auth.uid || root.child('boards').child($boardId).child('uid').val() === auth.uid)",
+          ".validate": "!newData.exists() || (newData.child('id').val() === $boardId && newData.child('ownerId').isString() && newData.child('title').isString() && (newData.child('visibility').val() === 'private' || newData.child('visibility').val() === 'public'))"
+        }
+      }
+    },
+    "publicBoards": {
+      ".read": "auth != null",
+      "$boardId": {
+        ".write": "auth != null && (root.child('boards').child($boardId).child('ownerId').val() === auth.uid || root.child('boards').child($boardId).child('uid').val() === auth.uid)",
+        ".validate": "!newData.exists() || (newData.child('id').val() === $boardId && newData.child('visibility').val() === 'public')"
+      }
+    },
+    "presence": {
+      "$boardId": {
+        ".read": "auth != null && (root.child('boards').child($boardId).child('ownerId').val() === auth.uid || root.child('boards').child($boardId).child('uid').val() === auth.uid || root.child('boards').child($boardId).child('visibility').val() === 'public' || root.child('boards').child($boardId).child('type').val() === 'public' || root.child('boards').child($boardId).child('members').child(auth.uid).exists())",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "!newData.exists() || (newData.child('uid').val() === auth.uid && newData.child('cursorX').isNumber() && newData.child('cursorY').isNumber())"
+        }
+      }
+    }
+  }
+}

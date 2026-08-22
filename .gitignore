@@ -7,9 +7,13 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
 
 # production
 /build
+/dist
+/.vercel
 
 # misc
 .DS_Store
@@ -21,3 +25,4 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+gha-creds-*.json

@@ -1,0 +1,131 @@
+name: CI and deploy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kumo-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  EXPECTED_VERCEL_EMAIL: zachsm@alumni.stanford.edu
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Validate configuration
+        run: yarn validate:config
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Type-check
+        run: yarn typecheck
+
+      - name: Unit tests
+        run: yarn test
+
+      - name: Production build
+        run: yarn build
+
+      - name: Install Playwright Chromium
+        run: yarn playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        run: yarn test:e2e
+
+      - name: Upload browser report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  preview:
+    name: Vercel preview
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: preview
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - name: Verify Vercel account
+        run: yarn verify:vercel-account
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Pull Vercel preview configuration
+        run: yarn vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build preview artifacts
+        run: yarn vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy preview artifacts
+        run: yarn vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+
+  production:
+    name: Vercel production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - name: Verify Vercel account
+        run: yarn verify:vercel-account
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Synchronize server environment with Vercel
+        run: yarn sync:vercel-env
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}
+      - name: Deploy database and storage rules
+        run: yarn firebase deploy --only database,storage --project kumo-7d8e1 --non-interactive
+      - name: Pull Vercel production configuration
+        run: yarn vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build production artifacts
+        run: yarn vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy production artifacts
+        run: yarn vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
