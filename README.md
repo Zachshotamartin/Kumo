@@ -55,7 +55,7 @@ yarn test:e2e
 
 The project deliberately remains a React/Vite SPA. A canvas editor is client-heavy and does not benefit enough from a Next.js migration to justify the added framework complexity. Vercel still provides CDN hosting, preview deployments, and serverless functions for the few privileged operations.
 
-GitHub Actions runs validation, linting, type-checking, unit tests, a production build, and browser smoke tests before it deploys. Pull requests receive Vercel previews and pushes to `main` deploy production. Vercel's repository-triggered deployments are disabled so GitHub Actions is the only deployment authority. The pipeline rejects any Vercel token that is not owned by `zachsm@alumni.stanford.edu`.
+GitHub Actions runs validation, linting, type-checking, unit tests, a production build, and browser smoke tests before it deploys. All changes reach the protected `main` branch through pull requests. Pull requests receive Vercel previews; merging a passing pull request deploys production. Vercel's repository-triggered deployments are disabled so GitHub Actions is the only deployment authority. The pipeline rejects any Vercel token that is not owned by `zachsm@alumni.stanford.edu`.
 
 See [Deployment](docs/deployment.md), [Architecture](docs/architecture.md), and [Review notes](docs/code-review.md) for the full setup and design decisions.
 

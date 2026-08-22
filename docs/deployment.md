@@ -35,11 +35,13 @@ Create GitHub environments named `preview` and `production`. Add these repositor
 
 The workflow calls Vercel's current-user API before every deployment and fails unless the token email is `zachsm@alumni.stanford.edu`. Keep Vercel's automatic Git deployment disabled; `vercel.json` enforces this even though the project is linked to GitHub, making GitHub Actions the single deployment authority.
 
+The `main` branch is protected for administrators and contributors. Changes must arrive through a pull request, the branch must be current, `Quality gates` and `Vercel preview` must pass, and review conversations must be resolved. Direct pushes, force pushes, and branch deletion are blocked.
+
 ## 4. Delivery flow
 
-- Every pull request: config validation, lint, type-check, unit tests, build, Chromium smoke test.
+- Every pull request: config validation, lint, type-check, unit tests, build, and desktop/mobile Chromium smoke tests.
 - Same-repository pull request after quality gates: Vercel Preview deployment.
-- Push to `main` after quality gates: Vercel Production deployment.
+- Merge of a passing pull request to protected `main`: Vercel Production deployment.
 - Fork pull requests never receive deployment secrets and therefore do not deploy previews.
 
 The workflow follows Vercel's supported `vercel pull` → `vercel build` → `vercel deploy --prebuilt` sequence.
