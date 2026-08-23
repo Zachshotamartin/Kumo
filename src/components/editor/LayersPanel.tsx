@@ -47,8 +47,11 @@ const LayersPanel = () => {
                   onClick={(event) => {
                     if (event.shiftKey) {
                       const next = new Set(selectedIds);
-                      if (next.has(shape.id)) next.delete(shape.id);
-                      else next.add(shape.id);
+                      const groupIds = shape.groupId
+                        ? board.shapes.filter((item) => item.groupId === shape.groupId).map((item) => item.id)
+                        : [shape.id];
+                      const removing = groupIds.every((id) => next.has(id));
+                      groupIds.forEach((id) => (removing ? next.delete(id) : next.add(id)));
                       dispatch(setSelectedShapes([...next]));
                     } else {
                       const groupIds = shape.groupId

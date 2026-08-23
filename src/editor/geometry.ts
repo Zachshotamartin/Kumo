@@ -1,5 +1,13 @@
 import { Shape } from "../classes/shape";
-import { Bounds, Point, ResizeHandle, ResizeOptions, Viewport } from "./types";
+import {
+  Bounds,
+  Point,
+  ResizeHandle,
+  ResizeOptions,
+  ResizeTransform,
+  SelectionFrame,
+  Viewport,
+} from "./types";
 
 const EPSILON = 0.0001;
 
@@ -75,7 +83,7 @@ export const zoomAtPoint = (
   };
 };
 
-const rotatePoint = (point: Point, center: Point, degrees: number): Point => {
+export const rotatePoint = (point: Point, center: Point, degrees: number): Point => {
   const radians = (degrees * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -86,6 +94,51 @@ const rotatePoint = (point: Point, center: Point, degrees: number): Point => {
     x: center.x + dx * cos - dy * sin,
     y: center.y + dx * sin + dy * cos,
   };
+};
+
+const boundsCenter = (bounds: Bounds): Point => ({
+  x: bounds.x + bounds.width / 2,
+  y: bounds.y + bounds.height / 2,
+});
+
+export const shapeVisualBounds = (shape: Shape): Bounds => {
+  const bounds = shapeBounds(shape);
+  const rotation = shape.rotation ?? 0;
+  if (Math.abs(rotation) < EPSILON) return bounds;
+
+  const center = boundsCenter(bounds);
+  if (shape.type === "ellipse") {
+    const radians = (rotation * Math.PI) / 180;
+    const radiusX = bounds.width / 2;
+    const radiusY = bounds.height / 2;
+    const halfWidth = Math.sqrt(
+      (radiusX * Math.cos(radians)) ** 2 +
+      (radiusY * Math.sin(radians)) ** 2
+    );
+    const halfHeight = Math.sqrt(
+      (radiusX * Math.sin(radians)) ** 2 +
+      (radiusY * Math.cos(radians)) ** 2
+    );
+    return {
+      x: center.x - halfWidth,
+      y: center.y - halfHeight,
+      width: halfWidth * 2,
+      height: halfHeight * 2,
+    };
+  }
+
+  const corners = [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+    { x: bounds.x, y: bounds.y + bounds.height },
+  ].map((point) => rotatePoint(point, center, rotation));
+  const left = Math.min(...corners.map((point) => point.x));
+  const right = Math.max(...corners.map((point) => point.x));
+  const top = Math.min(...corners.map((point) => point.y));
+  const bottom = Math.max(...corners.map((point) => point.y));
+
+  return { x: left, y: top, width: right - left, height: bottom - top };
 };
 
 export const pointInShape = (point: Point, shape: Shape): boolean => {
@@ -110,9 +163,13 @@ export const pointInShape = (point: Point, shape: Shape): boolean => {
 };
 
 export const hitTest = (shapes: Shape[], point: Point): Shape | undefined =>
-  [...shapes]
-    .sort((a, b) => b.zIndex - a.zIndex)
-    .find((shape) => pointInShape(point, shape));
+  shapes
+    .map((shape, index) => ({ shape, index }))
+    .sort((left, right) =>
+      right.shape.zIndex - left.shape.zIndex || right.index - left.index
+    )
+    .find(({ shape }) => pointInShape(point, shape))
+    ?.shape;
 
 export const selectionBounds = (
   shapes: Shape[],
@@ -124,7 +181,7 @@ export const selectionBounds = (
   if (selected.length === 0) return null;
 
   const edges = selected.map((shape) => {
-    const bounds = shapeBounds(shape);
+    const bounds = shapeVisualBounds(shape);
     return {
       left: bounds.x,
       top: bounds.y,
@@ -138,6 +195,25 @@ export const selectionBounds = (
   const bottom = Math.max(...edges.map((edge) => edge.bottom));
 
   return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
+export const selectionFrame = (
+  shapes: Shape[],
+  selectedIds: readonly string[]
+): SelectionFrame | null => {
+  const selected = shapes.filter(
+    (shape) => selectedIds.includes(shape.id) && !shape.hidden
+  );
+  if (selected.length === 0) return null;
+  if (selected.length === 1) {
+    return {
+      bounds: shapeBounds(selected[0]!),
+      rotation: selected[0]!.rotation ?? 0,
+    };
+  }
+
+  const bounds = selectionBounds(shapes, selectedIds);
+  return bounds ? { bounds, rotation: 0 } : null;
 };
 
 export const shapesInMarquee = (
@@ -155,7 +231,7 @@ export const shapesInMarquee = (
   return shapes
     .filter((shape) => {
       if (shape.hidden || shape.locked) return false;
-      const bounds = shapeBounds(shape);
+      const bounds = shapeVisualBounds(shape);
       return (
         bounds.x <= marquee.right &&
         bounds.x + bounds.width >= marquee.left &&
@@ -177,36 +253,45 @@ export const moveShapesFromBaseline = (
     y: gridSize > 0 ? Math.round(delta.y / gridSize) * gridSize : delta.y,
   };
 
+  const translateShape = (shape: Shape): Shape => ({
+    ...shape,
+    x1: shape.x1 + snappedDelta.x,
+    x2: shape.x2 + snappedDelta.x,
+    y1: shape.y1 + snappedDelta.y,
+    y2: shape.y2 + snappedDelta.y,
+    ...(shape.shapes
+      ? { shapes: shape.shapes.map(translateShape) }
+      : {}),
+  });
+
   return baseline.map((shape) => {
     if (!selectedIds.includes(shape.id) || shape.locked) return shape;
-    const movedChildren = shape.shapes?.map((child) => ({
-      ...child,
-      x1: child.x1 + snappedDelta.x,
-      x2: child.x2 + snappedDelta.x,
-      y1: child.y1 + snappedDelta.y,
-      y2: child.y2 + snappedDelta.y,
-    }));
-
-    return {
-      ...shape,
-      x1: shape.x1 + snappedDelta.x,
-      x2: shape.x2 + snappedDelta.x,
-      y1: shape.y1 + snappedDelta.y,
-      y2: shape.y2 + snappedDelta.y,
-      ...(movedChildren ? { shapes: movedChildren } : {}),
-    };
+    return translateShape(shape);
   });
 };
 
 const handleIncludes = (handle: ResizeHandle, edge: "n" | "e" | "s" | "w") =>
   handle.includes(edge);
 
-export const resizeBounds = (
+const clampSignedScale = (scale: number, minimumMagnitude: number): number => {
+  const sign = scale < 0 ? -1 : 1;
+  return sign * Math.max(Math.abs(scale), minimumMagnitude);
+};
+
+const snapCoordinate = (coordinate: number, gridSize = 0): number =>
+  gridSize > 0 ? Math.round(coordinate / gridSize) * gridSize : coordinate;
+
+export const snapPointToGrid = (point: Point, gridSize = 0): Point => ({
+  x: snapCoordinate(point.x, gridSize),
+  y: snapCoordinate(point.y, gridSize),
+});
+
+export const resizeTransform = (
   original: Bounds,
   handle: ResizeHandle,
   pointer: Point,
   options: ResizeOptions = {}
-): Bounds => {
+): ResizeTransform => {
   const minimumSize = options.minimumSize ?? 1;
   const left = original.x;
   const right = original.x + original.width;
@@ -215,85 +300,142 @@ export const resizeBounds = (
   const centerX = left + original.width / 2;
   const centerY = top + original.height / 2;
 
-  let nextLeft = handleIncludes(handle, "w") ? pointer.x : left;
-  let nextRight = handleIncludes(handle, "e") ? pointer.x : right;
-  let nextTop = handleIncludes(handle, "n") ? pointer.y : top;
-  let nextBottom = handleIncludes(handle, "s") ? pointer.y : bottom;
-
-  if (options.fromCenter) {
-    if (handleIncludes(handle, "w") || handleIncludes(handle, "e")) {
-      const halfWidth = Math.abs(pointer.x - centerX);
-      nextLeft = centerX - halfWidth;
-      nextRight = centerX + halfWidth;
-    }
-    if (handleIncludes(handle, "n") || handleIncludes(handle, "s")) {
-      const halfHeight = Math.abs(pointer.y - centerY);
-      nextTop = centerY - halfHeight;
-      nextBottom = centerY + halfHeight;
-    }
-  }
-
-  let width = Math.max(minimumSize, Math.abs(nextRight - nextLeft));
-  let height = Math.max(minimumSize, Math.abs(nextBottom - nextTop));
-
-  if (options.lockAspectRatio && original.height > EPSILON) {
-    const ratio = original.width / original.height;
-    const changesWidth = handleIncludes(handle, "w") || handleIncludes(handle, "e");
-    const changesHeight = handleIncludes(handle, "n") || handleIncludes(handle, "s");
-
-    if (changesWidth && changesHeight) {
-      const widthScale = width / Math.max(original.width, EPSILON);
-      const heightScale = height / Math.max(original.height, EPSILON);
-      const scale = Math.max(widthScale, heightScale);
-      width = Math.max(minimumSize, original.width * scale);
-      height = Math.max(minimumSize, original.height * scale);
-    } else if (changesWidth) {
-      height = Math.max(minimumSize, width / ratio);
-    } else {
-      width = Math.max(minimumSize, height * ratio);
-    }
-  }
-
-  const horizontalAnchor = options.fromCenter
+  const changesX = handleIncludes(handle, "w") || handleIncludes(handle, "e");
+  const changesY = handleIncludes(handle, "n") || handleIncludes(handle, "s");
+  let originX = options.fromCenter
     ? centerX
     : handleIncludes(handle, "w")
     ? right
     : left;
-  const verticalAnchor = options.fromCenter
+  let originY = options.fromCenter
     ? centerY
     : handleIncludes(handle, "n")
     ? bottom
     : top;
+  const pointerX = snapCoordinate(pointer.x, options.gridSize);
+  const pointerY = snapCoordinate(pointer.y, options.gridSize);
+  const horizontalSpan = options.fromCenter ? original.width / 2 : original.width;
+  const verticalSpan = options.fromCenter ? original.height / 2 : original.height;
+  let scaleX = changesX
+    ? handleIncludes(handle, "w")
+      ? (originX - pointerX) / Math.max(horizontalSpan, EPSILON)
+      : (pointerX - originX) / Math.max(horizontalSpan, EPSILON)
+    : 1;
+  let scaleY = changesY
+    ? handleIncludes(handle, "n")
+      ? (originY - pointerY) / Math.max(verticalSpan, EPSILON)
+      : (pointerY - originY) / Math.max(verticalSpan, EPSILON)
+    : 1;
 
-  if (handleIncludes(handle, "w")) {
-    nextLeft = options.fromCenter ? horizontalAnchor - width / 2 : horizontalAnchor - width;
-    nextRight = options.fromCenter ? horizontalAnchor + width / 2 : horizontalAnchor;
-  } else if (handleIncludes(handle, "e")) {
-    nextLeft = options.fromCenter ? horizontalAnchor - width / 2 : horizontalAnchor;
-    nextRight = options.fromCenter ? horizontalAnchor + width / 2 : horizontalAnchor + width;
-  } else if (options.lockAspectRatio) {
-    nextLeft = centerX - width / 2;
-    nextRight = centerX + width / 2;
+  const minimumScaleX = minimumSize / Math.max(original.width, EPSILON);
+  const minimumScaleY = minimumSize / Math.max(original.height, EPSILON);
+
+  if (options.lockAspectRatio) {
+    if (changesX && changesY) {
+      const magnitude = Math.max(
+        Math.abs(scaleX),
+        Math.abs(scaleY),
+        minimumScaleX,
+        minimumScaleY
+      );
+      scaleX = (scaleX < 0 ? -1 : 1) * magnitude;
+      scaleY = (scaleY < 0 ? -1 : 1) * magnitude;
+    } else if (changesX) {
+      scaleX = clampSignedScale(scaleX, Math.max(minimumScaleX, minimumScaleY));
+      scaleY = Math.abs(scaleX);
+      originY = centerY;
+    } else {
+      scaleY = clampSignedScale(scaleY, Math.max(minimumScaleX, minimumScaleY));
+      scaleX = Math.abs(scaleY);
+      originX = centerX;
+    }
+  } else {
+    if (changesX) scaleX = clampSignedScale(scaleX, minimumScaleX);
+    if (changesY) scaleY = clampSignedScale(scaleY, minimumScaleY);
   }
 
-  if (handleIncludes(handle, "n")) {
-    nextTop = options.fromCenter ? verticalAnchor - height / 2 : verticalAnchor - height;
-    nextBottom = options.fromCenter ? verticalAnchor + height / 2 : verticalAnchor;
-  } else if (handleIncludes(handle, "s")) {
-    nextTop = options.fromCenter ? verticalAnchor - height / 2 : verticalAnchor;
-    nextBottom = options.fromCenter ? verticalAnchor + height / 2 : verticalAnchor + height;
-  } else if (options.lockAspectRatio) {
-    nextTop = centerY - height / 2;
-    nextBottom = centerY + height / 2;
-  }
-
-  return {
-    x: Math.min(nextLeft, nextRight),
-    y: Math.min(nextTop, nextBottom),
-    width: Math.abs(nextRight - nextLeft),
-    height: Math.abs(nextBottom - nextTop),
+  const mappedLeft = originX + (left - originX) * scaleX;
+  const mappedRight = originX + (right - originX) * scaleX;
+  const mappedTop = originY + (top - originY) * scaleY;
+  const mappedBottom = originY + (bottom - originY) * scaleY;
+  const bounds = {
+    x: Math.min(mappedLeft, mappedRight),
+    y: Math.min(mappedTop, mappedBottom),
+    width: Math.abs(mappedRight - mappedLeft),
+    height: Math.abs(mappedBottom - mappedTop),
   };
+
+  return { bounds, origin: { x: originX, y: originY }, scaleX, scaleY };
 };
+
+export const resizeBounds = (
+  original: Bounds,
+  handle: ResizeHandle,
+  pointer: Point,
+  options: ResizeOptions = {}
+): Bounds => resizeTransform(original, handle, pointer, options).bounds;
+
+export const resizeTransformForFrame = (
+  frame: SelectionFrame,
+  handle: ResizeHandle,
+  pointer: Point,
+  options: ResizeOptions = {}
+): ResizeTransform => {
+  const center = boundsCenter(frame.bounds);
+  const localPointer = Math.abs(frame.rotation) < EPSILON
+    ? pointer
+    : rotatePoint(pointer, center, -frame.rotation);
+  return resizeTransform(frame.bounds, handle, localPointer, options);
+};
+
+const normalizeDegrees = (degrees: number): number => {
+  const normalized = ((degrees + 180) % 360 + 360) % 360 - 180;
+  return Math.abs(normalized) < EPSILON ? 0 : normalized;
+};
+
+const applyResizeTransform = (
+  shape: Shape,
+  transform: ResizeTransform,
+  reflectRotation: boolean
+): Shape => {
+  const bounds = shapeBounds(shape);
+  const mappedLeft = transform.origin.x + (bounds.x - transform.origin.x) * transform.scaleX;
+  const mappedRight = transform.origin.x + (bounds.x + bounds.width - transform.origin.x) * transform.scaleX;
+  const mappedTop = transform.origin.y + (bounds.y - transform.origin.y) * transform.scaleY;
+  const mappedBottom = transform.origin.y + (bounds.y + bounds.height - transform.origin.y) * transform.scaleY;
+  let rotation = shape.rotation ?? 0;
+  if (reflectRotation && transform.scaleX < 0) rotation = -rotation;
+  if (reflectRotation && transform.scaleY < 0) rotation = -rotation;
+
+  return normalizeShape({
+    ...shape,
+    x1: Math.min(mappedLeft, mappedRight),
+    x2: Math.max(mappedLeft, mappedRight),
+    y1: Math.min(mappedTop, mappedBottom),
+    y2: Math.max(mappedTop, mappedBottom),
+    rotation: normalizeDegrees(rotation),
+    flipX: transform.scaleX < 0 ? !shape.flipX : shape.flipX,
+    flipY: transform.scaleY < 0 ? !shape.flipY : shape.flipY,
+    ...(shape.shapes
+      ? {
+          shapes: shape.shapes.map((child) =>
+            applyResizeTransform(child, transform, reflectRotation)
+          ),
+        }
+      : {}),
+  });
+};
+
+export const resizeShapesWithTransform = (
+  baseline: Shape[],
+  selectedIds: readonly string[],
+  transform: ResizeTransform
+): Shape[] =>
+  baseline.map((shape) =>
+    selectedIds.includes(shape.id) && !shape.locked
+      ? applyResizeTransform(shape, transform, true)
+      : shape
+  );
 
 export const resizeShapesFromBaseline = (
   baseline: Shape[],
@@ -312,20 +454,19 @@ export const resizeShapesFromBaseline = (
 
   const resizeShape = (shape: Shape): Shape => {
     const bounds = shapeBounds(shape);
-    const relativeLeft = bounds.x - originalSelectionBounds.x;
-    const relativeTop = bounds.y - originalSelectionBounds.y;
     const nextBounds = {
-      x: nextSelectionBounds.x + relativeLeft * scaleX,
-      y: nextSelectionBounds.y + relativeTop * scaleY,
+      x:
+        nextSelectionBounds.x +
+        (bounds.x - originalSelectionBounds.x) * scaleX,
+      y:
+        nextSelectionBounds.y +
+        (bounds.y - originalSelectionBounds.y) * scaleY,
       width: Math.max(1, bounds.width * scaleX),
       height: Math.max(1, bounds.height * scaleY),
     };
-
     return normalizeShape({
       ...shape,
       ...boundsToEdges(nextBounds),
-      width: nextBounds.width,
-      height: nextBounds.height,
       ...(shape.shapes
         ? { shapes: shape.shapes.map(resizeShape) }
         : {}),
@@ -334,6 +475,88 @@ export const resizeShapesFromBaseline = (
 
   return baseline.map((shape) =>
     selectedIds.includes(shape.id) && !shape.locked ? resizeShape(shape) : shape
+  );
+};
+
+export const resizeSelectionFromPointer = (
+  baseline: Shape[],
+  selectedIds: readonly string[],
+  frame: SelectionFrame,
+  handle: ResizeHandle,
+  pointer: Point,
+  options: ResizeOptions = {}
+): Shape[] => {
+  const selected = baseline.filter(
+    (shape) => selectedIds.includes(shape.id) && !shape.locked && !shape.hidden
+  );
+  if (selected.length !== 1 || Math.abs(frame.rotation) < EPSILON) {
+    return resizeShapesWithTransform(
+      baseline,
+      selectedIds,
+      resizeTransformForFrame(frame, handle, pointer, options)
+    );
+  }
+
+  const shape = selected[0]!;
+  const originalCenter = boundsCenter(frame.bounds);
+  const transform = resizeTransformForFrame(frame, handle, pointer, options);
+  const localCenter = boundsCenter(transform.bounds);
+  const worldCenter = rotatePoint(localCenter, originalCenter, frame.rotation);
+  const nextBounds = {
+    x: worldCenter.x - transform.bounds.width / 2,
+    y: worldCenter.y - transform.bounds.height / 2,
+    width: transform.bounds.width,
+    height: transform.bounds.height,
+  };
+
+  return baseline.map((candidate) =>
+    candidate.id === shape.id
+      ? normalizeShape({
+          ...candidate,
+          ...boundsToEdges(nextBounds),
+          flipX: transform.scaleX < 0 ? !candidate.flipX : candidate.flipX,
+          flipY: transform.scaleY < 0 ? !candidate.flipY : candidate.flipY,
+        })
+      : candidate
+  );
+};
+
+const shapeCenter = (shape: Shape): Point => boundsCenter(shapeBounds(shape));
+
+const rotateShapeAround = (shape: Shape, center: Point, degrees: number): Shape => {
+  const bounds = shapeBounds(shape);
+  const nextCenter = rotatePoint(shapeCenter(shape), center, degrees);
+  return normalizeShape({
+    ...shape,
+    x1: nextCenter.x - bounds.width / 2,
+    y1: nextCenter.y - bounds.height / 2,
+    x2: nextCenter.x + bounds.width / 2,
+    y2: nextCenter.y + bounds.height / 2,
+    rotation: normalizeDegrees((shape.rotation ?? 0) + degrees),
+    ...(shape.shapes
+      ? { shapes: shape.shapes.map((child) => rotateShapeAround(child, center, degrees)) }
+      : {}),
+  });
+};
+
+export const rotateShapesFromBaseline = (
+  baseline: Shape[],
+  selectedIds: readonly string[],
+  selection: Bounds,
+  start: Point,
+  pointer: Point,
+  snapIncrement = 0
+): Shape[] => {
+  const center = boundsCenter(selection);
+  const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
+  const pointerAngle = Math.atan2(pointer.y - center.y, pointer.x - center.x);
+  let degrees = ((pointerAngle - startAngle) * 180) / Math.PI;
+  if (snapIncrement > 0) degrees = Math.round(degrees / snapIncrement) * snapIncrement;
+
+  return baseline.map((shape) =>
+    selectedIds.includes(shape.id) && !shape.locked
+      ? rotateShapeAround(shape, center, degrees)
+      : shape
   );
 };
 

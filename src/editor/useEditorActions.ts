@@ -2,16 +2,18 @@ import { LiveObject, LsonObject } from "@liveblocks/client";
 import { useCanRedo, useCanUndo, useHistory, useMutation } from "@liveblocks/react";
 import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { createShapeId, Shape } from "../classes/shape";
+import { Shape } from "../classes/shape";
 import {
   alignShapes,
   AlignMode,
+  copyShapes,
   deleteShapes,
   distributeShapes,
   duplicateShapes,
   groupShapes,
   orderShapes,
   OrderMode,
+  pasteShapes,
   patchShapes,
   ungroupShapes,
 } from "./commands";
@@ -132,7 +134,8 @@ export const useEditorActions = () => {
   }, [board.shapes, commitShapes, dispatch, selectedIds]);
 
   const copySelected = useCallback(() => {
-    dispatch(setClipboard(board.shapes.filter((shape) => selectedIds.includes(shape.id))));
+    if (selectedIds.length === 0) return;
+    dispatch(setClipboard(copyShapes(board.shapes, selectedIds)));
   }, [board.shapes, dispatch, selectedIds]);
 
   const cutSelected = useCallback(() => {
@@ -148,26 +151,10 @@ export const useEditorActions = () => {
 
   const paste = useCallback(() => {
     if (editor.clipboard.length === 0) return;
-    const highestZ = board.shapes.reduce((value, shape) => Math.max(value, shape.zIndex), 0);
-    const groupMap = new Map<string, string>();
-    const pasted = editor.clipboard.map((shape, index) => {
-      const sourceGroup = shape.groupId;
-      if (sourceGroup && !groupMap.has(sourceGroup)) groupMap.set(sourceGroup, createShapeId());
-      return normalizeShape({
-        ...shape,
-        id: createShapeId(),
-        name: `${shape.name ?? shape.type} copy`,
-        groupId: sourceGroup ? groupMap.get(sourceGroup) ?? null : null,
-        x1: shape.x1 + 24,
-        x2: shape.x2 + 24,
-        y1: shape.y1 + 24,
-        y2: shape.y2 + 24,
-        zIndex: highestZ + index + 1,
-      });
-    });
-    commitShapes([...board.shapes, ...pasted]);
-    dispatch(setSelectedShapes(pasted.map((shape) => shape.id)));
-    dispatch(setClipboard(pasted));
+    const result = pasteShapes(board.shapes, editor.clipboard);
+    commitShapes(result.shapes);
+    dispatch(setSelectedShapes(result.pastedIds));
+    dispatch(setClipboard(result.pasted));
   }, [board.shapes, commitShapes, dispatch, editor.clipboard]);
 
   const orderSelected = useCallback(
