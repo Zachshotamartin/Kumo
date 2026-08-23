@@ -183,8 +183,10 @@ export const reparentAfterMove = (
   };
   const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
   const excluded = new Set([...roots, ...descendantIds(shapes, roots)]);
+  const selectedPageId = byId.get(roots[0]!)?.pageId ?? "page:default";
   const candidate = frameAtPoint(shapes, center, excluded);
   const target = candidate &&
+    (candidate.pageId ?? "page:default") === selectedPageId &&
     bounds.width <= shapeBounds(candidate).width &&
     bounds.height <= shapeBounds(candidate).height
     ? candidate.id
@@ -199,6 +201,7 @@ export const adoptContainedShapes = (shapes: Shape[], frameId: string): Shape[] 
   const frameBounds = shapeBounds(frame);
   const candidates = shapes.filter((shape) =>
     shape.id !== frameId &&
+    (shape.pageId ?? "page:default") === (frame.pageId ?? "page:default") &&
     shape.parentId === (frame.parentId ?? null) &&
     !shape.locked &&
     boundsContainBounds(frameBounds, shapeBounds(shape))

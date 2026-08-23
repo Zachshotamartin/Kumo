@@ -7,10 +7,17 @@ The interactive logo runtime is self-hosted at `public/embed/kumo-logo.js`, buil
 ## What works
 
 - Rectangle, ellipse, text, and image layers
-- Multi-select, marquee selection, grouping, duplication, locking, hiding, and z-ordering
+- Pen/vector layers, boolean groups, masks, gradients, shadows, blur, and blend modes
+- Multi-select, marquee selection, grouping, framing, sections, duplication, locking, hiding, and z-ordering
 - Move, resize, rotate, align, distribute, snap-to-grid, pan, and cursor-anchored zoom
+- Auto layout, wrapping, constraints, hug/fill sizing, rulers, guides, and distance measurement
+- Components, nested instances, variants, shared styles, variables, and overrides
+- Multi-page documents, command search, inspect/code handoff, and validated SVG/PNG/PDF/Kumo exports
+- Interactive prototypes with presentation mode, transitions, board links, and URLs
 - Board-scoped undo/redo with correct history branching
 - Copy, cut, paste, keyboard shortcuts, context menus, layers, and inspector controls
+- Anchored live comments, mentions, replies, reactions, resolution, presence, following, and spotlight
+- Named checkpoints, visual version previews, recovery-point restores, and isolated design branches
 - Owner/editor/viewer roles, secure email invites, presence, and remote cursors
 - Private/public boards, public-board discovery, board copying, and legacy-board migration
 - Responsive authentication, dashboard, and editor layouts
@@ -40,6 +47,7 @@ yarn validate:config
 yarn lint
 yarn typecheck
 yarn test
+yarn test:coverage
 yarn build
 yarn playwright install chromium
 yarn test:e2e
@@ -49,7 +57,7 @@ yarn test:e2e
 
 | Action | Shortcut |
 | --- | --- |
-| Select / hand / rectangle / ellipse / text / image | `V` / `H` / `R` / `O` / `T` / `I` |
+| Select / hand / frame / rectangle / ellipse / pen / text / image | `V` / `H` / `F` / `R` / `O` / `P` / `T` / `I` |
 | Undo / redo | `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` |
 | Copy / cut / paste / duplicate | `Cmd/Ctrl+C` / `X` / `V` / `D` |
 | Group / ungroup | `Cmd/Ctrl+G` / `Cmd/Ctrl+Shift+G` |
@@ -57,6 +65,11 @@ yarn test:e2e
 | Pan | Space-drag or middle-drag |
 | Zoom / fit / 100% | `Cmd/Ctrl +/-` / `Cmd/Ctrl+0` / `Cmd/Ctrl+1` |
 | Resize proportionally / from center | `Shift` / `Alt` while resizing |
+| Search objects and commands | `Cmd/Ctrl+K` or `Cmd/Ctrl+P` |
+
+## Data migrations
+
+Supabase owns board metadata, membership, assets, links, audit events, version snapshots, and design-branch records. Liveblocks owns the current collaborative document, presence, and comment threads. Apply the checked-in migrations in filename order before deploying API code that depends on them. Migrations are idempotent and `document_branches.board_id` intentionally matches the text primary key used by `boards.id`.
 
 ## Deployment
 

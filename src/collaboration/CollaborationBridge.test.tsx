@@ -20,6 +20,9 @@ vi.mock("@liveblocks/react/suspense", () => ({
   useStorage: (selector: (root: typeof collaboration) => unknown) => selector(collaboration),
   useOthers: () => collaboration.others,
 }));
+vi.mock("@liveblocks/react", () => ({
+  useEventListener: vi.fn(),
+}));
 
 vi.mock("../services/assetRepository", () => ({
   resolveAssetUrl: collaboration.resolveAssetUrl,

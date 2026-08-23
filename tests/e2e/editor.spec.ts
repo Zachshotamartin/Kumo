@@ -298,4 +298,70 @@ test.describe("editor regression workflows", () => {
     await page.keyboard.up("Space");
     await expect(rectangle).not.toHaveAttribute("data-parent-id", frameId!);
   });
+
+  test("preserves the implicit first page and supports page rename, duplicate, switch, and delete", async ({ page }) => {
+    await page.getByRole("button", { name: "Add page" }).click();
+    const firstPage = page.getByRole("textbox", { name: "Rename Page 1" });
+    const secondPage = page.getByRole("textbox", { name: "Rename Page 2" });
+    await expect(firstPage).toBeVisible();
+    await expect(secondPage).toBeVisible();
+    await expect(page.locator("[data-shape-id]")).toHaveCount(0);
+
+    await firstPage.focus();
+    await expect(page.locator("[data-shape-id]")).toHaveCount(2);
+    await firstPage.fill("Source concepts");
+    await firstPage.press("Enter");
+    await expect(page.getByRole("textbox", { name: "Rename Source concepts" })).toBeVisible();
+    await page.getByRole("button", { name: "Duplicate Source concepts" }).click();
+    await expect(page.getByRole("textbox", { name: "Rename Source concepts copy" })).toBeVisible();
+    await expect(page.locator("[data-shape-id]")).toHaveCount(2);
+    await page.getByRole("button", { name: "Delete Source concepts copy" }).click();
+    await expect(page.getByRole("textbox", { name: "Rename Source concepts copy" })).toHaveCount(0);
+  });
+
+  test("applies auto layout immediately and keeps frame children editable in the layer tree", async ({ page }) => {
+    await page.getByRole("button", { name: "Product note", exact: true }).click();
+    await page.getByRole("button", { name: "Ochre card", exact: true }).click({ modifiers: ["Shift"] });
+    await page.getByRole("button", { name: "Frame selection" }).click();
+    const frame = page.locator('[data-shape-type="frame"]');
+    const frameId = await frame.getAttribute("data-shape-id");
+    expect(frameId).toBeTruthy();
+    await page.getByLabel("Auto layout").selectOption("horizontal");
+    const text = page.locator('[data-shape-id="e2e-text"]');
+    const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
+    await expect.poll(async () => {
+      const left = await text.boundingBox();
+      const right = await rectangle.boundingBox();
+      return left && right ? Math.abs(left.y - right.y) : 999;
+    }).toBeLessThan(2);
+    expect((await text.boundingBox())!.x).toBeLessThan((await rectangle.boundingBox())!.x);
+
+    await page.getByRole("button", { name: "Product note", exact: true }).dblclick();
+    const rename = page.getByRole("textbox", { name: "Rename Product note" });
+    await rename.fill("Auto-layout copy");
+    await rename.press("Enter");
+    await expect(page.getByRole("button", { name: "Auto-layout copy", exact: true })).toBeVisible();
+  });
+
+  test("draws editable vector paths and creates visible gradients and effects", async ({ page }) => {
+    const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+    const canvasBox = await canvas.boundingBox();
+    expect(canvasBox).not.toBeNull();
+    await page.getByRole("button", { name: "Pen tool (P)" }).click();
+    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 320);
+    await page.mouse.down();
+    await page.mouse.move(canvasBox!.x + 340, canvasBox!.y + 420, { steps: 6 });
+    await page.mouse.up();
+    const vector = page.locator('[data-shape-type="vector"]');
+    await expect(vector).toHaveCount(1);
+    await expect(page.getByText("2 editable nodes.")).toBeVisible();
+    await page.getByRole("checkbox", { name: "Closed path" }).check();
+
+    await page.getByRole("button", { name: "Ochre card", exact: true }).click();
+    await page.getByLabel("Fill type").selectOption("linear-gradient");
+    await expect(page.getByLabel("Gradient angle")).toBeVisible();
+    await expect(page.locator('[data-shape-id="e2e-rectangle"]')).toHaveCSS("background-image", /linear-gradient/);
+    await page.getByLabel("Add effect").selectOption("drop-shadow");
+    await expect(page.locator('[data-shape-id="e2e-rectangle"]')).toHaveCSS("filter", /drop-shadow/);
+  });
 });

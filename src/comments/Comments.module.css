@@ -1,0 +1,193 @@
+.panel {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  color: #e7e5df;
+  background: #1b1c1e;
+}
+
+.panelHeader,
+.panelHeader > span,
+.filters,
+.threadActions,
+.commentItem header,
+.commentTools,
+.reactions,
+.composerActions {
+  display: flex;
+  align-items: center;
+}
+
+.panelHeader {
+  min-height: 48px;
+  justify-content: space-between;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid #35363a;
+}
+
+.panelHeader > span { gap: 8px; font-size: 13px; font-weight: 700; }
+.panelHeader svg { width: 17px; height: 17px; }
+.panelHeader button,
+.commentTools button,
+.reactions button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #aaa9a4;
+  background: transparent;
+  border: 0;
+}
+
+.panelHeader button { width: 30px; height: 30px; }
+.panelHeader button:hover,
+.commentTools button:hover { color: #f4f2ed; background: #2d2e31; }
+
+.filters {
+  gap: 4px;
+  padding: 9px 10px;
+  border-bottom: 1px solid #303135;
+}
+
+.filters > svg { width: 15px; margin-right: 3px; color: #777873; }
+.filters button {
+  min-height: 27px;
+  padding: 0 8px;
+  color: #969792;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+.filters button[aria-pressed="true"] { color: #f4f2ed; background: #2b2c2f; border-color: #404146; }
+
+.threadList { flex: 1; overflow: auto; padding: 9px; }
+.threadList > div { margin-bottom: 9px; }
+.thread {
+  overflow: hidden;
+  background: #222326;
+  border: 1px solid #35363a;
+  border-radius: 8px;
+}
+.selectedThread { border-color: #b87a2e; box-shadow: 0 0 0 1px rgb(184 122 46 / 0.22); }
+.threadActions {
+  min-height: 34px;
+  gap: 8px;
+  padding: 0 9px;
+  color: #8e8f8a;
+  font-size: 10px;
+  border-bottom: 1px solid #343539;
+}
+.threadActions > span { flex: 1; text-transform: uppercase; letter-spacing: .06em; }
+.threadActions button,
+.replyButton {
+  color: #c6c4be;
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+}
+.threadActions button:hover,
+.replyButton:hover { color: #e6aa5e; }
+.threadActions svg { width: 14px; height: 14px; }
+
+.commentItem { padding: 10px; border-bottom: 1px solid #303135; }
+.commentItem header { gap: 8px; }
+.commentItem header > span:nth-child(2) { display: grid; min-width: 0; flex: 1; }
+.commentItem header strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.commentItem time { margin-top: 1px; color: #7d7e7a; font-size: 9px; }
+.avatar {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  color: #17181a;
+  font-size: 10px;
+  font-weight: 800;
+  background: #b87a2e;
+  border-radius: 7px;
+}
+.commentTools { gap: 2px; }
+.commentTools button { width: 25px; height: 25px; border-radius: 4px; }
+.commentTools svg { width: 13px; height: 13px; }
+.commentBody { padding: 8px 0 2px 33px; color: #d2d0ca; font-size: 12px; line-height: 1.45; }
+.commentBody p { margin: 0 0 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mention { color: #e6aa5e; font-weight: 650; }
+.deletedComment { padding: 12px; color: #777873; font-size: 11px; font-style: italic; }
+
+.reactions { gap: 4px; padding: 5px 0 0 29px; }
+.reactions button { display: flex; min-width: 27px; height: 24px; gap: 3px; padding: 0 6px; border: 1px solid transparent; border-radius: 5px; }
+.reactions button[aria-pressed="true"] { color: #e6aa5e; background: rgb(184 122 46 / .12); border-color: rgb(184 122 46 / .42); }
+.reactions svg { width: 13px; height: 13px; }
+.reactions span { font-size: 9px; }
+.replyButton { width: 100%; min-height: 34px; text-align: left; padding-left: 11px; }
+
+.composer { position: relative; padding: 8px; background: #1e1f21; }
+.composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  padding: 9px;
+  resize: vertical;
+  color: #efede7;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  background: #17181a;
+  border: 1px solid #3b3c40;
+  border-radius: 6px;
+  outline: none;
+}
+.composer textarea:focus { border-color: #b87a2e; box-shadow: 0 0 0 2px rgb(184 122 46 / .15); }
+.composerActions { justify-content: flex-end; gap: 7px; margin-top: 6px; }
+.composerActions span { margin-right: auto; color: #686965; font-size: 9px; }
+.composerActions button { min-height: 27px; padding: 0 8px; color: #bbb9b3; font-size: 10px; background: transparent; border: 1px solid #3b3c40; border-radius: 5px; }
+.composerActions .primaryAction { color: #17181a; font-weight: 700; background: #b87a2e; border-color: #b87a2e; }
+.composerActions .primaryAction:disabled { opacity: .4; }
+
+.mentionMenu {
+  position: absolute;
+  right: 8px;
+  bottom: 44px;
+  left: 8px;
+  z-index: 4;
+  overflow: hidden;
+  background: #292a2d;
+  border: 1px solid #45464b;
+  border-radius: 6px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / .36);
+}
+.mentionMenu button { display: flex; width: 100%; gap: 8px; padding: 7px; color: #dddcd6; text-align: left; background: transparent; border: 0; }
+.mentionMenu button:hover { background: #343539; }
+.mentionMenu button > span:first-child { display: grid; width: 24px; height: 24px; place-items: center; color: #17181a; font-size: 10px; font-weight: 800; background: #9caa92; border-radius: 6px; }
+.mentionMenu button > span:last-child { display: grid; }
+.mentionMenu strong { font-size: 10px; }
+.mentionMenu small { color: #858681; font-size: 9px; }
+
+.emptyComments { display: grid; min-height: 220px; place-items: center; align-content: center; gap: 8px; padding: 20px; color: #858681; text-align: center; }
+.emptyComments svg { width: 24px; height: 24px; color: #9caa92; }
+.emptyComments strong { color: #d0cec8; font-size: 12px; }
+.emptyComments span { max-width: 190px; font-size: 10px; line-height: 1.5; }
+.panelError { margin: 8px; padding: 8px; color: #ffd9cf; font-size: 10px; background: #58261f; border-radius: 5px; }
+
+.pinLayer { position: absolute; inset: 0; z-index: 13000; pointer-events: none; }
+.commentPin {
+  position: absolute;
+  display: flex;
+  width: 29px;
+  height: 29px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #17181a;
+  background: #d79a4d;
+  border: 2px solid #fff3df;
+  border-radius: 9px 9px 9px 2px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / .34);
+  pointer-events: auto;
+  transform: translate(-3px, -27px);
+}
+.commentPin svg { width: 14px; height: 14px; }
+.commentPin span { position: absolute; right: -5px; bottom: -5px; display: grid; min-width: 15px; height: 15px; place-items: center; color: #f5f2eb; font-size: 8px; font-weight: 800; background: #333438; border: 1px solid #777873; border-radius: 5px; }
+.resolvedPin { opacity: .5; filter: saturate(.35); }
+.activePin { box-shadow: 0 0 0 3px rgb(215 154 77 / .32), 0 5px 14px rgb(0 0 0 / .4); }
+.canvasComposer { position: absolute; width: min(280px, calc(100vw - 40px)); pointer-events: auto; transform: translate(10px, 8px); background: #1e1f21; border: 1px solid #48494e; border-radius: 8px; box-shadow: 0 18px 46px rgb(0 0 0 / .46); }

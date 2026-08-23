@@ -10,7 +10,7 @@ export interface LayerUnit {
 /** Builds the front-to-back logical stack rendered by the Layers panel. */
 export const buildLayerUnits = (shapes: Shape[], parentId: string | null = null): LayerUnit[] => {
   const frontToBack = shapes
-    .filter((shape) => (shape.parentId ?? null) === parentId)
+    .filter((shape) => (shape.parentId ?? null) === parentId && shape.type !== "resource" && shape.type !== "guide")
     .map((shape, index) => ({ shape, index }))
     .sort((left, right) =>
       right.shape.zIndex - left.shape.zIndex || right.index - left.index

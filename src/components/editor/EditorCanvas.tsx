@@ -26,6 +26,16 @@ import {
   ZOOM_STEP_FACTOR,
   zoomAtPoint,
 } from "../../editor/geometry";
+import { constrainFrameChildren, displayTextLines } from "../../editor/layout";
+import { measureShapes } from "../../editor/measurement";
+import {
+  createVectorShape,
+  effectStyles,
+  gradientCss,
+  shapePathData,
+  updateVectorPoint,
+  vectorPathData,
+} from "../../editor/graphics";
 import {
   adoptContainedShapes,
   frameAtPoint,
@@ -42,7 +52,15 @@ import {
 } from "../../editor/snapping";
 import { EditorTool, Point, ResizeHandle, SelectionFrame, Viewport } from "../../editor/types";
 import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
-import { initializeEditor, setEditingShapeId, setHoveredShapeId, setViewport } from "../../features/editor/editorSlice";
+import {
+  initializeEditor,
+  setMeasureMode,
+  setCommentDraftAnchor,
+  setCurrentPageId,
+  setEditingShapeId,
+  setHoveredShapeId,
+  setViewport,
+} from "../../features/editor/editorSlice";
 import {
   clearSelectedShapes,
   setSelectedShapes,
@@ -53,8 +71,10 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch, RootState } from "../../store";
 import { getBoard } from "../../services/boardRepository";
 import styles from "./EditorCanvas.module.css";
+import { CommentPins } from "../../comments/CommentPins";
+import { documentPages, shapesOnPage } from "../../editor/workspace";
 
-type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan";
+type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan" | "vector-point";
 
 interface Interaction {
   mode: InteractionMode;
@@ -71,6 +91,8 @@ interface Interaction {
   additiveSelection?: string[];
   includeNested?: boolean;
   commitBaseline?: Shape[];
+  vectorShapeId?: string;
+  vectorPointId?: string;
 }
 
 interface ContextMenuState {
@@ -157,10 +179,13 @@ const resizeHandles: Array<{
 ];
 
 const createDraftShape = (
-  tool: Exclude<EditorTool, "pointer" | "hand">,
+  tool: Exclude<EditorTool, "pointer" | "hand" | "comment">,
   point: Point,
   shapes: Shape[]
 ): Shape => {
+  if (tool === "pen") {
+    return createVectorShape(point, point, Math.max(0, ...shapes.map((shape) => shape.zIndex)) + 1);
+  }
   const shape = ShapeFunctions.createShape(tool, point.x, point.y, shapes);
   return normalizeShape({
     ...shape,
@@ -183,6 +208,10 @@ const draftAtPoint = (draft: Shape, start: Point, end: Point, square: boolean): 
     dx = Math.sign(dx || 1) * size;
     dy = Math.sign(dy || 1) * size;
   }
+  if (draft.type === "vector" && draft.vectorPoints?.length) {
+    const last = draft.vectorPoints.at(-1)!;
+    return updateVectorPoint([draft], draft.id, last.id, { x: start.x + dx, y: start.y + dy })[0]!;
+  }
   return normalizeShape({
     ...draft,
     x1: start.x,
@@ -192,12 +221,56 @@ const draftAtPoint = (draft: Shape, start: Point, end: Point, square: boolean): 
   });
 };
 
+const VectorGraphic = ({ shape }: { shape: Shape }) => {
+  const bounds = shapeBounds(shape);
+  const viewBox = `0 0 ${Math.max(1, bounds.width)} ${Math.max(1, bounds.height)}`;
+  if (shape.type === "boolean" && shape.booleanChildren?.length) {
+    const id = `boolean-${shape.id.replace(/[^a-z0-9]/gi, "")}`;
+    const paths = shape.booleanChildren.map((child) => shapePathData(child, bounds));
+    if (shape.booleanOperation === "subtract") {
+      return (
+        <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
+          <defs><mask id={`${id}-mask`}><rect width="100%" height="100%" fill="black" /><path d={paths[0]} fill="white" />{paths.slice(1).map((path, index) => <path key={index} d={path} fill="black" />)}</mask></defs>
+          <rect width="100%" height="100%" fill={shape.backgroundColor ?? "#fff"} mask={`url(#${id}-mask)`} />
+        </svg>
+      );
+    }
+    if (shape.booleanOperation === "intersect") {
+      return (
+        <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
+          <defs><clipPath id={`${id}-clip`}><path d={paths[0]} /></clipPath></defs>
+          {paths.slice(1).map((path, index) => <path key={index} d={path} fill={shape.backgroundColor ?? "#fff"} clipPath={`url(#${id}-clip)`} />)}
+        </svg>
+      );
+    }
+    return (
+      <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
+        {shape.booleanOperation === "exclude"
+          ? <path d={paths.join(" ")} fill={shape.backgroundColor ?? "#fff"} fillRule="evenodd" />
+          : paths.map((path, index) => <path key={index} d={path} fill={shape.backgroundColor ?? "#fff"} />)}
+      </svg>
+    );
+  }
+  return (
+    <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
+      <path
+        d={vectorPathData(shape.vectorPoints ?? [], bounds, shape.vectorClosed)}
+        fill={shape.vectorClosed ? shape.backgroundColor ?? "transparent" : "none"}
+        stroke={shape.borderColor ?? "#fff"}
+        strokeWidth={shape.borderWidth ?? 1}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+};
+
 interface EditorCanvasViewProps {
   actions: EditorActions;
-  updateMyPresence: (patch: { cursor?: Point | null; selectionIds?: string[] }) => void;
+  updateMyPresence: (patch: Partial<Liveblocks["Presence"]>) => void;
+  showCommentPins?: boolean;
 }
 
-export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasViewProps) => {
+export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = true }: EditorCanvasViewProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -220,13 +293,18 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
   const editor = useSelector((state: RootState) => state.editor);
   const user = useSelector((state: RootState) => state.auth);
   const showGrid = useSelector((state: RootState) => state.actions.grid);
+  const pages = useMemo(() => documentPages(board.shapes), [board.shapes]);
+  const activePageId = editor.currentPageId && pages.some((page) => page.id === editor.currentPageId)
+    ? editor.currentPageId
+    : pages[0]!.id;
+  const canvasShapes = useMemo(() => shapesOnPage(board.shapes, activePageId), [activePageId, board.shapes]);
   const selectedFrame = useMemo(
-    () => selectionFrame(board.shapes, selectedIds, selectionRotation),
-    [board.shapes, selectedIds, selectionRotation]
+    () => selectionFrame(canvasShapes, selectedIds, selectionRotation),
+    [canvasShapes, selectedIds, selectionRotation]
   );
   const selectedShapes = useMemo(
-    () => board.shapes.filter((shape) => selectedIds.includes(shape.id)),
-    [board.shapes, selectedIds]
+    () => canvasShapes.filter((shape) => selectedIds.includes(shape.id)),
+    [canvasShapes, selectedIds]
   );
   const selectedGroupId = selectedShapes[0]?.groupId;
   const isExistingGroup = Boolean(
@@ -236,10 +314,16 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
   );
   const canUngroup = selectedShapes.some((shape) => Boolean(shape.groupId));
   const canUnframe = selectedShapes.some((shape) => shape.type === "frame");
-  const selectionLocked = selectedShapes.some((shape) => isEffectivelyLocked(board.shapes, shape));
+  const selectionLocked = selectedShapes.some((shape) => isEffectivelyLocked(canvasShapes, shape));
   const activeGridSize = editor.snapToGrid
     ? effectiveGridSize(editor.gridSize, editor.viewport.zoom)
     : 0;
+  const measurements = useMemo(() => {
+    if (!editor.measureMode || selectedShapes.length !== 1 || !editor.hoveredShapeId) return [];
+    const hovered = canvasShapes.find((shape) => shape.id === editor.hoveredShapeId);
+    if (!hovered || hovered.id === selectedShapes[0]?.id || hovered.type === "guide") return [];
+    return measureShapes(selectedShapes[0]!, hovered).filter((measurement) => measurement.value > 0);
+  }, [canvasShapes, editor.hoveredShapeId, editor.measureMode, selectedShapes]);
 
   useEffect(() => {
     if (!board.id) return;
@@ -251,13 +335,18 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
       })
     );
     dispatch(setViewport({ x: 0, y: 0, zoom: 1 }));
+    dispatch(setCurrentPageId(documentPages(board.shapes)[0]!.id));
     // Board identity intentionally scopes the history reset.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board.id, dispatch]);
+  }, [board.id, board.roomId, dispatch]);
 
   useEffect(() => {
     updateMyPresence({ selectionIds: selectedIds });
   }, [selectedIds, updateMyPresence]);
+
+  useEffect(() => {
+    updateMyPresence({ viewport: editor.viewport });
+  }, [editor.viewport, updateMyPresence]);
 
   useEffect(() => {
     viewportRef.current = editor.viewport;
@@ -312,6 +401,25 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
     [editor.viewport]
   );
 
+  const createGuide = useCallback((axis: "horizontal" | "vertical", event: React.PointerEvent<HTMLElement>) => {
+    if (!actions.canEdit) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const point = pointerWorld(event as unknown as React.PointerEvent<HTMLDivElement>);
+    const guide = normalizeShape({
+      ...ShapeFunctions.createShape("guide", point.x, point.y, board.shapes),
+      name: `${axis === "vertical" ? "Vertical" : "Horizontal"} guide`,
+      guideAxis: axis,
+      x1: axis === "vertical" ? point.x : 0,
+      x2: axis === "vertical" ? point.x : 0,
+      y1: axis === "horizontal" ? point.y : 0,
+      y2: axis === "horizontal" ? point.y : 0,
+      locked: true,
+      pageId: activePageId,
+    });
+    actions.commitShapes([...board.shapes, guide]);
+  }, [actions, activePageId, board.shapes, pointerWorld]);
+
   const pointerScreen = useCallback(
     (event: Pick<React.PointerEvent<HTMLDivElement>, "clientX" | "clientY">): Point => {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -325,15 +433,15 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
   const selectHitTarget = useCallback(
     (shape: Shape, deep = false): string[] => {
       if (!deep) {
-        const frame = topLevelFrameFor(board.shapes, shape);
+        const frame = topLevelFrameFor(canvasShapes, shape);
         if (frame) return [frame.id];
       }
       if (!shape.groupId) return [shape.id];
-      return board.shapes
+      return canvasShapes
         .filter((candidate) => candidate.groupId === shape.groupId)
         .map((candidate) => candidate.id);
     },
-    [board.shapes]
+    [canvasShapes]
   );
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -345,10 +453,38 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
     const startViewport = editor.viewport;
     const handle = (event.target as HTMLElement).dataset.resizeHandle as ResizeHandle | undefined;
     const wantsRotate = (event.target as HTMLElement).dataset.rotationHandle === "true";
+    const vectorPointId = (event.target as HTMLElement).dataset.vectorPointId;
+    const vectorShapeId = (event.target as HTMLElement).dataset.vectorShapeId;
     const wantsPan = event.button === 1 || selectedTool === "hand" || spacePressedRef.current;
     const deepSelection = event.metaKey || event.ctrlKey;
 
+    if (selectedTool === "comment") {
+      const hit = hitTest(canvasShapes, startWorld);
+      const bounds = hit ? shapeBounds(hit) : null;
+      dispatch(setCommentDraftAnchor({
+        x: startWorld.x - (bounds?.x ?? 0),
+        y: startWorld.y - (bounds?.y ?? 0),
+        shapeId: hit?.id ?? "",
+      }));
+      return;
+    }
+
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (vectorPointId && vectorShapeId && actions.canEdit) {
+      interactionRef.current = {
+        mode: "vector-point",
+        pointerId: event.pointerId,
+        startWorld,
+        startScreen,
+        baseline,
+        preview: baseline,
+        selectedIds: [vectorShapeId],
+        startViewport,
+        vectorPointId,
+        vectorShapeId,
+      };
+      return;
+    }
     if (wantsPan) {
       interactionRef.current = {
         mode: "pan",
@@ -364,7 +500,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
     }
 
     if (!actions.canEdit) {
-      const hit = hitTest(board.shapes, startWorld);
+      const hit = hitTest(canvasShapes, startWorld);
       dispatch(setSelectedShapes(hit ? selectHitTarget(hit, deepSelection) : []));
       return;
     }
@@ -405,10 +541,11 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
       const drawStart = activeGridSize
         ? snapPointToGrid(startWorld, activeGridSize)
         : startWorld;
-      const parent = frameAtPoint(board.shapes, drawStart);
+      const parent = frameAtPoint(canvasShapes, drawStart);
       const draft = normalizeShape({
         ...createDraftShape(selectedTool, drawStart, board.shapes),
         parentId: parent?.id ?? null,
+        pageId: activePageId,
       });
       const preview = [...baseline, draft];
       dispatch(setSelectedShapes([draft.id]));
@@ -427,7 +564,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
       return;
     }
 
-    const hit = hitTest(board.shapes, startWorld);
+    const hit = hitTest(canvasShapes, startWorld);
     if (hit) {
       const hitIds = selectHitTarget(hit, deepSelection);
       let nextSelection = selectedIds;
@@ -493,7 +630,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
       });
     }
 
-    const hit = !interactionRef.current ? hitTest(board.shapes, world) : undefined;
+    const hit = !interactionRef.current ? hitTest(canvasShapes, world) : undefined;
     dispatch(setHoveredShapeId(hit?.id ?? null));
 
     const interaction = interactionRef.current;
@@ -509,6 +646,17 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
           })
         )
       );
+      return;
+    }
+
+    if (interaction.mode === "vector-point" && interaction.vectorShapeId && interaction.vectorPointId) {
+      interaction.preview = updateVectorPoint(
+        interaction.baseline,
+        interaction.vectorShapeId,
+        interaction.vectorPointId,
+        activeGridSize ? snapPointToGrid(world, activeGridSize) : world
+      );
+      actions.previewShapes(interaction.preview);
       return;
     }
 
@@ -592,7 +740,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
           ? current
           : nextDirection
       );
-      interaction.preview = resizeSelectionFromPointer(
+      const resized = resizeSelectionFromPointer(
         interaction.baseline,
         interaction.selectedIds,
         interaction.selectionFrame,
@@ -600,6 +748,13 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         snapped.point,
         options
       );
+      const resizedFrameId = interaction.selectedIds.length === 1 &&
+        interaction.baseline.find((shape) => shape.id === interaction.selectedIds[0])?.type === "frame"
+        ? interaction.selectedIds[0]
+        : null;
+      interaction.preview = resizedFrameId
+        ? constrainFrameChildren(interaction.baseline, resized, resizedFrameId)
+        : resized;
       actions.previewShapes(interaction.preview);
       return;
     }
@@ -659,12 +814,19 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         if (bounds.width < 3 || bounds.height < 3) {
           const defaults = current.type === "text"
             ? { width: 180, height: 40 }
+            : current.type === "vector"
+              ? { width: 120, height: 0 }
             : { width: 120, height: 88 };
-          const replacement = normalizeShape({
-            ...current,
-            x2: current.x1 + defaults.width,
-            y2: current.y1 + defaults.height,
-          });
+          const replacement = current.type === "vector" && current.vectorPoints?.length
+            ? updateVectorPoint([current], current.id, current.vectorPoints.at(-1)!.id, {
+                x: current.x1 + defaults.width,
+                y: current.y1 + defaults.height,
+              })[0]!
+            : normalizeShape({
+                ...current,
+                x2: current.x1 + defaults.width,
+                y2: current.y1 + defaults.height,
+              });
           interaction.preview = [...interaction.baseline, replacement];
         }
       }
@@ -673,7 +835,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
     } else if (
       interaction.mode === "move" ||
       interaction.mode === "resize" ||
-      interaction.mode === "rotate"
+      interaction.mode === "rotate" ||
+      interaction.mode === "vector-point"
     ) {
       shouldCommit = true;
     }
@@ -721,7 +884,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
   const fitToContent = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const bounds = selectionBounds(board.shapes, board.shapes.map((shape) => shape.id));
+    const bounds = selectionBounds(canvasShapes, canvasShapes.map((shape) => shape.id));
     if (!bounds) {
       dispatch(setViewport({ x: 0, y: 0, zoom: 1 }));
       return;
@@ -746,7 +909,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         zoom,
       })
     );
-  }, [board.shapes, dispatch]);
+  }, [canvasShapes, dispatch]);
 
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
@@ -754,6 +917,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Alt" && !isEditableTarget(event.target)) dispatch(setMeasureMode(true));
       if (event.code === "Space" && !isEditableTarget(event.target)) {
         spacePressedRef.current = true;
       }
@@ -788,12 +952,12 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         event.preventDefault();
         const rect = canvasRef.current?.getBoundingClientRect();
         const selectedShape = selectedIds.length === 1
-          ? board.shapes.find((shape) => shape.id === selectedIds[0])
+          ? canvasShapes.find((shape) => shape.id === selectedIds[0])
           : undefined;
         const target = selectedShape?.type === "frame"
           ? selectedShape
           : selectedShape?.parentId
-            ? board.shapes.find((shape) => shape.id === selectedShape.parentId && shape.type === "frame")
+            ? canvasShapes.find((shape) => shape.id === selectedShape.parentId && shape.type === "frame")
             : undefined;
         actions.paste({
           targetFrameId: target?.id ?? null,
@@ -865,15 +1029,15 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         return;
       }
       if ((event.key === "Enter" || event.key === "F2") && selectedIds.length === 1) {
-        const selectedShape = board.shapes.find((shape) => shape.id === selectedIds[0]);
+        const selectedShape = canvasShapes.find((shape) => shape.id === selectedIds[0]);
         if (event.key === "Enter" && event.shiftKey && selectedShape?.parentId) {
           event.preventDefault();
           dispatch(setSelectedShapes([selectedShape.parentId]));
           return;
         }
         if (event.key === "Enter" && selectedShape?.type === "frame") {
-          const child = board.shapes
-            .filter((shape) => shape.parentId === selectedShape.id && !isEffectivelyHidden(board.shapes, shape))
+          const child = canvasShapes
+            .filter((shape) => shape.parentId === selectedShape.id && !isEffectivelyHidden(canvasShapes, shape))
             .sort((left, right) => right.zIndex - left.zIndex)[0];
           if (child) {
             event.preventDefault();
@@ -881,7 +1045,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
             return;
           }
         }
-        if (selectedShape?.type === "text" && !isEffectivelyLocked(board.shapes, selectedShape)) {
+        if (selectedShape?.type === "text" && !isEffectivelyLocked(canvasShapes, selectedShape)) {
           event.preventDefault();
           dispatch(setEditingShapeId(selectedShape.id));
           return;
@@ -902,9 +1066,11 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         f: "frame",
         r: "rectangle",
         o: "ellipse",
+        p: "pen",
         t: "text",
         i: "image",
         b: "board",
+        c: "comment",
       };
       const tool = toolByKey[event.key.toLowerCase()];
       if (tool && !command) dispatch(setSelectedTool(tool));
@@ -913,6 +1079,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
     };
     const handleKeyUp = (event: KeyboardEvent) => {
       if (event.code === "Space") spacePressedRef.current = false;
+      if (event.key === "Alt") dispatch(setMeasureMode(false));
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -1003,12 +1170,12 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
       onContextMenu={(event) => {
         event.preventDefault();
         const worldPoint = pointerWorld(event as unknown as React.PointerEvent<HTMLDivElement>);
-        const hit = hitTest(board.shapes, worldPoint);
+        const hit = hitTest(canvasShapes, worldPoint);
         if (hit && !selectedIds.includes(hit.id)) dispatch(setSelectedShapes(selectHitTarget(hit)));
         setContextMenu({ x: event.clientX, y: event.clientY, worldPoint });
       }}
       onDoubleClick={(event) => {
-        const hit = hitTest(board.shapes, pointerWorld(event));
+        const hit = hitTest(canvasShapes, pointerWorld(event));
         if (hit?.type === "board" && hit.boardId) {
           const requestId = ++navigationRequestRef.current;
           setNavigationError(null);
@@ -1029,18 +1196,27 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         }
         if (hit) dispatch(setSelectedShapes(selectHitTarget(hit, true)));
         if (hit?.type === "text") {
-          if (!isEffectivelyLocked(board.shapes, hit)) dispatch(setEditingShapeId(hit.id));
+          if (!isEffectivelyLocked(canvasShapes, hit)) dispatch(setEditingShapeId(hit.id));
         }
       }}
     >
       <div className={styles.shapeLayer} aria-live="off">
-        {board.shapes
+        {canvasShapes
           .slice()
+          .filter((shape) => shape.type !== "guide")
           .sort((left, right) => left.zIndex - right.zIndex)
           .map((shape) => {
-            if (isEffectivelyHidden(board.shapes, shape)) return null;
+            if (isEffectivelyHidden(canvasShapes, shape)) return null;
+            if (shape.isMask) return null;
             const bounds = shapeBounds(shape);
-            const clipInsets = frameClipInsets(board.shapes, shape);
+            const clipInsets = frameClipInsets(canvasShapes, shape);
+            const mask = shape.maskId ? canvasShapes.find((candidate) => candidate.id === shape.maskId) : undefined;
+            const maskBounds = mask ? shapeBounds(mask) : null;
+            const maskClip = maskBounds
+              ? mask?.type === "ellipse"
+                ? `ellipse(${maskBounds.width / 2 * editor.viewport.zoom}px ${maskBounds.height / 2 * editor.viewport.zoom}px at ${(maskBounds.x + maskBounds.width / 2 - bounds.x) * editor.viewport.zoom}px ${(maskBounds.y + maskBounds.height / 2 - bounds.y) * editor.viewport.zoom}px)`
+                : `inset(${Math.max(0, maskBounds.y - bounds.y) * editor.viewport.zoom}px ${Math.max(0, bounds.x + bounds.width - maskBounds.x - maskBounds.width) * editor.viewport.zoom}px ${Math.max(0, bounds.y + bounds.height - maskBounds.y - maskBounds.height) * editor.viewport.zoom}px ${Math.max(0, maskBounds.x - bounds.x) * editor.viewport.zoom}px)`
+              : undefined;
             const position = worldToScreen({ x: bounds.x, y: bounds.y }, editor.viewport);
             const isEditing = editor.editingShapeId === shape.id && shape.type === "text";
             const commonStyle: React.CSSProperties = {
@@ -1050,15 +1226,18 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
               height: Math.max(1, bounds.height * editor.viewport.zoom),
               transform: `rotate(${shape.rotation ?? 0}deg) scaleX(${shape.flipX ? -1 : 1}) scaleY(${shape.flipY ? -1 : 1})`,
               borderRadius: shape.type === "ellipse" ? "50%" : `${shape.borderRadius ?? 0}px`,
-              border: `${Math.max(0, (shape.borderWidth ?? 0) * editor.viewport.zoom)}px ${shape.borderStyle ?? "solid"} ${shape.borderColor ?? "transparent"}`,
+              border: shape.type === "vector" || shape.type === "boolean" ? 0 : `${Math.max(0, (shape.borderWidth ?? 0) * editor.viewport.zoom)}px ${shape.borderStyle ?? "solid"} ${shape.borderColor ?? "transparent"}`,
               backgroundColor: shape.backgroundColor ?? "transparent",
-              backgroundImage: shape.backgroundImage ? `url(${shape.backgroundImage})` : undefined,
+              backgroundImage: shape.backgroundImage ? `url(${shape.backgroundImage})` : gradientCss(shape),
               opacity: shape.opacity ?? 1,
               color: shape.color ?? "#f7f7f5",
               zIndex: shape.zIndex,
+              mixBlendMode: shape.blendMode as React.CSSProperties["mixBlendMode"],
+              ...effectStyles(shape),
               ...(clipInsets ? {
                 clipPath: `inset(${clipInsets.top * editor.viewport.zoom}px ${clipInsets.right * editor.viewport.zoom}px ${clipInsets.bottom * editor.viewport.zoom}px ${clipInsets.left * editor.viewport.zoom}px)`,
               } : {}),
+              ...(maskClip ? { clipPath: maskClip } : {}),
             };
 
             return (
@@ -1070,14 +1249,15 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
                 data-group-id={shape.groupId ?? undefined}
                 data-parent-id={shape.parentId ?? undefined}
                 data-shape-type={shape.type}
-                data-locked={isEffectivelyLocked(board.shapes, shape) ? "true" : "false"}
+                data-locked={isEffectivelyLocked(canvasShapes, shape) ? "true" : "false"}
                 data-z-index={shape.zIndex}
                 data-flip-x={shape.flipX ? "true" : "false"}
                 data-flip-y={shape.flipY ? "true" : "false"}
               >
-                {shape.type === "frame" && (
+                {(shape.type === "frame" || shape.type === "section") && (
                   <span className={styles.frameLabel}>{shape.name ?? "Frame"}</span>
                 )}
+                {(shape.type === "vector" || shape.type === "boolean") && <VectorGraphic shape={shape} />}
                 {shape.type === "text" &&
                   (isEditing ? (
                     <TextEditor
@@ -1114,8 +1294,21 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
                         textDecoration: shape.textDecoration ?? "none",
                       }}
                     >
-                      <span style={{ textAlign: (shape.textAlign as React.CSSProperties["textAlign"]) ?? "left" }}>
-                        {shape.text}
+                      <span
+                        style={{
+                          textAlign: (shape.textAlign as React.CSSProperties["textAlign"]) ?? "left",
+                          paddingInlineStart: `${(shape.textIndent ?? 0) * editor.viewport.zoom}px`,
+                        }}
+                      >
+                        {displayTextLines(shape).map((line, index) => (
+                          <span
+                            key={`${shape.id}-line-${index}`}
+                            className={styles.textParagraph}
+                            style={{ marginBlockEnd: index < displayTextLines(shape).length - 1 ? `${(shape.paragraphSpacing ?? 0) * editor.viewport.zoom}px` : 0 }}
+                          >
+                            {line || "\u00a0"}
+                          </span>
+                        ))}
                       </span>
                     </div>
                   ))}
@@ -1125,6 +1318,88 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
             );
           })}
       </div>
+
+      {selectedShapes.length === 1 && selectedShapes[0]?.type === "vector" && selectedShapes[0].vectorPoints?.map((point) => {
+        const position = worldToScreen(point, editor.viewport);
+        return (
+          <button
+            type="button"
+            key={point.id}
+            className={styles.vectorPoint}
+            style={{ left: position.x, top: position.y }}
+            data-vector-point-id={point.id}
+            data-vector-shape-id={selectedShapes[0]!.id}
+            aria-label={`Move vector point ${point.id}`}
+          />
+        );
+      })}
+
+      {editor.showRulers && (
+        <>
+          <div
+            className={`${styles.ruler} ${styles.horizontalRuler}`}
+            aria-label="Horizontal ruler. Click to add a vertical guide."
+            role="button"
+            tabIndex={0}
+            onPointerDown={(event) => createGuide("vertical", event)}
+          >
+            {Array.from({ length: 41 }, (_, index) => (Math.floor(editor.viewport.x / 100) - 10 + index) * 100).map((value) => (
+              <span key={value} style={{ left: (value - editor.viewport.x) * editor.viewport.zoom }}><b>{value}</b></span>
+            ))}
+          </div>
+          <div
+            className={`${styles.ruler} ${styles.verticalRuler}`}
+            aria-label="Vertical ruler. Click to add a horizontal guide."
+            role="button"
+            tabIndex={0}
+            onPointerDown={(event) => createGuide("horizontal", event)}
+          >
+            {Array.from({ length: 41 }, (_, index) => (Math.floor(editor.viewport.y / 100) - 10 + index) * 100).map((value) => (
+              <span key={value} style={{ top: (value - editor.viewport.y) * editor.viewport.zoom }}><b>{value}</b></span>
+            ))}
+          </div>
+          <span className={styles.rulerCorner} aria-hidden="true" />
+        </>
+      )}
+
+      {canvasShapes.filter((shape) => shape.type === "guide" && shape.guideAxis).map((guide) => {
+        const vertical = guide.guideAxis === "vertical";
+        const position = vertical
+          ? (guide.x1 - editor.viewport.x) * editor.viewport.zoom
+          : (guide.y1 - editor.viewport.y) * editor.viewport.zoom;
+        return (
+          <button
+            type="button"
+            key={guide.id}
+            className={`${styles.persistentGuide} ${vertical ? styles.verticalGuide : styles.horizontalGuide}`}
+            style={vertical ? { left: position } : { top: position }}
+            aria-label={`${vertical ? "Vertical" : "Horizontal"} guide at ${Math.round(vertical ? guide.x1 : guide.y1)}. Double-click to remove.`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onDoubleClick={() => actions.commitShapes(board.shapes.filter((shape) => shape.id !== guide.id))}
+          />
+        );
+      })}
+
+      {measurements.map((measurement) => {
+        const start = worldToScreen(measurement.start, editor.viewport);
+        const end = worldToScreen(measurement.end, editor.viewport);
+        const horizontal = measurement.axis === "horizontal";
+        return (
+          <span
+            key={measurement.axis}
+            className={styles.measurement}
+            style={{
+              left: Math.min(start.x, end.x),
+              top: Math.min(start.y, end.y),
+              width: horizontal ? Math.max(1, Math.abs(end.x - start.x)) : 1,
+              height: horizontal ? 1 : Math.max(1, Math.abs(end.y - start.y)),
+            }}
+            aria-label={`${measurement.axis} distance ${Math.round(measurement.value)}`}
+          >
+            <b>{Math.round(measurement.value)}</b>
+          </span>
+        );
+      })}
 
       {screenFrame && selectedIds.length > 0 && (
         <div
@@ -1207,6 +1482,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
             </div>
           );
         })}
+
+      {showCommentPins && <CommentPins />}
 
       {contextMenu && (
         <div

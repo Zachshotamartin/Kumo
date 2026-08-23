@@ -21,11 +21,16 @@ const BoardRoom = () => {
   if (!board.roomId) return <RoomLoading />;
   return (
     <RoomProvider
-      key={board.roomId}
+      key={`${board.roomId}:${board.revision}`}
       id={board.roomId}
-      initialPresence={{ cursor: null, selectionIds: [] }}
+      initialPresence={{
+        cursor: null,
+        selectionIds: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        spotlight: false,
+      }}
       initialStorage={{
-        schemaVersion: 3,
+        schemaVersion: 4,
         backgroundColor: board.backGroundColor,
         nodes: new LiveMap(),
       }}

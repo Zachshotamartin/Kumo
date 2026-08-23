@@ -7,6 +7,9 @@ export interface WhiteBoardState {
   shapes: Shape[];
   id: string | null;
   roomId: string | null;
+  baseRoomId: string | null;
+  activeBranchId: string | null;
+  activeBranchName: string | null;
   role: "owner" | "editor" | "viewer" | null;
   type: string | null;
   title: string | null;
@@ -21,6 +24,8 @@ export interface WhiteBoardState {
     cursorX: number | null;
     cursorY: number | null;
     selectionIds?: string[];
+    viewport?: { x: number; y: number; zoom: number };
+    spotlight?: boolean;
   }[];
   schemaVersion: number;
   revision: number;
@@ -31,6 +36,9 @@ const initialState: WhiteBoardState = {
   shapes: [],
   id: null,
   roomId: null,
+  baseRoomId: null,
+  activeBranchId: null,
+  activeBranchName: null,
   role: null,
   type: null,
   title: null,
@@ -40,7 +48,7 @@ const initialState: WhiteBoardState = {
   backGroundColor: "#313131",
   lastChangedBy: null,
   currentUsers: [],
-  schemaVersion: 2,
+  schemaVersion: 4,
   revision: 0,
   updatedAt: null,
 };
@@ -57,6 +65,9 @@ const whiteBoardSlice = createSlice({
         shapes,
         id,
         roomId,
+        baseRoomId,
+        activeBranchId,
+        activeBranchName,
         role,
         type,
         title,
@@ -73,7 +84,13 @@ const whiteBoardSlice = createSlice({
 
       if (shapes !== undefined) state.shapes = shapes.map(normalizeShape);
       if (id !== undefined) state.id = id;
-      if (roomId !== undefined) state.roomId = roomId;
+      if (roomId !== undefined) {
+        state.roomId = roomId;
+        if (!state.baseRoomId && roomId?.startsWith("board:")) state.baseRoomId = roomId;
+      }
+      if (baseRoomId !== undefined) state.baseRoomId = baseRoomId;
+      if (activeBranchId !== undefined) state.activeBranchId = activeBranchId;
+      if (activeBranchName !== undefined) state.activeBranchName = activeBranchName;
       if (role !== undefined) state.role = role;
       if (type !== undefined) state.type = type;
       if (title !== undefined) state.title = title;

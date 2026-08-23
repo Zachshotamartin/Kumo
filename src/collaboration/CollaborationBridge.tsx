@@ -12,6 +12,8 @@ import {
 } from "../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../store";
 import type { RootState } from "../store";
+import { setFollowingUserId, setViewport } from "../features/editor/editorSlice";
+import { useEventListener } from "@liveblocks/react";
 import { resolveAssetUrl } from "../services/assetRepository";
 
 const CollaborationBridge = () => {
@@ -20,6 +22,12 @@ const CollaborationBridge = () => {
   const nodes = useStorage((root) => root.nodes);
   const backgroundColor = useStorage((root) => root.backgroundColor);
   const others = useOthers();
+  const followingUserId = useSelector((state: RootState) => state.editor.followingUserId);
+  useEventListener(({ event }) => {
+    if (event.type === "SPOTLIGHT_START") dispatch(setFollowingUserId(event.presenterId));
+    if (event.type === "SPOTLIGHT_STOP") dispatch(setFollowingUserId(null));
+    if (event.type === "DOCUMENT_RESTORED") dispatch(setFollowingUserId(null));
+  });
   const shapes = useMemo(
     () => Object.values(nodes as ReadonlyJsonObject)
       .map((shape) => normalizeShape(shape as unknown as Shape))
@@ -56,8 +64,20 @@ const CollaborationBridge = () => {
       cursorX: other.presence.cursor?.x ?? null,
       cursorY: other.presence.cursor?.y ?? null,
       selectionIds: other.presence.selectionIds,
+      viewport: other.presence.viewport,
+      spotlight: other.presence.spotlight,
     }))));
   }, [dispatch, others]);
+
+  useEffect(() => {
+    if (!followingUserId) return;
+    const followed = others.find((other) => other.id === followingUserId);
+    if (!followed) {
+      dispatch(setFollowingUserId(null));
+      return;
+    }
+    dispatch(setViewport(followed.presence.viewport));
+  }, [dispatch, followingUserId, others]);
 
   return null;
 };

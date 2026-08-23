@@ -11,11 +11,11 @@ import {
   TextUnderline,
 } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
-import { Shape } from "../../classes/shape";
+import { createShapeId, Shape } from "../../classes/shape";
 import { shapeBounds } from "../../editor/geometry";
 import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setGrid } from "../../features/actions/actionsSlice";
-import { setGridSize, setSnapToGrid } from "../../features/editor/editorSlice";
+import { setGridSize, setShowRulers, setSnapToGrid } from "../../features/editor/editorSlice";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 import { BoardSummary, listBoards } from "../../services/boardRepository";
@@ -154,6 +154,39 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
           <ColorField label="Text" value={shape.color ?? "#f7f7f5"} onCommit={(color) => actions.patchSelected({ color })} />
         )}
         <ColorField label={shape.type === "text" ? "Back" : "Fill"} value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
+        <label className={styles.fullField}>
+          <span>Fill type</span>
+          <select
+            value={shape.fillType ?? "solid"}
+            onChange={(event) => {
+              const fillType = event.target.value as Shape["fillType"];
+              actions.patchSelected({
+                fillType,
+                ...((fillType !== "solid" && !shape.gradientStops?.length) ? {
+                  gradientStops: [
+                    { id: createShapeId(), position: 0, color: shape.backgroundColor ?? "#f4f2ed", opacity: 1 },
+                    { id: createShapeId(), position: 1, color: "#ffffff", opacity: 1 },
+                  ],
+                } : {}),
+              });
+            }}
+          >
+            <option value="solid">Solid</option>
+            <option value="linear-gradient">Linear gradient</option>
+            <option value="radial-gradient">Radial gradient</option>
+          </select>
+        </label>
+        {shape.fillType && shape.fillType !== "solid" && (
+          <>
+            {shape.fillType === "linear-gradient" && <NumberField label="Gradient angle" value={shape.gradientAngle ?? 90} onCommit={(gradientAngle) => actions.patchSelected({ gradientAngle })} />}
+            {(shape.gradientStops ?? []).map((stop, index) => (
+              <div className={styles.gradientStop} key={stop.id}>
+                <ColorField label={`Stop ${index + 1}`} value={stop.color} onCommit={(color) => actions.patchSelected({ gradientStops: shape.gradientStops?.map((candidate) => candidate.id === stop.id ? { ...candidate, color } : candidate) })} />
+                <NumberField label="At %" min={0} max={100} value={stop.position * 100} onCommit={(position) => actions.patchSelected({ gradientStops: shape.gradientStops?.map((candidate) => candidate.id === stop.id ? { ...candidate, position: position / 100 } : candidate) })} />
+              </div>
+            ))}
+          </>
+        )}
         <ColorField label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
         <div className={styles.fieldGrid}>
           <NumberField label="Stroke" min={0} value={shape.borderWidth ?? 0} onCommit={(borderWidth) => actions.patchSelected({ borderWidth })} />
@@ -168,7 +201,61 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
             <option value="double">Double</option>
           </select>
         </label>
+        <label className={styles.fullField}>
+          <span>Blend mode</span>
+          <select value={shape.blendMode ?? "normal"} onChange={(event) => actions.patchSelected({ blendMode: event.target.value as Shape["blendMode"] })}>
+            <option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option>
+            <option value="overlay">Overlay</option><option value="darken">Darken</option><option value="lighten">Lighten</option><option value="difference">Difference</option>
+          </select>
+        </label>
       </section>
+      <section className={styles.inspectorSection}>
+        <h2>Effects</h2>
+        {(shape.effects ?? []).map((effect) => (
+          <div className={styles.effectRow} key={effect.id}>
+            <label className={styles.toggleRow}>
+              <span>{effect.type.replaceAll("-", " ")}</span>
+              <input type="checkbox" checked={effect.visible} onChange={(event) => actions.patchSelected({ effects: shape.effects?.map((candidate) => candidate.id === effect.id ? { ...candidate, visible: event.target.checked } : candidate) })} />
+            </label>
+            <div className={styles.fieldGrid}>
+              <NumberField label="X" value={effect.x} onCommit={(x) => actions.patchSelected({ effects: shape.effects?.map((candidate) => candidate.id === effect.id ? { ...candidate, x } : candidate) })} />
+              <NumberField label="Y" value={effect.y} onCommit={(y) => actions.patchSelected({ effects: shape.effects?.map((candidate) => candidate.id === effect.id ? { ...candidate, y } : candidate) })} />
+              <NumberField label="Blur" min={0} value={effect.blur} onCommit={(blur) => actions.patchSelected({ effects: shape.effects?.map((candidate) => candidate.id === effect.id ? { ...candidate, blur } : candidate) })} />
+              <NumberField label="Spread" value={effect.spread} onCommit={(spread) => actions.patchSelected({ effects: shape.effects?.map((candidate) => candidate.id === effect.id ? { ...candidate, spread } : candidate) })} />
+            </div>
+          </div>
+        ))}
+        <label className={styles.fullField}>
+          <span>Add effect</span>
+          <select
+            value=""
+            onChange={(event) => {
+              if (!event.target.value) return;
+              actions.patchSelected({ effects: [...(shape.effects ?? []), {
+                id: createShapeId(), type: event.target.value as NonNullable<Shape["effects"]>[number]["type"], color: "#00000066", x: 0, y: 4, blur: 12, spread: 0, visible: true,
+              }] });
+            }}
+          >
+            <option value="">Choose…</option><option value="drop-shadow">Drop shadow</option><option value="inner-shadow">Inner shadow</option>
+            <option value="layer-blur">Layer blur</option><option value="background-blur">Background blur</option>
+          </select>
+        </label>
+      </section>
+      {shape.type === "vector" && (
+        <section className={styles.inspectorSection}>
+          <h2>Vector path</h2>
+          <label className={styles.toggleRow}><span>Closed path</span><input type="checkbox" checked={shape.vectorClosed ?? false} onChange={(event) => actions.patchSelected({ vectorClosed: event.target.checked })} /></label>
+          <p className={styles.fieldHint}>{shape.vectorPoints?.length ?? 0} editable nodes. Drag the canvas nodes with the pointer tool.</p>
+        </section>
+      )}
+      {shape.type === "boolean" && (
+        <section className={styles.inspectorSection}>
+          <h2>Boolean group</h2>
+          <label className={styles.fullField}><span>Operation</span><select value={shape.booleanOperation} onChange={(event) => actions.patchSelected({ booleanOperation: event.target.value as Shape["booleanOperation"] })}><option value="union">Union</option><option value="subtract">Subtract</option><option value="intersect">Intersect</option><option value="exclude">Exclude</option></select></label>
+          <button type="button" onClick={actions.flattenSelectedBoolean}>Release boolean group</button>
+        </section>
+      )}
+      {(shape.isMask || shape.maskId) && <section className={styles.inspectorSection}><h2>Mask</h2><button type="button" onClick={actions.releaseSelectedMask}>Release mask</button></section>}
       {shape.type === "text" && (
         <section className={styles.inspectorSection}>
           <h2>Typography</h2>
@@ -196,6 +283,35 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
               <option value="500">Medium</option>
               <option value="600">Semibold</option>
               <option value="bold">Bold</option>
+            </select>
+          </label>
+          <label className={styles.fullField}>
+            <span>Text resizing</span>
+            <select value={shape.textAutoResize ?? "fixed"} onChange={(event) => actions.patchSelected({ textAutoResize: event.target.value as Shape["textAutoResize"] })}>
+              <option value="auto-width">Auto width</option>
+              <option value="auto-height">Auto height</option>
+              <option value="fixed">Fixed size</option>
+            </select>
+          </label>
+          <div className={styles.fieldGrid}>
+            <NumberField label="Paragraph" min={0} value={shape.paragraphSpacing ?? 0} onCommit={(paragraphSpacing) => actions.patchSelected({ paragraphSpacing })} />
+            <NumberField label="Indent" min={0} value={shape.textIndent ?? 0} onCommit={(textIndent) => actions.patchSelected({ textIndent })} />
+          </div>
+          <label className={styles.fullField}>
+            <span>Case</span>
+            <select value={shape.textCase ?? "original"} onChange={(event) => actions.patchSelected({ textCase: event.target.value as Shape["textCase"] })}>
+              <option value="original">Original</option>
+              <option value="upper">Uppercase</option>
+              <option value="lower">Lowercase</option>
+              <option value="title">Title case</option>
+            </select>
+          </label>
+          <label className={styles.fullField}>
+            <span>List</span>
+            <select value={shape.listStyle ?? "none"} onChange={(event) => actions.patchSelected({ listStyle: event.target.value as Shape["listStyle"] })}>
+              <option value="none">None</option>
+              <option value="bulleted">Bulleted</option>
+              <option value="numbered">Numbered</option>
             </select>
           </label>
           <span className={styles.controlLabel}>Horizontal alignment</span>
@@ -277,11 +393,101 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
               onChange={(event) => actions.patchSelected({ clipContent: event.target.checked })}
             />
           </label>
+          <label className={styles.fullField}>
+            <span>Auto layout</span>
+            <select value={shape.layoutMode ?? "none"} onChange={(event) => actions.patchSelected({ layoutMode: event.target.value as Shape["layoutMode"] })}>
+              <option value="none">None</option>
+              <option value="horizontal">Horizontal</option>
+              <option value="vertical">Vertical</option>
+              <option value="grid">Grid</option>
+            </select>
+          </label>
+          {shape.layoutMode && shape.layoutMode !== "none" && (
+            <>
+              <div className={styles.fieldGrid}>
+                <NumberField label="Gap" min={0} value={shape.layoutGap ?? 12} onCommit={(layoutGap) => actions.patchSelected({ layoutGap })} />
+                <NumberField label="Row gap" min={0} value={shape.layoutCounterGap ?? 12} onCommit={(layoutCounterGap) => actions.patchSelected({ layoutCounterGap })} />
+                <NumberField label="Top" min={0} value={shape.paddingTop ?? 16} onCommit={(paddingTop) => actions.patchSelected({ paddingTop })} />
+                <NumberField label="Right" min={0} value={shape.paddingRight ?? 16} onCommit={(paddingRight) => actions.patchSelected({ paddingRight })} />
+                <NumberField label="Bottom" min={0} value={shape.paddingBottom ?? 16} onCommit={(paddingBottom) => actions.patchSelected({ paddingBottom })} />
+                <NumberField label="Left" min={0} value={shape.paddingLeft ?? 16} onCommit={(paddingLeft) => actions.patchSelected({ paddingLeft })} />
+              </div>
+              <label className={styles.toggleRow}>
+                <span>Wrap</span>
+                <input type="checkbox" checked={shape.layoutWrap ?? false} onChange={(event) => actions.patchSelected({ layoutWrap: event.target.checked })} />
+              </label>
+              <label className={styles.fullField}>
+                <span>Main-axis alignment</span>
+                <select value={shape.primaryAlign ?? "start"} onChange={(event) => actions.patchSelected({ primaryAlign: event.target.value as Shape["primaryAlign"] })}>
+                  <option value="start">Start</option>
+                  <option value="center">Center</option>
+                  <option value="end">End</option>
+                  <option value="space-between">Space between</option>
+                </select>
+              </label>
+              <label className={styles.fullField}>
+                <span>Cross-axis alignment</span>
+                <select value={shape.counterAlign ?? "start"} onChange={(event) => actions.patchSelected({ counterAlign: event.target.value as Shape["counterAlign"] })}>
+                  <option value="start">Start</option>
+                  <option value="center">Center</option>
+                  <option value="end">End</option>
+                  <option value="stretch">Stretch</option>
+                </select>
+              </label>
+              <div className={styles.fieldGrid}>
+                <label className={styles.fullField}>
+                  <span>Width</span>
+                  <select value={shape.horizontalSizing ?? "fixed"} onChange={(event) => actions.patchSelected({ horizontalSizing: event.target.value as Shape["horizontalSizing"] })}>
+                    <option value="fixed">Fixed</option>
+                    <option value="hug">Hug</option>
+                  </select>
+                </label>
+                <label className={styles.fullField}>
+                  <span>Height</span>
+                  <select value={shape.verticalSizing ?? "fixed"} onChange={(event) => actions.patchSelected({ verticalSizing: event.target.value as Shape["verticalSizing"] })}>
+                    <option value="fixed">Fixed</option>
+                    <option value="hug">Hug</option>
+                  </select>
+                </label>
+              </div>
+            </>
+          )}
           <button type="button" onClick={actions.unframeSelected}>Remove frame</button>
         </section>
       )}
       {shape.parentId && (
         <section className={styles.inspectorSection}>
+          <h2>Layout in frame</h2>
+          <label className={styles.fullField}>
+            <span>Positioning</span>
+            <select value={shape.layoutPositioning ?? "auto"} onChange={(event) => actions.patchSelected({ layoutPositioning: event.target.value as Shape["layoutPositioning"] })}>
+              <option value="auto">Auto</option>
+              <option value="absolute">Absolute</option>
+            </select>
+          </label>
+          <div className={styles.fieldGrid}>
+            <label className={styles.fullField}>
+              <span>Horizontal</span>
+              <select value={shape.constraintHorizontal ?? "left"} onChange={(event) => actions.patchSelected({ constraintHorizontal: event.target.value as Shape["constraintHorizontal"] })}>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="left-right">Left & right</option>
+                <option value="center">Center</option>
+                <option value="scale">Scale</option>
+              </select>
+            </label>
+            <label className={styles.fullField}>
+              <span>Vertical</span>
+              <select value={shape.constraintVertical ?? "top"} onChange={(event) => actions.patchSelected({ constraintVertical: event.target.value as Shape["constraintVertical"] })}>
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+                <option value="top-bottom">Top & bottom</option>
+                <option value="center">Center</option>
+                <option value="scale">Scale</option>
+              </select>
+            </label>
+            <NumberField label="Grow" min={0} step={0.25} value={shape.layoutGrow ?? 0} onCommit={(layoutGrow) => actions.patchSelected({ layoutGrow })} />
+          </div>
           <h2>Align to frame</h2>
           <div className={styles.buttonGrid}>
             <button type="button" onClick={() => actions.alignSelected("left")}>Left</button>
@@ -342,6 +548,10 @@ export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
                 <span>Snap to grid</span>
                 <input type="checkbox" checked={editor.snapToGrid} onChange={(event) => dispatch(setSnapToGrid(event.target.checked))} />
               </label>
+              <label className={styles.toggleRow}>
+                <span>Rulers and guides</span>
+                <input type="checkbox" checked={editor.showRulers} onChange={(event) => dispatch(setShowRulers(event.target.checked))} />
+              </label>
               <NumberField label="Grid" min={2} max={128} value={editor.gridSize} onCommit={(gridSize) => dispatch(setGridSize(gridSize))} />
             </section>
             <div className={styles.tip}>
@@ -376,7 +586,20 @@ export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
                 {!isExistingGroup && <button type="button" onClick={actions.groupSelected}>Group</button>}
                 {canUngroup && <button type="button" onClick={actions.ungroupSelected}>Ungroup</button>}
                 <button type="button" onClick={actions.frameSelected}>Frame selection</button>
+                <button type="button" onClick={actions.sectionSelected}>Create section</button>
+                {selected.every((shape) => shape.type === "section") && <button type="button" onClick={actions.collectSelectedSections}>Collect sections</button>}
               </div>
+            </section>
+            <section className={styles.inspectorSection}>
+              <h2>Combine</h2>
+              <div className={styles.buttonGrid}>
+                <button type="button" onClick={() => actions.booleanSelected("union")}>Union</button>
+                <button type="button" onClick={() => actions.booleanSelected("subtract")}>Subtract</button>
+                <button type="button" onClick={() => actions.booleanSelected("intersect")}>Intersect</button>
+                <button type="button" onClick={() => actions.booleanSelected("exclude")}>Exclude</button>
+                <button type="button" onClick={actions.maskSelected}>Use as mask</button>
+              </div>
+              <p className={styles.fieldHint}>Boolean groups remain editable. The back-most selected object becomes the mask.</p>
             </section>
           </>
         )}

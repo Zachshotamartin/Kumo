@@ -42,6 +42,9 @@ const presence = vi.hoisted(() => ({ update: vi.fn() }));
 vi.mock("@liveblocks/react", () => ({
   useUpdateMyPresence: () => presence.update,
 }));
+vi.mock("../../comments/CommentPins", () => ({
+  CommentPins: () => <div data-testid="comment-pins" />,
+}));
 vi.mock("../../editor/useEditorActions", () => ({
   useEditorActions: () => editorActions,
 }));

@@ -80,6 +80,11 @@ describe("sharing, session, and Liveblocks API handlers", () => {
           delete: () => ({ eq: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ error: null }) }) }) }),
         };
       }
+      if (table === "document_branches") {
+        return {
+          select: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: { board_id: "board", status: "open" }, error: null }) }) }),
+        };
+      }
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
   });
@@ -133,9 +138,17 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     mocks.getAccess.mockResolvedValueOnce({ board, role: "viewer" });
     const viewer = response();
     await liveblocksAuthHandler(request({ room: "board:board" }), viewer);
-    expect(mocks.allow).toHaveBeenLastCalledWith("board:board", ["*:read", "room:presence:write"]);
+    expect(mocks.allow).toHaveBeenLastCalledWith("board:board", ["*:read", "room:presence:write", "comments:write"]);
     const invalid = response();
     await liveblocksAuthHandler(request({ room: "invalid" }), invalid);
     expect(invalid.statusCode).toBe(400);
+  });
+
+  it("authorizes an open isolated design branch through its parent board", async () => {
+    const reply = response();
+    await liveblocksAuthHandler(request({ room: "branch:branch-id" }), reply);
+    expect(mocks.getAccess).toHaveBeenCalledWith("board", "owner");
+    expect(mocks.allow).toHaveBeenCalledWith("branch:branch-id", ["*:write"]);
+    expect(reply.statusCode).toBe(200);
   });
 });
