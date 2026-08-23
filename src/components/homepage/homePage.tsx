@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./homePage.module.css";
 import { auth, provider } from "../../config/firebase";
 import {
   signInWithEmailAndPassword,
+  getRedirectResult,
   signInWithPopup,
+  signInWithRedirect,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { ensureUserProfile } from "../../services/userRepository";
 import KumoLogo from "../brand/KumoLogo";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
+import { googleAuthFlowForLocation } from "../../config/authFlow";
 
 const HomePage = () => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
@@ -18,6 +21,15 @@ const HomePage = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void getRedirectResult(auth).catch((caught: unknown) => {
+      if (!active) return;
+      setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
+    });
+    return () => { active = false; };
+  }, []);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -54,8 +66,12 @@ const HomePage = () => {
     setMessage("");
     setSubmitting(true);
     try {
-      await signInWithPopup(auth, provider);
-      await ensureUserProfile();
+      if (googleAuthFlowForLocation(window.location) === "redirect") {
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+        await ensureUserProfile();
+      }
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
     } finally {
@@ -99,13 +115,10 @@ const HomePage = () => {
   return (
     <main className={styles.homePage}>
       <section className={styles.intro}>
-        <div className={styles.logo}>
-          <KumoLogo className={styles.brandLogo} decorative />
+        <div className={styles.logo} data-context={logoContext}>
+          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="swirl" />
           <span className={styles.logoText}>Kumo</span>
-        </div>
-        <div className={styles.mascotStage} data-context={logoContext}>
-          <KumoLogo className={styles.heroLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="swirl" />
-          <p className={styles.logoStatus} aria-live="polite">{logoStatus}</p>
+          <span className={styles.logoStatus} aria-live="polite">{logoStatus}</span>
         </div>
         <div className={styles.introText}>
           <p className={styles.eyebrow}>A shared visual workspace</p>

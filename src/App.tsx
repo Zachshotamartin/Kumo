@@ -14,8 +14,11 @@ const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
 
 const LoadingScreen = () => (
   <div className="app-loading" role="status">
-    <KumoLogo className="app-loading-logo" context="loading" decorative />
-    <span>Loading Kumo</span>
+    <div className="app-loading-brand">
+      <KumoLogo className="app-loading-logo" context="loading" startupAnimation="intro" decorative />
+      <span className="app-loading-word">Kumo</span>
+    </div>
+    <span className="app-loading-status">Loading workspace</span>
   </div>
 );
 
@@ -25,25 +28,26 @@ function App() {
   const dispatch = useDispatch<AppDispatch>();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (!firebaseUser) {
-        dispatch(logout());
-        return;
-      }
-      dispatch(
-        login({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email ?? "",
-        })
-      );
-      void ensureUserProfile();
-    });
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (firebaseUser) => {
+        if (!firebaseUser) {
+          dispatch(logout());
+          return;
+        }
+        dispatch(
+          login({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email ?? "",
+          })
+        );
+        void ensureUserProfile().catch((error: unknown) => {
+          console.error("Kumo could not initialize the authenticated profile.", error);
+        });
+      },
+      () => dispatch(setAuthInitialized())
+    );
     return () => unsubscribe();
-  }, [dispatch]);
-
-  useEffect(() => {
-    const fallback = window.setTimeout(() => dispatch(setAuthInitialized()), 5000);
-    return () => window.clearTimeout(fallback);
   }, [dispatch]);
 
   if (!user.isInitialized) return <LoadingScreen />;

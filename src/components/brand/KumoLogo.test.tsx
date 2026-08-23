@@ -36,6 +36,7 @@ describe("KumoLogo", () => {
   it("falls back to a supported leg gesture until startup animations ship", async () => {
     const { container, rerender } = render(<KumoLogo />);
     const logo = container.querySelector("kumo-logo") as MockKumoLogoElement;
+    await waitFor(() => expect(logo.configure).toHaveBeenCalledWith(KUMO_LOGO_CONFIG));
     logo.playAnimation = undefined;
 
     rerender(<KumoLogo startupAnimation="intro" />);

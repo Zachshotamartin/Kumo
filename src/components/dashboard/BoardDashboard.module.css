@@ -31,7 +31,6 @@
 }
 
 .brandLogo { width: 36px; }
-
 .brandName { font-size: 14px; }
 
 .search {
@@ -331,6 +330,7 @@
   }
 
   .account { display: none; }
+  .brandName { display: none; }
   .content { width: min(100% - 28px, 1340px); padding-top: 42px; }
   .hero { align-items: flex-start; flex-direction: column; }
   .boardGrid,
@@ -338,7 +338,6 @@
 }
 
 @media (max-width: 460px) {
-  .brandName { display: none; }
   .boardGrid,
   .skeletonGrid { grid-template-columns: 1fr; }
 }

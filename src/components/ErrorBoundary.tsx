@@ -24,7 +24,10 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (!this.state.failed) return this.props.children;
     return (
       <main className="fatal-error">
-        <KumoLogo className="app-loading-logo" context="error" decorative />
+        <div className="app-loading-brand">
+          <KumoLogo className="app-loading-logo" context="error" decorative />
+          <span className="app-loading-word">Kumo</span>
+        </div>
         <p>Something interrupted this workspace.</p>
         <button type="button" onClick={() => window.location.reload()}>Reload Kumo</button>
       </main>

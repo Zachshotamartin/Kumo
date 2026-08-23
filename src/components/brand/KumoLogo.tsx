@@ -46,6 +46,7 @@ const KumoLogo = ({
     void whenLogoIsDefined().then(() => {
       const logo = element;
       if (!active || !logo) return;
+      logo.configure(KUMO_LOGO_CONFIG);
       if (context === "idle") logo.resumeIdle();
       else logo.setContext(context);
     });
@@ -58,7 +59,6 @@ const KumoLogo = ({
     void whenLogoIsDefined().then(async () => {
       const logo = element;
       if (!active || !logo) return;
-      logo.configure(KUMO_LOGO_CONFIG);
       if (logo.playAnimation) await logo.playAnimation(startupAnimation);
       else logo.playBreak(startupAnimation === "swirl" ? "stretch" : "scuttle");
       if (!active) return;

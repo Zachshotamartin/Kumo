@@ -75,6 +75,7 @@ describe("BoardDashboard", () => {
 
   it("loads owned/shared boards and opens or creates them", async () => {
     const store = renderDashboard();
+    expect(screen.getByRole("link", { name: "Kumo boards" })).toHaveTextContent("Kumo");
     expect(await screen.findByText("My map")).toBeInTheDocument();
     expect(screen.getByText("Shared with me")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open My map" }));

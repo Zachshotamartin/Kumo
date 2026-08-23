@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [["html", { open: "never" }], ["github"]] : "list",
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: "http://localhost:4173",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -17,8 +17,8 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    command: "yarn dev:client --host 127.0.0.1 --port 4173",
-    url: "http://127.0.0.1:4173",
+    command: "yarn dev:client --host localhost --port 4173",
+    url: "http://localhost:4173",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

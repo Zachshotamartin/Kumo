@@ -1,8 +1,12 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { devProxyForMode } from "./src/config/devProxy.ts";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  server: {
+    proxy: devProxyForMode(mode),
+  },
   build: {
     target: "es2022",
     sourcemap: true,
@@ -31,4 +35,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

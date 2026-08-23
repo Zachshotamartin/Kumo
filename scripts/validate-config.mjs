@@ -1,8 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
+const jsonFiles = new Map();
 for (const file of ["database.rules.json", "firebase.json", "vercel.json", "vercel.dev.json"]) {
-  JSON.parse(readFileSync(file, "utf8"));
+  jsonFiles.set(file, JSON.parse(readFileSync(file, "utf8")));
+}
+
+const authRewrite = jsonFiles.get("vercel.json")?.rewrites?.[0];
+if (
+  authRewrite?.source !== "/__/auth/:path*" ||
+  authRewrite?.destination !== "https://kumo-7d8e1.firebaseapp.com/__/auth/:path*"
+) {
+  throw new Error("vercel.json must proxy the same-origin Firebase authentication helper first.");
 }
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
@@ -52,6 +61,10 @@ const clientFiles = sourceFiles("src");
 const clientSource = clientFiles.map((file) => readFileSync(file, "utf8")).join("\n");
 if (/firebase\/database|realtimeDb|getDatabase\s*\(/.test(clientSource)) {
   throw new Error("Firebase Realtime Database must not be used by normal client code.");
+}
+
+if (readFileSync("src/App.css", "utf8").includes("logo512.png")) {
+  throw new Error("The animated Kumo component must not fall back to the legacy logo bitmap.");
 }
 
 const requiredDataPaths = [

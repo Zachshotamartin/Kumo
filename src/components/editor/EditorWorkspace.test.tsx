@@ -58,6 +58,7 @@ describe("EditorWorkspace", () => {
 
   it("renames, changes visibility, opens sharing, and returns home", () => {
     const store = renderWorkspace();
+    expect(screen.getByRole("button", { name: "Back to boards" })).toHaveTextContent("Kumo");
     fireEvent.change(screen.getByLabelText("Board title"), { target: { value: "  Renamed  " } });
     fireEvent.blur(screen.getByLabelText("Board title"));
     expect(mocks.commitBoardPatch).toHaveBeenCalledWith({ title: "Renamed" });

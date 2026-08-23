@@ -4,10 +4,7 @@ kumo-logo {
   display: inline-block;
   max-width: 100%;
   aspect-ratio: 1;
-  background: url("/logo512.png") center / contain no-repeat;
 }
-
-kumo-logo:defined { background-image: none; }
 
 .skip-link {
   position: fixed;
@@ -31,10 +28,30 @@ kumo-logo:defined { background-image: none; }
   min-height: 100dvh;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
   gap: 12px;
   color: #aaa9a4;
   font: 600 13px/1 "Avenir Next", "Segoe UI", sans-serif;
   background: #1b1c1e;
+}
+
+.app-loading-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f3f0e8;
+}
+
+.app-loading-word {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.app-loading-status {
+  color: #8f8e89;
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
 .app-loading-logo {

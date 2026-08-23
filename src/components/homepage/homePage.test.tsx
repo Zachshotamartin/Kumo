@@ -4,22 +4,31 @@ import HomePage from "./homePage";
 const mocks = vi.hoisted(() => ({
   signIn: vi.fn().mockResolvedValue(undefined),
   register: vi.fn().mockResolvedValue(undefined),
-  google: vi.fn().mockResolvedValue(undefined),
+  googleRedirect: vi.fn().mockResolvedValue(undefined),
+  googlePopup: vi.fn().mockResolvedValue(undefined),
+  redirectResult: vi.fn().mockResolvedValue(null),
   reset: vi.fn().mockResolvedValue(undefined),
   profile: vi.fn().mockResolvedValue(undefined),
+  authFlow: vi.fn(() => "popup" as "popup" | "redirect"),
 }));
 
 vi.mock("firebase/auth", () => ({
   signInWithEmailAndPassword: mocks.signIn,
   createUserWithEmailAndPassword: mocks.register,
-  signInWithPopup: mocks.google,
+  signInWithRedirect: mocks.googleRedirect,
+  signInWithPopup: mocks.googlePopup,
+  getRedirectResult: mocks.redirectResult,
   sendPasswordResetEmail: mocks.reset,
 }));
 vi.mock("../../config/firebase", () => ({ auth: {}, provider: {} }));
 vi.mock("../../services/userRepository", () => ({ ensureUserProfile: mocks.profile }));
+vi.mock("../../config/authFlow", () => ({ googleAuthFlowForLocation: mocks.authFlow }));
 
 describe("HomePage authentication", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.authFlow.mockReturnValue("popup");
+  });
 
   const fillCredentials = () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: " user@example.com " } });
@@ -28,6 +37,8 @@ describe("HomePage authentication", () => {
 
   it("signs in and provisions the application profile", async () => {
     render(<HomePage />);
+    expect(screen.getByText("Kumo", { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Animated Kumo mascot")).toHaveLength(1);
     fillCredentials();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith({}, "user@example.com", "password"));
@@ -55,10 +66,24 @@ describe("HomePage authentication", () => {
   });
 
   it("reports Google authentication failures", async () => {
-    mocks.google.mockRejectedValueOnce(new Error("Popup closed"));
+    mocks.googlePopup.mockRejectedValueOnce(new Error("Popup closed"));
     render(<HomePage />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Popup closed");
     expect(screen.getByLabelText("Animated Kumo mascot")).toHaveAttribute("context", "error");
+  });
+
+  it("uses redirect authentication on secure deployments", async () => {
+    mocks.authFlow.mockReturnValue("redirect");
+    render(<HomePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(mocks.googleRedirect).toHaveBeenCalledWith({}, {}));
+    expect(mocks.googlePopup).not.toHaveBeenCalled();
+  });
+
+  it("reports errors returned after a Google redirect", async () => {
+    mocks.redirectResult.mockRejectedValueOnce(new Error("Redirect was rejected"));
+    render(<HomePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Redirect was rejected");
   });
 });

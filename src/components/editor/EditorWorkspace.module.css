@@ -61,10 +61,7 @@
 }
 
 .brandLogo { width: 32px; }
-
-.brandWord {
-  letter-spacing: -0.02em;
-}
+.brandWord { letter-spacing: -0.02em; }
 
 .breadcrumb {
   color: #55565b;
