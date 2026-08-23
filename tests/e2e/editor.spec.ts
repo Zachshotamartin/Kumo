@@ -283,8 +283,8 @@ test.describe("editor regression workflows", () => {
     await page.mouse.down();
     await page.keyboard.down("Control");
     await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 380, { steps: 8 });
-    await page.keyboard.up("Control");
     await page.mouse.up();
+    await page.keyboard.up("Control");
     const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
     await expect(rectangle).toHaveAttribute("data-parent-id", frameId!);
     expect(Number(await rectangle.getAttribute("data-z-index"))).toBeGreaterThan(frameZ);

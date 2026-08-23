@@ -210,7 +210,8 @@ describe("editor property panels", () => {
       setData: vi.fn(),
     };
     fireEvent.dragStart(source, { dataTransfer });
-    fireEvent.dragOver(target!, { clientY: 1, dataTransfer });
+    // Drop must use the synchronous drag payload rather than waiting for a
+    // React state render; WebKit can deliver drop immediately after dragstart.
     fireEvent.drop(target!, { clientY: 1, dataTransfer });
     const committed = actions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
     expect(committed.map((item) => item.id)).toEqual(["2", "1"]);

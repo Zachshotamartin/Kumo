@@ -808,6 +808,34 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const finishInteraction = (event: React.PointerEvent<HTMLDivElement>) => {
     const interaction = interactionRef.current;
     if (!interaction || interaction.pointerId !== event.pointerId) return;
+
+    // Some browsers coalesce the final pointermove under load. Recompute a move
+    // from the pointerup coordinates so the committed geometry always matches
+    // where the user actually released the object.
+    if (interaction.mode === "move") {
+      const world = pointerWorld(event);
+      let delta = { x: world.x - interaction.startWorld.x, y: world.y - interaction.startWorld.y };
+      if (event.shiftKey) {
+        delta = Math.abs(delta.x) >= Math.abs(delta.y)
+          ? { x: delta.x, y: 0 }
+          : { x: 0, y: delta.y };
+      }
+      if (!event.ctrlKey && !event.metaKey && !activeGridSize) {
+        delta = snapMoveToObjects(
+          interaction.baseline,
+          interaction.selectedIds,
+          delta,
+          6 / editor.viewport.zoom
+        ).delta;
+      }
+      interaction.preview = moveShapesFromBaseline(
+        interaction.baseline,
+        interaction.selectedIds,
+        delta,
+        activeGridSize
+      );
+    }
+
     interactionRef.current = null;
     setResizeDirection({ x: 1, y: 1 });
     setSmartGuides([]);

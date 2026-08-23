@@ -89,7 +89,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [draggedIds, setDraggedIds] = useState<string[] | null>(null);
+  const draggedIdsRef = useRef<string[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ key: string; placement: RelativeOrder } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -142,12 +142,13 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
     }
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", unit.key);
-    setDraggedIds(unit.ids);
+    draggedIdsRef.current = unit.ids;
     dispatch(setSelectedShapes(unit.ids));
   };
 
   const updateDropTarget = (event: DragEvent, unit: LayerUnit) => {
-    if (!draggedIds || unit.ids.some((id) => draggedIds.includes(id))) return;
+    const activeIds = draggedIdsRef.current;
+    if (!activeIds || unit.ids.some((id) => activeIds.includes(id))) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -159,18 +160,28 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
 
   const finishDrop = (event: DragEvent, unit: LayerUnit) => {
     event.preventDefault();
-    if (draggedIds && dropTarget?.key === unit.key) {
+    const activeIds = draggedIdsRef.current;
+    if (activeIds && !unit.ids.some((id) => activeIds.includes(id))) {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const placement: RelativeOrder = event.clientY < bounds.top + bounds.height / 2
+        ? "front"
+        : "back";
       actions.commitShapes(
         moveShapesRelative(
           board.shapes,
-          draggedIds,
+          activeIds,
           unit.members[0]!.id,
-          dropTarget.placement
+          placement
         )
       );
-      dispatch(setSelectedShapes(draggedIds));
+      dispatch(setSelectedShapes(activeIds));
     }
-    setDraggedIds(null);
+    draggedIdsRef.current = null;
+    setDropTarget(null);
+  };
+
+  const finishDrag = () => {
+    draggedIdsRef.current = null;
     setDropTarget(null);
   };
 
@@ -321,7 +332,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                 draggable={actions.canEdit}
                 title="Drag to reorder"
                 onDragStart={(event) => startDrag(event, unit)}
-                onDragEnd={() => { setDraggedIds(null); setDropTarget(null); }}
+                onDragEnd={finishDrag}
                 onClick={(event) => selectUnit(event, selectionIds)}
                 onDoubleClick={() => {
                   if (!actions.canEdit) return;
@@ -490,7 +501,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                     draggable={actions.canEdit}
                     title="Drag to reorder"
                     onDragStart={(event) => startDrag(event, unit)}
-                    onDragEnd={() => { setDraggedIds(null); setDropTarget(null); }}
+                    onDragEnd={finishDrag}
                     onClick={(event) => selectUnit(event, unit.ids)}
                     onDoubleClick={() => {
                       const shape = unit.members[0];
