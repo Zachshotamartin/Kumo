@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSyncStatus } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { logout } from "../../features/auth/authSlice";
+import { zoomAtPoint } from "../../editor/geometry";
+import { setViewport } from "../../features/editor/editorSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { deleteBoard } from "../../services/boardRepository";
@@ -41,6 +43,7 @@ const EditorWorkspace = () => {
   const editor = useSelector((state: RootState) => state.editor);
   const actions = useEditorActions();
   const syncStatus = useSyncStatus({ smooth: true });
+  const canvasRegionRef = useRef<HTMLElement>(null);
   const [title, setTitle] = useState(board.title ?? "Untitled board");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,6 +81,20 @@ const EditorWorkspace = () => {
     await signOut(auth);
     dispatch(logout());
     dispatch(setWhiteboardData(emptyBoard));
+  };
+
+  const setZoomAroundCanvasCenter = (nextZoom: number) => {
+    const rect = canvasRegionRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dispatch(
+      setViewport(
+        zoomAtPoint(
+          editor.viewport,
+          { x: rect.width / 2, y: rect.height / 2 },
+          nextZoom
+        )
+      )
+    );
   };
 
   return (
@@ -140,15 +157,15 @@ const EditorWorkspace = () => {
 
       <div className={styles.editorGrid}>
         <LayersPanel />
-        <section className={styles.canvasRegion} aria-label="Design editor">
+        <section ref={canvasRegionRef} className={styles.canvasRegion} aria-label="Design editor">
           <EditorCanvas />
           <EditorToolbar />
           <div className={styles.zoomControl} aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom out" onClick={() => dispatch({ type: "editor/setViewport", payload: { ...editor.viewport, zoom: Math.max(0.1, editor.viewport.zoom / 1.25) } })}>−</button>
-            <button type="button" className={styles.zoomValue} onClick={() => dispatch({ type: "editor/setViewport", payload: { ...editor.viewport, zoom: 1 } })}>
+            <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / 1.25)}>−</button>
+            <button type="button" className={styles.zoomValue} onClick={() => setZoomAroundCanvasCenter(1)}>
               {Math.round(editor.viewport.zoom * 100)}%
             </button>
-            <button type="button" aria-label="Zoom in" onClick={() => dispatch({ type: "editor/setViewport", payload: { ...editor.viewport, zoom: Math.min(8, editor.viewport.zoom * 1.25) } })}>＋</button>
+            <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * 1.25)}>＋</button>
           </div>
         </section>
         <InspectorPanel />

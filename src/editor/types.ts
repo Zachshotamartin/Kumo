@@ -56,4 +56,17 @@ export interface ResizeOptions {
   fromCenter?: boolean;
   lockAspectRatio?: boolean;
   minimumSize?: number;
+  gridSize?: number;
+}
+
+export interface ResizeTransform {
+  bounds: Bounds;
+  origin: Point;
+  scaleX: number;
+  scaleY: number;
+}
+
+export interface SelectionFrame {
+  bounds: Bounds;
+  rotation: number;
 }

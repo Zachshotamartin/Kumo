@@ -7,16 +7,19 @@ import {
   moveShapesFromBaseline,
   normalizeShape,
   panViewport,
-  resizeBounds,
-  resizeShapesFromBaseline,
+  resizeSelectionFromPointer,
+  resizeTransformForFrame,
+  rotateShapesFromBaseline,
   screenToWorld,
   selectionBounds,
+  selectionFrame,
   shapeBounds,
   shapesInMarquee,
+  snapPointToGrid,
   worldToScreen,
   zoomAtPoint,
 } from "../../editor/geometry";
-import { Bounds, EditorTool, Point, ResizeHandle, Viewport } from "../../editor/types";
+import { EditorTool, Point, ResizeHandle, SelectionFrame, Viewport } from "../../editor/types";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { initializeEditor, setEditingShapeId, setHoveredShapeId, setViewport } from "../../features/editor/editorSlice";
 import { clearSelectedShapes, setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
@@ -25,7 +28,7 @@ import { AppDispatch, RootState } from "../../store";
 import { getBoard } from "../../services/boardRepository";
 import styles from "./EditorCanvas.module.css";
 
-type InteractionMode = "draw" | "move" | "resize" | "marquee" | "pan";
+type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan";
 
 interface Interaction {
   mode: InteractionMode;
@@ -38,7 +41,7 @@ interface Interaction {
   startViewport: Viewport;
   shapeId?: string;
   handle?: ResizeHandle;
-  selectionBounds?: Bounds;
+  selectionFrame?: SelectionFrame;
   additiveSelection?: string[];
 }
 
@@ -139,6 +142,7 @@ const EditorCanvas = () => {
   const [marquee, setMarquee] = useState<{ start: Point; end: Point } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [navigationError, setNavigationError] = useState<string | null>(null);
+  const [resizeDirection, setResizeDirection] = useState({ x: 1, y: 1 });
 
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
@@ -149,8 +153,8 @@ const EditorCanvas = () => {
   const actions = useEditorActions();
   const updateMyPresence = useUpdateMyPresence();
 
-  const selectedBounds = useMemo(
-    () => selectionBounds(board.shapes, selectedIds),
+  const selectedFrame = useMemo(
+    () => selectionFrame(board.shapes, selectedIds),
     [board.shapes, selectedIds]
   );
 
@@ -209,6 +213,7 @@ const EditorCanvas = () => {
     const baseline = cloneShapes(board.shapes);
     const startViewport = editor.viewport;
     const handle = (event.target as HTMLElement).dataset.resizeHandle as ResizeHandle | undefined;
+    const wantsRotate = (event.target as HTMLElement).dataset.rotationHandle === "true";
     const wantsPan = event.button === 1 || selectedTool === "hand" || spacePressedRef.current;
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -232,7 +237,23 @@ const EditorCanvas = () => {
       return;
     }
 
-    if (handle && selectedBounds) {
+    if (wantsRotate && selectedFrame) {
+      interactionRef.current = {
+        mode: "rotate",
+        pointerId: event.pointerId,
+        startWorld,
+        startScreen,
+        baseline,
+        preview: baseline,
+        selectedIds,
+        startViewport,
+        selectionFrame: selectedFrame,
+      };
+      return;
+    }
+
+    if (handle && selectedFrame) {
+      setResizeDirection({ x: 1, y: 1 });
       interactionRef.current = {
         mode: "resize",
         pointerId: event.pointerId,
@@ -243,20 +264,23 @@ const EditorCanvas = () => {
         selectedIds,
         startViewport,
         handle,
-        selectionBounds: selectedBounds,
+        selectionFrame: selectedFrame,
       };
       return;
     }
 
     if (selectedTool !== "pointer") {
-      const draft = createDraftShape(selectedTool, startWorld, board.shapes);
+      const drawStart = editor.snapToGrid
+        ? snapPointToGrid(startWorld, editor.gridSize)
+        : startWorld;
+      const draft = createDraftShape(selectedTool, drawStart, board.shapes);
       const preview = [...baseline, draft];
       dispatch(setSelectedShapes([draft.id]));
       actions.previewShapes(preview);
       interactionRef.current = {
         mode: "draw",
         pointerId: event.pointerId,
-        startWorld,
+        startWorld: drawStart,
         startScreen,
         baseline,
         preview,
@@ -344,7 +368,15 @@ const EditorCanvas = () => {
         ? interaction.preview.find((shape) => shape.id === interaction.shapeId)
         : undefined;
       if (!draft) return;
-      const nextDraft = draftAtPoint(draft, interaction.startWorld, world, event.shiftKey);
+      const drawEnd = editor.snapToGrid
+        ? snapPointToGrid(world, editor.gridSize)
+        : world;
+      const nextDraft = draftAtPoint(
+        draft,
+        interaction.startWorld,
+        drawEnd,
+        event.shiftKey
+      );
       interaction.preview = [...interaction.baseline, nextDraft];
       actions.previewShapes(interaction.preview);
       return;
@@ -361,17 +393,48 @@ const EditorCanvas = () => {
       return;
     }
 
-    if (interaction.mode === "resize" && interaction.handle && interaction.selectionBounds) {
-      const nextBounds = resizeBounds(interaction.selectionBounds, interaction.handle, world, {
+    if (interaction.mode === "resize" && interaction.handle && interaction.selectionFrame) {
+      const options = {
         fromCenter: event.altKey,
         lockAspectRatio: event.shiftKey,
         minimumSize: 1,
-      });
-      interaction.preview = resizeShapesFromBaseline(
+        gridSize: editor.snapToGrid ? editor.gridSize : 0,
+      };
+      const transform = resizeTransformForFrame(
+        interaction.selectionFrame,
+        interaction.handle,
+        world,
+        options
+      );
+      const nextDirection = {
+        x: transform.scaleX < 0 ? -1 : 1,
+        y: transform.scaleY < 0 ? -1 : 1,
+      };
+      setResizeDirection((current) =>
+        current.x === nextDirection.x && current.y === nextDirection.y
+          ? current
+          : nextDirection
+      );
+      interaction.preview = resizeSelectionFromPointer(
         interaction.baseline,
         interaction.selectedIds,
-        interaction.selectionBounds,
-        nextBounds
+        interaction.selectionFrame,
+        interaction.handle,
+        world,
+        options
+      );
+      actions.previewShapes(interaction.preview);
+      return;
+    }
+
+    if (interaction.mode === "rotate" && interaction.selectionFrame) {
+      interaction.preview = rotateShapesFromBaseline(
+        interaction.baseline,
+        interaction.selectedIds,
+        interaction.selectionFrame.bounds,
+        interaction.startWorld,
+        world,
+        event.shiftKey ? 15 : 0
       );
       actions.previewShapes(interaction.preview);
       return;
@@ -388,6 +451,7 @@ const EditorCanvas = () => {
     const interaction = interactionRef.current;
     if (!interaction || interaction.pointerId !== event.pointerId) return;
     interactionRef.current = null;
+    setResizeDirection({ x: 1, y: 1 });
     setMarquee(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -412,7 +476,11 @@ const EditorCanvas = () => {
       }
       shouldCommit = true;
       dispatch(setSelectedTool("pointer"));
-    } else if (interaction.mode === "move" || interaction.mode === "resize") {
+    } else if (
+      interaction.mode === "move" ||
+      interaction.mode === "resize" ||
+      interaction.mode === "rotate"
+    ) {
       shouldCommit = true;
     }
 
@@ -425,6 +493,7 @@ const EditorCanvas = () => {
     const interaction = interactionRef.current;
     if (interaction) actions.previewShapes(interaction.baseline);
     interactionRef.current = null;
+    setResizeDirection({ x: 1, y: 1 });
     setMarquee(null);
     if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -457,9 +526,17 @@ const EditorCanvas = () => {
       return;
     }
     const padding = 96;
+    const contentWidth = Math.max(1, bounds.width);
+    const contentHeight = Math.max(1, bounds.height);
     const zoom = Math.min(
       4,
-      Math.max(0.1, Math.min((rect.width - padding * 2) / bounds.width, (rect.height - padding * 2) / bounds.height))
+      Math.max(
+        0.1,
+        Math.min(
+          Math.max(1, rect.width - padding * 2) / contentWidth,
+          Math.max(1, rect.height - padding * 2) / contentHeight
+        )
+      )
     );
     dispatch(
       setViewport({
@@ -541,7 +618,17 @@ const EditorCanvas = () => {
       }
       if (command && event.key === "1") {
         event.preventDefault();
-        dispatch(setViewport({ ...editor.viewport, zoom: 1 }));
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        dispatch(
+          setViewport(
+            zoomAtPoint(
+              editor.viewport,
+              { x: rect.width / 2, y: rect.height / 2 },
+              1
+            )
+          )
+        );
         return;
       }
       if (event.key === "Delete" || event.key === "Backspace") {
@@ -607,11 +694,15 @@ const EditorCanvas = () => {
     dispatch(setEditingShapeId(null));
   };
 
-  const screenBounds = selectedBounds
+  const screenFrame = selectedFrame
     ? {
-        start: worldToScreen({ x: selectedBounds.x, y: selectedBounds.y }, editor.viewport),
-        width: selectedBounds.width * editor.viewport.zoom,
-        height: selectedBounds.height * editor.viewport.zoom,
+        start: worldToScreen(
+          { x: selectedFrame.bounds.x, y: selectedFrame.bounds.y },
+          editor.viewport
+        ),
+        width: selectedFrame.bounds.width * editor.viewport.zoom,
+        height: selectedFrame.bounds.height * editor.viewport.zoom,
+        rotation: selectedFrame.rotation,
       }
     : null;
 
@@ -758,27 +849,40 @@ const EditorCanvas = () => {
           })}
       </div>
 
-      {screenBounds && selectedIds.length > 0 && (
+      {screenFrame && selectedIds.length > 0 && (
         <div
           className={styles.selectionBox}
           style={{
-            left: screenBounds.start.x,
-            top: screenBounds.start.y,
-            width: screenBounds.width,
-            height: screenBounds.height,
+            left: screenFrame.start.x,
+            top: screenFrame.start.y,
+            width: screenFrame.width,
+            height: screenFrame.height,
+            transform: `rotate(${screenFrame.rotation}deg) scaleX(${resizeDirection.x}) scaleY(${resizeDirection.y})`,
           }}
-          aria-hidden="true"
+          role="group"
+          aria-label="Selection transform controls"
         >
-          {resizeHandles.map((item) => (
-            <button
-              key={item.handle}
-              type="button"
-              aria-label={item.label}
-              className={styles.resizeHandle}
-              data-resize-handle={item.handle}
-              style={{ left: item.left, top: item.top, cursor: item.cursor }}
-            />
-          ))}
+          {actions.canEdit && (
+            <>
+              <span className={styles.rotationStem} aria-hidden="true" />
+              <button
+                type="button"
+                aria-label="Rotate selection"
+                className={styles.rotationHandle}
+                data-rotation-handle="true"
+              />
+              {resizeHandles.map((item) => (
+                <button
+                  key={item.handle}
+                  type="button"
+                  aria-label={item.label}
+                  className={styles.resizeHandle}
+                  data-resize-handle={item.handle}
+                  style={{ left: item.left, top: item.top, cursor: item.cursor }}
+                />
+              ))}
+            </>
+          )}
         </div>
       )}
 

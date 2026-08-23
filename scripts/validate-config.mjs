@@ -31,13 +31,30 @@ for (const required of [
   }
 }
 
-const clientSource = [
-  "src/services/boardRepository.ts",
-  "src/services/userRepository.ts",
-  "src/config/firebase.ts",
-].map((file) => readFileSync(file, "utf8")).join("\n");
+const sourceFiles = (directory) =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.tsx?$/.test(entry.name) ? [path] : [];
+  });
+
+const clientFiles = sourceFiles("src");
+const clientSource = clientFiles.map((file) => readFileSync(file, "utf8")).join("\n");
 if (/firebase\/database|realtimeDb|getDatabase\s*\(/.test(clientSource)) {
   throw new Error("Firebase Realtime Database must not be used by normal client code.");
+}
+
+const requiredDataPaths = [
+  ["src/services/boardRepository.ts", "/api/boards"],
+  ["src/services/assetRepository.ts", "VITE_SUPABASE_URL"],
+  ["src/collaboration/LiveblocksRoot.tsx", "/api/liveblocks-auth"],
+  ["api/liveblocks-webhook.ts", 'from("document_snapshots")'],
+  ["api/liveblocks-webhook.ts", 'from("board_links")'],
+];
+for (const [file, marker] of requiredDataPaths) {
+  if (!readFileSync(file, "utf8").includes(marker)) {
+    throw new Error(`${file} is no longer connected to the required data path: ${marker}`);
+  }
 }
 
 for (const file of readdirSync("api").filter((name) => name.endsWith(".ts"))) {

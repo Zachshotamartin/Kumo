@@ -69,6 +69,7 @@
   box-sizing: border-box;
   border: 1px solid #ef6f4d;
   pointer-events: none;
+  transform-origin: center;
   z-index: 10000;
 }
 
@@ -85,6 +86,40 @@
 }
 
 .resizeHandle:focus-visible {
+  outline: 2px solid #fffdfa;
+  outline-offset: 2px;
+}
+
+.rotationStem {
+  position: absolute;
+  left: 50%;
+  top: -25px;
+  width: 1px;
+  height: 24px;
+  background: #ef6f4d;
+  transform: translateX(-50%);
+}
+
+.rotationHandle {
+  position: absolute;
+  left: 50%;
+  top: -32px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  background: #fffdfa;
+  border: 2px solid #ef6f4d;
+  border-radius: 50%;
+  cursor: grab;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.rotationHandle:active {
+  cursor: grabbing;
+}
+
+.rotationHandle:focus-visible {
   outline: 2px solid #fffdfa;
   outline-offset: 2px;
 }
