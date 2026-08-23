@@ -1,8 +1,8 @@
-import { createShapeId, type Shape } from "../classes/shape";
-import { normalizeShape, selectionBounds, shapeBounds } from "./geometry";
-import { shapePathData } from "./graphics";
-import { descendantIds } from "./hierarchy";
-import type { Bounds } from "./types";
+import { createShapeId, type Shape } from "../classes/shape.js";
+import { normalizeShape, selectionBounds, shapeBounds } from "./geometry.js";
+import { shapePathData } from "./graphics.js";
+import { descendantIds } from "./hierarchy.js";
+import type { Bounds } from "./types.js";
 
 const escapeXml = (value: unknown) => String(value ?? "")
   .replaceAll("&", "&amp;")

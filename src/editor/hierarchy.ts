@@ -1,5 +1,5 @@
-import type { Shape } from "../classes/shape";
-import type { Bounds, Point } from "./types";
+import type { Shape } from "../classes/shape.js";
+import type { Bounds, Point } from "./types.js";
 
 const shapeBounds = (shape: Shape): Bounds => ({
   x: Math.min(shape.x1, shape.x2),
