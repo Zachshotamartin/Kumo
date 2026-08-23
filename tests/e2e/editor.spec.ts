@@ -279,6 +279,7 @@ test.describe("editor regression workflows", () => {
     const frameId = await frame.getAttribute("data-shape-id");
     const frameZ = Number(await frame.getAttribute("data-z-index"));
     const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
+    let dragPointerId = 70;
 
     const dragRectangleToFrame = async (keepCurrentParent = false) => {
       const [rectangleBox, frameBox] = await Promise.all([
@@ -287,17 +288,40 @@ test.describe("editor regression workflows", () => {
       ]);
       expect(rectangleBox).not.toBeNull();
       expect(frameBox).not.toBeNull();
-      await page.mouse.move(
-        rectangleBox!.x + rectangleBox!.width / 2,
-        rectangleBox!.y + rectangleBox!.height / 2
-      );
-      await page.mouse.down();
-      await page.mouse.move(
-        frameBox!.x + frameBox!.width / 2,
-        frameBox!.y + frameBox!.height / 2
-      );
+      const pointerId = dragPointerId++;
+      const start = {
+        clientX: rectangleBox!.x + rectangleBox!.width / 2,
+        clientY: rectangleBox!.y + rectangleBox!.height / 2,
+      };
+      const end = {
+        clientX: frameBox!.x + frameBox!.width / 2,
+        clientY: frameBox!.y + frameBox!.height / 2,
+      };
+      await canvas.dispatchEvent("pointerdown", {
+        ...start,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
+      await canvas.dispatchEvent("pointermove", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
       if (keepCurrentParent) await page.keyboard.down("Space");
-      await page.mouse.up();
+      await canvas.dispatchEvent("pointerup", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+      });
       if (keepCurrentParent) await page.keyboard.up("Space");
     };
 
