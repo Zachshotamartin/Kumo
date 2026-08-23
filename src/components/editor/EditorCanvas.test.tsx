@@ -5,7 +5,7 @@ import { Shape } from "../../classes/shape";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer from "../../features/auth/authSlice";
 import editorReducer from "../../features/editor/editorSlice";
-import selectedReducer, { setSelectedShapes } from "../../features/selected/selectedSlice";
+import selectedReducer, { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import EditorCanvas from "./EditorCanvas";
 import { getBoard } from "../../services/boardRepository";
@@ -29,6 +29,8 @@ const editorActions = vi.hoisted(() => ({
   distributeSelected: vi.fn(),
   groupSelected: vi.fn(),
   ungroupSelected: vi.fn(),
+  frameSelected: vi.fn(),
+  unframeSelected: vi.fn(),
   nudgeSelected: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),
@@ -61,6 +63,25 @@ const rectangle = (rotation = 0): Shape => ({
   zIndex: 1,
   rotation,
   backgroundColor: "#ffffff",
+});
+
+const textShape = (): Shape => ({
+  ...rectangle(),
+  id: "text-1",
+  type: "text",
+  name: "Text",
+  text: "Select part of this text",
+  backgroundColor: "transparent",
+  borderWidth: 0,
+  color: "#ffffff",
+  fontSize: 18,
+  fontFamily: "Arial",
+  fontWeight: "normal",
+  textAlign: "left",
+  alignItems: "center",
+  textDecoration: "none",
+  lineHeight: 1.2,
+  letterSpacing: 0,
 });
 
 const renderCanvas = (input: Shape | Shape[]) => {
@@ -163,7 +184,7 @@ describe("EditorCanvas transform interactions", () => {
     expect(presence.update).toHaveBeenLastCalledWith({ cursor: { x: 30, y: 40 } });
   });
 
-  it("cancels browser pinch zoom and zooms the canvas around the pointer", () => {
+  it("cancels browser pinch zoom and applies a strong, symmetric canvas zoom", () => {
     const { canvas, store } = renderCanvas(rectangle());
     const event = new WheelEvent("wheel", {
       bubbles: true,
@@ -176,11 +197,21 @@ describe("EditorCanvas transform interactions", () => {
 
     expect(canvas.dispatchEvent(event)).toBe(false);
     expect(event.defaultPrevented).toBe(true);
-    expect(store.getState().editor.viewport.zoom).toBeGreaterThan(1);
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1.5);
     expect(store.getState().editor.viewport).toMatchObject({
       x: expect.any(Number),
       y: expect.any(Number),
     });
+
+    canvas.dispatchEvent(new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 400,
+      clientY: 300,
+      ctrlKey: true,
+      deltaY: 100,
+    }));
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1);
   });
 
   it("cancels page scrolling and pans the canvas for an ordinary wheel gesture", () => {
@@ -227,5 +258,190 @@ describe("EditorCanvas transform interactions", () => {
     expect(store.getState().whiteBoard.id).toBe("board-b");
     await act(async () => { resolveFirst(boardState("board-a")); });
     expect(store.getState().whiteBoard.id).toBe("board-b");
+  });
+
+  it("supports native text ranges and commits the exact edited value", () => {
+    const { canvas } = renderCanvas(textShape());
+    fireEvent.doubleClick(canvas, { clientX: 10, clientY: 10 });
+    const editor = screen.getByRole("textbox", { name: "Edit text" }) as HTMLTextAreaElement;
+
+    editor.setSelectionRange(7, 11);
+    expect({ start: editor.selectionStart, end: editor.selectionEnd }).toEqual({ start: 7, end: 11 });
+    fireEvent.change(editor, { target: { value: "Select a section of this text" } });
+    expect(editorActions.previewShapes).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: "text-1", text: "Select a section of this text" }),
+    ]);
+    fireEvent.blur(editor);
+    expect(editorActions.commitShapes).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ id: "text-1", text: "Select a section of this text" })],
+      [expect.objectContaining({ id: "text-1", text: "Select part of this text" })]
+    );
+  });
+
+  it("enters text editing from the keyboard", () => {
+    renderCanvas(textShape());
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(screen.getByRole("textbox", { name: "Edit text" })).toBeInTheDocument();
+  });
+
+  it("exposes the complete ordering and grouping context actions", () => {
+    const first = rectangle();
+    const second = { ...rectangle(), id: "shape-2", x1: 150, x2: 250, zIndex: 2 };
+    const { canvas, store } = renderCanvas([first, second]);
+    act(() => { store.dispatch(setSelectedShapes([first.id, second.id])); });
+    fireEvent.contextMenu(canvas, { clientX: 10, clientY: 10 });
+
+    expect(screen.getByRole("menuitem", { name: "Group" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Bring forward" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Send backward" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Ungroup" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Group" }));
+    expect(editorActions.groupSelected).toHaveBeenCalledOnce();
+  });
+
+  it("offers ungroup instead of regrouping an existing group", () => {
+    const first = { ...rectangle(), groupId: "group" };
+    const second = { ...rectangle(), id: "shape-2", x1: 150, x2: 250, zIndex: 2, groupId: "group" };
+    const { canvas, store } = renderCanvas([first, second]);
+    act(() => { store.dispatch(setSelectedShapes([first.id, second.id])); });
+    fireEvent.contextMenu(canvas, { clientX: 10, clientY: 10 });
+
+    expect(screen.getByRole("menuitem", { name: "Ungroup" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Group" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ungroup" }));
+    expect(editorActions.ungroupSelected).toHaveBeenCalledOnce();
+  });
+
+  it("opens a newly drawn text box for typing immediately", () => {
+    const { canvas, store } = renderCanvas(rectangle());
+    act(() => { store.dispatch(setSelectedTool("text")); });
+    fireEvent.pointerDown(canvas, { pointerId: 12, button: 0, clientX: 240, clientY: 180 });
+    fireEvent.pointerUp(canvas, { pointerId: 12, button: 0, clientX: 240, clientY: 180 });
+
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    const created = committed.find((shape) => shape.type === "text");
+    expect(created).toMatchObject({ width: 180, height: 40, text: "Type something" });
+    expect(store.getState().editor.editingShapeId).toBe(created?.id);
+    expect(store.getState().selected.selectedTool).toBe("pointer");
+  });
+
+  it("selects a frame first, deep-selects its child, and traverses hierarchy with Enter", () => {
+    const parent: Shape = {
+      ...rectangle(),
+      id: "frame-1",
+      type: "frame",
+      name: "Frame",
+      x2: 240,
+      y2: 200,
+      width: 240,
+      height: 200,
+      clipContent: true,
+    };
+    const child: Shape = {
+      ...rectangle(),
+      id: "child-1",
+      name: "Child",
+      parentId: parent.id,
+      x1: 20,
+      y1: 20,
+      x2: 80,
+      y2: 80,
+      width: 60,
+      height: 60,
+      zIndex: 2,
+    };
+    const { canvas, store } = renderCanvas([parent, child]);
+    act(() => { store.dispatch(setSelectedShapes([])); });
+
+    fireEvent.pointerDown(canvas, { pointerId: 31, button: 0, clientX: 30, clientY: 30 });
+    fireEvent.pointerUp(canvas, { pointerId: 31, clientX: 30, clientY: 30 });
+    expect(store.getState().selected.selectedShapes).toEqual([parent.id]);
+
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(store.getState().selected.selectedShapes).toEqual([child.id]);
+    fireEvent.keyDown(window, { key: "Enter", shiftKey: true });
+    expect(store.getState().selected.selectedShapes).toEqual([parent.id]);
+
+    fireEvent.pointerDown(canvas, { pointerId: 32, button: 0, clientX: 30, clientY: 30, metaKey: true });
+    fireEvent.pointerUp(canvas, { pointerId: 32, clientX: 30, clientY: 30, metaKey: true });
+    expect(store.getState().selected.selectedShapes).toEqual([child.id]);
+  });
+
+  it("draws a frame around objects and adopts them without moving their coordinates", () => {
+    const existing = { ...rectangle(), x1: 20, y1: 20, x2: 80, y2: 70, width: 60, height: 50 };
+    const { canvas, store } = renderCanvas(existing);
+    act(() => { store.dispatch(setSelectedTool("frame")); });
+    fireEvent.pointerDown(canvas, { pointerId: 33, button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(canvas, { pointerId: 33, clientX: 120, clientY: 100 });
+    fireEvent.pointerUp(canvas, { pointerId: 33, clientX: 120, clientY: 100 });
+
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    const created = committed.find((shape) => shape.type === "frame")!;
+    expect(created).toBeDefined();
+    expect(committed.find((shape) => shape.id === existing.id)).toMatchObject({
+      parentId: created.id,
+      x1: 20,
+      y1: 20,
+    });
+    expect(created.zIndex).toBeLessThan(committed.find((shape) => shape.id === existing.id)!.zIndex);
+  });
+
+  it("reparents a dragged object into a frame and raises it above existing children", () => {
+    const parent: Shape = { ...rectangle(), id: "frame", type: "frame", name: "Frame", x2: 220, y2: 180, width: 220, height: 180, zIndex: 1 };
+    const existing: Shape = { ...rectangle(), id: "existing", parentId: parent.id, x1: 20, y1: 20, x2: 60, y2: 60, width: 40, height: 40, zIndex: 3 };
+    const moving: Shape = { ...rectangle(), id: "moving", x1: 300, y1: 40, x2: 360, y2: 100, width: 60, height: 60, zIndex: 2 };
+    const { canvas, store } = renderCanvas([parent, existing, moving]);
+    act(() => { store.dispatch(setSelectedShapes([moving.id])); });
+    fireEvent.pointerDown(canvas, { pointerId: 34, button: 0, clientX: 320, clientY: 60 });
+    fireEvent.pointerMove(canvas, { pointerId: 34, clientX: 100, clientY: 80, ctrlKey: true });
+    fireEvent.pointerUp(canvas, { pointerId: 34, clientX: 100, clientY: 80, ctrlKey: true });
+
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    const result = committed.find((shape) => shape.id === moving.id)!;
+    expect(result.parentId).toBe(parent.id);
+    expect(result.zIndex).toBeGreaterThan(existing.zIndex);
+  });
+
+  it("shows smart alignment guides during drag and disables them with Control", () => {
+    const first = rectangle();
+    const target = { ...rectangle(), id: "shape-2", x1: 200, x2: 300, y1: 0, y2: 80, zIndex: 2 };
+    const { canvas } = renderCanvas([first, target]);
+    fireEvent.pointerDown(canvas, { pointerId: 35, button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(canvas, { pointerId: 35, clientX: 109, clientY: 10 });
+    expect(document.querySelector('[data-guide-axis="x"]')).toBeInTheDocument();
+    fireEvent.pointerMove(canvas, { pointerId: 35, clientX: 109, clientY: 10, ctrlKey: true });
+    expect(document.querySelector('[data-guide-axis="x"]')).not.toBeInTheDocument();
+    fireEvent.pointerCancel(canvas, { pointerId: 35 });
+  });
+
+  it("uses the selected frame and viewport for keyboard paste and the cursor for Paste here", () => {
+    const parent: Shape = { ...rectangle(), id: "frame", type: "frame", name: "Frame", x2: 240, y2: 200, width: 240, height: 200 };
+    const { canvas } = renderCanvas(parent);
+    fireEvent.keyDown(window, { key: "v", metaKey: true });
+    expect(editorActions.paste).toHaveBeenLastCalledWith(expect.objectContaining({
+      targetFrameId: parent.id,
+      viewport: { x: 0, y: 0, width: 800, height: 600 },
+    }));
+
+    fireEvent.contextMenu(canvas, { clientX: 125, clientY: 145 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Paste here" }));
+    expect(editorActions.paste).toHaveBeenLastCalledWith({ point: { x: 125, y: 145 } });
+  });
+
+  it("duplicates before an Alt drag and keeps the originals unchanged", () => {
+    const { canvas } = renderCanvas(rectangle());
+    fireEvent.pointerDown(canvas, { pointerId: 36, button: 0, clientX: 10, clientY: 10, altKey: true });
+    fireEvent.pointerMove(canvas, { pointerId: 36, clientX: 50, clientY: 60, ctrlKey: true });
+    fireEvent.pointerUp(canvas, { pointerId: 36, clientX: 50, clientY: 60, ctrlKey: true });
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    expect(committed).toHaveLength(2);
+    expect(committed.find((shape) => shape.id === "shape-1")).toMatchObject({ x1: 0, y1: 0 });
+    expect(committed.find((shape) => shape.id !== "shape-1")).toMatchObject({ x1: 40, y1: 50 });
+  });
+
+  it("renders locked frame selections without transform handles", () => {
+    renderCanvas({ ...rectangle(), type: "frame", locked: true });
+    expect(screen.getByRole("group", { name: "Selection transform controls" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Resize from bottom right" })).not.toBeInTheDocument();
   });
 });

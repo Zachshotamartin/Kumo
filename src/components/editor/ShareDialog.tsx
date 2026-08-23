@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { X } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { auth } from "../../config/firebase";
 import { removeShare, share } from "../../features/whiteBoard/whiteBoardSlice";
@@ -89,7 +90,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
             <span className={styles.dialogEyebrow}>Board access</span>
             <h2 id="share-title">Share “{board.title}”</h2>
           </div>
-          <button type="button" className={styles.closeButton} aria-label="Close sharing dialog" onClick={onClose}>×</button>
+          <button type="button" className={styles.closeButton} aria-label="Close sharing dialog" onClick={onClose}><X aria-hidden="true" /></button>
         </div>
 
         {isOwner ? (

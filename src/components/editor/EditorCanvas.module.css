@@ -10,7 +10,7 @@
 }
 
 .canvas:focus-visible {
-  box-shadow: inset 0 0 0 2px #ef6f4d;
+  box-shadow: inset 0 0 0 2px var(--kumo-accent);
 }
 
 .shapeLayer {
@@ -29,8 +29,26 @@
   pointer-events: none;
 }
 
+.frameLabel {
+  position: absolute;
+  left: 0;
+  top: -22px;
+  max-width: 220px;
+  overflow: hidden;
+  color: #aeb0b4;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .selectedShape {
   will-change: left, top, width, height;
+}
+
+.hoveredShape {
+  box-shadow: 0 0 0 1px rgb(184 122 46 / 0.7);
 }
 
 .textContent {
@@ -38,22 +56,39 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  pointer-events: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.textEditor {
+.textContent span {
+  width: 100%;
+}
+
+.textEditorFrame {
+  display: flex;
   width: 100%;
   height: 100%;
+  pointer-events: none;
+}
+
+.textEditor {
+  width: 100%;
+  min-height: 1em;
+  max-height: 100%;
   margin: 0;
   padding: 0;
   resize: none;
-  overflow: hidden;
+  overflow: auto;
   color: inherit;
   background: transparent;
   border: 0;
   outline: 0;
+  cursor: text;
   pointer-events: auto;
+  user-select: text;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .placeholderGlyph,
@@ -68,7 +103,7 @@
 .selectionBox {
   position: absolute;
   box-sizing: border-box;
-  border: 1px solid #ef6f4d;
+  border: 1px solid var(--kumo-accent);
   pointer-events: none;
   transform-origin: center;
   z-index: 10000;
@@ -81,7 +116,7 @@
   padding: 0;
   transform: translate(-50%, -50%);
   background: #fffdfa;
-  border: 2px solid #ef6f4d;
+  border: 2px solid var(--kumo-accent);
   border-radius: 2px;
   pointer-events: auto;
 }
@@ -97,7 +132,7 @@
   top: -25px;
   width: 1px;
   height: 24px;
-  background: #ef6f4d;
+  background: var(--kumo-accent);
   transform: translateX(-50%);
 }
 
@@ -109,7 +144,7 @@
   height: 12px;
   padding: 0;
   background: #fffdfa;
-  border: 2px solid #ef6f4d;
+  border: 2px solid var(--kumo-accent);
   border-radius: 50%;
   cursor: grab;
   pointer-events: auto;
@@ -129,9 +164,26 @@
   position: absolute;
   z-index: 9999;
   box-sizing: border-box;
-  background: rgba(239, 111, 77, 0.13);
-  border: 1px solid rgba(239, 111, 77, 0.9);
+  background: rgb(184 122 46 / 0.13);
+  border: 1px solid rgb(184 122 46 / 0.9);
   pointer-events: none;
+}
+
+.smartGuide {
+  position: absolute;
+  z-index: 10020;
+  min-width: 1px;
+  min-height: 1px;
+  background: #f04467;
+  pointer-events: none;
+}
+
+.smartGuide[data-guide-axis="x"] {
+  width: 1px;
+}
+
+.smartGuide[data-guide-axis="y"] {
+  height: 1px;
 }
 
 .remoteCursor {
@@ -144,9 +196,11 @@
 }
 
 .cursorArrow {
-  font-size: 13px;
+  display: grid;
   transform: rotate(-25deg);
 }
+
+.cursorArrow svg { width: 18px; height: 18px; }
 
 .cursorLabel {
   margin: 10px 0 0 2px;
@@ -188,12 +242,16 @@
 }
 
 .navigationError button {
+  display: grid;
+  place-items: center;
   padding: 0;
   color: inherit;
   font-size: 18px;
   background: transparent;
   border: 0;
 }
+
+.navigationError button svg { width: 16px; height: 16px; }
 
 .contextMenu button {
   min-height: 34px;

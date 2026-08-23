@@ -1,6 +1,3 @@
-import calendarImage from "../res/calendar.png";
-import imagePlaceholder from "../res/image.png";
-
 export interface Shape {
   id: string;
   type: string;
@@ -18,8 +15,14 @@ export interface Shape {
   flipY?: boolean;
   shapes?: Shape[];
   groupId?: string | null;
+  /** User-visible name shared by every member of a logical group. */
+  groupName?: string;
   /** Rotation of the logical group frame shared by every member. */
   groupRotation?: number;
+  /** Frame parent. Coordinates remain in board/world space when reparenting. */
+  parentId?: string | null;
+  /** Frames can hide child content outside their bounds. */
+  clipContent?: boolean;
   locked?: boolean;
   hidden?: boolean;
   borderRadius?: number;
@@ -78,6 +81,8 @@ export const ShapeFunctions = {
       flipX: false,
       flipY: false,
       groupId: null,
+      parentId: null,
+      clipContent: type === "frame",
       locked: false,
       hidden: false,
       borderRadius: type === "ellipse" ? 1000 : 0,
@@ -85,8 +90,7 @@ export const ShapeFunctions = {
       borderStyle: "solid",
       borderColor: "#000000",
       backgroundColor: type === "text" || isMedia ? "transparent" : "#ffffff",
-      backgroundImage:
-        type === "calendar" ? calendarImage : type === "image" ? imagePlaceholder : "",
+      backgroundImage: "",
       color: "#ffffff",
       opacity: 1,
       text: "",

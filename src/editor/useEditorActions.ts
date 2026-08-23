@@ -9,14 +9,18 @@ import {
   deleteShapes,
   distributeShapes,
   duplicateShapes,
+  frameShapes,
   groupShapes,
   orderShapes,
   OrderMode,
   pasteShapes,
   patchShapes,
+  unframeShapes,
   ungroupShapes,
 } from "./commands";
-import { moveShapesFromBaseline, normalizeShape, shapeBounds } from "./geometry";
+import { moveShapesFromBaseline, normalizeShape, selectionBounds, shapeBounds } from "./geometry";
+import { commonParentId, isEffectivelyLocked, rootSelectionIds } from "./hierarchy";
+import type { PasteContext } from "./types";
 import {
   commitEditorSnapshot,
   setClipboard,
@@ -146,7 +150,16 @@ export const useEditorActions = () => {
 
   const copySelected = useCallback(() => {
     if (selectedIds.length === 0) return;
-    dispatch(setClipboard({ shapes: copyShapes(board.shapes, selectedIds), boardId: board.id }));
+    const roots = rootSelectionIds(board.shapes, selectedIds);
+    const copied = copyShapes(board.shapes, roots);
+    const parentId = commonParentId(board.shapes, roots);
+    const parent = parentId ? board.shapes.find((shape) => shape.id === parentId) : undefined;
+    dispatch(setClipboard({
+      shapes: copied,
+      boardId: board.id,
+      sourceBounds: selectionBounds(board.shapes, roots),
+      parentBounds: parent ? shapeBounds(parent) : null,
+    }));
   }, [board.id, board.shapes, dispatch, selectedIds]);
 
   const cutSelected = useCallback(() => {
@@ -162,7 +175,7 @@ export const useEditorActions = () => {
     dispatch(setSelectedShapes(result.duplicatedIds));
   }, [board.shapes, canEdit, commitShapes, dispatch, selectedIds]);
 
-  const paste = useCallback(async () => {
+  const paste = useCallback(async (context?: PasteContext) => {
     if (!canEdit || !board.id || editor.clipboard.length === 0) return;
     try {
       let clipboard = editor.clipboard;
@@ -171,17 +184,27 @@ export const useEditorActions = () => {
         const replacements = await cloneBoardAssets(board.id, assetIds);
         clipboard = rewriteShapeAssetIds(clipboard, replacements);
       }
-      const result = pasteShapes(board.shapes, clipboard);
+      const result = pasteShapes(board.shapes, clipboard, {
+        context,
+        sourceParentBounds: editor.clipboardParentBounds,
+      });
       commitShapes(result.shapes);
       dispatch(setSelectedShapes(result.pastedIds));
-      dispatch(setClipboard({ shapes: result.pasted, boardId: board.id }));
+      const parentId = commonParentId(result.shapes, result.pastedIds);
+      const parent = parentId ? result.shapes.find((shape) => shape.id === parentId) : undefined;
+      dispatch(setClipboard({
+        shapes: result.pasted,
+        boardId: board.id,
+        sourceBounds: selectionBounds(result.shapes, result.pastedIds),
+        parentBounds: parent ? shapeBounds(parent) : null,
+      }));
     } catch (error) {
       dispatch(setSaveStatus({
         status: "error",
         error: error instanceof Error ? error.message : "We couldn't paste these assets.",
       }));
     }
-  }, [board.id, board.shapes, canEdit, commitShapes, dispatch, editor.clipboard, editor.clipboardBoardId]);
+  }, [board.id, board.shapes, canEdit, commitShapes, dispatch, editor.clipboard, editor.clipboardBoardId, editor.clipboardParentBounds]);
 
   const orderSelected = useCallback(
     (mode: OrderMode) => commitShapes(orderShapes(board.shapes, selectedIds, mode)),
@@ -203,6 +226,17 @@ export const useEditorActions = () => {
     () => commitShapes(ungroupShapes(board.shapes, selectedIds)),
     [board.shapes, commitShapes, selectedIds]
   );
+  const frameSelected = useCallback(() => {
+    const result = frameShapes(board.shapes, selectedIds);
+    if (!result.frameId) return;
+    commitShapes(result.shapes);
+    dispatch(setSelectedShapes([result.frameId]));
+  }, [board.shapes, commitShapes, dispatch, selectedIds]);
+  const unframeSelected = useCallback(() => {
+    const result = unframeShapes(board.shapes, selectedIds);
+    commitShapes(result.shapes);
+    dispatch(setSelectedShapes(result.selectedIds));
+  }, [board.shapes, commitShapes, dispatch, selectedIds]);
   const nudgeSelected = useCallback(
     (x: number, y: number) => commitShapes(moveShapesFromBaseline(board.shapes, selectedIds, { x, y })),
     [board.shapes, commitShapes, selectedIds]
@@ -212,7 +246,7 @@ export const useEditorActions = () => {
 
   const setShapeGeometry = useCallback(
     (shape: Shape, values: Partial<{ x: number; y: number; width: number; height: number }>) => {
-      if (shape.locked) return;
+      if (isEffectivelyLocked(board.shapes, shape)) return;
       const bounds = shapeBounds(shape);
       const x = values.x ?? bounds.x;
       const y = values.y ?? bounds.y;
@@ -244,9 +278,13 @@ export const useEditorActions = () => {
     distributeSelected,
     groupSelected,
     ungroupSelected,
+    frameSelected,
+    unframeSelected,
     nudgeSelected,
     undo,
     redo,
     setShapeGeometry,
   };
 };
+
+export type EditorActions = ReturnType<typeof useEditorActions>;

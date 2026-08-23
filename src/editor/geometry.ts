@@ -8,11 +8,31 @@ import {
   SelectionFrame,
   Viewport,
 } from "./types";
+import {
+  clippedByAncestor,
+  descendantIds,
+  isEffectivelyHidden,
+  isEffectivelyLocked,
+} from "./hierarchy";
 
 const EPSILON = 0.0001;
+const WHEEL_ZOOM_SENSITIVITY = 0.0045;
+const MAX_WHEEL_ZOOM_FACTOR = 1.5;
+
+export const ZOOM_STEP_FACTOR = 1.4;
 
 export const clampZoom = (zoom: number): number =>
   Math.min(8, Math.max(0.1, zoom));
+
+/** A stronger but bounded response for mouse-wheel and trackpad pinch deltas. */
+export const wheelZoomFactor = (delta: number): number => {
+  const maximumExponent = Math.log(MAX_WHEEL_ZOOM_FACTOR);
+  const exponent = Math.min(
+    maximumExponent,
+    Math.max(-maximumExponent, -delta * WHEEL_ZOOM_SENSITIVITY)
+  );
+  return Math.exp(exponent);
+};
 
 export const shapeBounds = (shape: Shape): Bounds => ({
   x: Math.min(shape.x1, shape.x2),
@@ -41,10 +61,13 @@ export const normalizeShape = (shape: Shape): Shape => {
     width: bounds.width,
     height: bounds.height,
     rotation: shape.rotation ?? 0,
+    groupName: shape.groupId ? shape.groupName?.trim() || "Group" : undefined,
     groupRotation: shape.groupId ? shape.groupRotation ?? 0 : undefined,
     opacity: shape.opacity ?? 1,
     zIndex: Number.isFinite(shape.zIndex) ? shape.zIndex : 0,
     groupId: shape.groupId ?? null,
+    parentId: shape.parentId ?? null,
+    clipContent: shape.type === "frame" ? shape.clipContent ?? true : shape.clipContent,
     locked: shape.locked ?? false,
     hidden: shape.hidden ?? false,
     ...(normalizedChildren ? { shapes: normalizedChildren } : {}),
@@ -56,14 +79,20 @@ export const expandSelectionIds = (
   selectedIds: readonly string[]
 ): Set<string> => {
   const selected = new Set(selectedIds);
-  const groups = new Set(
-    shapes
-      .filter((shape) => selected.has(shape.id) && shape.groupId)
-      .map((shape) => shape.groupId as string)
-  );
-  shapes.forEach((shape) => {
-    if (shape.groupId && groups.has(shape.groupId)) selected.add(shape.id);
-  });
+  let changed = true;
+  while (changed) {
+    const before = selected.size;
+    descendantIds(shapes, selected).forEach((id) => selected.add(id));
+    const groups = new Set(
+      shapes
+        .filter((shape) => selected.has(shape.id) && shape.groupId)
+        .map((shape) => shape.groupId as string)
+    );
+    shapes.forEach((shape) => {
+      if (shape.groupId && groups.has(shape.groupId)) selected.add(shape.id);
+    });
+    changed = selected.size !== before;
+  }
   return selected;
 };
 
@@ -82,7 +111,7 @@ export const editableSelectionIds = (
     shapes
       .filter((shape) =>
         selected.has(shape.id) &&
-        !shape.locked &&
+        !isEffectivelyLocked(shapes, shape) &&
         (!shape.groupId || !lockedGroups.has(shape.groupId))
       )
       .map((shape) => shape.id)
@@ -217,7 +246,12 @@ export const hitTest = (shapes: Shape[], point: Point): Shape | undefined =>
     .sort((left, right) =>
       right.shape.zIndex - left.shape.zIndex || right.index - left.index
     )
-    .find(({ shape }) => pointInShape(point, shape))
+    .find(({ shape }) =>
+      !isEffectivelyHidden(shapes, shape) &&
+      !isEffectivelyLocked(shapes, shape) &&
+      !clippedByAncestor(shapes, shape, point) &&
+      pointInShape(point, shape)
+    )
     ?.shape;
 
 export const selectionBounds = (
@@ -281,6 +315,10 @@ export const selectionFrame = (
   selectedIds: readonly string[],
   multiSelectionRotation = 0
 ): SelectionFrame | null => {
+  const direct = shapes.filter((shape) => selectedIds.includes(shape.id) && !shape.hidden);
+  if (direct.length === 1 && direct[0]?.type === "frame") {
+    return { bounds: shapeBounds(direct[0]), rotation: direct[0].rotation ?? 0 };
+  }
   const expanded = expandSelectionIds(shapes, selectedIds);
   const selected = shapes.filter(
     (shape) => expanded.has(shape.id) && !shape.hidden
@@ -311,7 +349,8 @@ export const selectionFrame = (
 export const shapesInMarquee = (
   shapes: Shape[],
   start: Point,
-  end: Point
+  end: Point,
+  includeNested = false
 ): string[] => {
   const marquee = {
     left: Math.min(start.x, end.x),
@@ -322,7 +361,11 @@ export const shapesInMarquee = (
 
   const hits = shapes
     .filter((shape) => {
-      if (shape.hidden || shape.locked) return false;
+      if (
+        isEffectivelyHidden(shapes, shape) ||
+        isEffectivelyLocked(shapes, shape) ||
+        (!includeNested && shape.parentId)
+      ) return false;
       const bounds = shapeVisualBounds(shape);
       return (
         bounds.x <= marquee.right &&
@@ -332,7 +375,14 @@ export const shapesInMarquee = (
       );
     })
     .map((shape) => shape.id);
-  return [...expandSelectionIds(shapes, hits)];
+  const hitSet = new Set(hits);
+  const groupIds = new Set(
+    shapes.filter((shape) => hitSet.has(shape.id) && shape.groupId).map((shape) => shape.groupId!)
+  );
+  shapes.forEach((shape) => {
+    if (shape.groupId && groupIds.has(shape.groupId)) hitSet.add(shape.id);
+  });
+  return [...hitSet];
 };
 
 export const moveShapesFromBaseline = (
@@ -342,6 +392,12 @@ export const moveShapesFromBaseline = (
   gridSize = 0
 ): Shape[] => {
   const editable = editableSelectionIds(baseline, selectedIds);
+  selectedIds.forEach((id) => {
+    const root = baseline.find((shape) => shape.id === id);
+    if (root?.type === "frame" && !isEffectivelyLocked(baseline, root)) {
+      descendantIds(baseline, [root.id]).forEach((descendantId) => editable.add(descendantId));
+    }
+  });
   const anchor = selectionBounds(baseline, [...editable]);
   const snappedDelta = {
     x: gridSize > 0 && anchor
@@ -543,7 +599,14 @@ export const resizeShapesWithTransform = (
   transform: ResizeTransform,
   frame?: SelectionFrame
 ): Shape[] => {
-  const editable = editableSelectionIds(baseline, selectedIds);
+  const directFrameSelection = selectedIds.length === 1 &&
+    baseline.find((shape) => shape.id === selectedIds[0])?.type === "frame";
+  const editable = directFrameSelection
+    ? new Set(selectedIds.filter((id) => {
+        const shape = baseline.find((candidate) => candidate.id === id);
+        return Boolean(shape && !isEffectivelyLocked(baseline, shape));
+      }))
+    : editableSelectionIds(baseline, selectedIds);
   return baseline.map((shape) =>
     editable.has(shape.id)
       ? applyResizeTransform(shape, transform, true, frame)
@@ -557,7 +620,14 @@ export const resizeShapesFromBaseline = (
   originalSelectionBounds: Bounds,
   nextSelectionBounds: Bounds
 ): Shape[] => {
-  const editable = editableSelectionIds(baseline, selectedIds);
+  const directFrameSelection = selectedIds.length === 1 &&
+    baseline.find((shape) => shape.id === selectedIds[0])?.type === "frame";
+  const editable = directFrameSelection
+    ? new Set(selectedIds.filter((id) => {
+        const shape = baseline.find((candidate) => candidate.id === id);
+        return Boolean(shape && !isEffectivelyLocked(baseline, shape));
+      }))
+    : editableSelectionIds(baseline, selectedIds);
   const scaleX =
     originalSelectionBounds.width > EPSILON
       ? nextSelectionBounds.width / originalSelectionBounds.width
@@ -601,7 +671,14 @@ export const resizeSelectionFromPointer = (
   pointer: Point,
   options: ResizeOptions = {}
 ): Shape[] => {
-  const editable = editableSelectionIds(baseline, selectedIds);
+  const directFrameSelection = selectedIds.length === 1 &&
+    baseline.find((shape) => shape.id === selectedIds[0])?.type === "frame";
+  const editable = directFrameSelection
+    ? new Set(selectedIds.filter((id) => {
+        const shape = baseline.find((candidate) => candidate.id === id);
+        return Boolean(shape && !isEffectivelyLocked(baseline, shape));
+      }))
+    : editableSelectionIds(baseline, selectedIds);
   const selected = baseline.filter((shape) => editable.has(shape.id) && !shape.hidden);
   if (selected.length !== 1 || Math.abs(frame.rotation) < EPSILON) {
     const hasRelativeRotation = selected.some(
@@ -698,6 +775,12 @@ export const rotateShapesFromBaseline = (
     baselineRotation
   );
   const editable = editableSelectionIds(baseline, selectedIds);
+  selectedIds.forEach((id) => {
+    const root = baseline.find((shape) => shape.id === id);
+    if (root?.type === "frame" && !isEffectivelyLocked(baseline, root)) {
+      descendantIds(baseline, [root.id]).forEach((descendantId) => editable.add(descendantId));
+    }
+  });
 
   return baseline.map((shape) =>
     editable.has(shape.id)

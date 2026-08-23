@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Cursor, X } from "@phosphor-icons/react";
 import { useUpdateMyPresence } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape, ShapeFunctions } from "../../classes/shape";
+import { duplicateShapes } from "../../editor/commands";
 import {
   hitTest,
   effectiveGridSize,
@@ -20,10 +22,26 @@ import {
   shapesInMarquee,
   snapPointToGrid,
   worldToScreen,
+  wheelZoomFactor,
+  ZOOM_STEP_FACTOR,
   zoomAtPoint,
 } from "../../editor/geometry";
+import {
+  adoptContainedShapes,
+  frameAtPoint,
+  isEffectivelyHidden,
+  isEffectivelyLocked,
+  reparentAfterMove,
+  topLevelFrameFor,
+} from "../../editor/hierarchy";
+import {
+  frameClipInsets,
+  SmartGuide,
+  snapMoveToObjects,
+  snapResizePointerToObjects,
+} from "../../editor/snapping";
 import { EditorTool, Point, ResizeHandle, SelectionFrame, Viewport } from "../../editor/types";
-import { useEditorActions } from "../../editor/useEditorActions";
+import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { initializeEditor, setEditingShapeId, setHoveredShapeId, setViewport } from "../../features/editor/editorSlice";
 import {
   clearSelectedShapes,
@@ -51,37 +69,71 @@ interface Interaction {
   handle?: ResizeHandle;
   selectionFrame?: SelectionFrame;
   additiveSelection?: string[];
+  includeNested?: boolean;
+  commitBaseline?: Shape[];
 }
 
 interface ContextMenuState {
   x: number;
   y: number;
+  worldPoint: Point;
 }
 
 interface TextEditorProps {
   value: string;
   style: React.CSSProperties;
+  verticalAlign: React.CSSProperties["alignItems"];
   onChange: (value: string) => void;
-  onBlur: () => void;
+  onBlur: (value: string) => void;
 }
 
-const TextEditor = ({ value, style, onChange, onBlur }: TextEditorProps) => {
+export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: TextEditorProps) => {
   const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
+  const [draft, setDraft] = useState(value);
+
+  const fitEditorToContent = useCallback(() => {
+    const textarea = ref.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, textarea.parentElement?.clientHeight ?? textarea.scrollHeight)}px`;
   }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      ref.current?.focus();
+      ref.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useLayoutEffect(() => {
+    fitEditorToContent();
+  }, [draft, fitEditorToContent, style]);
+
   return (
-    <textarea
-      ref={ref}
-      className={styles.textEditor}
-      style={style}
-      value={value}
-      aria-label="Edit text"
-      onPointerDown={(event) => event.stopPropagation()}
-      onChange={(event) => onChange(event.target.value)}
-      onBlur={onBlur}
-    />
+    <div className={styles.textEditorFrame} style={{ alignItems: verticalAlign }}>
+      <textarea
+        ref={ref}
+        className={styles.textEditor}
+        style={style}
+        value={draft}
+        rows={1}
+        wrap="soft"
+        spellCheck
+        aria-label="Edit text"
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerMove={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          onChange(event.target.value);
+          fitEditorToContent();
+        }}
+        onBlur={(event) => onBlur(event.currentTarget.value)}
+      />
+    </div>
   );
 };
 
@@ -114,11 +166,11 @@ const createDraftShape = (
     ...shape,
     text: tool === "text" ? "Type something" : shape.text,
     fontSize: tool === "text" ? 18 : shape.fontSize,
-    name: tool === "board" ? "Linked board" : tool === "text" ? "Text" : tool === "image" ? "Image" : tool === "ellipse" ? "Ellipse" : "Rectangle",
+    name: tool === "board" ? "Linked board" : tool === "text" ? "Text" : tool === "image" ? "Image" : tool === "ellipse" ? "Ellipse" : tool === "frame" ? "Frame" : "Rectangle",
     title: tool === "board" ? "Choose a destination" : shape.title,
-    backgroundColor: tool === "text" || tool === "image" ? "transparent" : tool === "board" ? "#303640" : "#f4f2ed",
+    backgroundColor: tool === "text" || tool === "image" || tool === "frame" ? "transparent" : tool === "board" ? "#303640" : "#f4f2ed",
     color: "#f7f7f5",
-    borderColor: "#17181a",
+    borderColor: tool === "frame" ? "#8b8d92" : "#17181a",
     borderWidth: tool === "text" ? 0 : 1,
   });
 };
@@ -140,7 +192,12 @@ const draftAtPoint = (draft: Shape, start: Point, end: Point, square: boolean): 
   });
 };
 
-const EditorCanvas = () => {
+interface EditorCanvasViewProps {
+  actions: EditorActions;
+  updateMyPresence: (patch: { cursor?: Point | null; selectionIds?: string[] }) => void;
+}
+
+export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasViewProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -154,6 +211,7 @@ const EditorCanvas = () => {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [navigationError, setNavigationError] = useState<string | null>(null);
   const [resizeDirection, setResizeDirection] = useState({ x: 1, y: 1 });
+  const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([]);
 
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
@@ -162,13 +220,23 @@ const EditorCanvas = () => {
   const editor = useSelector((state: RootState) => state.editor);
   const user = useSelector((state: RootState) => state.auth);
   const showGrid = useSelector((state: RootState) => state.actions.grid);
-  const actions = useEditorActions();
-  const updateMyPresence = useUpdateMyPresence();
-
   const selectedFrame = useMemo(
     () => selectionFrame(board.shapes, selectedIds, selectionRotation),
     [board.shapes, selectedIds, selectionRotation]
   );
+  const selectedShapes = useMemo(
+    () => board.shapes.filter((shape) => selectedIds.includes(shape.id)),
+    [board.shapes, selectedIds]
+  );
+  const selectedGroupId = selectedShapes[0]?.groupId;
+  const isExistingGroup = Boolean(
+    selectedShapes.length > 1 &&
+    selectedGroupId &&
+    selectedShapes.every((shape) => shape.groupId === selectedGroupId)
+  );
+  const canUngroup = selectedShapes.some((shape) => Boolean(shape.groupId));
+  const canUnframe = selectedShapes.some((shape) => shape.type === "frame");
+  const selectionLocked = selectedShapes.some((shape) => isEffectivelyLocked(board.shapes, shape));
   const activeGridSize = editor.snapToGrid
     ? effectiveGridSize(editor.gridSize, editor.viewport.zoom)
     : 0;
@@ -214,7 +282,7 @@ const EditorCanvas = () => {
         ? zoomAtPoint(
             current,
             { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            current.zoom * Math.exp(-event.deltaY * unit * 0.002)
+            current.zoom * wheelZoomFactor(event.deltaY * unit)
           )
         : panViewport(current, {
             x: -event.deltaX * unit,
@@ -255,7 +323,11 @@ const EditorCanvas = () => {
   );
 
   const selectHitTarget = useCallback(
-    (shape: Shape): string[] => {
+    (shape: Shape, deep = false): string[] => {
+      if (!deep) {
+        const frame = topLevelFrameFor(board.shapes, shape);
+        if (frame) return [frame.id];
+      }
       if (!shape.groupId) return [shape.id];
       return board.shapes
         .filter((candidate) => candidate.groupId === shape.groupId)
@@ -274,6 +346,7 @@ const EditorCanvas = () => {
     const handle = (event.target as HTMLElement).dataset.resizeHandle as ResizeHandle | undefined;
     const wantsRotate = (event.target as HTMLElement).dataset.rotationHandle === "true";
     const wantsPan = event.button === 1 || selectedTool === "hand" || spacePressedRef.current;
+    const deepSelection = event.metaKey || event.ctrlKey;
 
     event.currentTarget.setPointerCapture(event.pointerId);
     if (wantsPan) {
@@ -292,7 +365,7 @@ const EditorCanvas = () => {
 
     if (!actions.canEdit) {
       const hit = hitTest(board.shapes, startWorld);
-      dispatch(setSelectedShapes(hit ? selectHitTarget(hit) : []));
+      dispatch(setSelectedShapes(hit ? selectHitTarget(hit, deepSelection) : []));
       return;
     }
 
@@ -332,7 +405,11 @@ const EditorCanvas = () => {
       const drawStart = activeGridSize
         ? snapPointToGrid(startWorld, activeGridSize)
         : startWorld;
-      const draft = createDraftShape(selectedTool, drawStart, board.shapes);
+      const parent = frameAtPoint(board.shapes, drawStart);
+      const draft = normalizeShape({
+        ...createDraftShape(selectedTool, drawStart, board.shapes),
+        parentId: parent?.id ?? null,
+      });
       const preview = [...baseline, draft];
       dispatch(setSelectedShapes([draft.id]));
       actions.previewShapes(preview);
@@ -352,7 +429,7 @@ const EditorCanvas = () => {
 
     const hit = hitTest(board.shapes, startWorld);
     if (hit) {
-      const hitIds = selectHitTarget(hit);
+      const hitIds = selectHitTarget(hit, deepSelection);
       let nextSelection = selectedIds;
       if (event.shiftKey) {
         const selected = new Set(selectedIds);
@@ -364,15 +441,26 @@ const EditorCanvas = () => {
       }
       dispatch(setSelectedShapes(nextSelection));
       if (nextSelection.length > 0) {
+        let moveBaseline = baseline;
+        let commitBaseline: Shape[] | undefined;
+        if (event.altKey) {
+          const duplicated = duplicateShapes(baseline, nextSelection, 0);
+          moveBaseline = duplicated.shapes;
+          commitBaseline = baseline;
+          nextSelection = duplicated.duplicatedIds;
+          dispatch(setSelectedShapes(nextSelection));
+          actions.previewShapes(moveBaseline);
+        }
         interactionRef.current = {
           mode: "move",
           pointerId: event.pointerId,
           startWorld,
           startScreen,
-          baseline,
-          preview: baseline,
+          baseline: moveBaseline,
+          preview: moveBaseline,
           selectedIds: nextSelection,
           startViewport,
+          commitBaseline,
         };
       }
       return;
@@ -390,6 +478,7 @@ const EditorCanvas = () => {
       preview: baseline,
       selectedIds: additiveSelection,
       additiveSelection,
+      includeNested: deepSelection,
       startViewport,
     };
   };
@@ -443,10 +532,28 @@ const EditorCanvas = () => {
     }
 
     if (interaction.mode === "move") {
+      let delta = { x: world.x - interaction.startWorld.x, y: world.y - interaction.startWorld.y };
+      if (event.shiftKey) {
+        delta = Math.abs(delta.x) >= Math.abs(delta.y)
+          ? { x: delta.x, y: 0 }
+          : { x: 0, y: delta.y };
+      }
+      if (!event.ctrlKey && !event.metaKey && !activeGridSize) {
+        const snapped = snapMoveToObjects(
+          interaction.baseline,
+          interaction.selectedIds,
+          delta,
+          6 / editor.viewport.zoom
+        );
+        delta = snapped.delta;
+        setSmartGuides(snapped.guides);
+      } else {
+        setSmartGuides([]);
+      }
       interaction.preview = moveShapesFromBaseline(
         interaction.baseline,
         interaction.selectedIds,
-        { x: world.x - interaction.startWorld.x, y: world.y - interaction.startWorld.y },
+        delta,
         activeGridSize
       );
       actions.previewShapes(interaction.preview);
@@ -454,6 +561,16 @@ const EditorCanvas = () => {
     }
 
     if (interaction.mode === "resize" && interaction.handle && interaction.selectionFrame) {
+      const snapped = !event.ctrlKey && !event.metaKey && !activeGridSize
+        ? snapResizePointerToObjects(
+            interaction.baseline,
+            interaction.selectedIds,
+            interaction.handle,
+            world,
+            6 / editor.viewport.zoom
+          )
+        : { point: world, guides: [] };
+      setSmartGuides(snapped.guides);
       const options = {
         fromCenter: event.altKey,
         lockAspectRatio: event.shiftKey,
@@ -463,7 +580,7 @@ const EditorCanvas = () => {
       const transform = resizeTransformForFrame(
         interaction.selectionFrame,
         interaction.handle,
-        world,
+        snapped.point,
         options
       );
       const nextDirection = {
@@ -480,7 +597,7 @@ const EditorCanvas = () => {
         interaction.selectedIds,
         interaction.selectionFrame,
         interaction.handle,
-        world,
+        snapped.point,
         options
       );
       actions.previewShapes(interaction.preview);
@@ -513,7 +630,12 @@ const EditorCanvas = () => {
 
     if (interaction.mode === "marquee") {
       setMarquee({ start: interaction.startWorld, end: world });
-      const hits = shapesInMarquee(interaction.baseline, interaction.startWorld, world);
+      const hits = shapesInMarquee(
+        interaction.baseline,
+        interaction.startWorld,
+        world,
+        interaction.includeNested
+      );
       dispatch(setSelectedShapes([...new Set([...(interaction.additiveSelection ?? []), ...hits])]));
     }
   };
@@ -523,6 +645,7 @@ const EditorCanvas = () => {
     if (!interaction || interaction.pointerId !== event.pointerId) return;
     interactionRef.current = null;
     setResizeDirection({ x: 1, y: 1 });
+    setSmartGuides([]);
     setMarquee(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -555,21 +678,40 @@ const EditorCanvas = () => {
       shouldCommit = true;
     }
 
+    if (interaction.mode === "move") {
+      interaction.preview = reparentAfterMove(
+        interaction.preview,
+        interaction.selectedIds,
+        spacePressedRef.current
+      );
+    }
+    if (interaction.mode === "draw" && interaction.shapeId) {
+      const created = interaction.preview.find((shape) => shape.id === interaction.shapeId);
+      interaction.preview = created?.type === "frame"
+        ? adoptContainedShapes(interaction.preview, created.id)
+        : reparentAfterMove(interaction.preview, interaction.selectedIds);
+    }
+
     if (shouldCommit) {
-      actions.commitShapes(interaction.preview, interaction.baseline);
+      actions.commitShapes(interaction.preview, interaction.commitBaseline ?? interaction.baseline);
+    }
+    if (interaction.mode === "draw" && interaction.shapeId) {
+      const created = interaction.preview.find((shape) => shape.id === interaction.shapeId);
+      if (created?.type === "text") dispatch(setEditingShapeId(created.id));
     }
   };
 
   const cancelInteraction = (event?: React.PointerEvent<HTMLDivElement>) => {
     const interaction = interactionRef.current;
     if (interaction) {
-      actions.cancelPreview(interaction.baseline);
+      actions.cancelPreview(interaction.commitBaseline ?? interaction.baseline);
       if (interaction.mode === "rotate" && interaction.selectionFrame) {
         dispatch(setSelectionRotation(interaction.selectionFrame.rotation));
       }
     }
     interactionRef.current = null;
     setResizeDirection({ x: 1, y: 1 });
+    setSmartGuides([]);
     setMarquee(null);
     if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -608,8 +750,8 @@ const EditorCanvas = () => {
 
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
-      const element = target as HTMLElement | null;
-      return Boolean(element?.closest("input, textarea, select, [contenteditable='true']"));
+      return target instanceof Element
+        && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === "Space" && !isEditableTarget(event.target)) {
@@ -644,7 +786,26 @@ const EditorCanvas = () => {
       }
       if (command && event.key.toLowerCase() === "v") {
         event.preventDefault();
-        actions.paste();
+        const rect = canvasRef.current?.getBoundingClientRect();
+        const selectedShape = selectedIds.length === 1
+          ? board.shapes.find((shape) => shape.id === selectedIds[0])
+          : undefined;
+        const target = selectedShape?.type === "frame"
+          ? selectedShape
+          : selectedShape?.parentId
+            ? board.shapes.find((shape) => shape.id === selectedShape.parentId && shape.type === "frame")
+            : undefined;
+        actions.paste({
+          targetFrameId: target?.id ?? null,
+          ...(rect ? {
+            viewport: {
+              x: editor.viewport.x,
+              y: editor.viewport.y,
+              width: rect.width / editor.viewport.zoom,
+              height: rect.height / editor.viewport.zoom,
+            },
+          } : {}),
+        });
         return;
       }
       if (command && event.key.toLowerCase() === "d") {
@@ -654,7 +815,8 @@ const EditorCanvas = () => {
       }
       if (command && event.key.toLowerCase() === "g") {
         event.preventDefault();
-        if (event.shiftKey) actions.ungroupSelected();
+        if (event.altKey) actions.frameSelected();
+        else if (event.shiftKey) actions.ungroupSelected();
         else actions.groupSelected();
         return;
       }
@@ -662,7 +824,7 @@ const EditorCanvas = () => {
         event.preventDefault();
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
-        const factor = event.key === "-" ? 0.8 : 1.25;
+        const factor = event.key === "-" ? 1 / ZOOM_STEP_FACTOR : ZOOM_STEP_FACTOR;
         dispatch(
           setViewport(
             zoomAtPoint(editor.viewport, { x: rect.width / 2, y: rect.height / 2 }, editor.viewport.zoom * factor)
@@ -702,6 +864,29 @@ const EditorCanvas = () => {
         dispatch(setSelectedTool("pointer"));
         return;
       }
+      if ((event.key === "Enter" || event.key === "F2") && selectedIds.length === 1) {
+        const selectedShape = board.shapes.find((shape) => shape.id === selectedIds[0]);
+        if (event.key === "Enter" && event.shiftKey && selectedShape?.parentId) {
+          event.preventDefault();
+          dispatch(setSelectedShapes([selectedShape.parentId]));
+          return;
+        }
+        if (event.key === "Enter" && selectedShape?.type === "frame") {
+          const child = board.shapes
+            .filter((shape) => shape.parentId === selectedShape.id && !isEffectivelyHidden(board.shapes, shape))
+            .sort((left, right) => right.zIndex - left.zIndex)[0];
+          if (child) {
+            event.preventDefault();
+            dispatch(setSelectedShapes(selectHitTarget(child, true)));
+            return;
+          }
+        }
+        if (selectedShape?.type === "text" && !isEffectivelyLocked(board.shapes, selectedShape)) {
+          event.preventDefault();
+          dispatch(setEditingShapeId(selectedShape.id));
+          return;
+        }
+      }
       if (event.key.startsWith("Arrow") && selectedIds.length > 0) {
         event.preventDefault();
         const distance = event.shiftKey ? 10 : 1;
@@ -714,6 +899,7 @@ const EditorCanvas = () => {
       const toolByKey: Record<string, EditorTool> = {
         v: "pointer",
         h: "hand",
+        f: "frame",
         r: "rectangle",
         o: "ellipse",
         t: "text",
@@ -736,7 +922,7 @@ const EditorCanvas = () => {
     };
     // cancelInteraction reads only refs and the current action facade.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actions, dispatch, editor.viewport, fitToContent, selectedIds.length]);
+  }, [actions, board.shapes, dispatch, editor.viewport, fitToContent, selectHitTarget, selectedIds]);
 
   const handleTextChange = (shapeId: string, text: string) => {
     if (!textBaselineRef.current) textBaselineRef.current = cloneShapes(board.shapes);
@@ -745,9 +931,12 @@ const EditorCanvas = () => {
     );
   };
 
-  const commitText = () => {
+  const commitText = (shapeId: string, text: string) => {
     if (textBaselineRef.current) {
-      actions.commitShapes(board.shapes, textBaselineRef.current);
+      const nextShapes = board.shapes.map((shape) =>
+        shape.id === shapeId ? { ...shape, text } : shape
+      );
+      actions.commitShapes(nextShapes, textBaselineRef.current);
       textBaselineRef.current = null;
     }
     dispatch(setEditingShapeId(null));
@@ -813,9 +1002,10 @@ const EditorCanvas = () => {
       }}
       onContextMenu={(event) => {
         event.preventDefault();
-        const hit = hitTest(board.shapes, pointerWorld(event as unknown as React.PointerEvent<HTMLDivElement>));
+        const worldPoint = pointerWorld(event as unknown as React.PointerEvent<HTMLDivElement>);
+        const hit = hitTest(board.shapes, worldPoint);
         if (hit && !selectedIds.includes(hit.id)) dispatch(setSelectedShapes(selectHitTarget(hit)));
-        setContextMenu({ x: event.clientX, y: event.clientY });
+        setContextMenu({ x: event.clientX, y: event.clientY, worldPoint });
       }}
       onDoubleClick={(event) => {
         const hit = hitTest(board.shapes, pointerWorld(event));
@@ -837,9 +1027,9 @@ const EditorCanvas = () => {
             });
           return;
         }
+        if (hit) dispatch(setSelectedShapes(selectHitTarget(hit, true)));
         if (hit?.type === "text") {
-          dispatch(setSelectedShapes([hit.id]));
-          dispatch(setEditingShapeId(hit.id));
+          if (!isEffectivelyLocked(board.shapes, hit)) dispatch(setEditingShapeId(hit.id));
         }
       }}
     >
@@ -848,8 +1038,9 @@ const EditorCanvas = () => {
           .slice()
           .sort((left, right) => left.zIndex - right.zIndex)
           .map((shape) => {
-            if (shape.hidden) return null;
+            if (isEffectivelyHidden(board.shapes, shape)) return null;
             const bounds = shapeBounds(shape);
+            const clipInsets = frameClipInsets(board.shapes, shape);
             const position = worldToScreen({ x: bounds.x, y: bounds.y }, editor.viewport);
             const isEditing = editor.editingShapeId === shape.id && shape.type === "text";
             const commonStyle: React.CSSProperties = {
@@ -865,18 +1056,32 @@ const EditorCanvas = () => {
               opacity: shape.opacity ?? 1,
               color: shape.color ?? "#f7f7f5",
               zIndex: shape.zIndex,
+              ...(clipInsets ? {
+                clipPath: `inset(${clipInsets.top * editor.viewport.zoom}px ${clipInsets.right * editor.viewport.zoom}px ${clipInsets.bottom * editor.viewport.zoom}px ${clipInsets.left * editor.viewport.zoom}px)`,
+              } : {}),
             };
 
             return (
               <div
                 key={shape.id}
-                className={`${styles.shape} ${selectedIds.includes(shape.id) ? styles.selectedShape : ""}`}
+                className={`${styles.shape} ${selectedIds.includes(shape.id) ? styles.selectedShape : ""} ${editor.hoveredShapeId === shape.id && !selectedIds.includes(shape.id) ? styles.hoveredShape : ""}`}
                 style={commonStyle}
                 data-shape-id={shape.id}
+                data-group-id={shape.groupId ?? undefined}
+                data-parent-id={shape.parentId ?? undefined}
+                data-shape-type={shape.type}
+                data-locked={isEffectivelyLocked(board.shapes, shape) ? "true" : "false"}
+                data-z-index={shape.zIndex}
+                data-flip-x={shape.flipX ? "true" : "false"}
+                data-flip-y={shape.flipY ? "true" : "false"}
               >
+                {shape.type === "frame" && (
+                  <span className={styles.frameLabel}>{shape.name ?? "Frame"}</span>
+                )}
                 {shape.type === "text" &&
                   (isEditing ? (
                     <TextEditor
+                      verticalAlign={(shape.alignItems as React.CSSProperties["alignItems"]) ?? "flex-start"}
                       style={{
                         fontFamily: shape.fontFamily ?? "Arial",
                         fontSize: `${(shape.fontSize ?? 18) * editor.viewport.zoom}px`,
@@ -888,28 +1093,30 @@ const EditorCanvas = () => {
                       }}
                       value={shape.text ?? ""}
                       onChange={(text) => handleTextChange(shape.id, text)}
-                      onBlur={commitText}
+                      onBlur={(text) => commitText(shape.id, text)}
                     />
                   ) : (
                     <div
                       className={styles.textContent}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        if (shape.locked) return;
+                        dispatch(setSelectedShapes([shape.id]));
+                        dispatch(setEditingShapeId(shape.id));
+                      }}
                       style={{
                         alignItems: shape.alignItems ?? "flex-start",
                         fontFamily: shape.fontFamily ?? "Arial",
                         fontSize: `${(shape.fontSize ?? 18) * editor.viewport.zoom}px`,
                         fontWeight: shape.fontWeight ?? "normal",
-                        justifyContent:
-                          shape.textAlign === "center"
-                            ? "center"
-                            : shape.textAlign === "right"
-                            ? "flex-end"
-                            : "flex-start",
                         lineHeight: shape.lineHeight ?? 1.2,
                         letterSpacing: `${(shape.letterSpacing ?? 0) * editor.viewport.zoom}px`,
                         textDecoration: shape.textDecoration ?? "none",
                       }}
                     >
-                      {shape.text}
+                      <span style={{ textAlign: (shape.textAlign as React.CSSProperties["textAlign"]) ?? "left" }}>
+                        {shape.text}
+                      </span>
                     </div>
                   ))}
                 {shape.type === "calendar" && <span className={styles.placeholderGlyph}>31</span>}
@@ -932,7 +1139,7 @@ const EditorCanvas = () => {
           role="group"
           aria-label="Selection transform controls"
         >
-          {actions.canEdit && (
+          {actions.canEdit && !selectionLocked && (
             <>
               <span className={styles.rotationStem} aria-hidden="true" />
               <button
@@ -960,6 +1167,26 @@ const EditorCanvas = () => {
         <div className={styles.marquee} style={marqueeStyle} aria-hidden="true" />
       )}
 
+      {smartGuides.map((guide, index) => {
+        const start = worldToScreen(
+          guide.axis === "x"
+            ? { x: guide.position, y: guide.start }
+            : { x: guide.start, y: guide.position },
+          editor.viewport
+        );
+        return (
+          <span
+            key={`${guide.axis}-${guide.position}-${index}`}
+            className={styles.smartGuide}
+            data-guide-axis={guide.axis}
+            style={guide.axis === "x"
+              ? { left: start.x, top: start.y, height: (guide.end - guide.start) * editor.viewport.zoom }
+              : { left: start.x, top: start.y, width: (guide.end - guide.start) * editor.viewport.zoom }}
+            aria-hidden="true"
+          />
+        );
+      })}
+
       {board.currentUsers
         .filter((presence) =>
           presence.uid !== user.uid && presence.cursorX !== null && presence.cursorY !== null
@@ -975,7 +1202,7 @@ const EditorCanvas = () => {
               key={presence.uid}
               style={{ left: point.x, top: point.y }}
             >
-              <span className={styles.cursorArrow}>◆</span>
+              <span className={styles.cursorArrow}><Cursor aria-hidden="true" weight="fill" /></span>
               <span className={styles.cursorLabel}>{presence.label ?? "Collaborator"}</span>
             </div>
           );
@@ -989,24 +1216,31 @@ const EditorCanvas = () => {
           onPointerDown={(event) => event.stopPropagation()}
         >
           {[
-            ["Copy", actions.copySelected],
-            ["Paste", actions.paste],
-            ["Duplicate", actions.duplicateSelected],
-            ["Group", actions.groupSelected],
-            ["Bring to front", () => actions.orderSelected("front")],
-            ["Send to back", () => actions.orderSelected("back")],
-            ["Delete", actions.removeSelected],
+            ...(selectedShapes.length ? [["Copy", actions.copySelected] as const] : []),
+            ["Paste here", () => actions.paste({ point: contextMenu.worldPoint })] as const,
+            ...(selectedShapes.length ? [["Duplicate", actions.duplicateSelected] as const] : []),
+            ...(selectedShapes.length > 1 && !isExistingGroup ? [["Group", actions.groupSelected] as const] : []),
+            ...(canUngroup ? [["Ungroup", actions.ungroupSelected] as const] : []),
+            ...(selectedShapes.length && !canUnframe ? [["Frame selection", actions.frameSelected] as const] : []),
+            ...(canUnframe ? [["Remove frame", actions.unframeSelected] as const] : []),
+            ...(selectedShapes.length ? [
+              ["Bring to front", () => actions.orderSelected("front")] as const,
+              ["Bring forward", () => actions.orderSelected("forward")] as const,
+              ["Send backward", () => actions.orderSelected("backward")] as const,
+              ["Send to back", () => actions.orderSelected("back")] as const,
+              ["Delete", actions.removeSelected] as const,
+            ] : []),
           ].map(([label, action]) => (
             <button
               type="button"
               role="menuitem"
-              key={label as string}
+              key={label}
               onClick={() => {
-                (action as () => void)();
+                action();
                 setContextMenu(null);
               }}
             >
-              {label as string}
+              {label}
             </button>
           ))}
         </div>
@@ -1014,11 +1248,17 @@ const EditorCanvas = () => {
       {navigationError && (
         <div className={styles.navigationError} role="alert">
           <span>{navigationError}</span>
-          <button type="button" aria-label="Dismiss navigation error" onClick={() => setNavigationError(null)}>×</button>
+          <button type="button" aria-label="Dismiss navigation error" onClick={() => setNavigationError(null)}><X aria-hidden="true" /></button>
         </div>
       )}
     </div>
   );
+};
+
+const EditorCanvas = () => {
+  const actions = useEditorActions();
+  const updateMyPresence = useUpdateMyPresence();
+  return <EditorCanvasView actions={actions} updateMyPresence={updateMyPresence} />;
 };
 
 export default EditorCanvas;

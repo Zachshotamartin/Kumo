@@ -3,6 +3,7 @@ import { Shape } from "../classes/shape";
 export type EditorTool =
   | "pointer"
   | "hand"
+  | "frame"
   | "rectangle"
   | "ellipse"
   | "text"
@@ -69,4 +70,13 @@ export interface ResizeTransform {
 export interface SelectionFrame {
   bounds: Bounds;
   rotation: number;
+}
+
+export interface PasteContext {
+  /** World-space canvas viewport. */
+  viewport?: Bounds;
+  /** Explicit destination selected by the user. */
+  targetFrameId?: string | null;
+  /** Paste-here world coordinate; positions the copied bounds' top-left. */
+  point?: Point;
 }

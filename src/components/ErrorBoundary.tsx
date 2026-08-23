@@ -24,7 +24,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (!this.state.failed) return this.props.children;
     return (
       <main className="fatal-error">
-        <div className="app-loading-brand">
+        <div className="app-loading-copy">
           <KumoLogo className="app-loading-logo" context="error" decorative />
           <span className="app-loading-word">Kumo</span>
         </div>

@@ -13,6 +13,15 @@ vi.mock("./config/firebase", () => ({
   provider: {},
 }));
 
+vi.mock("./components/homepage/homePage", () => ({
+  default: () => (
+    <main>
+      <h1>Every board can lead somewhere</h1>
+      <button type="button" role="tab" aria-selected="true">Sign in</button>
+    </main>
+  ),
+}));
+
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (
     _auth: unknown,
@@ -45,7 +54,7 @@ describe("App", () => {
         <App />
       </Provider>
     );
-    expect(screen.getByRole("status")).toHaveTextContent("KumoLoading workspace");
+    expect(screen.getByRole("status")).toHaveTextContent("KumoOpening your canvas");
     expect(container.querySelector('kumo-logo[context="loading"]')).toBeInTheDocument();
   });
 
@@ -56,10 +65,10 @@ describe("App", () => {
         <App />
       </Provider>
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Loading workspace");
-    await act(async () => { await vi.advanceTimersByTimeAsync(1800); });
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
     vi.useRealTimers();
-    expect(await screen.findByRole("heading", { name: /ideas move faster/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /every board can lead somewhere/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute("aria-selected", "true");
   });
 });
