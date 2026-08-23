@@ -278,25 +278,38 @@ test.describe("editor regression workflows", () => {
     const frame = page.locator('[data-shape-type="frame"]');
     const frameId = await frame.getAttribute("data-shape-id");
     const frameZ = Number(await frame.getAttribute("data-z-index"));
-
-    await page.mouse.move(canvasBox!.x + 520, canvasBox!.y + 160);
-    await page.mouse.down();
-    await page.keyboard.down("Control");
-    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 380, { steps: 8 });
-    await page.mouse.up();
-    await page.keyboard.up("Control");
     const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
+
+    const dragRectangleToFrame = async (keepCurrentParent = false) => {
+      const [rectangleBox, frameBox] = await Promise.all([
+        rectangle.boundingBox(),
+        frame.boundingBox(),
+      ]);
+      expect(rectangleBox).not.toBeNull();
+      expect(frameBox).not.toBeNull();
+      await page.mouse.move(
+        rectangleBox!.x + rectangleBox!.width / 2,
+        rectangleBox!.y + rectangleBox!.height / 2
+      );
+      await page.mouse.down();
+      await page.keyboard.down("Control");
+      await page.mouse.move(
+        frameBox!.x + frameBox!.width / 2,
+        frameBox!.y + frameBox!.height / 2
+      );
+      if (keepCurrentParent) await page.keyboard.down("Space");
+      await page.mouse.up();
+      if (keepCurrentParent) await page.keyboard.up("Space");
+      await page.keyboard.up("Control");
+    };
+
+    await dragRectangleToFrame();
     await expect(rectangle).toHaveAttribute("data-parent-id", frameId!);
     expect(Number(await rectangle.getAttribute("data-z-index"))).toBeGreaterThan(frameZ);
 
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(rectangle).not.toHaveAttribute("data-parent-id", frameId!);
-    await page.mouse.move(canvasBox!.x + 520, canvasBox!.y + 160);
-    await page.mouse.down();
-    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 380, { steps: 8 });
-    await page.keyboard.down("Space");
-    await page.mouse.up();
-    await page.keyboard.up("Space");
+    await dragRectangleToFrame(true);
     await expect(rectangle).not.toHaveAttribute("data-parent-id", frameId!);
   });
 
