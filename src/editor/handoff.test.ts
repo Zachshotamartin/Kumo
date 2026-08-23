@@ -20,4 +20,10 @@ describe("developer handoff", () => {
     expect(shapeReact(shape)).toContain("Build &lt;together&gt;");
     expect(inspectTokens(shape)).toMatchObject({ colors: ["#252629", "#f4f1eb", "#b87a2e"], variables: [{ property: "color", id: "variable" }] });
   });
+
+  it("generates valid component identifiers and escapes JSX expressions", () => {
+    const output = shapeReact({ ...shape, name: "123 card", text: "Hello {danger}" });
+    expect(output).toContain("function Layer123Card");
+    expect(output).toContain("Hello &#123;danger&#125;");
+  });
 });

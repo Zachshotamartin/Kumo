@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "./_auth.js";
 import { getBoardAccess } from "./_boards.js";
+import { replaceStorageDocument, withDocumentLease } from "./_documentMutation.js";
 import { syncBoardLinks } from "./_boardLinks.js";
 import { boardDocumentFromJson, liveblocksAdmin } from "./_liveblocks.js";
 import { allowMethods, errorMessage, stringQuery } from "./_http.js";
@@ -24,6 +25,26 @@ const requireEditable = (role: string) => {
   }
 };
 
+const requestedBranchId = (request: VercelRequest) => request.method === "GET"
+  ? stringQuery(request.query.branchId).trim()
+  : typeof request.body?.branchId === "string" ? request.body.branchId.trim() : "";
+
+const resolveRoomId = async (
+  database: ReturnType<typeof supabaseAdmin>,
+  boardId: string,
+  mainRoomId: string,
+  branchId: string
+): Promise<string | null> => {
+  if (!branchId) return mainRoomId;
+  const { data, error } = await database.from("document_branches")
+    .select("room_id, status")
+    .eq("id", branchId)
+    .eq("board_id", boardId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.status === "open" && typeof data.room_id === "string" ? data.room_id : null;
+};
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!allowMethods(request, response, ["GET", "POST"])) return;
   try {
@@ -35,6 +56,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const access = await getBoardAccess(boardId, actor.uid);
     if (!access) return response.status(404).json({ error: "Board not found." });
     const database = supabaseAdmin();
+    const branchId = requestedBranchId(request);
+    const roomId = await resolveRoomId(database, boardId, access.board.liveblocks_room_id, branchId);
+    if (!roomId) return response.status(404).json({ error: "Branch not found or no longer open." });
 
     if (request.method === "GET") {
       const versionId = stringQuery(request.query.versionId).trim();
@@ -44,6 +68,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           .select("id, board_id, name, description, created_by, kind, created_at, document")
           .eq("id", versionId)
           .eq("board_id", boardId)
+          .eq("liveblocks_room_id", roomId)
           .maybeSingle();
         if (error) throw error;
         if (!data) return response.status(404).json({ error: "Version not found." });
@@ -53,6 +78,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         .from("document_snapshots")
         .select("id, board_id, name, description, created_by, kind, created_at, checksum")
         .eq("board_id", boardId)
+        .eq("liveblocks_room_id", roomId)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -82,7 +108,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
     requireEditable(access.role);
     const action = request.body?.action === "restore" ? "restore" : "checkpoint";
     const liveblocks = liveblocksAdmin();
-    const roomId = access.board.liveblocks_room_id;
     if (action === "checkpoint") {
       const document = await liveblocks.getStorageDocument(roomId, "json");
       const { data, error } = await database.from("document_snapshots").insert({
@@ -96,12 +121,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
         kind: "checkpoint",
       }).select("id, board_id, name, description, created_by, kind, created_at, checksum").single();
       if (error) throw error;
-      await database.from("audit_events").insert({
+      const { error: auditError } = await database.from("audit_events").insert({
         board_id: boardId,
         actor_id: actor.uid,
         event_type: "version.checkpoint_created",
-        payload: { versionId: data.id, name: data.name },
+        payload: { versionId: data.id, name: data.name, roomId },
       });
+      if (auditError) throw auditError;
       return response.status(201).json({ version: data });
     }
 
@@ -111,48 +137,58 @@ export default async function handler(request: VercelRequest, response: VercelRe
       .select("id, document")
       .eq("id", versionId)
       .eq("board_id", boardId)
+      .eq("liveblocks_room_id", roomId)
       .maybeSingle();
     if (targetError) throw targetError;
     if (!target) return response.status(404).json({ error: "Version not found." });
 
-    const current = await liveblocks.getStorageDocument(roomId, "json");
-    const { data: beforeRestore, error: beforeError } = await database
-      .from("document_snapshots")
-      .insert({
-        board_id: boardId,
-        liveblocks_room_id: roomId,
-        document: current,
-        checksum: checksum(current),
-        name: "Before restore",
-        description: `Automatically saved before restoring ${versionId}.`,
-        created_by: actor.uid,
-        kind: "before_restore",
-      })
-      .select("id")
-      .single();
-    if (beforeError) throw beforeError;
+    return await withDocumentLease(database, roomId, async () => {
+      const current = await liveblocks.getStorageDocument(roomId, "json");
+      const { data: beforeRestore, error: beforeError } = await database
+        .from("document_snapshots")
+        .insert({
+          board_id: boardId,
+          liveblocks_room_id: roomId,
+          document: current,
+          checksum: checksum(current),
+          name: "Before restore",
+          description: `Automatically saved before restoring ${versionId}.`,
+          created_by: actor.uid,
+          kind: "before_restore",
+        })
+        .select("id")
+        .single();
+      if (beforeError) throw beforeError;
 
-    await liveblocks.deleteStorageDocument(roomId);
-    try {
-      await liveblocks.initializeStorageDocument(roomId, boardDocumentFromJson(target.document));
-    } catch (restoreError) {
-      await liveblocks.initializeStorageDocument(roomId, boardDocumentFromJson(current));
-      throw restoreError;
-    }
-    await syncBoardLinks(boardId, target.document);
-    await database.from("boards").update({ updated_at: new Date().toISOString() }).eq("id", boardId);
-    await database.from("audit_events").insert({
-      board_id: boardId,
-      actor_id: actor.uid,
-      event_type: "version.restored",
-      payload: { versionId, beforeRestoreId: beforeRestore.id },
+      await replaceStorageDocument({
+        client: liveblocks,
+        roomId,
+        current: boardDocumentFromJson(current),
+        next: boardDocumentFromJson(target.document),
+        commit: async () => {
+          if (!branchId) await syncBoardLinks(boardId, target.document);
+          const { error } = await database.rpc("complete_kumo_version_restore", {
+            p_board_id: boardId,
+            p_actor_id: actor.uid,
+            p_version_id: versionId,
+            p_before_restore_id: beforeRestore.id,
+            p_room_id: roomId,
+          });
+          if (error) throw error;
+        },
+        rollback: branchId ? undefined : () => syncBoardLinks(boardId, current),
+      });
+      const revision = Date.now();
+      await liveblocks.broadcastEvent(roomId, {
+        type: "DOCUMENT_RESTORED", actorId: actor.uid, revision,
+      }).catch(() => undefined);
+      return response.status(200).json({ restored: true, versionId, beforeRestoreId: beforeRestore.id, revision });
     });
-    await liveblocks.broadcastEvent(roomId, { type: "DOCUMENT_RESTORED", actorId: actor.uid });
-    return response.status(200).json({ restored: true, versionId, beforeRestoreId: beforeRestore.id });
   } catch (error) {
     const message = errorMessage(error, "We couldn't update version history.");
     const status = message === "Authentication required." ? 401
       : error instanceof Error && error.name === "Forbidden" ? 403
+      : error instanceof Error && error.name === "DocumentConflict" ? 409
       : 500;
     return response.status(status).json({ error: message });
   }

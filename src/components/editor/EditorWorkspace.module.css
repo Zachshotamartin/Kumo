@@ -553,6 +553,7 @@
 
 .canvasRegion {
   position: relative;
+  grid-column: 3;
   min-width: 0;
   overflow: hidden;
 }
@@ -939,6 +940,20 @@
   display: grid;
   color: #f4f1eb;
   background: #17181a;
+}
+
+.presentationError {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2;
+  max-width: 360px;
+  margin: 0;
+  padding: 10px 12px;
+  color: #ffe6df;
+  font-size: 12px;
+  background: #44241e;
+  border: 1px solid #754135;
 }
 
 .exportGrid {

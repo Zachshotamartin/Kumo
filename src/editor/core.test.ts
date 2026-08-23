@@ -98,6 +98,28 @@ describe("editor geometry", () => {
     expect(moved[1]).toBe(baseline[1]);
   });
 
+  it("moves and resizes vector points, bezier handles, and boolean source geometry", () => {
+    const vector = {
+      ...shape("vector", 10, 20, 100, 50),
+      type: "vector",
+      vectorPoints: [
+        { id: "a", x: 10, y: 20, handleOut: { x: 20, y: 25 } },
+        { id: "b", x: 110, y: 70, handleIn: { x: 90, y: 65 } },
+      ],
+    };
+    const composite = { ...shape("boolean", 10, 20, 100, 50), type: "boolean", booleanChildren: [vector] };
+    const moved = moveShapesFromBaseline([vector, composite], ["vector", "boolean"], { x: 30, y: 40 });
+    expect(moved[0]!.vectorPoints?.[0]).toMatchObject({ x: 40, y: 60, handleOut: { x: 50, y: 65 } });
+    expect(moved[1]!.booleanChildren?.[0]?.vectorPoints?.[1]).toMatchObject({ x: 140, y: 110, handleIn: { x: 120, y: 105 } });
+
+    const bounds = selectionBounds([vector], [vector.id])!;
+    const resized = resizeShapesFromBaseline([vector], [vector.id], bounds, { x: 20, y: 40, width: 200, height: 100 });
+    expect(resized[0]!.vectorPoints).toEqual([
+      { id: "a", x: 20, y: 40, handleOut: { x: 40, y: 50 } },
+      { id: "b", x: 220, y: 140, handleIn: { x: 180, y: 130 } },
+    ]);
+  });
+
   it("uses one effective grid increment for rendering and snapping", () => {
     expect(effectiveGridSize(8, 1)).toBe(8);
     expect(effectiveGridSize(8, 0.5)).toBe(16);

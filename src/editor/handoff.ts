@@ -22,10 +22,16 @@ export const shapeCss = (shape: Shape): string => {
   return `.kumo-${shape.type} {\n${declarations.filter(([, value]) => value !== undefined && value !== "").map(([property, value]) => `  ${property}: ${value};`).join("\n")}\n}`;
 };
 
-const escapeJsx = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+const escapeJsx = (value: string) => value
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll("{", "&#123;")
+  .replaceAll("}", "&#125;");
 
 export const shapeReact = (shape: Shape): string => {
-  const name = (shape.name ?? shape.type).replace(/[^a-z0-9]/gi, " ").trim().split(/\s+/).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join("") || "KumoLayer";
+  const candidate = (shape.name ?? shape.type).replace(/[^a-z0-9]/gi, " ").trim().split(/\s+/).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join("") || "KumoLayer";
+  const name = /^[A-Za-z_$]/.test(candidate) ? candidate : `Layer${candidate}`;
   const content = shape.type === "text" ? escapeJsx(shape.text ?? "") : shape.type === "board" ? escapeJsx(shape.title ?? "Open board") : "";
   return `export function ${name}() {\n  return <div className="kumo-${shape.type}">${content}</div>;\n}`;
 };

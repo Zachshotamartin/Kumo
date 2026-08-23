@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 
 test.describe("editor regression workflows", () => {
   test.describe.configure({ mode: "serial" });
-  test.skip(({ isMobile }) => Boolean(isMobile), "Precise pointer workflows run in the desktop project.");
-
   test.beforeEach(async ({ page }) => {
     await page.goto("/e2e.html");
     await expect(page.getByTestId("editor-regression-lab")).toBeVisible();
@@ -355,6 +353,28 @@ test.describe("editor regression workflows", () => {
     const vector = page.locator('[data-shape-type="vector"]');
     await expect(vector).toHaveCount(1);
     await expect(page.getByText("2 editable nodes.")).toBeVisible();
+    const vectorBeforeMove = await vector.boundingBox();
+    const nodes = page.locator("[data-vector-point-id]");
+    const nodeBeforeMove = await nodes.first().boundingBox();
+    expect(vectorBeforeMove).not.toBeNull();
+    expect(nodeBeforeMove).not.toBeNull();
+    await page.mouse.move(vectorBeforeMove!.x + vectorBeforeMove!.width / 2, vectorBeforeMove!.y + vectorBeforeMove!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(vectorBeforeMove!.x + vectorBeforeMove!.width / 2 + 80, vectorBeforeMove!.y + vectorBeforeMove!.height / 2 + 60, { steps: 6 });
+    await page.mouse.up();
+    const vectorAfterMove = await vector.boundingBox();
+    const nodeAfterMove = await nodes.first().boundingBox();
+    expect(vectorAfterMove!.x).toBeGreaterThan(vectorBeforeMove!.x + 70);
+    expect(nodeAfterMove!.x).toBeGreaterThan(nodeBeforeMove!.x + 70);
+
+    const resize = page.getByRole("button", { name: "Resize from bottom right" });
+    const resizeBox = await resize.boundingBox();
+    expect(resizeBox).not.toBeNull();
+    await page.mouse.move(resizeBox!.x + resizeBox!.width / 2, resizeBox!.y + resizeBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(resizeBox!.x + resizeBox!.width / 2 + 100, resizeBox!.y + resizeBox!.height / 2 + 50, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(async () => (await vector.boundingBox())?.width ?? 0).toBeGreaterThan(vectorAfterMove!.width + 80);
     await page.getByRole("checkbox", { name: "Closed path" }).check();
 
     await page.getByRole("button", { name: "Ochre card", exact: true }).click();

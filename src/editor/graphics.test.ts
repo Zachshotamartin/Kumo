@@ -42,6 +42,11 @@ describe("vector and compositing graphics", () => {
     expect(composite.booleanChildren).toHaveLength(2);
     expect(flattenBooleanOperation(result.shapes, composite.id).filter((item) => item.type === "rectangle")).toHaveLength(2);
     expect(createBooleanOperation([shape("a", 0)], ["a"], "union").booleanId).toBeNull();
+    const frame = shape("frame", 0, { type: "frame" });
+    const child = shape("child", 2, { parentId: frame.id });
+    const text = shape("text", 30, { type: "text" });
+    const invalid = createBooleanOperation([frame, child, text], [frame.id, text.id], "union");
+    expect(invalid).toEqual({ shapes: [frame, child, text], booleanId: null });
     expect(flattenBooleanOperation([shape("a", 0)], "missing")).toEqual([shape("a", 0)]);
   });
 

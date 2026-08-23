@@ -53,13 +53,13 @@ const BranchesPanel = () => {
     }));
   };
 
-  const leave = () => {
+  const leave = (revision = board.revision + 1) => {
     dispatch(clearSelectedShapes());
     dispatch(setWhiteboardData({
       roomId: board.baseRoomId ?? (board.id ? `board:${board.id}` : null),
       activeBranchId: null,
       activeBranchName: null,
-      revision: board.revision + 1,
+      revision,
       shapes: [],
     }));
   };
@@ -71,7 +71,7 @@ const BranchesPanel = () => {
         {board.activeBranchId && (
           <section className={styles.activeBranchCard}>
             <span>Currently editing</span><strong><GitBranch aria-hidden="true" /> {board.activeBranchName}</strong>
-            <button type="button" onClick={leave}><SignOut aria-hidden="true" /> Return to main</button>
+            <button type="button" onClick={() => leave()}><SignOut aria-hidden="true" /> Return to main</button>
           </section>
         )}
         <section className={styles.inspectorSection}>
@@ -98,7 +98,7 @@ const BranchesPanel = () => {
                       <button type="button" className={styles.mergeConfirm} onClick={() => {
                         if (!board.id) return;
                         setLoading(true);
-                        void mergeDesignBranch(board.id, branch.id).then(() => { leave(); return load(); }).catch((caught) => setError(caught instanceof Error ? caught.message : "Merge failed.")).finally(() => { setConfirmMerge(null); setLoading(false); });
+                        void mergeDesignBranch(board.id, branch.id).then((result) => { leave(result.revision); return load(); }).catch((caught) => setError(caught instanceof Error ? caught.message : "Merge failed.")).finally(() => { setConfirmMerge(null); setLoading(false); });
                       }}>Confirm merge</button>
                     ) : <button type="button" aria-label={`Merge ${branch.name}`} onClick={() => setConfirmMerge(branch.id)}><GitMerge aria-hidden="true" /></button>}
                     <button type="button" aria-label={`Archive ${branch.name}`} onClick={() => {

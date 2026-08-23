@@ -13,8 +13,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    { name: "chromium", testIgnore: "**/mobile-editor.spec.ts", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", testMatch: ["**/auth.spec.ts", "**/mobile-editor.spec.ts"], use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
     command: "node node_modules/vite/bin/vite.js --host localhost --port 4173",

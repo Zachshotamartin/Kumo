@@ -22,6 +22,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const roles = new Map(
       (members ?? []).map((member) => [member.user_id as string, member.role as string])
     );
+    const requesterIsMember = roles.has(actor.uid);
     if (!roles.size) return response.status(200).json({ collaborators: [] });
 
     const { data: profiles, error: profileError } = await database
@@ -32,7 +33,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const collaborators = (profiles ?? [])
       .map((profile) => ({
         id: profile.firebase_uid as string,
-        email: profile.email as string,
+        email: requesterIsMember ? profile.email as string : "",
         name: profile.display_name as string,
         avatar: (profile.avatar_url as string | null) ?? "",
         role: roles.get(profile.firebase_uid as string) ?? "viewer",

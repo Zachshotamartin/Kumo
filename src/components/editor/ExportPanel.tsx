@@ -7,6 +7,7 @@ import {
   serializeKumoDocument,
   serializePdf,
   serializeSvg,
+  serializeSvgWithAssets,
   svgToPng,
 } from "../../editor/export";
 import { useEditorActions } from "../../editor/useEditorActions";
@@ -37,6 +38,33 @@ const ExportPanel = () => {
     }
   };
 
+  const exportSvg = async () => {
+    try {
+      setStatus("Embedding assets…");
+      const document = await serializeSvgWithAssets(
+        board.shapes,
+        selectedIds,
+        selectedIds.length ? "transparent" : board.backGroundColor
+      );
+      downloadBlob(new Blob([document], { type: "image/svg+xml" }), `${name}.svg`);
+      setStatus("SVG downloaded.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "SVG export failed.");
+    }
+  };
+
+  const exportPdf = async () => {
+    try {
+      setStatus("Rendering PDF…");
+      const bytes = await serializePdf(board.shapes, board.backGroundColor);
+      const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+      downloadBlob(new Blob([buffer], { type: "application/pdf" }), `${name}.pdf`);
+      setStatus("PDF downloaded.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "PDF export failed.");
+    }
+  };
+
   return (
     <aside className={styles.inspectorPanel} aria-label="Export and import">
       <div className={styles.panelHeading}>
@@ -53,9 +81,9 @@ const ExportPanel = () => {
             </select>
           </label>
           <div className={styles.exportGrid}>
-            <button type="button" onClick={() => downloadBlob(new Blob([svg()], { type: "image/svg+xml" }), `${name}.svg`)}><FileSvg aria-hidden="true" /><span>SVG</span></button>
+            <button type="button" onClick={() => void exportSvg()}><FileSvg aria-hidden="true" /><span>SVG</span></button>
             <button type="button" onClick={() => void exportPng()}><FilePng aria-hidden="true" /><span>PNG</span></button>
-            <button type="button" onClick={() => downloadBlob(new Blob([serializePdf(board.shapes).buffer as ArrayBuffer], { type: "application/pdf" }), `${name}.pdf`)}><FilePdf aria-hidden="true" /><span>PDF</span></button>
+            <button type="button" onClick={() => void exportPdf()}><FilePdf aria-hidden="true" /><span>PDF</span></button>
             <button type="button" onClick={() => downloadBlob(new Blob([serializeKumoDocument(board.title ?? "Board", board.backGroundColor, board.shapes)], { type: "application/json" }), `${name}.kumo.json`)}><DownloadSimple aria-hidden="true" /><span>Kumo</span></button>
           </div>
           <p className={styles.fieldHint}>SVG and PNG use the current selection when one exists. PDF creates a page for each top-level frame.</p>

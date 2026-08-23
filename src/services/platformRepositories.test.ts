@@ -36,11 +36,11 @@ describe("collaboration platform repositories", () => {
     vi.mocked(authenticatedFetch)
       .mockResolvedValueOnce({ branches: [branch] })
       .mockResolvedValueOnce({ branch })
-      .mockResolvedValueOnce({ merged: true, checkpointId: "checkpoint" })
+      .mockResolvedValueOnce({ merged: true, checkpointId: "checkpoint", revision: 42 })
       .mockResolvedValueOnce({ archived: true });
     await expect(listDesignBranches("board one")).resolves.toEqual([branch]);
     await expect(createDesignBranch("board", "Exploration")).resolves.toEqual(branch);
-    await expect(mergeDesignBranch("board", "branch")).resolves.toEqual({ merged: true, checkpointId: "checkpoint" });
+    await expect(mergeDesignBranch("board", "branch")).resolves.toEqual({ merged: true, checkpointId: "checkpoint", revision: 42 });
     await expect(archiveDesignBranch("board", "branch")).resolves.toEqual({ archived: true });
     expect(authenticatedFetch).toHaveBeenNthCalledWith(2, "/api/branches", {
       method: "POST", body: JSON.stringify({ action: "create", boardId: "board", name: "Exploration" }),
@@ -57,11 +57,13 @@ describe("collaboration platform repositories", () => {
       .mockResolvedValueOnce({ versions: [version] })
       .mockResolvedValueOnce({ version: detail })
       .mockResolvedValueOnce({ version })
-      .mockResolvedValueOnce({ restored: true, versionId: version.id, beforeRestoreId: "recovery" });
-    await expect(listBoardVersions("board / one")).resolves.toEqual([version]);
-    await expect(getBoardVersion("board / one", "version / one")).resolves.toEqual(detail);
-    await expect(createBoardCheckpoint("board", "Review", "Ready")).resolves.toEqual(version);
-    await expect(restoreBoardVersion("board", version.id)).resolves.toEqual({ restored: true, versionId: version.id, beforeRestoreId: "recovery" });
-    expect(authenticatedFetch).toHaveBeenNthCalledWith(2, "/api/versions?boardId=board%20%2F%20one&versionId=version%20%2F%20one");
+      .mockResolvedValueOnce({ restored: true, versionId: version.id, beforeRestoreId: "recovery", revision: 84 });
+    await expect(listBoardVersions("board / one", "branch / one")).resolves.toEqual([version]);
+    await expect(getBoardVersion("board / one", "version / one", "branch / one")).resolves.toEqual(detail);
+    await expect(createBoardCheckpoint("board", "Review", "Ready", "branch / one")).resolves.toEqual(version);
+    await expect(restoreBoardVersion("board", version.id, "branch / one")).resolves.toEqual({ restored: true, versionId: version.id, beforeRestoreId: "recovery", revision: 84 });
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(1, "/api/versions?boardId=board%20%2F%20one&branchId=branch%20%2F%20one");
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(2, "/api/versions?boardId=board%20%2F%20one&versionId=version%20%2F%20one&branchId=branch%20%2F%20one");
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(3, "/api/versions", expect.objectContaining({ body: JSON.stringify({ action: "checkpoint", boardId: "board", name: "Review", description: "Ready", branchId: "branch / one" }) }));
   });
 });

@@ -161,6 +161,10 @@ export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: Te
 
 const cloneShapes = (shapes: Shape[]): Shape[] => JSON.parse(JSON.stringify(shapes));
 
+const capturePointer = (element: HTMLElement, pointerId: number) => {
+  try { element.setPointerCapture(pointerId); } catch { /* Synthetic and cancelled pointers cannot be captured. */ }
+};
+
 const resizeHandles: Array<{
   handle: ResizeHandle;
   label: string;
@@ -280,6 +284,12 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const cursorFrameRef = useRef<number | null>(null);
   const latestCursorRef = useRef<Point | null>(null);
   const navigationRequestRef = useRef(0);
+  const touchPointersRef = useRef(new Map<number, Point>());
+  const pinchRef = useRef<{
+    distance: number;
+    midpoint: Point;
+    viewport: Viewport;
+  } | null>(null);
   const [marquee, setMarquee] = useState<{ start: Point; end: Point } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [navigationError, setNavigationError] = useState<string | null>(null);
@@ -469,7 +479,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       return;
     }
 
-    event.currentTarget.setPointerCapture(event.pointerId);
+    capturePointer(event.currentTarget, event.pointerId);
     if (vectorPointId && vectorShapeId && actions.canEdit) {
       interactionRef.current = {
         mode: "vector-point",
@@ -881,6 +891,79 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     }
   };
 
+  const touchMidpoint = (points: Point[]) => ({
+    x: (points[0]!.x + points[1]!.x) / 2,
+    y: (points[0]!.y + points[1]!.y) / 2,
+  });
+  const touchDistance = (points: Point[]) => Math.hypot(
+    points[1]!.x - points[0]!.x,
+    points[1]!.y - points[0]!.y
+  );
+  const localTouchPoints = (element: HTMLDivElement) => {
+    const rect = element.getBoundingClientRect();
+    return [...touchPointersRef.current.values()].map((point) => ({ x: point.x - rect.left, y: point.y - rect.top }));
+  };
+
+  const handleCanvasPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") {
+      capturePointer(event.currentTarget, event.pointerId);
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const points = localTouchPoints(event.currentTarget);
+      if (points.length >= 2) {
+        cancelInteraction();
+        pinchRef.current = {
+          distance: Math.max(1, touchDistance(points)),
+          midpoint: touchMidpoint(points),
+          viewport: viewportRef.current,
+        };
+        return;
+      }
+    }
+    handlePointerDown(event);
+  };
+
+  const handleCanvasPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const points = localTouchPoints(event.currentTarget);
+      const pinch = pinchRef.current;
+      if (pinch && points.length >= 2) {
+        event.preventDefault();
+        const midpoint = touchMidpoint(points);
+        const zoomed = zoomAtPoint(
+          pinch.viewport,
+          pinch.midpoint,
+          pinch.viewport.zoom * touchDistance(points) / pinch.distance
+        );
+        const next = panViewport(zoomed, {
+          x: midpoint.x - pinch.midpoint.x,
+          y: midpoint.y - pinch.midpoint.y,
+        });
+        viewportRef.current = next;
+        dispatch(setViewport(next));
+        return;
+      }
+    }
+    handlePointerMove(event);
+  };
+
+  const finishCanvasPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
+      const wasPinching = Boolean(pinchRef.current);
+      touchPointersRef.current.delete(event.pointerId);
+      if (touchPointersRef.current.size < 2) pinchRef.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      if (wasPinching) return;
+    }
+    finishInteraction(event);
+  };
+
+  const cancelCanvasPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    touchPointersRef.current.delete(event.pointerId);
+    if (touchPointersRef.current.size < 2) pinchRef.current = null;
+    cancelInteraction(event);
+  };
+
   const fitToContent = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -1157,10 +1240,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       }}
       role="application"
       aria-label="Kumo design canvas"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={finishInteraction}
-      onPointerCancel={cancelInteraction}
+      onPointerDown={handleCanvasPointerDown}
+      onPointerMove={handleCanvasPointerMove}
+      onPointerUp={finishCanvasPointer}
+      onPointerCancel={cancelCanvasPointer}
       onPointerLeave={() => {
         if (!interactionRef.current) {
           latestCursorRef.current = null;

@@ -28,6 +28,17 @@ describe("multi-page workspace organization", () => {
     expect(shapesOnPage(removed.shapes, removed.nextPageId)).toHaveLength(2);
   });
 
+  it("keeps shared resources global when pages are created, copied, or removed", () => {
+    const resource = shape("style", 0, { type: "resource", hidden: true, resourceKind: "fill-style", resourceValue: { backgroundColor: "#fff" } });
+    const first = createPage([resource], "One");
+    const second = createPage(first.shapes, "Two");
+    const duplicate = duplicatePage(second.shapes, first.pageId);
+    expect(duplicate.shapes.filter((item) => item.id === resource.id)).toHaveLength(1);
+    const removed = deletePage(duplicate.shapes, first.pageId);
+    expect(removed.shapes.find((item) => item.id === resource.id)).toBeDefined();
+    expect(shapesOnPage(removed.shapes, removed.nextPageId)).not.toContainEqual(expect.objectContaining({ id: resource.id }));
+  });
+
   it("renames pages safely and refuses to remove the last page", () => {
     const created = createPage([], "Ideas");
     const renamed = renamePage(created.shapes, created.pageId, "  ");

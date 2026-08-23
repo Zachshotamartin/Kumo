@@ -453,7 +453,7 @@ const EditorWorkspace = () => {
               {editor.rightPanel === "comments"
                 ? <CommentsPanel />
                 : editor.rightPanel === "history"
-                  ? <VersionHistoryPanel />
+                  ? <VersionHistoryPanel key={`${board.id ?? "board"}:${board.activeBranchId ?? "main"}`} />
                   : editor.rightPanel === "assets"
                     ? <DesignLibraryPanel />
                     : editor.rightPanel === "prototype"

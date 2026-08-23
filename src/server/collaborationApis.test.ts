@@ -12,11 +12,12 @@ const mocks = vi.hoisted(() => ({
   initializeDocument: vi.fn(),
   broadcast: vi.fn(),
   syncLinks: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
 vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
-vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from }) }));
+vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
 vi.mock("../../api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
 vi.mock("../../api/_liveblocks", () => ({
   boardDocumentFromJson: (document: unknown) => ({ normalized: document }),
@@ -78,6 +79,10 @@ describe("collaborator and version APIs", () => {
     mocks.initializeDocument.mockResolvedValue(undefined);
     mocks.broadcast.mockResolvedValue(undefined);
     mocks.syncLinks.mockResolvedValue(undefined);
+    mocks.rpc.mockImplementation(async (name: string) => ({
+      data: name === "acquire_kumo_document_lease" ? true : null,
+      error: null,
+    }));
   });
 
   it("returns named board collaborators with their roles", async () => {
@@ -105,6 +110,19 @@ describe("collaborator and version APIs", () => {
       expect.objectContaining({ id: "editor", role: "editor", name: "Editor" }),
       expect.objectContaining({ id: "owner", role: "owner", avatar: "avatar" }),
     ] });
+  });
+
+  it("does not disclose member emails to authenticated public non-members", async () => {
+    mocks.requireActor.mockResolvedValueOnce({ uid: "stranger", email: "stranger@example.com" });
+    mocks.getAccess.mockResolvedValueOnce({ board: { ...board, visibility: "public" }, role: "viewer" });
+    mocks.from.mockImplementation((table: string) => table === "board_members" ? {
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ user_id: "owner", role: "owner" }], error: null }) }),
+    } : {
+      select: () => ({ in: vi.fn().mockResolvedValue({ data: [{ firebase_uid: "owner", email: "owner@example.com", display_name: "Owner", avatar_url: null }], error: null }) }),
+    });
+    const reply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), reply);
+    expect(reply.body).toEqual({ collaborators: [expect.objectContaining({ id: "owner", email: "" })] });
   });
 
   it("lists versions and resolves creator names", async () => {
@@ -171,7 +189,6 @@ describe("collaborator and version APIs", () => {
         select: () => queryChain({ data: target, error: null }),
         insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "before" }, error: null }) }) }),
       };
-      if (table === "boards") return { update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
     const reply = response();
@@ -179,8 +196,49 @@ describe("collaborator and version APIs", () => {
     expect(mocks.deleteDocument).toHaveBeenCalledWith("board:board");
     expect(mocks.initializeDocument).toHaveBeenCalledWith("board:board", { normalized: target.document });
     expect(mocks.syncLinks).toHaveBeenCalledWith("board", target.document);
-    expect(mocks.broadcast).toHaveBeenCalledWith("board:board", { type: "DOCUMENT_RESTORED", actorId: "owner" });
+    expect(mocks.rpc).toHaveBeenCalledWith("acquire_kumo_document_lease", expect.objectContaining({ p_room_id: "board:board" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("complete_kumo_version_restore", expect.objectContaining({ p_room_id: "board:board" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("release_kumo_document_lease", expect.objectContaining({ p_room_id: "board:board" }));
+    expect(mocks.broadcast).toHaveBeenCalledWith("board:board", expect.objectContaining({ type: "DOCUMENT_RESTORED", actorId: "owner", revision: expect.any(Number) }));
     expect(reply.body).toMatchObject({ restored: true, beforeRestoreId: "before" });
+  });
+
+  it("isolates branch checkpoints and restores from main-board history", async () => {
+    const target = { id: "target", document: { backgroundColor: "#fff", nodes: {} } };
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "document_branches") return { select: () => queryChain({ data: { room_id: "branch:one", status: "open" }, error: null }) };
+      if (table === "document_snapshots") return {
+        select: () => queryChain({ data: target, error: null }),
+        insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "before" }, error: null }) }) }),
+      };
+      return { insert: vi.fn().mockResolvedValue({ error: null }) };
+    });
+    const reply = response();
+    await versionsHandler(request("POST", { action: "restore", boardId: "board", branchId: "one", versionId: "target" }), reply);
+    expect(mocks.getDocument).toHaveBeenCalledWith("branch:one", "json");
+    expect(mocks.deleteDocument).toHaveBeenCalledWith("branch:one");
+    expect(mocks.syncLinks).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("complete_kumo_version_restore", expect.objectContaining({ p_room_id: "branch:one" }));
+  });
+
+  it("rolls storage and derived links back when version finalization fails", async () => {
+    const current = { backgroundColor: "#000", nodes: { current: {} } };
+    const target = { id: "target", document: { backgroundColor: "#fff", nodes: { restored: {} } } };
+    mocks.getDocument.mockResolvedValue(current);
+    mocks.rpc.mockImplementation(async (name: string) => ({
+      data: name === "acquire_kumo_document_lease" ? true : null,
+      error: name === "complete_kumo_version_restore" ? new Error("commit failed") : null,
+    }));
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots" ? {
+      select: () => queryChain({ data: target, error: null }),
+      insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "before" }, error: null }) }) }),
+    } : { insert: vi.fn().mockResolvedValue({ error: null }) });
+    const reply = response();
+    await versionsHandler(request("POST", { action: "restore", boardId: "board", versionId: "target" }), reply);
+    expect(reply.statusCode).toBe(500);
+    expect(mocks.initializeDocument).toHaveBeenNthCalledWith(1, "board:board", { normalized: target.document });
+    expect(mocks.initializeDocument).toHaveBeenNthCalledWith(2, "board:board", { normalized: current });
+    expect(mocks.syncLinks).toHaveBeenLastCalledWith("board", current);
   });
 
   it("allows viewers to inspect history but not mutate it", async () => {

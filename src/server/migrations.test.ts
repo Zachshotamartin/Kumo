@@ -18,4 +18,15 @@ describe("production database migrations", () => {
     expect(source).toContain("alter table public.document_branches enable row level security");
     expect(source).toContain("to service_role");
   });
+
+  it("finalizes restores and branch merges through transactional database functions", () => {
+    const source = migration("202608230005_document_mutation_integrity.sql");
+    expect(source).toContain("complete_kumo_branch_merge");
+    expect(source).toContain("status = 'merged'");
+    expect(source).toContain("complete_kumo_version_restore");
+    expect(source).toContain("acquire_kumo_document_lease");
+    expect(source).toContain("document_mutation_leases");
+    expect(source).toContain("grant execute on function public.complete_kumo_branch_merge");
+    expect(source).toContain("to service_role");
+  });
 });

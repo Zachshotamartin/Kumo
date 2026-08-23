@@ -33,7 +33,7 @@ declare global {
     RoomEvent:
       | { type: "SPOTLIGHT_START"; presenterId: string }
       | { type: "SPOTLIGHT_STOP"; presenterId: string }
-      | { type: "DOCUMENT_RESTORED"; actorId: string };
+      | { type: "DOCUMENT_RESTORED"; actorId: string; revision: number };
   }
 }
 

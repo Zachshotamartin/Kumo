@@ -17,6 +17,9 @@ const SYNC_FIELDS: Array<keyof Shape> = [
   "paddingLeft", "primaryAlign", "counterAlign", "horizontalSizing", "verticalSizing",
   "constraintHorizontal", "constraintVertical", "layoutPositioning", "layoutGrow", "layoutAlign",
   "fillStyleId", "textStyleId", "effectStyleId", "variableBindings",
+  "vectorPoints", "vectorClosed", "booleanOperation", "booleanChildren", "maskId", "isMask",
+  "fillType", "gradientAngle", "gradientStops", "effects", "blendMode",
+  "prototypeStart", "prototypeOverflow", "prototypeInteractions",
 ];
 
 const resourceNode = (
@@ -93,6 +96,45 @@ const sourceTree = (shapes: Shape[], componentId: string) => {
   return shapes.filter((shape) => ids.has(shape.id)).sort((left, right) => left.zIndex - right.zIndex);
 };
 
+const translateVectorData = (shape: Shape, offset: Point): Pick<Shape, "vectorPoints" | "booleanChildren"> => ({
+  ...(shape.vectorPoints
+    ? {
+        vectorPoints: shape.vectorPoints.map((point) => ({
+          ...point,
+          x: point.x + offset.x,
+          y: point.y + offset.y,
+          ...(point.handleIn ? { handleIn: { x: point.handleIn.x + offset.x, y: point.handleIn.y + offset.y } } : {}),
+          ...(point.handleOut ? { handleOut: { x: point.handleOut.x + offset.x, y: point.handleOut.y + offset.y } } : {}),
+        })),
+      }
+    : {}),
+  ...(shape.booleanChildren
+    ? { booleanChildren: shape.booleanChildren.map((child) => normalizeShape({
+        ...child,
+        x1: child.x1 + offset.x,
+        x2: child.x2 + offset.x,
+        y1: child.y1 + offset.y,
+        y2: child.y2 + offset.y,
+        ...translateVectorData(child, offset),
+      })) }
+    : {}),
+});
+
+const componentNodePaths = (shapes: Shape[], componentId: string): Map<string, Shape> => {
+  const result = new Map<string, Shape>();
+  const visit = (id: string, path: string) => {
+    const node = shapes.find((shape) => shape.id === id);
+    if (!node) return;
+    result.set(path, node);
+    shapes
+      .filter((shape) => shape.parentId === id)
+      .sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id))
+      .forEach((child, index) => visit(child.id, `${path}/${child.type}:${child.name ?? ""}:${index}`));
+  };
+  visit(componentId, "root");
+  return result;
+};
+
 export const instantiateComponent = (
   shapes: Shape[],
   componentId: string,
@@ -117,12 +159,19 @@ export const instantiateComponent = (
     x2: shape.x2 + offset.x,
     y1: shape.y1 + offset.y,
     y2: shape.y2 + offset.y,
+    ...translateVectorData(shape, offset),
     zIndex: highestZ + index + 1,
     componentDefinition: false,
     componentNodeId: shape.id,
     instanceRootId: instanceId,
     instanceOf: shape.id === componentId ? componentId : undefined,
     overriddenFields: [],
+    maskId: shape.maskId ? idMap.get(shape.maskId) ?? shape.maskId : undefined,
+    sectionId: shape.sectionId ? idMap.get(shape.sectionId) ?? shape.sectionId : shape.sectionId,
+    prototypeInteractions: shape.prototypeInteractions?.map((interaction) => ({
+      ...interaction,
+      destinationId: interaction.destinationId ? idMap.get(interaction.destinationId) ?? interaction.destinationId : undefined,
+    })),
   }));
   return { shapes: [...shapes, ...clones], instanceId };
 };
@@ -144,21 +193,49 @@ export const synchronizeComponentInstances = (shapes: Shape[]): Shape[] => {
   const byId = new Map(shapes.map((shape) => [shape.id, shape]));
   const instanceRoots = shapes.filter((shape) => shape.instanceOf && shape.instanceRootId === shape.id);
   const updates = new Map<string, Shape>();
+  const additions: Shape[] = [];
+  const removals = new Set<string>();
+  let highestZ = Math.max(0, ...shapes.map((shape) => shape.zIndex));
   instanceRoots.forEach((root) => {
     const definition = byId.get(root.instanceOf!);
     if (!definition?.componentDefinition) return;
     const definitionBounds = shapeBounds(definition);
     const rootBounds = shapeBounds(root);
-    shapes.filter((shape) => shape.instanceRootId === root.id).forEach((instanceNode) => {
-      const source = instanceNode.componentNodeId ? byId.get(instanceNode.componentNodeId) : undefined;
-      if (!source) return;
-      const overrides = new Set(instanceNode.overriddenFields ?? []);
-      const next = { ...instanceNode };
-      SYNC_FIELDS.forEach((field) => {
-        if (!overrides.has(field as string)) (next as Record<string, unknown>)[field] = source[field];
+    const source = sourceTree(shapes, definition.id);
+    const sourceIds = new Set(source.map((shape) => shape.id));
+    const instanceNodes = shapes.filter((shape) => shape.instanceRootId === root.id);
+    const instanceBySource = new Map(instanceNodes
+      .filter((shape) => shape.componentNodeId)
+      .map((shape) => [shape.componentNodeId!, shape]));
+    const idMap = new Map(source.map((sourceNode) => [
+      sourceNode.id,
+      sourceNode.id === definition.id ? root.id : instanceBySource.get(sourceNode.id)?.id ?? createShapeId(),
+    ]));
+    instanceNodes.forEach((node) => {
+      if (!node.componentNodeId || !sourceIds.has(node.componentNodeId)) removals.add(node.id);
+    });
+    source.forEach((sourceNode) => {
+      const instanceNode = sourceNode.id === definition.id ? root : instanceBySource.get(sourceNode.id);
+      const overrides = new Set(instanceNode?.overriddenFields ?? []);
+      const offset = { x: rootBounds.x - definitionBounds.x, y: rootBounds.y - definitionBounds.y };
+      const next: Shape = instanceNode ? { ...instanceNode } : normalizeShape({
+        ...sourceNode,
+        id: idMap.get(sourceNode.id)!,
+        x1: sourceNode.x1 + offset.x,
+        x2: sourceNode.x2 + offset.x,
+        y1: sourceNode.y1 + offset.y,
+        y2: sourceNode.y2 + offset.y,
+        ...translateVectorData(sourceNode, offset),
+        level: sourceNode.level,
+        zIndex: ++highestZ,
+        pageId: root.pageId,
+        overriddenFields: [],
       });
-      const sourceBounds = shapeBounds(source);
-      if (instanceNode.id === root.id) {
+      SYNC_FIELDS.forEach((field) => {
+        if (!overrides.has(field as string)) (next as unknown as Record<string, unknown>)[field] = sourceNode[field];
+      });
+      const sourceBounds = shapeBounds(sourceNode);
+      if (sourceNode.id === definition.id) {
         const nextWidth = overrides.has("width") ? rootBounds.width : sourceBounds.width;
         const nextHeight = overrides.has("height") ? rootBounds.height : sourceBounds.height;
         Object.assign(next, boundsToEdges({ x: rootBounds.x, y: rootBounds.y, width: nextWidth, height: nextHeight }));
@@ -170,10 +247,31 @@ export const synchronizeComponentInstances = (shapes: Shape[]): Shape[] => {
           height: sourceBounds.height,
         }));
       }
-      updates.set(instanceNode.id, normalizeShape(next));
+      const translatedVectorData = translateVectorData(sourceNode, offset);
+      if (!overrides.has("vectorPoints") && translatedVectorData.vectorPoints) next.vectorPoints = translatedVectorData.vectorPoints;
+      if (!overrides.has("booleanChildren") && translatedVectorData.booleanChildren) next.booleanChildren = translatedVectorData.booleanChildren;
+      next.id = idMap.get(sourceNode.id)!;
+      next.parentId = sourceNode.id === definition.id
+        ? root.parentId ?? null
+        : sourceNode.parentId ? idMap.get(sourceNode.parentId) ?? null : null;
+      next.componentDefinition = false;
+      next.componentNodeId = sourceNode.id;
+      next.instanceRootId = root.id;
+      next.instanceOf = sourceNode.id === definition.id ? definition.id : undefined;
+      next.maskId = sourceNode.maskId ? idMap.get(sourceNode.maskId) ?? sourceNode.maskId : undefined;
+      next.sectionId = sourceNode.sectionId ? idMap.get(sourceNode.sectionId) ?? sourceNode.sectionId : sourceNode.sectionId;
+      next.prototypeInteractions = sourceNode.prototypeInteractions?.map((interaction) => ({
+        ...interaction,
+        destinationId: interaction.destinationId
+          ? idMap.get(interaction.destinationId) ?? interaction.destinationId
+          : undefined,
+      }));
+      const normalized = normalizeShape(next);
+      if (instanceNode) updates.set(instanceNode.id, normalized);
+      else additions.push(normalized);
     });
   });
-  return shapes.map((shape) => updates.get(shape.id) ?? shape);
+  return [...shapes.filter((shape) => !removals.has(shape.id)).map((shape) => updates.get(shape.id) ?? shape), ...additions];
 };
 
 export const detachInstance = (shapes: Shape[], instanceId: string): Shape[] => shapes.map((shape) =>
@@ -190,9 +288,19 @@ export const swapInstanceVariant = (shapes: Shape[], instanceId: string, compone
   const target = shapes.find((shape) => shape.id === componentId && shape.componentDefinition);
   const current = root ? shapes.find((shape) => shape.id === root.instanceOf) : undefined;
   if (!root || !target || !current?.componentSetId || current.componentSetId !== target.componentSetId) return shapes;
-  return synchronizeComponentInstances(shapes.map((shape) => shape.id === instanceId
-    ? { ...shape, instanceOf: componentId, componentNodeId: componentId, overriddenFields: [] }
-    : shape));
+  const currentPaths = componentNodePaths(shapes, current.id);
+  const targetPaths = componentNodePaths(shapes, target.id);
+  const remap = new Map<string, string>();
+  currentPaths.forEach((source, path) => {
+    const destination = targetPaths.get(path);
+    if (destination) remap.set(source.id, destination.id);
+  });
+  return synchronizeComponentInstances(shapes.map((shape) => {
+    if (shape.id === instanceId) return { ...shape, instanceOf: componentId, componentNodeId: componentId, overriddenFields: [] };
+    if (shape.instanceRootId !== instanceId || !shape.componentNodeId) return shape;
+    const destination = remap.get(shape.componentNodeId);
+    return destination ? { ...shape, componentNodeId: destination } : shape;
+  }));
 };
 
 export const createSharedStyle = (

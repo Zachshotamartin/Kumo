@@ -2,8 +2,9 @@ import { Command, MagnifyingGlass } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { shapeBounds } from "../../editor/geometry";
+import { documentPages, pageIdForShape } from "../../editor/workspace";
 import { useEditorActions } from "../../editor/useEditorActions";
-import { setRightPanel, setViewport } from "../../features/editor/editorSlice";
+import { setCurrentPageId, setRightPanel, setViewport } from "../../features/editor/editorSlice";
 import { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
@@ -50,6 +51,7 @@ const CommandPalette = () => {
   }, [open]);
 
   const items = useMemo<PaletteItem[]>(() => {
+    const pages = documentPages(board.shapes);
     const panel = (id: "properties" | "assets" | "prototype" | "comments" | "history" | "export" | "inspect" | "branches", label: string): PaletteItem => ({
       id: `panel-${id}`, label, detail: "Panel", keywords: `${label} panel sidebar`, run: () => dispatch(setRightPanel(id)),
     });
@@ -57,13 +59,14 @@ const CommandPalette = () => {
       id: `tool-${id}`, label, detail: "Tool", keywords: `${label} draw create tool`, run: () => dispatch(setSelectedTool(id)),
     });
     return [
-      ...board.shapes.filter((shape) => shape.type !== "resource" && shape.type !== "guide").map((shape): PaletteItem => ({
+      ...board.shapes.filter((shape) => !shape.hidden && !["resource", "guide", "page-resource", "collection-resource"].includes(shape.type)).map((shape): PaletteItem => ({
         id: `shape-${shape.id}`,
         label: shape.name ?? shape.type,
         detail: shape.parentId ? `${shape.type} · nested` : shape.type,
         keywords: `${shape.name ?? ""} ${shape.type} ${shape.text ?? ""}`,
         run: () => {
           const bounds = shapeBounds(shape);
+          dispatch(setCurrentPageId(pageIdForShape(shape, pages)));
           dispatch(setSelectedShapes([shape.id]));
           dispatch(setViewport({ x: bounds.x + bounds.width / 2 - 500 / editor.viewport.zoom, y: bounds.y + bounds.height / 2 - 350 / editor.viewport.zoom, zoom: editor.viewport.zoom }));
         },

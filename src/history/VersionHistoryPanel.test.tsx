@@ -35,9 +35,9 @@ const detail: BoardVersionDetail = {
   },
 };
 
-const makeStore = (role: "owner" | "viewer" = "owner") => {
+const makeStore = (role: "owner" | "viewer" = "owner", activeBranchId: string | null = null) => {
   const store = configureStore({ reducer: { auth: authReducer, whiteBoard: whiteBoardReducer, actions: actionsReducer, selected: selectedReducer, editor: editorReducer } });
-  store.dispatch(setWhiteboardData({ id: "board", role, revision: 4, shapes: [] }));
+  store.dispatch(setWhiteboardData({ id: "board", role, revision: 4, activeBranchId, shapes: [] }));
   return store;
 };
 
@@ -47,22 +47,22 @@ describe("version history", () => {
     vi.mocked(listBoardVersions).mockResolvedValue([version]);
     vi.mocked(getBoardVersion).mockResolvedValue(detail);
     vi.mocked(createBoardCheckpoint).mockResolvedValue({ ...version, id: "created" });
-    vi.mocked(restoreBoardVersion).mockResolvedValue({ restored: true, versionId: version.id, beforeRestoreId: "recovery" });
+    vi.mocked(restoreBoardVersion).mockResolvedValue({ restored: true, versionId: version.id, beforeRestoreId: "recovery", revision: 99 });
   });
 
   it("previews snapshots, creates named checkpoints, and restores safely", async () => {
-    const store = makeStore();
+    const store = makeStore("owner", "branch");
     render(<Provider store={store}><VersionHistoryPanel /></Provider>);
     expect(await screen.findByText("Ready for review")).toBeVisible();
-    await waitFor(() => expect(getBoardVersion).toHaveBeenCalledWith("board", "version"));
+    await waitFor(() => expect(getBoardVersion).toHaveBeenCalledWith("board", "version", "branch"));
     fireEvent.change(screen.getByPlaceholderText("Ready for review"), { target: { value: "Milestone" } });
     fireEvent.change(screen.getByPlaceholderText("What changed?"), { target: { value: "Components added" } });
     fireEvent.click(screen.getByRole("button", { name: /Save checkpoint/ }));
-    await waitFor(() => expect(createBoardCheckpoint).toHaveBeenCalledWith("board", "Milestone", "Components added"));
+    await waitFor(() => expect(createBoardCheckpoint).toHaveBeenCalledWith("board", "Milestone", "Components added", "branch"));
     fireEvent.click(screen.getByRole("button", { name: "Restore this version" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
-    await waitFor(() => expect(restoreBoardVersion).toHaveBeenCalled());
-    expect(store.getState().whiteBoard.revision).toBe(5);
+    await waitFor(() => expect(restoreBoardVersion).toHaveBeenCalledWith("board", "created", "branch"));
+    expect(store.getState().whiteBoard.revision).toBe(99);
     fireEvent.click(screen.getByRole("button", { name: "Close version history" }));
     expect(store.getState().editor.rightPanel).toBe("properties");
   });

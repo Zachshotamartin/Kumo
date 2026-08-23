@@ -4,7 +4,7 @@ import { Provider } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer, { login } from "../../features/auth/authSlice";
-import editorReducer, { setPresentationFrameId } from "../../features/editor/editorSlice";
+import editorReducer, { setCurrentPageId, setPresentationFrameId } from "../../features/editor/editorSlice";
 import selectedReducer, { setSelectedShapes } from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import BranchesPanel from "./BranchesPanel";
@@ -22,14 +22,14 @@ const mocks = vi.hoisted(() => ({
     createStyleFromSelected: vi.fn(), applyStyleToSelected: vi.fn(), createLibraryVariable: vi.fn(), bindVariableToSelected: vi.fn(),
     groupSelected: vi.fn(), frameSelected: vi.fn(),
   },
-  download: vi.fn(), png: vi.fn(), listBranches: vi.fn(), createBranch: vi.fn(), mergeBranch: vi.fn(), archiveBranch: vi.fn(),
+  download: vi.fn(), png: vi.fn(), svgAssets: vi.fn(), pdf: vi.fn(), listBranches: vi.fn(), createBranch: vi.fn(), mergeBranch: vi.fn(), archiveBranch: vi.fn(),
   getBoard: vi.fn(), clipboard: vi.fn(),
 }));
 
 vi.mock("../../editor/useEditorActions", () => ({ useEditorActions: () => mocks.actions }));
 vi.mock("../../editor/export", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../editor/export")>();
-  return { ...original, downloadBlob: mocks.download, svgToPng: mocks.png };
+  return { ...original, downloadBlob: mocks.download, svgToPng: mocks.png, serializeSvgWithAssets: mocks.svgAssets, serializePdf: mocks.pdf };
 });
 vi.mock("../../services/branchRepository", () => ({
   listDesignBranches: mocks.listBranches, createDesignBranch: mocks.createBranch,
@@ -75,9 +75,11 @@ describe("new editor capability panels", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.png.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
+    mocks.svgAssets.mockResolvedValue("<svg/>");
+    mocks.pdf.mockResolvedValue(new Uint8Array([1, 2, 3]));
     mocks.listBranches.mockResolvedValue([{ id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", created_by: "owner", status: "open", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), merged_at: null }]);
     mocks.createBranch.mockResolvedValue({ id: "new", board_id: "board", name: "Exploration", room_id: "branch:new", status: "open" });
-    mocks.mergeBranch.mockResolvedValue({ merged: true, checkpointId: "checkpoint" });
+    mocks.mergeBranch.mockResolvedValue({ merged: true, checkpointId: "checkpoint", revision: 42 });
     mocks.archiveBranch.mockResolvedValue({ archived: true });
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: mocks.clipboard.mockResolvedValue(undefined) } });
   });
@@ -119,6 +121,22 @@ describe("new editor capability panels", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Search objects and commands" }), { target: { value: "Continue" } });
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Search objects and commands" }), { key: "Enter" });
     expect(store.getState().selected.selectedShapes).toEqual([child.id]);
+  });
+
+  it("switches pages before selecting a command-palette search result", () => {
+    const store = makeStore("");
+    const pageOne = shape("page-one", "page-resource", { hidden: true, pageName: "One", pageOrder: 0 });
+    const pageTwo = shape("page-two", "page-resource", { hidden: true, pageName: "Two", pageOrder: 1 });
+    const remote = shape("remote", "rectangle", { name: "Remote object", pageId: pageTwo.id });
+    store.dispatch(setWhiteboardData({ shapes: [pageOne, pageTwo, remote] }));
+    store.dispatch(setCurrentPageId(pageOne.id));
+    render(<Provider store={store}><CommandPalette /></Provider>);
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const input = screen.getByRole("textbox", { name: "Search objects and commands" });
+    fireEvent.change(input, { target: { value: "Remote object" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(store.getState().editor.currentPageId).toBe(pageTwo.id);
+    expect(store.getState().selected.selectedShapes).toEqual([remote.id]);
   });
 
   it("copies handoff code and token values", async () => {
@@ -169,5 +187,42 @@ describe("new editor capability panels", () => {
     expect(screen.getByText(frame.name!)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Close presentation" }));
     expect(store.getState().editor.presentationMode).toBe(false);
+  });
+
+  it("orders prototype layers by z-index and only fires drag actions after movement", () => {
+    const dragSource = shape("drag-source", "rectangle", {
+      name: "Drag source", parentId: frame.id, zIndex: 2,
+      prototypeInteractions: [{ id: "drag", trigger: "drag", action: "navigate", destinationId: target.id }],
+    });
+    const above = shape("above", "rectangle", { name: "Above", parentId: frame.id, zIndex: 20 });
+    const store = makeStore("");
+    store.dispatch(setWhiteboardData({ shapes: [frame, target, dragSource, above] }));
+    store.dispatch(setPresentationFrameId(frame.id));
+    render(<Provider store={store}><PresentationView /></Provider>);
+    const dragButton = screen.getByRole("button", { name: "Drag source" });
+    const aboveButton = screen.getByRole("button", { name: "Above" });
+    expect(dragButton.compareDocumentPosition(aboveButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.pointerUp(dragButton, { clientX: 30, clientY: 30 });
+    expect(screen.getByText(frame.name!)).toBeVisible();
+    fireEvent.pointerDown(dragButton, { clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(dragButton, { clientX: 11, clientY: 11 });
+    expect(screen.getByText(frame.name!)).toBeVisible();
+    fireEvent.pointerDown(dragButton, { clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(dragButton, { clientX: 30, clientY: 30 });
+    expect(screen.getByText(target.name!)).toBeVisible();
+  });
+
+  it("reports linked-board failures in prototype presentation", async () => {
+    const link = shape("link", "board", {
+      name: "Open roadmap", parentId: frame.id,
+      prototypeInteractions: [{ id: "open", trigger: "click", action: "open-board", boardId: "missing" }],
+    });
+    mocks.getBoard.mockRejectedValueOnce(new Error("Board unavailable"));
+    const store = makeStore("");
+    store.dispatch(setWhiteboardData({ shapes: [frame, link] }));
+    store.dispatch(setPresentationFrameId(frame.id));
+    render(<Provider store={store}><PresentationView /></Provider>);
+    fireEvent.click(screen.getByRole("button", { name: "Open roadmap" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Board unavailable");
   });
 });

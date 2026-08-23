@@ -1,14 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { createHash } from "node:crypto";
 import handler from "../../api/branches";
 
 const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(), getAccess: vi.fn(), from: vi.fn(), getDocument: vi.fn(),
-  createRoom: vi.fn(), deleteRoom: vi.fn(), initialize: vi.fn(), deleteStorage: vi.fn(), broadcast: vi.fn(), syncLinks: vi.fn(),
+  createRoom: vi.fn(), deleteRoom: vi.fn(), initialize: vi.fn(), deleteStorage: vi.fn(), broadcast: vi.fn(), syncLinks: vi.fn(), rpc: vi.fn(),
 }));
 
 vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
 vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
-vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from }) }));
+vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
 vi.mock("../../api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
 vi.mock("../../api/_liveblocks", () => ({
   boardDocumentFromJson: (document: unknown) => ({ normalized: document }),
@@ -35,6 +36,10 @@ describe("design branch API", () => {
     mocks.createRoom.mockResolvedValue(undefined); mocks.deleteRoom.mockResolvedValue(undefined);
     mocks.initialize.mockResolvedValue(undefined); mocks.deleteStorage.mockResolvedValue(undefined);
     mocks.broadcast.mockResolvedValue(undefined); mocks.syncLinks.mockResolvedValue(undefined);
+    mocks.rpc.mockImplementation(async (name: string) => ({
+      data: name === "acquire_kumo_document_lease" ? true : null,
+      error: null,
+    }));
   });
 
   it("lists and creates isolated branch rooms", async () => {
@@ -57,15 +62,14 @@ describe("design branch API", () => {
   });
 
   it("creates a recovery point and atomically merges a branch into main", async () => {
-    const branch = { id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", status: "open" };
-    mocks.getDocument.mockImplementation(async (room: string) => room === "branch:branch" ? { backgroundColor: "#fff", nodes: { new: {} } } : { backgroundColor: "#000", nodes: {} });
+    const current = { backgroundColor: "#000", nodes: {} };
+    const branch = { id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", status: "open", base_checksum: createHash("sha256").update(JSON.stringify(current)).digest("hex") };
+    mocks.getDocument.mockImplementation(async (room: string) => room === "branch:branch" ? { backgroundColor: "#fff", nodes: { new: {} } } : current);
     mocks.from.mockImplementation((table: string) => {
       if (table === "document_branches") return {
         select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }),
-        update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
       };
       if (table === "document_snapshots") return { insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "checkpoint" }, error: null }) }) }) };
-      if (table === "boards") return { update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
     const reply = response();
@@ -73,7 +77,59 @@ describe("design branch API", () => {
     expect(mocks.deleteStorage).toHaveBeenCalledWith("board:board");
     expect(mocks.initialize).toHaveBeenCalledWith("board:board", { normalized: expect.objectContaining({ nodes: { new: {} } }) });
     expect(mocks.syncLinks).toHaveBeenCalled();
-    expect(mocks.broadcast).toHaveBeenCalledWith("board:board", { type: "DOCUMENT_RESTORED", actorId: "owner" });
+    expect(mocks.rpc).toHaveBeenCalledWith("acquire_kumo_document_lease", expect.objectContaining({ p_room_id: "board:board" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("complete_kumo_branch_merge", expect.objectContaining({ p_branch_id: "branch" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("release_kumo_document_lease", expect.objectContaining({ p_room_id: "board:board" }));
+    expect(mocks.broadcast).toHaveBeenCalledWith("board:board", expect.objectContaining({ type: "DOCUMENT_RESTORED", actorId: "owner", revision: expect.any(Number) }));
     expect(reply.body).toMatchObject({ merged: true, checkpointId: "checkpoint" });
+  });
+
+  it("refuses to overwrite main when it diverged from the branch base", async () => {
+    const branch = { id: "branch", board_id: "board", name: "Old", room_id: "branch:branch", status: "open", base_checksum: "stale" };
+    mocks.from.mockImplementation((table: string) => table === "document_branches" ? {
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }),
+    } : {});
+    const reply = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), reply);
+    expect(reply.statusCode).toBe(409);
+    expect(reply.body).toMatchObject({ code: "BRANCH_BASE_DIVERGED" });
+    expect(mocks.deleteStorage).not.toHaveBeenCalled();
+  });
+
+  it("restores main and its links when the transactional database commit fails", async () => {
+    const current = { backgroundColor: "#000", nodes: { current: {} } };
+    const next = { backgroundColor: "#fff", nodes: { branch: {} } };
+    const branch = { id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", status: "open", base_checksum: createHash("sha256").update(JSON.stringify(current)).digest("hex") };
+    mocks.getDocument.mockImplementation(async (room: string) => room === "branch:branch" ? next : current);
+    mocks.rpc.mockImplementation(async (name: string) => ({
+      data: name === "acquire_kumo_document_lease" ? true : null,
+      error: name === "complete_kumo_branch_merge" ? new Error("database unavailable") : null,
+    }));
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "document_branches") return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }) };
+      if (table === "document_snapshots") return { insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "checkpoint" }, error: null }) }) }) };
+      return {};
+    });
+    const reply = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), reply);
+    expect(reply.statusCode).toBe(500);
+    expect(mocks.initialize).toHaveBeenNthCalledWith(1, "board:board", { normalized: next });
+    expect(mocks.initialize).toHaveBeenNthCalledWith(2, "board:board", { normalized: current });
+    expect(mocks.syncLinks).toHaveBeenLastCalledWith("board", current);
+    expect(mocks.broadcast).not.toHaveBeenCalled();
+  });
+
+  it("rejects concurrent document mutations before touching Liveblocks storage", async () => {
+    const current = { backgroundColor: "#000", nodes: {} };
+    const branch = { id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", status: "open", base_checksum: createHash("sha256").update(JSON.stringify(current)).digest("hex") };
+    mocks.getDocument.mockResolvedValue(current);
+    mocks.rpc.mockImplementation(async (name: string) => ({ data: name === "acquire_kumo_document_lease" ? false : null, error: null }));
+    mocks.from.mockImplementation((table: string) => table === "document_branches" ? {
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }),
+    } : {});
+    const reply = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), reply);
+    expect(reply.statusCode).toBe(409);
+    expect(mocks.deleteStorage).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ export interface DesignBranch {
   room_id: string;
   created_by: string | null;
   status: "open" | "merged" | "archived";
+  base_checksum?: string | null;
   created_at: string;
   updated_at: string;
   merged_at: string | null;
@@ -24,7 +25,7 @@ export const createDesignBranch = async (boardId: string, name: string): Promise
   return result.branch;
 };
 
-export const mergeDesignBranch = (boardId: string, branchId: string): Promise<{ merged: true; checkpointId: string }> =>
+export const mergeDesignBranch = (boardId: string, branchId: string): Promise<{ merged: true; checkpointId: string; revision: number }> =>
   authenticatedFetch("/api/branches", { method: "POST", body: JSON.stringify({ action: "merge", boardId, branchId }) });
 
 export const archiveDesignBranch = (boardId: string, branchId: string): Promise<{ archived: true }> =>

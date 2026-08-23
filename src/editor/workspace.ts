@@ -25,7 +25,7 @@ export const pageIdForShape = (shape: Shape, pages: readonly DocumentPage[]) =>
 export const shapesOnPage = (shapes: Shape[], pageId: string | null): Shape[] => {
   const pages = documentPages(shapes);
   const active = pageId && pages.some((page) => page.id === pageId) ? pageId : pages[0]!.id;
-  return shapes.filter((shape) => shape.type !== "page-resource" && shape.type !== "collection-resource" && pageIdForShape(shape, pages) === active);
+  return shapes.filter((shape) => !["page-resource", "collection-resource", "resource"].includes(shape.type) && pageIdForShape(shape, pages) === active);
 };
 
 const hiddenRecord = (type: "page-resource" | "collection-resource", name: string, zIndex: number): Shape => normalizeShape({
@@ -41,7 +41,7 @@ export const createPage = (shapes: Shape[], name = `Page ${documentPages(shapes)
     ? { ...hiddenRecord("page-resource", "Page 1", highestZ + 1), pageName: "Page 1", pageOrder: 0 }
     : null;
   const migrated = legacyPage
-    ? shapes.map((shape) => shape.type === "collection-resource" ? shape : { ...shape, pageId: legacyPage.id })
+    ? shapes.map((shape) => shape.type === "collection-resource" || shape.type === "resource" ? shape : { ...shape, pageId: legacyPage.id })
     : shapes;
   const recordOrder = legacyPage ? 1 : explicitCount;
   const record = {
@@ -83,7 +83,7 @@ export const deletePage = (shapes: Shape[], pageId: string) => {
   return {
     shapes: shapes.filter((shape) => {
       if (shape.type === "page-resource") return shape.id !== pageId;
-      if (shape.type === "collection-resource") return true;
+      if (shape.type === "collection-resource" || shape.type === "resource") return true;
       return pageIdForShape(shape, pages) !== pageId;
     }),
     nextPageId,

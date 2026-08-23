@@ -2,6 +2,7 @@ import { createShapeId, type Shape } from "../classes/shape";
 import { normalizeShape, selectionBounds, shapeBounds } from "./geometry";
 
 export type BooleanOperation = NonNullable<Shape["booleanOperation"]>;
+const BOOLEAN_SHAPE_TYPES = new Set(["rectangle", "ellipse", "vector", "boolean"]);
 
 export const vectorPathData = (
   points: NonNullable<Shape["vectorPoints"]>,
@@ -84,7 +85,7 @@ export const createBooleanOperation = (
   selectedIds: readonly string[],
   operation: BooleanOperation
 ): { shapes: Shape[]; booleanId: string | null } => {
-  const selected = shapes.filter((shape) => selectedIds.includes(shape.id) && shape.type !== "resource" && shape.type !== "guide");
+  const selected = shapes.filter((shape) => selectedIds.includes(shape.id) && BOOLEAN_SHAPE_TYPES.has(shape.type));
   if (selected.length < 2) return { shapes, booleanId: null };
   const bounds = selectionBounds(selected, selected.map((shape) => shape.id));
   if (!bounds) return { shapes, booleanId: null };

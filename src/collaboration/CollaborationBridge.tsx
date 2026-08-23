@@ -8,6 +8,7 @@ import {
   hydrateShapeAssets,
   replaceCollaborativeShapes,
   setCurrentUsers,
+  setWhiteboardData,
   updateBackgroundColor,
 } from "../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch } from "../store";
@@ -26,7 +27,10 @@ const CollaborationBridge = () => {
   useEventListener(({ event }) => {
     if (event.type === "SPOTLIGHT_START") dispatch(setFollowingUserId(event.presenterId));
     if (event.type === "SPOTLIGHT_STOP") dispatch(setFollowingUserId(null));
-    if (event.type === "DOCUMENT_RESTORED") dispatch(setFollowingUserId(null));
+    if (event.type === "DOCUMENT_RESTORED") {
+      dispatch(setFollowingUserId(null));
+      dispatch(setWhiteboardData({ revision: event.revision }));
+    }
   });
   const shapes = useMemo(
     () => Object.values(nodes as ReadonlyJsonObject)

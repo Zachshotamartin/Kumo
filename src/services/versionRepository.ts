@@ -21,19 +21,24 @@ export interface BoardVersionDetail extends BoardVersion {
   };
 }
 
-export const listBoardVersions = async (boardId: string): Promise<BoardVersion[]> => {
+const branchQuery = (branchId?: string | null) => branchId
+  ? `&branchId=${encodeURIComponent(branchId)}`
+  : "";
+
+export const listBoardVersions = async (boardId: string, branchId?: string | null): Promise<BoardVersion[]> => {
   const result = await authenticatedFetch<{ versions: BoardVersion[] }>(
-    `/api/versions?boardId=${encodeURIComponent(boardId)}`
+    `/api/versions?boardId=${encodeURIComponent(boardId)}${branchQuery(branchId)}`
   );
   return result.versions;
 };
 
 export const getBoardVersion = async (
   boardId: string,
-  versionId: string
+  versionId: string,
+  branchId?: string | null
 ): Promise<BoardVersionDetail> => {
   const result = await authenticatedFetch<{ version: BoardVersionDetail }>(
-    `/api/versions?boardId=${encodeURIComponent(boardId)}&versionId=${encodeURIComponent(versionId)}`
+    `/api/versions?boardId=${encodeURIComponent(boardId)}&versionId=${encodeURIComponent(versionId)}${branchQuery(branchId)}`
   );
   return result.version;
 };
@@ -41,20 +46,22 @@ export const getBoardVersion = async (
 export const createBoardCheckpoint = async (
   boardId: string,
   name: string,
-  description = ""
+  description = "",
+  branchId?: string | null
 ): Promise<BoardVersion> => {
   const result = await authenticatedFetch<{ version: BoardVersion }>("/api/versions", {
     method: "POST",
-    body: JSON.stringify({ action: "checkpoint", boardId, name, description }),
+    body: JSON.stringify({ action: "checkpoint", boardId, name, description, branchId: branchId ?? undefined }),
   });
   return result.version;
 };
 
 export const restoreBoardVersion = async (
   boardId: string,
-  versionId: string
-): Promise<{ restored: true; versionId: string; beforeRestoreId: string }> =>
+  versionId: string,
+  branchId?: string | null
+): Promise<{ restored: true; versionId: string; beforeRestoreId: string; revision: number }> =>
   authenticatedFetch("/api/versions", {
     method: "POST",
-    body: JSON.stringify({ action: "restore", boardId, versionId }),
+    body: JSON.stringify({ action: "restore", boardId, versionId, branchId: branchId ?? undefined }),
   });

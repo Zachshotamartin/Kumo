@@ -73,7 +73,7 @@ export const VersionHistoryPanel = () => {
   const board = useSelector((state: RootState) => state.whiteBoard);
   const [versions, setVersions] = useState<BoardVersion[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<BoardVersionDetail | null>(null);
+  const [detailState, setDetailState] = useState<{ id: string | null; version: BoardVersionDetail | null }>({ id: null, version: null });
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -81,10 +81,11 @@ export const VersionHistoryPanel = () => {
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canEdit = board.role === "owner" || board.role === "editor";
+  const detail = detailState.id === selectedId ? detailState.version : null;
 
   const refresh = async () => {
     if (!board.id) return;
-    const next = await listBoardVersions(board.id);
+    const next = await listBoardVersions(board.id, board.activeBranchId);
     setVersions(next);
     setSelectedId((current) => current ?? next[0]?.id ?? null);
   };
@@ -92,7 +93,7 @@ export const VersionHistoryPanel = () => {
   useEffect(() => {
     if (!board.id) return;
     let active = true;
-    void listBoardVersions(board.id)
+    void listBoardVersions(board.id, board.activeBranchId)
       .then((next) => {
         if (!active) return;
         setVersions(next);
@@ -102,23 +103,23 @@ export const VersionHistoryPanel = () => {
         if (active) setError(caught instanceof Error ? caught.message : "Version history could not be loaded.");
       });
     return () => { active = false; };
-  }, [board.id]);
+  }, [board.activeBranchId, board.id]);
 
   useEffect(() => {
     if (!board.id || !selectedId) return;
     let active = true;
-    void getBoardVersion(board.id, selectedId)
-      .then((version) => active && setDetail(version))
+    void getBoardVersion(board.id, selectedId, board.activeBranchId)
+      .then((version) => active && setDetailState({ id: selectedId, version }))
       .catch((caught) => active && setError(caught instanceof Error ? caught.message : "Version preview could not be loaded."));
     return () => { active = false; };
-  }, [board.id, selectedId]);
+  }, [board.activeBranchId, board.id, selectedId]);
 
   const createCheckpoint = async () => {
     if (!board.id || !name.trim() || saving) return;
     setSaving(true);
     setError(null);
     try {
-      const created = await createBoardCheckpoint(board.id, name, description);
+      const created = await createBoardCheckpoint(board.id, name, description, board.activeBranchId);
       setName("");
       setDescription("");
       await refresh();
@@ -135,8 +136,8 @@ export const VersionHistoryPanel = () => {
     setRestoring(true);
     setError(null);
     try {
-      await restoreBoardVersion(board.id, selectedId);
-      dispatch(setWhiteboardData({ revision: board.revision + 1 }));
+      const result = await restoreBoardVersion(board.id, selectedId, board.activeBranchId);
+      dispatch(setWhiteboardData({ revision: result.revision }));
       setConfirmRestore(false);
       await refresh();
     } catch (caught) {
