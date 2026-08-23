@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
-for (const file of ["database.rules.json", "firebase.json", "vercel.json"]) {
+for (const file of ["database.rules.json", "firebase.json", "vercel.json", "vercel.dev.json"]) {
   JSON.parse(readFileSync(file, "utf8"));
 }
 

@@ -24,7 +24,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:full": "vercel dev",
+    "dev:full": "vercel dev --local-config vercel.dev.json",
     "dev:client": "vite",
     "start": "vite",
     "build": "tsc --noEmit && vite build",
