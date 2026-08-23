@@ -9,14 +9,21 @@ describe("deployed preview smoke verification", () => {
   it("accepts a healthy client shell and protected session API", async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(response('<!doctype html><div id="root"></div>'))
+      .mockResolvedValueOnce(response('{"error":"Authentication required."}', 401, "application/json"))
       .mockResolvedValueOnce(response('{"error":"Authentication required."}', 401, "application/json"));
     await expect(verifyDeploymentSmoke("https://preview.example", fetcher)).resolves.toEqual({
       rootStatus: 200,
       sessionStatus: 401,
+      boardsStatus: 401,
     });
     expect(fetcher).toHaveBeenNthCalledWith(1, new URL("https://preview.example/"), { redirect: "follow" });
     expect(fetcher).toHaveBeenNthCalledWith(2, new URL("https://preview.example/api/session"), {
       method: "POST",
+      redirect: "manual",
+      headers: { accept: "application/json" },
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(3, new URL("https://preview.example/api/boards"), {
+      method: "GET",
       redirect: "manual",
       headers: { accept: "application/json" },
     });
@@ -38,5 +45,14 @@ describe("deployed preview smoke verification", () => {
       .mockResolvedValueOnce(response('<title>Kumo</title>'))
       .mockResolvedValueOnce(response("not-json", 401, "application/json"));
     await expect(verifyDeploymentSmoke("https://preview.example", fetcher)).rejects.toThrow("expected authentication response");
+  });
+
+  it("rejects a boards function that cannot load in the deployed runtime", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response('<title>Kumo</title>'))
+      .mockResolvedValueOnce(response('{"error":"Authentication required."}', 401, "application/json"))
+      .mockResolvedValueOnce(response("FUNCTION_INVOCATION_FAILED", 500, "text/plain"));
+    await expect(verifyDeploymentSmoke("https://preview.example", fetcher))
+      .rejects.toThrow("boards API returned HTTP 500");
   });
 });

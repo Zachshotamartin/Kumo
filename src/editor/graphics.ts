@@ -1,5 +1,5 @@
-import { createShapeId, type Shape } from "../classes/shape";
-import { normalizeShape, selectionBounds, shapeBounds } from "./geometry";
+import { createShapeId, type Shape } from "../classes/shape.js";
+import { normalizeShape, selectionBounds, shapeBounds } from "./geometry.js";
 
 export type BooleanOperation = NonNullable<Shape["booleanOperation"]>;
 const BOOLEAN_SHAPE_TYPES = new Set(["rectangle", "ellipse", "vector", "boolean"]);

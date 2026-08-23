@@ -1,4 +1,4 @@
-import { Shape } from "../classes/shape";
+import { Shape } from "../classes/shape.js";
 
 export type EditorTool =
   | "pointer"

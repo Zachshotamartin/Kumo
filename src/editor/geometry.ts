@@ -1,4 +1,4 @@
-import { Shape } from "../classes/shape";
+import { Shape } from "../classes/shape.js";
 import {
   Bounds,
   Point,
@@ -7,13 +7,13 @@ import {
   ResizeTransform,
   SelectionFrame,
   Viewport,
-} from "./types";
+} from "./types.js";
 import {
   clippedByAncestor,
   descendantIds,
   isEffectivelyHidden,
   isEffectivelyLocked,
-} from "./hierarchy";
+} from "./hierarchy.js";
 
 const EPSILON = 0.0001;
 const WHEEL_ZOOM_SENSITIVITY = 0.0045;
