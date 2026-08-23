@@ -7,7 +7,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", "build", "coverage", ".vercel", "playwright-report", "test-results"],
+    ignores: ["dist", "build", "coverage", ".vercel", "playwright-report", "test-results", "public/embed"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

@@ -67,6 +67,13 @@ if (readFileSync("src/App.css", "utf8").includes("logo512.png")) {
   throw new Error("The animated Kumo component must not fall back to the legacy logo bitmap.");
 }
 
+const logoRuntime = readFileSync("public/embed/kumo-logo.js", "utf8");
+for (const marker of ["playAnimation", "startup", "kumo-animation-start"]) {
+  if (!logoRuntime.includes(marker)) {
+    throw new Error(`The bundled Kumo logo runtime is missing authored animation support: ${marker}`);
+  }
+}
+
 const requiredDataPaths = [
   ["src/services/boardRepository.ts", "/api/boards"],
   ["src/services/assetRepository.ts", "VITE_SUPABASE_URL"],

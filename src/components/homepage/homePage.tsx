@@ -1,18 +1,23 @@
 import { useEffect, useState } from "react";
 import styles from "./homePage.module.css";
-import { auth, provider } from "../../config/firebase";
+import { auth, firebaseApiKey, provider } from "../../config/firebase";
 import {
   signInWithEmailAndPassword,
   getRedirectResult,
-  signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { ensureUserProfile } from "../../services/userRepository";
 import KumoLogo from "../brand/KumoLogo";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
-import { googleAuthFlowForLocation } from "../../config/authFlow";
+import {
+  consumeLocalGoogleRedirect,
+  hasLocalGoogleRedirectResult,
+  prepareLocalGoogleRedirect,
+  usesLocalGoogleRedirect,
+} from "../../config/localGoogleRedirect";
 
 const HomePage = () => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
@@ -24,8 +29,21 @@ const HomePage = () => {
 
   useEffect(() => {
     let active = true;
-    void getRedirectResult(auth).catch((caught: unknown) => {
+    const completeRedirect = async () => {
+      if (hasLocalGoogleRedirectResult(window.location.href)) {
+        const localResult = consumeLocalGoogleRedirect(window.location.href, window.sessionStorage);
+        if (localResult) {
+          window.history.replaceState({}, "", localResult.returnUrl);
+          await signInWithCredential(auth, localResult.credential);
+          await ensureUserProfile();
+        }
+        return;
+      }
+      await getRedirectResult(auth);
+    };
+    void completeRedirect().catch((caught: unknown) => {
       if (!active) return;
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
     });
     return () => { active = false; };
@@ -66,11 +84,15 @@ const HomePage = () => {
     setMessage("");
     setSubmitting(true);
     try {
-      if (googleAuthFlowForLocation(window.location) === "redirect") {
-        await signInWithRedirect(auth, provider);
+      if (usesLocalGoogleRedirect(window.location)) {
+        const redirectUrl = await prepareLocalGoogleRedirect(
+          firebaseApiKey,
+          window.location.href,
+          window.sessionStorage
+        );
+        window.location.assign(redirectUrl);
       } else {
-        await signInWithPopup(auth, provider);
-        await ensureUserProfile();
+        await signInWithRedirect(auth, provider);
       }
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
@@ -116,7 +138,7 @@ const HomePage = () => {
     <main className={styles.homePage}>
       <section className={styles.intro}>
         <div className={styles.logo} data-context={logoContext}>
-          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="swirl" />
+          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" />
           <span className={styles.logoText}>Kumo</span>
           <span className={styles.logoStatus} aria-live="polite">{logoStatus}</span>
         </div>

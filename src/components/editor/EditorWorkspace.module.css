@@ -183,7 +183,53 @@
 .editorGrid {
   display: grid;
   height: calc(100dvh - 52px);
-  grid-template-columns: 236px minmax(0, 1fr) 268px;
+  grid-template-columns:
+    var(--layers-panel-width)
+    var(--layers-resizer-width)
+    minmax(0, 1fr)
+    var(--properties-resizer-width)
+    var(--properties-panel-width);
+}
+
+.panelSlot {
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.panelSlot > * {
+  height: 100%;
+}
+
+.panelResizer {
+  position: relative;
+  z-index: 100;
+  width: 100%;
+  padding: 0;
+  cursor: col-resize;
+  background: var(--panel);
+  border: 0;
+  outline: none;
+}
+
+.panelResizer::after {
+  position: absolute;
+  inset: 0 2px;
+  content: "";
+  background: var(--line);
+  transition: background 120ms ease;
+}
+
+.panelResizer:hover::after,
+.panelResizer:focus-visible::after,
+.resizingPanels .panelResizer::after {
+  background: var(--accent);
+}
+
+.resizingPanels,
+.resizingPanels * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .layersPanel,
@@ -322,6 +368,34 @@
   min-width: 0;
   overflow: hidden;
 }
+
+.panelToggle {
+  position: absolute;
+  top: 10px;
+  z-index: 14000;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  color: #aeadab;
+  font-size: 18px;
+  line-height: 1;
+  background: #202125;
+  border: 1px solid #3b3d41;
+  border-radius: 6px;
+}
+
+.panelToggle:hover,
+.panelToggle:focus-visible {
+  color: #fffefa;
+  background: #34363a;
+  outline: 2px solid rgba(239, 111, 77, 0.35);
+  outline-offset: 2px;
+}
+
+.layersToggle { left: 10px; }
+.propertiesToggle { right: 10px; }
 
 .toolbar {
   position: absolute;
@@ -812,19 +886,14 @@
   background: #b84b34;
 }
 
-@media (max-width: 960px) {
-  .editorGrid {
-    grid-template-columns: 190px minmax(0, 1fr) 230px;
-  }
-}
-
 @media (max-width: 760px) {
   .editorGrid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 0 0 minmax(0, 1fr) 0 0;
   }
 
-  .layersPanel,
-  .inspectorPanel {
+  .panelSlot,
+  .panelResizer,
+  .panelToggle {
     display: none;
   }
 

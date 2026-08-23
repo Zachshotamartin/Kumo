@@ -17,14 +17,14 @@ if (!customElements.get("kumo-logo")) {
 describe("KumoLogo", () => {
   it("keeps every product logo on the approved design and drives runtime contexts", async () => {
     const { container, rerender } = render(
-      <KumoLogo label="Animated Kumo mascot" startupAnimation="swirl" />
+      <KumoLogo label="Animated Kumo mascot" startupAnimation="startup" />
     );
     const logo = container.querySelector("kumo-logo") as MockKumoLogoElement;
 
     expect(logo).toHaveAttribute("aria-label", "Animated Kumo mascot");
     expect(JSON.parse(logo.getAttribute("config") ?? "{}")).toEqual(KUMO_LOGO_CONFIG);
     await waitFor(() => expect(logo.configure).toHaveBeenCalledWith(KUMO_LOGO_CONFIG));
-    expect(logo.playAnimation).toHaveBeenCalledWith("swirl");
+    expect(logo.playAnimation).toHaveBeenCalledWith("startup");
     expect(logo.resumeIdle).toHaveBeenCalled();
 
     rerender(<KumoLogo context="loading" decorative />);

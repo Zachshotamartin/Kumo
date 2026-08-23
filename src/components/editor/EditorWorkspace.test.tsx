@@ -103,4 +103,30 @@ describe("EditorWorkspace", () => {
     expect(screen.getByRole("menuitem", { name: "Make public" })).toBeDisabled();
     expect(screen.getByRole("menuitem", { name: "Delete board" })).toBeDisabled();
   });
+
+  it("collapses, restores, and resizes both editor sidebars", () => {
+    renderWorkspace();
+    const grid = screen.getByTestId("editor-grid");
+    const layersResize = screen.getByRole("slider", { name: "Resize layers panel" });
+    const propertiesResize = screen.getByRole("slider", { name: "Resize properties panel" });
+
+    fireEvent.pointerDown(layersResize, { button: 0, clientX: 236 });
+    fireEvent.pointerMove(window, { clientX: 300 });
+    fireEvent.pointerUp(window);
+    expect(grid.style.getPropertyValue("--layers-panel-width")).toBe("300px");
+
+    fireEvent.keyDown(propertiesResize, { key: "ArrowLeft" });
+    expect(grid.style.getPropertyValue("--properties-panel-width")).toBe("276px");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide layers panel" }));
+    expect(screen.queryByText("Layers")).not.toBeInTheDocument();
+    expect(grid.style.getPropertyValue("--layers-panel-width")).toBe("0px");
+    fireEvent.click(screen.getByRole("button", { name: "Show layers panel" }));
+    expect(screen.getByText("Layers")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide properties panel" }));
+    expect(screen.queryByText("Inspector")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show properties panel" }));
+    expect(screen.getByText("Inspector")).toBeInTheDocument();
+  });
 });

@@ -3,10 +3,10 @@ export const FIREBASE_HOSTED_AUTH_DOMAIN = "kumo-7d8e1.firebaseapp.com";
 type BrowserLocation = Pick<Location, "host" | "protocol">;
 
 /**
- * Redirect authentication uses Kumo's own HTTPS origin so browsers do not
- * have to read Firebase state from third-party storage. Firebase always
- * constructs an HTTPS helper URL, so HTTP localhost must retain the hosted
- * Firebase domain and use popup authentication instead.
+ * HTTPS deployments proxy Firebase's auth helper through Kumo's own origin so
+ * redirect state remains first-party. HTTP localhost cannot host that HTTPS
+ * helper, so it redirects through Firebase Hosting and then returns to the
+ * original localhost URL.
  */
 export const resolveFirebaseAuthDomain = (
   configuredDomain: string | undefined,

@@ -10,7 +10,7 @@ import type { Shape } from "../classes/shape";
 import CollaborationBridge from "./CollaborationBridge";
 
 const collaboration = vi.hoisted(() => ({
-  nodes: new Map<string, Record<string, unknown>>(),
+  nodes: {} as Record<string, Record<string, unknown>>,
   backgroundColor: "#252629",
   others: [] as Array<Record<string, unknown>>,
   resolveAssetUrl: vi.fn<(assetId: string) => Promise<string>>(),
@@ -52,13 +52,33 @@ const makeStore = () => configureStore({
 
 describe("CollaborationBridge", () => {
   beforeEach(() => {
-    collaboration.nodes = new Map();
+    collaboration.nodes = {};
     collaboration.others = [];
     collaboration.resolveAssetUrl.mockReset();
   });
 
+  it("reads the JSON projection returned for a LiveMap", async () => {
+    collaboration.nodes.second = {
+      ...shape("second"),
+      id: "second",
+      zIndex: 2,
+    } as unknown as Record<string, unknown>;
+    collaboration.nodes.first = {
+      ...shape("first"),
+      id: "first",
+      zIndex: 1,
+    } as unknown as Record<string, unknown>;
+    const store = makeStore();
+
+    render(<Provider store={store}><CollaborationBridge /></Provider>);
+
+    await waitFor(() => {
+      expect(store.getState().whiteBoard.shapes.map(({ id }) => id)).toEqual(["first", "second"]);
+    });
+  });
+
   it("does not overwrite an active local preview and catches up afterward", async () => {
-    collaboration.nodes.set("shape", shape("remote") as unknown as Record<string, unknown>);
+    collaboration.nodes.shape = shape("remote") as unknown as Record<string, unknown>;
     const store = makeStore();
     store.dispatch(replaceShapes([shape("local draft")]));
     store.dispatch(setLocalPreviewActive(true));
@@ -76,7 +96,7 @@ describe("CollaborationBridge", () => {
     collaboration.resolveAssetUrl.mockImplementation(() => new Promise((resolve) => {
       resolveUrl = resolve;
     }));
-    collaboration.nodes.set("shape", shape("", "asset-old") as unknown as Record<string, unknown>);
+    collaboration.nodes.shape = shape("", "asset-old") as unknown as Record<string, unknown>;
     const store = makeStore();
     render(<Provider store={store}><CollaborationBridge /></Provider>);
     await waitFor(() => expect(collaboration.resolveAssetUrl).toHaveBeenCalledWith("asset-old"));

@@ -5,29 +5,31 @@ const mocks = vi.hoisted(() => ({
   signIn: vi.fn().mockResolvedValue(undefined),
   register: vi.fn().mockResolvedValue(undefined),
   googleRedirect: vi.fn().mockResolvedValue(undefined),
-  googlePopup: vi.fn().mockResolvedValue(undefined),
   redirectResult: vi.fn().mockResolvedValue(null),
   reset: vi.fn().mockResolvedValue(undefined),
   profile: vi.fn().mockResolvedValue(undefined),
-  authFlow: vi.fn(() => "popup" as "popup" | "redirect"),
 }));
 
 vi.mock("firebase/auth", () => ({
   signInWithEmailAndPassword: mocks.signIn,
   createUserWithEmailAndPassword: mocks.register,
   signInWithRedirect: mocks.googleRedirect,
-  signInWithPopup: mocks.googlePopup,
+  signInWithCredential: vi.fn().mockResolvedValue(undefined),
   getRedirectResult: mocks.redirectResult,
   sendPasswordResetEmail: mocks.reset,
 }));
-vi.mock("../../config/firebase", () => ({ auth: {}, provider: {} }));
+vi.mock("../../config/firebase", () => ({ auth: {}, firebaseApiKey: "public-key", provider: {} }));
 vi.mock("../../services/userRepository", () => ({ ensureUserProfile: mocks.profile }));
-vi.mock("../../config/authFlow", () => ({ googleAuthFlowForLocation: mocks.authFlow }));
+vi.mock("../../config/localGoogleRedirect", () => ({
+  consumeLocalGoogleRedirect: vi.fn(() => null),
+  hasLocalGoogleRedirectResult: vi.fn(() => false),
+  prepareLocalGoogleRedirect: vi.fn(),
+  usesLocalGoogleRedirect: vi.fn(() => false),
+}));
 
 describe("HomePage authentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.authFlow.mockReturnValue("popup");
   });
 
   const fillCredentials = () => {
@@ -66,19 +68,17 @@ describe("HomePage authentication", () => {
   });
 
   it("reports Google authentication failures", async () => {
-    mocks.googlePopup.mockRejectedValueOnce(new Error("Popup closed"));
+    mocks.googleRedirect.mockRejectedValueOnce(new Error("Redirect failed"));
     render(<HomePage />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Popup closed");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Redirect failed");
     expect(screen.getByLabelText("Animated Kumo mascot")).toHaveAttribute("context", "error");
   });
 
-  it("uses redirect authentication on secure deployments", async () => {
-    mocks.authFlow.mockReturnValue("redirect");
+  it("uses redirect authentication", async () => {
     render(<HomePage />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     await waitFor(() => expect(mocks.googleRedirect).toHaveBeenCalledWith({}, {}));
-    expect(mocks.googlePopup).not.toHaveBeenCalled();
   });
 
   it("reports errors returned after a Google redirect", async () => {

@@ -43,7 +43,7 @@ kumo-logo {
 }
 
 .app-loading-word {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.04em;
 }
@@ -55,11 +55,11 @@ kumo-logo {
 }
 
 .app-loading-logo {
-  width: 44px;
+  width: 92px;
   flex: 0 0 auto;
 }
 
-.fatal-error .app-loading-logo { width: 72px; }
+.fatal-error .app-loading-logo { width: 92px; }
 
 .fatal-error {
   display: grid;

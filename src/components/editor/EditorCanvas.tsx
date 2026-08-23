@@ -143,6 +143,7 @@ const draftAtPoint = (draft: Shape, start: Point, end: Point, square: boolean): 
 const EditorCanvas = () => {
   const dispatch = useDispatch<AppDispatch>();
   const canvasRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
   const interactionRef = useRef<Interaction | null>(null);
   const textBaselineRef = useRef<Shape[] | null>(null);
   const spacePressedRef = useRef(false);
@@ -189,6 +190,43 @@ const EditorCanvas = () => {
   useEffect(() => {
     updateMyPresence({ selectionIds: selectedIds });
   }, [selectedIds, updateMyPresence]);
+
+  useEffect(() => {
+    viewportRef.current = editor.viewport;
+  }, [editor.viewport]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const wheelUnit = (event: WheelEvent) => {
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return 16;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return canvas.clientHeight || 1;
+      return 1;
+    };
+    const handleCanvasWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = canvas.getBoundingClientRect();
+      const unit = wheelUnit(event);
+      const current = viewportRef.current;
+      const next = event.ctrlKey || event.metaKey
+        ? zoomAtPoint(
+            current,
+            { x: event.clientX - rect.left, y: event.clientY - rect.top },
+            current.zoom * Math.exp(-event.deltaY * unit * 0.002)
+          )
+        : panViewport(current, {
+            x: -event.deltaX * unit,
+            y: -event.deltaY * unit,
+          });
+      viewportRef.current = next;
+      dispatch(setViewport(next));
+    };
+
+    canvas.addEventListener("wheel", handleCanvasWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleCanvasWheel);
+  }, [dispatch]);
 
   useEffect(() => () => {
     navigationRequestRef.current += 1;
@@ -538,23 +576,6 @@ const EditorCanvas = () => {
     }
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    if (event.ctrlKey || event.metaKey) {
-      const localPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      const factor = Math.exp(-event.deltaY * 0.002);
-      dispatch(setViewport(zoomAtPoint(editor.viewport, localPoint, editor.viewport.zoom * factor)));
-    } else {
-      dispatch(
-        setViewport(
-          panViewport(editor.viewport, { x: -event.deltaX, y: -event.deltaY })
-        )
-      );
-    }
-  };
-
   const fitToContent = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -790,7 +811,6 @@ const EditorCanvas = () => {
           updateMyPresence({ cursor: null });
         }
       }}
-      onWheel={handleWheel}
       onContextMenu={(event) => {
         event.preventDefault();
         const hit = hitTest(board.shapes, pointerWorld(event as unknown as React.PointerEvent<HTMLDivElement>));

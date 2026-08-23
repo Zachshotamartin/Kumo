@@ -26,22 +26,32 @@ describe("Firebase Admin client", () => {
     mocks.initializeApp.mockReturnValue({ name: "admin" });
   });
 
-  it("rejects incomplete server configuration", async () => {
+  it("uses Kumo's public project ID fallback for normal token verification", async () => {
     const { adminAuth } = await import("../../api/_firebaseAdmin");
-    expect(() => adminAuth()).toThrow("Firebase Admin environment variables are incomplete");
+    expect(adminAuth()).toEqual({ app: { name: "admin" } });
+    expect(mocks.initializeApp).toHaveBeenCalledWith(
+      { projectId: "kumo-7d8e1" },
+      "kumo-token-verifier"
+    );
+    expect(mocks.cert).not.toHaveBeenCalled();
   });
 
-  it("initializes once and exposes auth and realtime database clients", async () => {
+  it("keeps privileged auth and legacy database access behind service credentials", async () => {
     process.env.FIREBASE_ADMIN_PROJECT_ID = "project";
+    const incomplete = await import("../../api/_firebaseAdmin");
+    expect(() => incomplete.privilegedAdminAuth()).toThrow("Firebase Admin environment variables are incomplete");
+
     process.env.FIREBASE_ADMIN_CLIENT_EMAIL = "server@example.com";
     process.env.FIREBASE_ADMIN_PRIVATE_KEY = "line-one\\nline-two";
     process.env.FIREBASE_ADMIN_DATABASE_URL = "https://example.firebaseio.com";
-    const { adminAuth, adminDatabase } = await import("../../api/_firebaseAdmin");
-    expect(adminAuth()).toEqual({ app: { name: "admin" } });
+    vi.resetModules();
+    const { privilegedAdminAuth, adminDatabase } = await import("../../api/_firebaseAdmin");
+    expect(privilegedAdminAuth()).toEqual({ app: { name: "admin" } });
     expect(adminDatabase()).toEqual({ app: { name: "admin" } });
     expect(mocks.cert).toHaveBeenCalledWith(expect.objectContaining({ privateKey: "line-one\nline-two" }));
+    expect(mocks.initializeApp).toHaveBeenCalledWith(expect.any(Object), "kumo-privileged-admin");
 
-    mocks.getApps.mockReturnValue([{ name: "existing" }]);
-    expect(adminAuth()).toEqual({ app: { name: "existing" } });
+    mocks.getApps.mockReturnValue([{ name: "kumo-privileged-admin" }]);
+    expect(privilegedAdminAuth()).toEqual({ app: { name: "kumo-privileged-admin" } });
   });
 });

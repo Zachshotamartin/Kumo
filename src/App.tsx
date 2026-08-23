@@ -1,5 +1,5 @@
 import "./App.css";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./config/firebase";
@@ -11,11 +11,12 @@ import KumoLogo from "./components/brand/KumoLogo";
 const WorkSpace = lazy(() => import("./components/workSpace/workSpace"));
 const HomePage = lazy(() => import("./components/homepage/homePage"));
 const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
+export const MINIMUM_LOADING_DURATION_MS = 1800;
 
 const LoadingScreen = () => (
   <div className="app-loading" role="status">
     <div className="app-loading-brand">
-      <KumoLogo className="app-loading-logo" context="loading" startupAnimation="intro" decorative />
+      <KumoLogo className="app-loading-logo" context="loading" startupAnimation="startup" decorative />
       <span className="app-loading-word">Kumo</span>
     </div>
     <span className="app-loading-status">Loading workspace</span>
@@ -26,6 +27,16 @@ function App() {
   const user = useSelector((state: RootState) => state.auth);
   const whiteBoard = useSelector((state: RootState) => state.whiteBoard);
   const dispatch = useDispatch<AppDispatch>();
+  const [loadingAnimationComplete, setLoadingAnimationComplete] = useState(false);
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const timer = window.setTimeout(
+      () => setLoadingAnimationComplete(true),
+      reducedMotion ? 0 : MINIMUM_LOADING_DURATION_MS
+    );
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -50,7 +61,7 @@ function App() {
     return () => unsubscribe();
   }, [dispatch]);
 
-  if (!user.isInitialized) return <LoadingScreen />;
+  if (!user.isInitialized || !loadingAnimationComplete) return <LoadingScreen />;
 
   return (
     <>

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 const file = process.argv[2];
 if (!file) throw new Error("Pass the Vercel environment file to validate.");
 const requireConcreteValues = process.argv.includes("--require-concrete");
+const localRuntime = process.argv.includes("--local-runtime");
 
 const values = new Map();
 for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
@@ -23,8 +24,17 @@ const required = [
   "LIVEBLOCKS_SECRET_KEY",
   "LIVEBLOCKS_WEBHOOK_SECRET",
 ];
+const localRequired = [
+  "FIREBASE_ADMIN_PROJECT_ID",
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "VITE_SUPABASE_URL",
+  "VITE_SUPABASE_PUBLISHABLE_KEY",
+  "LIVEBLOCKS_SECRET_KEY",
+];
+const expected = localRuntime ? localRequired : required;
 
-const missing = required.filter((name) => !values.get(name));
+const missing = expected.filter((name) => !values.get(name));
 if (missing.length) {
   throw new Error(`Vercel runtime configuration is missing: ${missing.join(", ")}`);
 }
@@ -42,10 +52,10 @@ if (requireConcreteValues) {
     LIVEBLOCKS_SECRET_KEY: (value) => /^sk_[A-Za-z0-9_-]{20,}$/.test(value),
     LIVEBLOCKS_WEBHOOK_SECRET: (value) => value.length >= 20 && !/placeholder|sensitive|encrypted/i.test(value),
   };
-  const placeholders = required.filter((name) => !concreteChecks[name](values.get(name)));
+  const placeholders = expected.filter((name) => !concreteChecks[name](values.get(name)));
   if (placeholders.length) {
     throw new Error(`Local runtime configuration still contains placeholders or invalid values: ${placeholders.join(", ")}`);
   }
 }
 
-console.log(`Validated ${required.length} required Vercel runtime variables.`);
+console.log(`Validated ${expected.length} required ${localRuntime ? "local" : "Vercel"} runtime variables.`);

@@ -1,12 +1,30 @@
 import { createElement, type CSSProperties, useEffect, useRef, useState } from "react";
 import { KUMO_LOGO_CONFIG, type KumoLogoContext } from "./KumoLogoConfig";
 
+export type KumoAnimation =
+  | "startup"
+  | "intro"
+  | "swirl"
+  | "thinking"
+  | "wink"
+  | "wide"
+  | "alert"
+  | "notify"
+  | "exclaim"
+  | "sleep"
+  | "egg"
+  | "hexagon"
+  | "play"
+  | "orbit"
+  | "burst"
+  | "comet";
+
 interface KumoLogoProps {
   className?: string;
   context?: KumoLogoContext;
   decorative?: boolean;
   label?: string;
-  startupAnimation?: "intro" | "swirl";
+  startupAnimation?: KumoAnimation;
   style?: CSSProperties;
 }
 
@@ -14,7 +32,7 @@ const serializedConfig = JSON.stringify(KUMO_LOGO_CONFIG);
 
 interface KumoLogoElement extends HTMLElement {
   configure: (config: typeof KUMO_LOGO_CONFIG) => KumoLogoElement;
-  playAnimation?: (name: "intro" | "swirl") => Promise<unknown>;
+  playAnimation?: (name: KumoAnimation) => Promise<unknown>;
   playBreak: (name: "stretch" | "scuttle" | "curl") => boolean;
   resumeIdle: () => KumoLogoElement;
   setContext: (context: Exclude<KumoLogoContext, "idle">) => boolean;
@@ -26,7 +44,7 @@ const whenLogoIsDefined = () => {
 };
 
 /**
- * Shared host for the Kumo Logo Studio web component loaded in index.html.
+ * Shared host for the locally bundled Kumo Logo Studio web component loaded in index.html.
  * Keeping configuration here prevents visual drift between product surfaces.
  */
 const KumoLogo = ({
@@ -60,7 +78,7 @@ const KumoLogo = ({
       const logo = element;
       if (!active || !logo) return;
       if (logo.playAnimation) await logo.playAnimation(startupAnimation);
-      else logo.playBreak(startupAnimation === "swirl" ? "stretch" : "scuttle");
+      else logo.playBreak(startupAnimation === "intro" ? "scuttle" : "stretch");
       if (!active) return;
       const currentContext = latestContext.current;
       if (currentContext === "idle") logo.resumeIdle();

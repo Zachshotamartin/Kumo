@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(),
   ensureProfile: vi.fn(),
   getAccess: vi.fn(),
-  getUserByEmail: vi.fn(),
+  invitedProfile: { firebase_uid: "member", email: "member@example.com" } as null | {
+    firebase_uid: string;
+    email: string;
+  },
   allow: vi.fn(),
   authorize: vi.fn(),
   from: vi.fn(),
@@ -20,9 +23,6 @@ vi.mock("../../api/_supabase", () => ({
   supabaseAdmin: () => ({ from: mocks.from }),
 }));
 vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
-vi.mock("../../api/_firebaseAdmin", () => ({
-  adminAuth: () => ({ getUserByEmail: mocks.getUserByEmail }),
-}));
 vi.mock("../../api/_liveblocks", () => ({
   liveblocksAdmin: () => ({
     prepareSession: () => ({ allow: mocks.allow, authorize: mocks.authorize }),
@@ -59,14 +59,29 @@ describe("sharing, session, and Liveblocks API handlers", () => {
       uid: actor.uid, email: actor.email ?? "local@example.com", displayName: "Kumo user", avatarUrl: null,
     }));
     mocks.getAccess.mockResolvedValue({ board, role: "owner" });
-    mocks.getUserByEmail.mockResolvedValue({
-      uid: "member", email: "member@example.com", displayName: "Member", photoURL: null,
-    });
+    mocks.invitedProfile = { firebase_uid: "member", email: "member@example.com" };
     mocks.authorize.mockResolvedValue({ status: 200, body: "authorized" });
-    mocks.from.mockImplementation((table: string) => table === "board_members" ? {
-      upsert: vi.fn().mockResolvedValue({ error: null }),
-      delete: () => ({ eq: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ error: null }) }) }) }),
-    } : { insert: vi.fn().mockResolvedValue({ error: null }) });
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "profiles") {
+        return {
+          select: () => ({
+            ilike: () => ({
+              maybeSingle: vi.fn().mockImplementation(async () => ({
+                data: mocks.invitedProfile,
+                error: null,
+              })),
+            }),
+          }),
+        };
+      }
+      if (table === "board_members") {
+        return {
+          upsert: vi.fn().mockResolvedValue({ error: null }),
+          delete: () => ({ eq: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ error: null }) }) }) }),
+        };
+      }
+      return { insert: vi.fn().mockResolvedValue({ error: null }) };
+    });
   });
 
   it("invites and removes board collaborators", async () => {
@@ -75,7 +90,6 @@ describe("sharing, session, and Liveblocks API handlers", () => {
       boardId: "board", action: "invite", email: " MEMBER@example.com ", role: "viewer",
     }), invited);
     expect(invited.body).toEqual({ uid: "member", email: "member@example.com", role: "viewer" });
-    expect(mocks.ensureProfile).toHaveBeenCalledWith(expect.objectContaining({ uid: "member" }));
 
     const removed = response();
     await shareBoardHandler(request({ boardId: "board", action: "remove", memberUid: "member" }), removed);
@@ -93,7 +107,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     const invalid = response();
     await shareBoardHandler(request({ boardId: "board", action: "invite", email: "invalid" }), invalid);
     expect(invalid.statusCode).toBe(400);
-    mocks.getUserByEmail.mockRejectedValueOnce(new Error("auth/user-not-found"));
+    mocks.invitedProfile = null;
     const missing = response();
     await shareBoardHandler(request({ boardId: "board", action: "invite", email: "none@example.com" }), missing);
     expect(missing.body).toEqual({ error: "No Kumo account uses that email." });

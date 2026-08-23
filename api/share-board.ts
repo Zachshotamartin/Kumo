@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "./_auth.js";
 import { getBoardAccess } from "./_boards.js";
-import { adminAuth } from "./_firebaseAdmin.js";
 import { allowMethods, errorMessage } from "./_http.js";
 import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
 
@@ -37,21 +36,23 @@ export default async function handler(request: VercelRequest, response: VercelRe
       if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
         return response.status(400).json({ error: "Enter a valid email address." });
       }
-      const invited = await adminAuth().getUserByEmail(email);
-      if (invited.uid === actor.uid) {
+      const database = supabaseAdmin();
+      const { data: invited, error: invitedError } = await database
+        .from("profiles")
+        .select("firebase_uid, email")
+        .ilike("email", email)
+        .maybeSingle();
+      if (invitedError) throw invitedError;
+      if (!invited) {
+        return response.status(400).json({ error: "No Kumo account uses that email." });
+      }
+      if (invited.firebase_uid === actor.uid) {
         return response.status(400).json({ error: "You already own this board." });
       }
-      await ensureActorProfile({
-        uid: invited.uid,
-        email: invited.email,
-        name: invited.displayName,
-        picture: invited.photoURL,
-      });
       const role: BoardRole = body.role === "viewer" ? "viewer" : "editor";
-      const database = supabaseAdmin();
       const { error } = await database.from("board_members").upsert({
         board_id: body.boardId,
-        user_id: invited.uid,
+        user_id: invited.firebase_uid,
         role,
       }, { onConflict: "board_id,user_id" });
       if (error) throw error;
@@ -59,9 +60,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
         board_id: body.boardId,
         actor_id: actor.uid,
         event_type: "board.member_invited",
-        payload: { memberId: invited.uid, role },
+        payload: { memberId: invited.firebase_uid, role },
       });
-      return response.status(200).json({ uid: invited.uid, email, role });
+      return response.status(200).json({ uid: invited.firebase_uid, email: invited.email, role });
     }
 
     if (!body.memberUid || body.memberUid === actor.uid) {
@@ -83,9 +84,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
     return response.status(200).json({ uid: body.memberUid });
   } catch (error) {
-    const message = error instanceof Error && error.message.includes("user-not-found")
-      ? "No Kumo account uses that email."
-      : errorMessage(error, "We couldn't update board access.");
+    const message = errorMessage(error, "We couldn't update board access.");
     return response.status(message === "Authentication required." ? 401 : 400).json({ error: message });
   }
 }

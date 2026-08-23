@@ -2,6 +2,8 @@
 
 Kumo is a collaborative, browser-based design canvas inspired by Figma. It uses React and Vite for the client, Firebase Authentication for identity, Supabase Postgres for durable product data, Liveblocks for realtime documents and presence, and Vercel for the application and authenticated server functions.
 
+The interactive logo runtime is self-hosted at `public/embed/kumo-logo.js`, built from the sibling `bloub` Kumo Logo Studio project. This keeps authored startup and context animations versioned with the app instead of depending on a separately deployed embed.
+
 ## What works
 
 - Rectangle, ellipse, text, and image layers
@@ -25,9 +27,11 @@ yarn validate:local-env
 yarn dev:full
 ```
 
-Open the exact `http://localhost:<port>` URL printed by Vercel. Do not substitute `127.0.0.1`, because Firebase authorizes hostnames rather than treating every loopback address as equivalent. `yarn dev:full` runs both Vite and the `/api/*` Vercel Functions; it requires the real server-only Firebase Admin, Supabase, and Liveblocks values from `.env.example` in the gitignored `.env.local`. `yarn validate:local-env` fails before startup when those values are missing or are Vercel placeholders. Vercel replaces Sensitive values with placeholders during `vercel env pull`, so a pull cannot populate those local secrets.
+Open the exact `http://localhost:<port>` URL printed by Vercel. Do not substitute `127.0.0.1`, because Firebase authorizes hostnames rather than treating every loopback address as equivalent. `yarn dev:full` runs both Vite and the `/api/*` Vercel Functions; it requires a Firebase project ID plus concrete Supabase and Liveblocks server values in the gitignored `.env.local`. It validates those values before starting, so redacted Vercel placeholders cannot become runtime 500s again. Firebase service-account values are needed only for explicit legacy Realtime Database migration, while the Liveblocks webhook secret is needed only when exercising signed webhook callbacks. Vercel does not return Sensitive values through `vercel env pull`, so those secrets must be copied from their owning service when local testing requires them.
 
-Use `yarn dev:remote` when the secrets remain managed only in Vercel. It runs the frontend locally and proxies `/api/*` to the stable authenticated Preview deployment. Use `yarn dev` only for client-only UI work with no API proxy. HTTPS deployments use a same-origin Google redirect through `/__/auth/*`; HTTP localhost uses Firebase popup authentication because Firebase's redirect helper always requires HTTPS.
+Use `yarn dev:remote` when the secrets remain managed only in Vercel. It runs the frontend locally and proxies `/api/*` to the stable authenticated Preview deployment. Use `yarn dev` only for client-only UI work with no API proxy. HTTPS deployments use a same-origin Google redirect through `/__/auth/*`. HTTP localhost uses a full-page Google redirect created through Firebase's Identity Toolkit, with state and nonce validation before the returned Google identity token becomes a Firebase credential; it never falls back to a popup.
+
+The Firebase project's Google OAuth Web Client must include the exact local callback `http://localhost:5175/` under **Google Auth Platform → Clients → Authorized redirect URIs**. Firebase Authentication's separate Authorized domains list must also include `localhost`.
 
 ## Quality commands
 

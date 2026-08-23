@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useOthers, useStorage } from "@liveblocks/react/suspense";
 import { Shape } from "../classes/shape";
-import type { JsonObject } from "@liveblocks/client";
+import type { ReadonlyJsonObject } from "@liveblocks/client";
 import { normalizeShape } from "../editor/geometry";
 import {
   hydrateShapeAssets,
@@ -21,7 +21,7 @@ const CollaborationBridge = () => {
   const backgroundColor = useStorage((root) => root.backgroundColor);
   const others = useOthers();
   const shapes = useMemo(
-    () => [...(nodes as unknown as ReadonlyMap<string, JsonObject>).values()]
+    () => Object.values(nodes as ReadonlyJsonObject)
       .map((shape) => normalizeShape(shape as unknown as Shape))
       .sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id)),
     [nodes]

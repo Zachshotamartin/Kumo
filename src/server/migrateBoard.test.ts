@@ -19,7 +19,7 @@ vi.mock("../../api/_boards", () => ({
   provisionBoard: mocks.provision,
 }));
 vi.mock("../../api/_firebaseAdmin", () => ({
-  adminAuth: () => ({ getUser: mocks.getUser }),
+  privilegedAdminAuth: () => ({ getUser: mocks.getUser }),
   adminDatabase: () => ({ ref: () => ({ get: async () => mocks.snapshot }) }),
 }));
 vi.mock("../../api/_supabase", () => ({
