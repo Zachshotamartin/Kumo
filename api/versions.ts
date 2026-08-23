@@ -110,24 +110,17 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const liveblocks = liveblocksAdmin();
     if (action === "checkpoint") {
       const document = await liveblocks.getStorageDocument(roomId, "json");
-      const { data, error } = await database.from("document_snapshots").insert({
-        board_id: boardId,
-        liveblocks_room_id: roomId,
-        document,
-        checksum: checksum(document),
-        name: cleanText(request.body?.name, 120) ?? "Checkpoint",
-        description: cleanText(request.body?.description, 500),
-        created_by: actor.uid,
-        kind: "checkpoint",
-      }).select("id, board_id, name, description, created_by, kind, created_at, checksum").single();
-      if (error) throw error;
-      const { error: auditError } = await database.from("audit_events").insert({
-        board_id: boardId,
-        actor_id: actor.uid,
-        event_type: "version.checkpoint_created",
-        payload: { versionId: data.id, name: data.name, roomId },
+      const { data, error } = await database.rpc("create_kumo_checkpoint", {
+        p_board_id: boardId,
+        p_room_id: roomId,
+        p_document: document,
+        p_checksum: checksum(document),
+        p_name: cleanText(request.body?.name, 120) ?? "Checkpoint",
+        p_description: cleanText(request.body?.description, 500),
+        p_actor_id: actor.uid,
       });
-      if (auditError) throw auditError;
+      if (error) throw error;
+      if (!data) throw new Error("The checkpoint could not be created.");
       return response.status(201).json({ version: data });
     }
 

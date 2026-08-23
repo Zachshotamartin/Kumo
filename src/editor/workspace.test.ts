@@ -28,6 +28,71 @@ describe("multi-page workspace organization", () => {
     expect(shapesOnPage(removed.shapes, removed.nextPageId)).toHaveLength(2);
   });
 
+  it("remaps every internal relationship when duplicating a page", () => {
+    const page = createPage([], "System");
+    const component = shape("component", 0, {
+      type: "frame", name: "Component", pageId: page.pageId, componentDefinition: true,
+      componentSetId: "variant", groupId: "group",
+    });
+    const variant = shape("variant", 30, {
+      type: "frame", name: "Variant", pageId: page.pageId, componentDefinition: true,
+      componentSetId: component.id, groupId: "group",
+    });
+    const mask = shape("mask", 5, {
+      name: "Mask", type: "ellipse", pageId: page.pageId, parentId: component.id, isMask: true,
+    });
+    const instance = shape("instance", 60, {
+      name: "Instance", type: "frame", pageId: page.pageId, instanceOf: component.id,
+      instanceRootId: "instance", componentNodeId: component.id,
+    });
+    const linked = shape("linked", 65, {
+      name: "Linked", pageId: page.pageId, parentId: instance.id, sectionId: mask.id,
+      maskId: mask.id, instanceRootId: instance.id, componentNodeId: mask.id,
+      prototypeInteractions: [
+        { id: "internal", trigger: "click", action: "navigate", destinationId: component.id },
+        { id: "external", trigger: "hover", action: "navigate", destinationId: "other-page-frame" },
+      ],
+    });
+    const boolean = shape("boolean", 90, {
+      name: "Boolean", type: "boolean", pageId: page.pageId,
+      booleanChildren: [shape("embedded", 92, { parentId: "boolean", maskId: "embedded" })],
+    });
+    const duplicated = duplicatePage([...page.shapes, component, variant, mask, instance, linked, boolean], page.pageId);
+    const copied = shapesOnPage(duplicated.shapes, duplicated.pageId);
+    const copy = (name: string) => copied.find((item) => item.name === name)!;
+    const copiedComponent = copy("Component");
+    const copiedVariant = copy("Variant");
+    const copiedMask = copy("Mask");
+    const copiedInstance = copy("Instance");
+    const copiedLinked = copy("Linked");
+    const copiedBoolean = copy("Boolean");
+
+    expect(copiedComponent.componentSetId).toBe(copiedVariant.id);
+    expect(copiedVariant.componentSetId).toBe(copiedComponent.id);
+    expect(copiedComponent.groupId).toBe(copiedVariant.groupId);
+    expect(copiedComponent.groupId).not.toBe("group");
+    expect(copiedInstance).toMatchObject({
+      instanceOf: copiedComponent.id,
+      instanceRootId: copiedInstance.id,
+      componentNodeId: copiedComponent.id,
+    });
+    expect(copiedLinked).toMatchObject({
+      parentId: copiedInstance.id,
+      sectionId: copiedMask.id,
+      maskId: copiedMask.id,
+      instanceRootId: copiedInstance.id,
+      componentNodeId: copiedMask.id,
+    });
+    expect(copiedLinked.prototypeInteractions?.[0]).toMatchObject({ destinationId: copiedComponent.id });
+    expect(copiedLinked.prototypeInteractions?.[0]?.id).not.toBe("internal");
+    expect(copiedLinked.prototypeInteractions?.[1]?.destinationId).toBe("other-page-frame");
+    expect(copiedBoolean.booleanChildren?.[0]?.id).not.toBe("embedded");
+    expect(copiedBoolean.booleanChildren?.[0]).toMatchObject({
+      parentId: copiedBoolean.id,
+      maskId: copiedBoolean.booleanChildren?.[0]?.id,
+    });
+  });
+
   it("keeps shared resources global when pages are created, copied, or removed", () => {
     const resource = shape("style", 0, { type: "resource", hidden: true, resourceKind: "fill-style", resourceValue: { backgroundColor: "#fff" } });
     const first = createPage([resource], "One");

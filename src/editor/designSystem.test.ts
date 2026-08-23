@@ -64,6 +64,27 @@ describe("components, variants, styles, and variables", () => {
     expect(withoutChild.find((item) => item.id === instanceChild?.id)).toBeUndefined();
   });
 
+  it("synchronizes component layer reordering without moving the instance stack", () => {
+    const frame = shape("component", 0, { type: "frame", zIndex: 1 });
+    const background = shape("background", 2, { parentId: frame.id, zIndex: 2 });
+    const label = shape("label", 4, { parentId: frame.id, type: "text", zIndex: 3 });
+    const component = createComponent([frame, background, label], [frame.id], "Card");
+    const instance = instantiateComponent(component.shapes, frame.id, { x: 100, y: 100 });
+    const before = instance.shapes.filter((item) => item.instanceRootId === instance.instanceId);
+    const baseZ = Math.min(...before.map((item) => item.zIndex));
+    const reorderedDefinition = instance.shapes.map((item) => item.id === background.id
+      ? { ...item, zIndex: 4 }
+      : item.id === label.id ? { ...item, zIndex: 2 } : item);
+    const synchronized = synchronizeComponentInstances(reorderedDefinition);
+    const instanceBackground = synchronized.find((item) => item.instanceRootId === instance.instanceId && item.componentNodeId === background.id)!;
+    const instanceLabel = synchronized.find((item) => item.instanceRootId === instance.instanceId && item.componentNodeId === label.id)!;
+    const instanceRoot = synchronized.find((item) => item.id === instance.instanceId)!;
+
+    expect(instanceRoot.zIndex).toBe(baseZ);
+    expect(instanceLabel.zIndex).toBe(baseZ + 1);
+    expect(instanceBackground.zIndex).toBe(baseZ + 2);
+  });
+
   it("keeps masks, sections, and prototype destinations internal to synchronized instances", () => {
     const frame = shape("component", 0, { type: "frame" });
     const mask = shape("mask", 2, { parentId: frame.id, type: "ellipse", isMask: true });

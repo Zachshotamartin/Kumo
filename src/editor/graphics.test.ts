@@ -23,7 +23,14 @@ describe("vector and compositing graphics", () => {
     const points = [{ id: "a", x: 0, y: 0, handleOut: { x: 10, y: 0 } }, { id: "b", x: 20, y: 20, handleIn: { x: 10, y: 20 } }];
     expect(vectorPathData(points, { x: 0, y: 0 }, true)).toBe("M 0 0 C 10 0 10 20 20 20 Z");
     const vector = shape("vector", 0, { type: "vector", vectorPoints: points });
-    expect(updateVectorPoint([vector], vector.id, "b", { x: 30, y: 40 })[0]).toMatchObject({ width: 30, height: 40 });
+    const moved = updateVectorPoint([vector], vector.id, "b", { x: 30, y: 40 })[0]!;
+    expect(moved).toMatchObject({ width: 30, height: 40 });
+    expect(moved.vectorPoints?.[1]).toMatchObject({
+      x: 30,
+      y: 40,
+      handleIn: { x: 20, y: 40 },
+    });
+    expect(moved.vectorPoints?.[0]?.handleOut).toEqual({ x: 10, y: 0 });
     expect(vectorPathData([], { x: 0, y: 0 })).toBe("");
     expect(vectorPathData([{ id: "a", x: 1, y: 2 }, { id: "b", x: 3, y: 4 }])).toBe("M 1 2 L 3 4");
     expect(shapePathData(shape("ellipse", 0, { type: "ellipse" }))).toContain(" A ");

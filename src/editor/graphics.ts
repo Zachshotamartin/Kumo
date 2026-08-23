@@ -67,7 +67,16 @@ export const updateVectorPoint = (
   point: { x: number; y: number }
 ): Shape[] => shapes.map((shape) => {
   if (shape.id !== shapeId || !shape.vectorPoints) return shape;
-  const vectorPoints = shape.vectorPoints.map((candidate) => candidate.id === pointId ? { ...candidate, ...point } : candidate);
+  const vectorPoints = shape.vectorPoints.map((candidate) => {
+    if (candidate.id !== pointId) return candidate;
+    const delta = { x: point.x - candidate.x, y: point.y - candidate.y };
+    return {
+      ...candidate,
+      ...point,
+      ...(candidate.handleIn ? { handleIn: { x: candidate.handleIn.x + delta.x, y: candidate.handleIn.y + delta.y } } : {}),
+      ...(candidate.handleOut ? { handleOut: { x: candidate.handleOut.x + delta.x, y: candidate.handleOut.y + delta.y } } : {}),
+    };
+  });
   const left = Math.min(...vectorPoints.map((candidate) => candidate.x));
   const right = Math.max(...vectorPoints.map((candidate) => candidate.x));
   const top = Math.min(...vectorPoints.map((candidate) => candidate.y));

@@ -15,8 +15,10 @@ describe("portable design output", () => {
 
   it("includes descendants when exporting a selected frame", () => {
     const frame = shape("frame", "frame");
-    const child = shape("child", "text", { parentId: frame.id, text: "Nested" });
-    expect(serializeSvg([frame, child], [frame.id])).toContain("Nested");
+    const child = shape("child", "text", { parentId: frame.id, text: "Nested", x1: 90, x2: 250 });
+    const svg = serializeSvg([frame, child], [frame.id]);
+    expect(svg).toContain("Nested");
+    expect(svg).toContain('width="100" height="50" viewBox="0 0 100 50"');
   });
 
   it("preserves vectors, gradients, masks, blending, and effects in SVG", () => {
@@ -134,15 +136,33 @@ describe("portable design output", () => {
     expect(() => parseKumoDocument(JSON.stringify({ format: "kumo-document", schemaVersion: 3, shapes: [] }))).toThrow("schema 3");
   });
 
+  it("rejects oversized and excessively nested document structures", () => {
+    const tooMany = Array.from({ length: 10_001 }, (_, index) => shape(`shape-${index}`));
+    expect(() => parseKumoDocument(JSON.stringify({
+      format: "kumo-document", schemaVersion: 4, shapes: tooMany,
+    }))).toThrow("too many objects");
+
+    let nested = shape("leaf");
+    for (let depth = 0; depth < 34; depth += 1) {
+      nested = shape(`nested-${depth}`, "boolean", { booleanChildren: [nested] });
+    }
+    expect(() => parseKumoDocument(JSON.stringify({
+      format: "kumo-document", schemaVersion: 4, shapes: [nested],
+    }))).toThrow("nested too deeply");
+  });
+
   it("emits a raster-backed multi-page PDF for top-level frames", async () => {
     const first = shape("one", "frame");
     const second = shape("two", "frame", { x1: 200, x2: 300, zIndex: 2 });
+    const overflow = shape("overflow", "rectangle", { parentId: first.id, x1: 90, x2: 260 });
     const rasterize = vi.fn().mockResolvedValue(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]));
-    const output = new TextDecoder().decode(await serializePdf([first, second], "#fff", rasterize));
+    const output = new TextDecoder().decode(await serializePdf([first, second, overflow], "#fff", rasterize));
     expect(output.startsWith("%PDF-1.4")).toBe(true);
     expect(output).toContain("/Count 2");
     expect(output).toContain("/Subtype /Image");
     expect(rasterize).toHaveBeenCalledTimes(2);
+    expect(rasterize.mock.calls[0]?.[0]).toContain('width="100" height="50" viewBox="0 0 100 50"');
+    expect(rasterize.mock.calls[0]?.slice(1)).toEqual([100, 50]);
   });
 
   it("embeds remote image data before portable raster export", async () => {

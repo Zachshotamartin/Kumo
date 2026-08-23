@@ -195,7 +195,6 @@ export const synchronizeComponentInstances = (shapes: Shape[]): Shape[] => {
   const updates = new Map<string, Shape>();
   const additions: Shape[] = [];
   const removals = new Set<string>();
-  let highestZ = Math.max(0, ...shapes.map((shape) => shape.zIndex));
   instanceRoots.forEach((root) => {
     const definition = byId.get(root.instanceOf!);
     if (!definition?.componentDefinition) return;
@@ -204,6 +203,7 @@ export const synchronizeComponentInstances = (shapes: Shape[]): Shape[] => {
     const source = sourceTree(shapes, definition.id);
     const sourceIds = new Set(source.map((shape) => shape.id));
     const instanceNodes = shapes.filter((shape) => shape.instanceRootId === root.id);
+    const instanceBaseZ = Math.min(...instanceNodes.map((shape) => shape.zIndex));
     const instanceBySource = new Map(instanceNodes
       .filter((shape) => shape.componentNodeId)
       .map((shape) => [shape.componentNodeId!, shape]));
@@ -214,7 +214,7 @@ export const synchronizeComponentInstances = (shapes: Shape[]): Shape[] => {
     instanceNodes.forEach((node) => {
       if (!node.componentNodeId || !sourceIds.has(node.componentNodeId)) removals.add(node.id);
     });
-    source.forEach((sourceNode) => {
+    source.forEach((sourceNode, sourceIndex) => {
       const instanceNode = sourceNode.id === definition.id ? root : instanceBySource.get(sourceNode.id);
       const overrides = new Set(instanceNode?.overriddenFields ?? []);
       const offset = { x: rootBounds.x - definitionBounds.x, y: rootBounds.y - definitionBounds.y };
@@ -227,13 +227,14 @@ export const synchronizeComponentInstances = (shapes: Shape[]): Shape[] => {
         y2: sourceNode.y2 + offset.y,
         ...translateVectorData(sourceNode, offset),
         level: sourceNode.level,
-        zIndex: ++highestZ,
+        zIndex: instanceBaseZ + sourceIndex,
         pageId: root.pageId,
         overriddenFields: [],
       });
       SYNC_FIELDS.forEach((field) => {
         if (!overrides.has(field as string)) (next as unknown as Record<string, unknown>)[field] = sourceNode[field];
       });
+      next.zIndex = instanceBaseZ + sourceIndex;
       const sourceBounds = shapeBounds(sourceNode);
       if (sourceNode.id === definition.id) {
         const nextWidth = overrides.has("width") ? rootBounds.width : sourceBounds.width;

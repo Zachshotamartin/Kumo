@@ -446,6 +446,39 @@ describe("editor commands", () => {
     expect(result.pasted[0]!.shapes?.[0]?.x1).toBe(29);
   });
 
+  it("remaps copied masks, prototype targets, instance links, and vector geometry", () => {
+    const component = { ...shape("1", 0, 0), type: "frame", componentDefinition: true };
+    const mask = { ...shape("2", 10, 10), parentId: component.id, isMask: true };
+    const target = {
+      ...shape("3", 20, 20),
+      parentId: component.id,
+      maskId: mask.id,
+      instanceRootId: component.id,
+      componentNodeId: mask.id,
+      prototypeInteractions: [{ id: "go", trigger: "click" as const, action: "navigate" as const, destinationId: mask.id }],
+      vectorPoints: [{ id: "point", x: 20, y: 20, handleOut: { x: 30, y: 20 } }],
+    };
+    const result = pasteShapes([component, mask, target], copyShapes([component, mask, target], [component.id]), 24);
+    const pastedComponent = result.pasted.find((item) => item.type === "frame")!;
+    const pastedMask = result.pasted.find((item) => item.isMask)!;
+    const pastedTarget = result.pasted.find((item) => item.maskId)!;
+
+    expect(pastedTarget).toMatchObject({
+      parentId: pastedComponent.id,
+      maskId: pastedMask.id,
+      instanceRootId: pastedComponent.id,
+      componentNodeId: pastedMask.id,
+    });
+    expect(pastedTarget.prototypeInteractions?.[0]?.destinationId).toBe(pastedMask.id);
+    expect(pastedTarget.prototypeInteractions?.[0]?.id).not.toBe("go");
+    expect(pastedTarget.vectorPoints?.[0]).toMatchObject({
+      x: 44,
+      y: 44,
+      handleOut: { x: 54, y: 44 },
+    });
+    expect(pastedTarget.vectorPoints?.[0]?.id).not.toBe("point");
+  });
+
   it("orders selected shapes without losing relative order", () => {
     const shapes = [shape("1", 0, 0), shape("2", 0, 0), shape("3", 0, 0)];
     expect(orderShapes(shapes, ["1", "2"], "front").sort((a, b) => a.zIndex - b.zIndex).map((item) => item.id))

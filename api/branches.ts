@@ -47,12 +47,16 @@ export default async function handler(request: VercelRequest, response: VercelRe
       await liveblocks.createRoom(roomId, { defaultAccesses: [], metadata: { boardId, branchId: id } });
       try {
         await liveblocks.initializeStorageDocument(roomId, boardDocumentFromJson(document));
-        const { data, error } = await database.from("document_branches").insert({
-          id, board_id: boardId, name, room_id: roomId, created_by: actor.uid,
-          status: "open", base_checksum: checksum(document),
-        }).select("id, board_id, name, room_id, created_by, status, base_checksum, created_at, updated_at, merged_at").single();
+        const { data, error } = await database.rpc("create_kumo_branch_record", {
+          p_id: id,
+          p_board_id: boardId,
+          p_name: name,
+          p_room_id: roomId,
+          p_actor_id: actor.uid,
+          p_base_checksum: checksum(document),
+        });
         if (error) throw error;
-        await database.from("audit_events").insert({ board_id: boardId, actor_id: actor.uid, event_type: "branch.created", payload: { branchId: id, name } });
+        if (!data) throw new Error("The branch record could not be created.");
         return response.status(201).json({ branch: data });
       } catch (error) {
         await liveblocks.deleteRoom(roomId).catch(() => undefined);

@@ -111,6 +111,7 @@
   outline: 0;
   cursor: text;
   pointer-events: auto;
+  -webkit-user-select: text;
   user-select: text;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

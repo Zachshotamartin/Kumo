@@ -10,6 +10,7 @@ import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/
 import BranchesPanel from "./BranchesPanel";
 import CommandPalette from "./CommandPalette";
 import DesignLibraryPanel from "./DesignLibraryPanel";
+import { MAX_KUMO_IMPORT_BYTES } from "../../editor/import";
 import ExportPanel from "./ExportPanel";
 import InspectPanel from "./InspectPanel";
 import PresentationView from "./PresentationView";
@@ -162,6 +163,20 @@ describe("new editor capability panels", () => {
     expect(store.getState().whiteBoard.id).toBe("board");
   });
 
+  it("rejects an oversized Kumo document before reading it", async () => {
+    renderWithStore(<ExportPanel />, "");
+    const file = new File(["{}"], "oversized.kumo.json", { type: "application/json" });
+    const text = vi.fn().mockResolvedValue("{}");
+    Object.defineProperties(file, {
+      size: { configurable: true, value: MAX_KUMO_IMPORT_BYTES + 1 },
+      text: { configurable: true, value: text },
+    });
+    fireEvent.change(screen.getByLabelText("Import Kumo document"), { target: { files: [file] } });
+    expect(await screen.findByRole("status")).toHaveTextContent("larger than the 10 MB import limit");
+    expect(text).not.toHaveBeenCalled();
+    expect(mocks.actions.commitShapes).not.toHaveBeenCalled();
+  });
+
   it("opens, creates, merges, archives, and leaves isolated branches", async () => {
     const store = renderWithStore(<BranchesPanel />);
     expect(await screen.findByText("Exploration")).toBeVisible();
@@ -210,6 +225,32 @@ describe("new editor capability panels", () => {
     fireEvent.pointerDown(dragButton, { clientX: 10, clientY: 10 });
     fireEvent.pointerUp(dragButton, { clientX: 30, clientY: 30 });
     expect(screen.getByText(target.name!)).toBeVisible();
+  });
+
+  it("renders subtract and intersect prototypes with real SVG masks and clipping", () => {
+    const sources = [
+      shape("source-one", "rectangle", { x1: 10, y1: 10, x2: 90, y2: 50 }),
+      shape("source-two", "ellipse", { x1: 30, y1: 10, x2: 80, y2: 50 }),
+    ];
+    const subtract = shape("subtract", "boolean", {
+      name: "Subtract boolean", parentId: frame.id, booleanOperation: "subtract", booleanChildren: sources,
+    });
+    const intersect = shape("intersect", "boolean", {
+      name: "Intersect boolean", parentId: frame.id, booleanOperation: "intersect", booleanChildren: sources,
+      x1: 110, x2: 210,
+    });
+    const store = makeStore("");
+    store.dispatch(setWhiteboardData({ shapes: [frame, subtract, intersect] }));
+    store.dispatch(setPresentationFrameId(frame.id));
+    render(<Provider store={store}><PresentationView /></Provider>);
+
+    const subtractSvg = screen.getByRole("button", { name: "Subtract boolean" }).querySelector("svg")!;
+    const intersectSvg = screen.getByRole("button", { name: "Intersect boolean" }).querySelector("svg")!;
+    expect(subtractSvg).toHaveAttribute("data-boolean-operation", "subtract");
+    expect(subtractSvg.querySelector("mask")).not.toBeNull();
+    expect(intersectSvg).toHaveAttribute("data-boolean-operation", "intersect");
+    expect(intersectSvg.querySelector("clipPath")).not.toBeNull();
+    expect(intersectSvg.querySelector("[fill-rule='evenodd']")).toBeNull();
   });
 
   it("reports linked-board failures in prototype presentation", async () => {

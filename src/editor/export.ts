@@ -2,6 +2,7 @@ import { createShapeId, type Shape } from "../classes/shape";
 import { normalizeShape, selectionBounds, shapeBounds } from "./geometry";
 import { shapePathData } from "./graphics";
 import { descendantIds } from "./hierarchy";
+import type { Bounds } from "./types";
 
 const escapeXml = (value: unknown) => String(value ?? "")
   .replaceAll("&", "&amp;")
@@ -110,7 +111,8 @@ const svgShape = (shape: Shape, origin: { x: number; y: number }): string => {
 export const serializeSvg = (
   shapes: Shape[],
   selectedIds: readonly string[] = [],
-  backgroundColor = "transparent"
+  backgroundColor = "transparent",
+  boundsOverride?: Bounds
 ): string => {
   const candidates = shapes.filter(exportable);
   const selected = new Set(selectedIds);
@@ -121,7 +123,12 @@ export const serializeSvg = (
     ...selection,
     ...shapes.filter((shape) => maskIds.has(shape.id) && !selection.some((selectedShape) => selectedShape.id === shape.id)),
   ];
-  const bounds = selectionBounds(selection, selection.map((shape) => shape.id)) ?? { x: 0, y: 0, width: 1, height: 1 };
+  const directSelection = selectedIds.length
+    ? candidates.filter((shape) => selectedIds.includes(shape.id))
+    : selection;
+  const bounds = boundsOverride
+    ?? selectionBounds(directSelection, directSelection.map((shape) => shape.id))
+    ?? { x: 0, y: 0, width: 1, height: 1 };
   const byParent = new Map<string | null, Shape[]>();
   selection.forEach((shape) => {
     const parent = shape.parentId && selection.some((candidate) => candidate.id === shape.parentId) ? shape.parentId : null;
@@ -373,10 +380,13 @@ export const serializePdf = async (
   const wholeBounds = selectionBounds(shapes.filter(exportable), shapes.filter(exportable).map((shape) => shape.id))
     ?? { x: 0, y: 0, width: 800, height: 600 };
   const pages = frames.length
-    ? frames.map((frame) => ({
-        bounds: shapeBounds(frame),
-        svg: serializeSvg(shapes, [frame.id], frame.backgroundColor ?? backgroundColor),
-      }))
+    ? frames.map((frame) => {
+        const bounds = shapeBounds(frame);
+        return {
+          bounds,
+          svg: serializeSvg(shapes, [frame.id], frame.backgroundColor ?? backgroundColor, bounds),
+        };
+      })
     : [{ bounds: wholeBounds, svg: serializeSvg(shapes, [], backgroundColor) }];
   const images = await Promise.all(pages.map((page) => rasterize(
     page.svg,

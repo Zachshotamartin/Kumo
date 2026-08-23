@@ -61,14 +61,43 @@ export const duplicatePage = (shapes: Shape[], pageId: string) => {
   if (!sourcePage) return { shapes, pageId: null };
   const created = createPage(shapes, `${sourcePage.name} copy`);
   const source = shapesOnPage(shapes, pageId);
-  const idMap = new Map(source.map((shape) => [shape.id, createShapeId()]));
-  const highestZ = Math.max(0, ...created.shapes.map((shape) => shape.zIndex));
-  const copies = source.map((shape, index) => normalizeShape({
+  const collectNodes = (shape: Shape): Shape[] => [
+    shape,
+    ...(shape.shapes ?? []).flatMap(collectNodes),
+    ...(shape.booleanChildren ?? []).flatMap(collectNodes),
+  ];
+  const sourceNodes = source.flatMap(collectNodes);
+  const idMap = new Map(sourceNodes.map((shape) => [shape.id, createShapeId()]));
+  const groupIdMap = new Map(
+    sourceNodes.flatMap((shape) => shape.groupId ? [[shape.groupId, createShapeId()] as const] : [])
+  );
+  const internalId = (value: string | null | undefined) => value ? idMap.get(value) : undefined;
+  const cloneNode = (shape: Shape): Shape => normalizeShape({
     ...shape,
     id: idMap.get(shape.id)!,
     pageId: created.pageId,
-    parentId: shape.parentId ? idMap.get(shape.parentId) ?? null : null,
-    sectionId: shape.sectionId ? idMap.get(shape.sectionId) ?? null : null,
+    groupId: shape.groupId ? groupIdMap.get(shape.groupId) ?? null : null,
+    parentId: internalId(shape.parentId) ?? null,
+    sectionId: internalId(shape.sectionId) ?? null,
+    instanceRootId: internalId(shape.instanceRootId),
+    componentNodeId: internalId(shape.componentNodeId) ?? shape.componentNodeId,
+    instanceOf: internalId(shape.instanceOf) ?? shape.instanceOf,
+    componentSetId: internalId(shape.componentSetId) ?? shape.componentSetId,
+    maskId: internalId(shape.maskId),
+    prototypeInteractions: shape.prototypeInteractions?.map((interaction) => ({
+      ...interaction,
+      id: createShapeId(),
+      destinationId: internalId(interaction.destinationId) ?? interaction.destinationId,
+    })),
+    vectorPoints: shape.vectorPoints?.map((point) => ({ ...point, id: createShapeId() })),
+    gradientStops: shape.gradientStops?.map((stop) => ({ ...stop, id: createShapeId() })),
+    effects: shape.effects?.map((effect) => ({ ...effect, id: createShapeId() })),
+    shapes: shape.shapes?.map(cloneNode),
+    booleanChildren: shape.booleanChildren?.map(cloneNode),
+  });
+  const highestZ = Math.max(0, ...created.shapes.map((shape) => shape.zIndex));
+  const copies = source.map((shape, index) => ({
+    ...cloneNode(shape),
     zIndex: highestZ + index + 1,
   }));
   return { shapes: [...created.shapes, ...copies], pageId: created.pageId };

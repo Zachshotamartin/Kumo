@@ -10,6 +10,7 @@ import {
   serializeSvgWithAssets,
   svgToPng,
 } from "../../editor/export";
+import { readKumoDocumentFile } from "../../editor/import";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { setRightPanel } from "../../features/editor/editorSlice";
 import type { AppDispatch, RootState } from "../../store";
@@ -100,7 +101,7 @@ const ExportPanel = () => {
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (!file) return;
-              void file.text().then((source) => {
+              void Promise.resolve().then(() => readKumoDocumentFile(file)).then((source) => {
                 const document = parseKumoDocument(source, board.shapes.map((shape) => shape.id));
                 actions.commitShapes([...board.shapes, ...document.shapes]);
                 setStatus(`Imported ${document.shapes.length} objects from ${document.title}.`);

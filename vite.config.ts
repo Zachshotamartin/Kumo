@@ -13,6 +13,18 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: "es2022",
     sourcemap: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "react-vendor", test: /node_modules[\\/](?:react|react-dom|react-redux|@reduxjs)/, priority: 30 },
+            { name: "collaboration-vendor", test: /node_modules[\\/]@liveblocks/, priority: 25 },
+            { name: "firebase-vendor", test: /node_modules[\\/](?:firebase|@firebase)/, priority: 20 },
+            { name: "vendor", test: /node_modules/, minSize: 20_000, maxSize: 250_000, priority: 10 },
+          ],
+        },
+      },
+    },
   },
   test: {
     include: ["src/**/*.test.{ts,tsx}"],

@@ -158,6 +158,7 @@ const cloneShapeTree = (
     groupId = groupIdMap.get(sourceGroupId) ?? null;
   }
 
+  const internalId = (value: string | null | undefined) => value ? shapeIdMap.get(value) : undefined;
   return normalizeShape({
     ...shape,
     id: shapeIdMap.get(shape.id) ?? createShapeId(),
@@ -175,9 +176,46 @@ const cloneShapeTree = (
     y1: shape.y1 + offset.y,
     y2: shape.y2 + offset.y,
     zIndex: isRoot ? rootZIndex : shape.zIndex,
+    sectionId: internalId(shape.sectionId) ?? null,
+    instanceRootId: internalId(shape.instanceRootId),
+    componentNodeId: internalId(shape.componentNodeId) ?? shape.componentNodeId,
+    instanceOf: internalId(shape.instanceOf) ?? shape.instanceOf,
+    componentSetId: internalId(shape.componentSetId) ?? shape.componentSetId,
+    maskId: internalId(shape.maskId),
+    prototypeInteractions: shape.prototypeInteractions?.map((interaction) => ({
+      ...interaction,
+      id: createShapeId(),
+      destinationId: internalId(interaction.destinationId) ?? interaction.destinationId,
+    })),
+    vectorPoints: shape.vectorPoints?.map((point) => ({
+      ...point,
+      id: createShapeId(),
+      x: point.x + offset.x,
+      y: point.y + offset.y,
+      ...(point.handleIn ? { handleIn: { x: point.handleIn.x + offset.x, y: point.handleIn.y + offset.y } } : {}),
+      ...(point.handleOut ? { handleOut: { x: point.handleOut.x + offset.x, y: point.handleOut.y + offset.y } } : {}),
+    })),
+    gradientStops: shape.gradientStops?.map((stop) => ({ ...stop, id: createShapeId() })),
+    effects: shape.effects?.map((effect) => ({ ...effect, id: createShapeId() })),
     ...(shape.shapes
       ? {
           shapes: shape.shapes.map((child) =>
+            cloneShapeTree(
+              child,
+              offset,
+              groupIdMap,
+              groupCounts,
+              shapeIdMap,
+              targetParentId,
+              child.zIndex,
+              false
+            )
+          ),
+        }
+      : {}),
+    ...(shape.booleanChildren
+      ? {
+          booleanChildren: shape.booleanChildren.map((child) =>
             cloneShapeTree(
               child,
               offset,
@@ -209,7 +247,12 @@ const cloneIntoDocument = (
   );
   const groupIdMap = new Map<string, string>();
   const groupCounts = duplicatedGroupCounts(sources);
-  const shapeIdMap = new Map(sources.map((shape) => [shape.id, createShapeId()]));
+  const allNodes = (shape: Shape): Shape[] => [
+    shape,
+    ...(shape.shapes ?? []).flatMap(allNodes),
+    ...(shape.booleanChildren ?? []).flatMap(allNodes),
+  ];
+  const shapeIdMap = new Map(sources.flatMap(allNodes).map((shape) => [shape.id, createShapeId()]));
   const duplicatedRootIds = sources
     .filter((shape) => !shape.parentId || !shapeIdMap.has(shape.parentId))
     .map((shape) => shapeIdMap.get(shape.id)!);

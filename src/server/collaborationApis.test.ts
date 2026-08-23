@@ -163,23 +163,31 @@ describe("collaborator and version APIs", () => {
       created_at: new Date().toISOString(),
       checksum: "sum",
     };
-    const insert = vi.fn((payload: Record<string, unknown>) => ({
-      select: () => ({ single: vi.fn().mockResolvedValue({ data: { ...inserted, ...payload }, error: null }) }),
+    mocks.rpc.mockImplementation(async (name: string) => ({
+      data: name === "create_kumo_checkpoint" ? inserted : name === "acquire_kumo_document_lease" ? true : null,
+      error: null,
     }));
-    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
-      ? { insert }
-      : { insert: vi.fn().mockResolvedValue({ error: null }) });
     const reply = response();
     await versionsHandler(request("POST", {
       action: "checkpoint", boardId: "board", name: "Review", description: "Milestone",
     }), reply);
     expect(reply.statusCode).toBe(201);
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
-      name: "Review",
-      description: "Milestone",
-      document: expect.objectContaining({ nodes: expect.any(Object) }),
-      kind: "checkpoint",
+    expect(mocks.rpc).toHaveBeenCalledWith("create_kumo_checkpoint", expect.objectContaining({
+      p_name: "Review",
+      p_description: "Milestone",
+      p_document: expect.objectContaining({ nodes: expect.any(Object) }),
+      p_actor_id: "owner",
     }));
+    expect(reply.body).toEqual({ version: inserted });
+  });
+
+  it("does not report a checkpoint when its transactional audit write fails", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("audit insert failed") });
+    const reply = response();
+    await versionsHandler(request("POST", { action: "checkpoint", boardId: "board", name: "Review" }), reply);
+    expect(reply.statusCode).toBe(500);
+    expect(reply.body).toEqual({ error: "audit insert failed" });
+    expect(mocks.from).not.toHaveBeenCalledWith("document_snapshots");
   });
 
   it("saves the current state, restores the target, and broadcasts the change", async () => {

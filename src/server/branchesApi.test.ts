@@ -37,7 +37,11 @@ describe("design branch API", () => {
     mocks.initialize.mockResolvedValue(undefined); mocks.deleteStorage.mockResolvedValue(undefined);
     mocks.broadcast.mockResolvedValue(undefined); mocks.syncLinks.mockResolvedValue(undefined);
     mocks.rpc.mockImplementation(async (name: string) => ({
-      data: name === "acquire_kumo_document_lease" ? true : null,
+      data: name === "acquire_kumo_document_lease"
+        ? true
+        : name === "create_kumo_branch_record"
+          ? { id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", status: "open" }
+          : null,
       error: null,
     }));
   });
@@ -58,7 +62,21 @@ describe("design branch API", () => {
     await handler(request("POST", { action: "create", boardId: "board", name: "Exploration" }), created);
     expect(mocks.createRoom).toHaveBeenCalledWith(expect.stringMatching(/^branch:/), expect.objectContaining({ metadata: expect.objectContaining({ boardId: "board" }) }));
     expect(mocks.initialize).toHaveBeenCalledWith(expect.stringMatching(/^branch:/), { normalized: expect.any(Object) });
+    expect(mocks.rpc).toHaveBeenCalledWith("create_kumo_branch_record", expect.objectContaining({
+      p_board_id: "board",
+      p_name: "Exploration",
+      p_actor_id: "owner",
+    }));
     expect(created.statusCode).toBe(201);
+  });
+
+  it("removes the Liveblocks room when atomic branch creation fails", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("audit insert failed") });
+    const reply = response();
+    await handler(request("POST", { action: "create", boardId: "board", name: "Exploration" }), reply);
+    expect(reply.statusCode).toBe(500);
+    expect(mocks.deleteRoom).toHaveBeenCalledWith(expect.stringMatching(/^branch:/));
+    expect(reply.body).toEqual({ error: "audit insert failed" });
   });
 
   it("creates a recovery point and atomically merges a branch into main", async () => {

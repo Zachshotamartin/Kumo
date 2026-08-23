@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowsOutSimple, X } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import { displayTextLines } from "../../editor/layout";
@@ -28,10 +28,34 @@ const safeExternalUrl = (value?: string) => {
 const PrototypeVector = ({ shape }: { shape: Shape }) => {
   const bounds = shapeBounds(shape);
   const viewBox = `0 0 ${Math.max(1, bounds.width)} ${Math.max(1, bounds.height)}`;
+  const definitionId = `prototype-boolean-${useId().replace(/[^a-z0-9_-]/gi, "")}`;
   if (shape.type === "boolean" && shape.booleanChildren?.length) {
     const paths = shape.booleanChildren.map((child) => shapePathData(child, bounds));
+    const fill = shape.backgroundColor ?? "#fff";
+    if (shape.booleanOperation === "subtract") {
+      return <svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true" data-boolean-operation="subtract">
+        <defs>
+          <mask id={`${definitionId}-subtract`}>
+            <rect width="100%" height="100%" fill="black" />
+            <path d={paths[0]} fill="white" />
+            {paths.slice(1).map((path, index) => <path key={index} d={path} fill="black" />)}
+          </mask>
+        </defs>
+        <rect width="100%" height="100%" fill={fill} mask={`url(#${definitionId}-subtract)`} />
+      </svg>;
+    }
+    if (shape.booleanOperation === "intersect") {
+      const clipped = paths.slice(1).reduce<ReactNode>(
+        (content, _path, index) => <g clipPath={`url(#${definitionId}-intersect-${index})`}>{content}</g>,
+        <path d={paths[0]} fill={fill} />
+      );
+      return <svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true" data-boolean-operation="intersect">
+        <defs>{paths.slice(1).map((path, index) => <clipPath key={index} id={`${definitionId}-intersect-${index}`}><path d={path} /></clipPath>)}</defs>
+        {clipped}
+      </svg>;
+    }
     return <svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
-      <path d={paths.join(" ")} fill={shape.backgroundColor ?? "#fff"} fillRule={shape.booleanOperation === "union" ? "nonzero" : "evenodd"} />
+      <path d={paths.join(" ")} fill={fill} fillRule={shape.booleanOperation === "exclude" ? "evenodd" : "nonzero"} data-boolean-operation={shape.booleanOperation ?? "union"} />
     </svg>;
   }
   return <svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">

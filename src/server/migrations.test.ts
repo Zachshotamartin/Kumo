@@ -29,4 +29,16 @@ describe("production database migrations", () => {
     expect(source).toContain("grant execute on function public.complete_kumo_branch_merge");
     expect(source).toContain("to service_role");
   });
+
+  it("creates checkpoints and branch audit records in the same transaction", () => {
+    const source = migration("202608230006_atomic_creation_audits.sql");
+    expect(source).toContain("create_kumo_checkpoint");
+    expect(source).toContain("version.checkpoint_created");
+    expect(source).toContain("create_kumo_branch_record");
+    expect(source).toContain("branch.created");
+    expect(source).toContain("'checksum', created.checksum");
+    expect(source).toContain("return to_jsonb(created)");
+    expect(source).toContain("grant execute on function public.create_kumo_checkpoint");
+    expect(source).toContain("grant execute on function public.create_kumo_branch_record");
+  });
 });

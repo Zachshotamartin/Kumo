@@ -8,19 +8,22 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [["html", { open: "never" }], ["github"]] : "list",
   use: {
-    baseURL: "http://localhost:4173",
+    baseURL: "http://127.0.0.1:4177",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
   projects: [
     { name: "chromium", testIgnore: "**/mobile-editor.spec.ts", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", testMatch: ["**/auth.spec.ts", "**/mobile-editor.spec.ts"], use: { ...devices["Pixel 7"] } },
+    { name: "firefox", testIgnore: "**/mobile-editor.spec.ts", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", testIgnore: "**/mobile-editor.spec.ts", use: { ...devices["Desktop Safari"] } },
+    { name: "mobile-chromium", testMatch: ["**/auth.spec.ts", "**/mobile-editor.spec.ts", "**/accessibility.spec.ts"], use: { ...devices["Pixel 7"] } },
+    { name: "mobile-webkit", testMatch: ["**/auth.spec.ts", "**/mobile-editor.spec.ts", "**/accessibility.spec.ts"], use: { ...devices["iPhone 13"] } },
   ],
   webServer: {
-    command: "node node_modules/vite/bin/vite.js --host localhost --port 4173",
+    command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4177 --strictPort",
     env: { VITE_E2E: "true" },
-    url: "http://localhost:4173",
-    reuseExistingServer: !process.env.CI,
+    url: "http://127.0.0.1:4177",
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

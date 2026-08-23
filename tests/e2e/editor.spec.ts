@@ -13,7 +13,10 @@ test.describe("editor regression workflows", () => {
     const editor = page.getByRole("textbox", { name: "Edit text" });
     await expect(editor).toBeVisible();
     await expect(editor).toBeFocused();
-    await expect(editor).toHaveCSS("user-select", "text");
+    expect(await editor.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      return computed.userSelect || computed.getPropertyValue("-webkit-user-select");
+    })).toBe("text");
     await expect(editor).toHaveValue("Select part of this text");
 
     const editorBox = await editor.boundingBox();
