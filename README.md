@@ -1,6 +1,6 @@
 # Kumo
 
-Kumo is a collaborative, browser-based design canvas inspired by Figma. It uses React and Vite for the client, Firebase Authentication and Realtime Database for identity and collaboration, and Vercel for the application and authenticated server functions.
+Kumo is a collaborative, browser-based design canvas inspired by Figma. It uses React and Vite for the client, Firebase Authentication for identity, Supabase Postgres for durable product data, Liveblocks for realtime documents and presence, and Vercel for the application and authenticated server functions.
 
 ## What works
 
@@ -15,7 +15,7 @@ Kumo is a collaborative, browser-based design canvas inspired by Figma. It uses 
 
 ## Local development
 
-Requirements: Node.js 22 or later and Yarn 1.x.
+Requirements: Node.js 22 or 24 and Yarn 1.x. The checked-in `.nvmrc` pins the supported Node 22 runtime used by CI.
 
 ```bash
 nvm use
@@ -24,7 +24,7 @@ cp .env.example .env.local
 yarn dev
 ```
 
-Open `http://localhost:5173`. Firebase's existing public web configuration is used as a development fallback, but `.env.local` is recommended. Vercel Functions such as sharing and legacy access migration require the server-only Firebase Admin variables in `.env.local` and should be tested with `yarn vercel dev`.
+Open `http://localhost:5173`. Firebase's existing public web configuration is used as a development fallback, but `.env.local` is recommended. Board APIs require the server-only Firebase Admin, Supabase, and Liveblocks variables from `.env.example` and should be tested with `yarn vercel dev`.
 
 ## Quality commands
 
@@ -61,4 +61,4 @@ See [Deployment](docs/deployment.md), [Architecture](docs/architecture.md), and 
 
 ## Data safety
 
-Do not place Firebase Admin credentials in a `VITE_` variable. Variables with that prefix are bundled into the browser. Database access is enforced by the checked-in Firebase rules; sharing and legacy migration run through authenticated Vercel Functions using Admin credentials. Firebase rule deployment and database IAM are intentionally handled separately from the application release pipeline.
+Do not place Firebase Admin, Supabase service-role, or Liveblocks secret credentials in a `VITE_` variable. Variables with that prefix are bundled into the browser. Normal product data is available only through authenticated Vercel Functions. Firebase Realtime Database is retained temporarily as a read-only source for on-demand migration of legacy boards.

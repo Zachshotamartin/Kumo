@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSyncStatus } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
@@ -6,7 +7,7 @@ import { useEditorActions } from "../../editor/useEditorActions";
 import { logout } from "../../features/auth/authSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
-import { deleteBoard } from "../../firebase/services/boardRepository";
+import { deleteBoard } from "../../services/boardRepository";
 import { AppDispatch, RootState } from "../../store";
 import EditorCanvas from "./EditorCanvas";
 import EditorToolbar from "./EditorToolbar";
@@ -18,6 +19,8 @@ import ShareDialog from "./ShareDialog";
 const emptyBoard = {
   shapes: [],
   id: null,
+  roomId: null,
+  role: null,
   type: null,
   title: null,
   uid: null,
@@ -26,7 +29,7 @@ const emptyBoard = {
   backGroundColor: "#252629",
   lastChangedBy: null,
   currentUsers: [],
-  schemaVersion: 2,
+  schemaVersion: 3,
   revision: 0,
   updatedAt: null,
 };
@@ -37,6 +40,7 @@ const EditorWorkspace = () => {
   const user = useSelector((state: RootState) => state.auth);
   const editor = useSelector((state: RootState) => state.editor);
   const actions = useEditorActions();
+  const syncStatus = useSyncStatus({ smooth: true });
   const [title, setTitle] = useState(board.title ?? "Untitled board");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,7 +53,7 @@ const EditorWorkspace = () => {
   };
 
   const commitTitle = () => {
-    if (board.uid !== user.uid) {
+    if (board.role !== "owner") {
       setTitle(board.title ?? "Untitled board");
       return;
     }
@@ -61,7 +65,8 @@ const EditorWorkspace = () => {
   const handleDelete = async () => {
     if (!user.uid) return;
     try {
-      await deleteBoard(board, user.uid);
+      if (!board.id) return;
+      await deleteBoard(board.id);
       setConfirmDelete(false);
       goHome();
     } catch (caught) {
@@ -88,8 +93,8 @@ const EditorWorkspace = () => {
             className={styles.titleInput}
             value={title}
             aria-label="Board title"
-            disabled={board.uid !== user.uid}
-            title={board.uid === user.uid ? "Rename board" : "Only the board owner can rename this board"}
+            disabled={board.role !== "owner"}
+            title={board.role === "owner" ? "Rename board" : "Only the board owner can rename this board"}
             onChange={(event) => setTitle(event.target.value)}
             onBlur={commitTitle}
             onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
@@ -100,7 +105,7 @@ const EditorWorkspace = () => {
             className={`${styles.saveStatus} ${editor.saveStatus === "error" ? styles.saveError : ""}`}
             role="status"
           >
-            {editor.saveStatus === "saving"
+            {syncStatus === "synchronizing" || editor.saveStatus === "saving"
               ? "Saving"
               : editor.saveStatus === "error"
               ? "Save failed"
@@ -121,10 +126,10 @@ const EditorWorkspace = () => {
           <button type="button" className={styles.menuButton} aria-label="Board menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>•••</button>
           {menuOpen && (
             <div className={styles.boardMenu} role="menu">
-              <button type="button" role="menuitem" onClick={() => actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" })} disabled={board.uid !== user.uid}>
+              <button type="button" role="menuitem" onClick={() => actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" })} disabled={board.role !== "owner"}>
                 Make {board.type === "public" ? "private" : "public"}
               </button>
-              <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)} disabled={board.uid !== user.uid}>
+              <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)} disabled={board.role !== "owner"}>
                 Delete board
               </button>
               <button type="button" role="menuitem" onClick={handleLogout}>Sign out</button>

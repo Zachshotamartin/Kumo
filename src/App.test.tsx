@@ -7,7 +7,6 @@ import store from "./store";
 vi.mock("./config/firebase", () => ({
   auth: {},
   provider: {},
-  realtimeDb: {},
 }));
 
 vi.mock("firebase/auth", () => ({

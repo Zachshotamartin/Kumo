@@ -1,6 +1,6 @@
 # Deployment
 
-Kumo is deployed as a Vite SPA plus Vercel Functions. Firebase remains the authentication and realtime-data backend; Firebase Hosting is no longer used.
+Kumo is deployed as a Vite SPA plus Vercel Functions. Firebase provides authentication, Supabase stores durable product data, and Liveblocks provides realtime canvas collaboration. Firebase Hosting is no longer used.
 
 ## 1. Create the Vercel project
 
@@ -15,7 +15,7 @@ The SPA rewrite in `vercel.json` preserves deep links. Filesystem routes, includ
 
 ## 2. Configure Vercel environments
 
-Store the four server-only `FIREBASE_ADMIN_*` variables directly in Vercel's Production and Preview environments. They are runtime configuration for authenticated Vercel Functions and are not part of the application-deployment credentials. The repository includes `yarn sync:vercel-env` as an explicit credential-rotation helper; it is not run on every application deployment.
+Store the server-only `FIREBASE_ADMIN_*`, `SUPABASE_*`, and `LIVEBLOCKS_*` variables from `.env.example` directly in Vercel's Production and Preview environments. They are runtime configuration for authenticated Vercel Functions and are not part of the application-deployment credentials. The repository includes `yarn sync:vercel-env` as an explicit credential-rotation helper; it is not run on every application deployment.
 
 The `VITE_FIREBASE_*` values are browser-visible Firebase identifiers. Kumo currently has safe defaults for its existing Firebase project; add explicit values from `.env.example` in Vercel Project Settings if that project configuration changes.
 
@@ -51,14 +51,15 @@ The `main` branch is protected for administrators and contributors. Changes must
 
 The workflow follows Vercel's supported `vercel pull` → `vercel build` → `vercel deploy --prebuilt` sequence. Preview builds and deployments both specify `--target=preview`; the preview job then updates the stable alias used by Firebase Authentication.
 
-Firebase schema, IAM, and rules changes use a separate reviewed database release process. This prevents an application deploy token from gaining database-administration privileges and allows the database architecture to evolve independently.
+Supabase migrations and Liveblocks webhook configuration use a separate reviewed release step before the application cutover. This prevents an application deploy token from gaining database-administration privileges and keeps infrastructure changes auditable.
 
 ## 5. First cutover
 
-1. Merge the workflow and repository configuration.
-2. Confirm the production GitHub run passes and note the Vercel URL.
-3. Exercise the public shell and authentication on that URL. Run create/open/save, sharing, and legacy-board checks after the database release is configured.
-4. Point the custom domain to the Vercel project, if applicable.
-5. Retire the Firebase Hosting release only after the Vercel production smoke test passes. Firebase itself must remain active.
+1. Apply the reviewed Supabase migration.
+2. Create the Liveblocks project, secret key, and storage webhook targeting `/api/liveblocks-webhook`.
+3. Configure all Preview and Production Vercel variables.
+4. Merge only after the quality and Vercel preview checks pass.
+5. Exercise create/open/edit/undo, multi-user presence, sharing, public copy, and one legacy-board migration.
+6. Retire Firebase Hosting after the production smoke test. Keep Firebase Auth and legacy RTDB reads active until migration is complete.
 
 Useful references: [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite), [Vercel custom GitHub Actions workflow](https://vercel.com/docs/git/vercel-for-github), and [Vercel CLI deployment](https://vercel.com/docs/projects/deploy-from-cli).

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape } from "../../classes/shape";
 import { shapeBounds } from "../../editor/geometry";
@@ -7,6 +7,7 @@ import { setGrid } from "../../features/actions/actionsSlice";
 import { setGridSize, setSnapToGrid } from "../../features/editor/editorSlice";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
+import { BoardSummary, listBoards } from "../../services/boardRepository";
 
 interface NumberFieldProps {
   label: string;
@@ -69,6 +70,20 @@ const ColorField = ({ label, value, onCommit }: { label: string; value: string; 
 const ShapeInspector = ({ shape }: { shape: Shape }) => {
   const actions = useEditorActions();
   const bounds = shapeBounds(shape);
+  const currentBoardId = useSelector((state: RootState) => state.whiteBoard.id);
+  const [boardChoices, setBoardChoices] = useState<BoardSummary[]>([]);
+  const [boardLoadError, setBoardLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (shape.type !== "board") return;
+    let active = true;
+    void listBoards()
+      .then((boards) => {
+        if (active) setBoardChoices(boards.filter((board) => board.id !== currentBoardId));
+      })
+      .catch(() => active && setBoardLoadError("Board destinations could not be loaded."));
+    return () => { active = false; };
+  }, [currentBoardId, shape.type]);
   return (
     <>
       <section className={styles.inspectorSection}>
@@ -114,6 +129,35 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
               </button>
             ))}
           </div>
+        </section>
+      )}
+      {shape.type === "board" && (
+        <section className={styles.inspectorSection}>
+          <h2>Board link</h2>
+          <label className={styles.fullField}>
+            <span>Destination</span>
+            <select
+              value={shape.boardId ?? ""}
+              onChange={(event) => {
+                const target = boardChoices.find((board) => board.id === event.target.value);
+                actions.patchSelected(target
+                  ? { boardId: target.id, title: target.title, uid: target.ownerId }
+                  : { boardId: null, title: "Choose a destination", uid: null });
+              }}
+            >
+              <option value="">No destination</option>
+              {shape.boardId && !boardChoices.some((board) => board.id === shape.boardId) && (
+                <option value={shape.boardId}>{shape.title ?? "Current destination"}</option>
+              )}
+              {boardChoices.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.title} · {board.role === "owner" ? "yours" : "shared"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className={styles.fieldHint}>Double-click this shape to enter the linked board.</p>
+          {boardLoadError && <p className={styles.fieldError} role="alert">{boardLoadError}</p>}
         </section>
       )}
       <section className={styles.inspectorSection}>

@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import logo from "../../res/logo3.png";
-import { ensureUserProfile } from "../../firebase/services/userRepository";
+import { ensureUserProfile } from "../../services/userRepository";
 
 const HomePage = () => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
@@ -24,10 +24,12 @@ const HomePage = () => {
     setMessage("");
     setSubmitting(true);
     try {
-      const credential = mode === "signin"
-        ? await signInWithEmailAndPassword(auth, email.trim(), password)
-        : await createUserWithEmailAndPassword(auth, email.trim(), password);
-      await ensureUserProfile(credential.user.uid, credential.user.email, "email");
+      if (mode === "signin") {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
+      }
+      await ensureUserProfile();
     } catch (caught: unknown) {
       const code = typeof caught === "object" && caught !== null && "code" in caught
         ? String(caught.code)
@@ -48,8 +50,8 @@ const HomePage = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      const userCredential = await signInWithPopup(auth, provider);
-      await ensureUserProfile(userCredential.user.uid, userCredential.user.email, "google");
+      await signInWithPopup(auth, provider);
+      await ensureUserProfile();
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
     }

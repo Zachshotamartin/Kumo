@@ -11,6 +11,7 @@ interface ShareDialogProps {
 
 interface ApiResponse {
   uid?: string;
+  role?: "editor" | "viewer";
   error?: string;
 }
 
@@ -56,7 +57,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
     setMessage(null);
     try {
       const result = await callShareApi({ boardId: board.id, action: "invite", email, role });
-      if (result.uid) dispatch(share(result.uid));
+      if (result.uid) dispatch(share({ uid: result.uid, role: result.role ?? role }));
       setEmail("");
       setMessage(`${email} can now ${role === "editor" ? "edit" : "view"} this board.`);
     } catch (caught) {
@@ -78,7 +79,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   };
 
   const members = Object.entries(board.members).filter(([uid]) => uid !== board.uid);
-  const isOwner = board.uid === user.uid;
+  const isOwner = board.role === "owner";
 
   return (
     <div className={styles.dialogBackdrop}>

@@ -134,6 +134,31 @@
   box-shadow: 0 16px 38px rgba(6, 7, 8, 0.38);
 }
 
+.navigationError {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  z-index: 14010;
+  display: flex;
+  max-width: 360px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #ffd9cf;
+  font-size: 12px;
+  background: #702f24;
+  border: 1px solid #a94a37;
+  border-radius: 7px;
+}
+
+.navigationError button {
+  padding: 0;
+  color: inherit;
+  font-size: 18px;
+  background: transparent;
+  border: 0;
+}
+
 .contextMenu button {
   min-height: 34px;
   padding: 0 10px;

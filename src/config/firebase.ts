@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyBA9pnDobxLfEjNYrxS9H2r8CMwFg_C7Zs",
@@ -16,7 +15,6 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const realtimeDb = getDatabase(app);
 export const provider = new GoogleAuthProvider();
 
 if (typeof window !== "undefined") {

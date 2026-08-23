@@ -1,3 +1,5 @@
+import { LiveObject, LsonObject } from "@liveblocks/client";
+import { useCanRedo, useCanUndo, useHistory, useMutation } from "@liveblocks/react";
 import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { createShapeId, Shape } from "../classes/shape";
@@ -14,56 +16,50 @@ import {
   ungroupShapes,
 } from "./commands";
 import { moveShapesFromBaseline, normalizeShape, shapeBounds } from "./geometry";
-import { redoEditorHistory, undoEditorHistory } from "./history";
-import {
-  commitEditorSnapshot,
-  redoEditor,
-  setClipboard,
-  setSaveStatus,
-  undoEditor,
-} from "../features/editor/editorSlice";
-import {
-  replaceShapes,
-  setWhiteboardData,
-  WhiteBoardState,
-} from "../features/whiteBoard/whiteBoardSlice";
+import { commitEditorSnapshot, setClipboard, setSaveStatus } from "../features/editor/editorSlice";
+import { replaceShapes, setWhiteboardData, WhiteBoardState } from "../features/whiteBoard/whiteBoardSlice";
 import { clearSelectedShapes, setSelectedShapes } from "../features/selected/selectedSlice";
-import { saveBoardChanges } from "../firebase/services/boardRepository";
+import { updateBoardSettings } from "../services/boardRepository";
 import { AppDispatch, RootState } from "../store";
-
-const cloneShapes = (shapes: Shape[]): Shape[] => JSON.parse(JSON.stringify(shapes));
+import { shapePatch, storedShape } from "../collaboration/shapes";
 
 export const useEditorActions = () => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
   const editor = useSelector((state: RootState) => state.editor);
-  const user = useSelector((state: RootState) => state.auth);
-  const canEdit = Boolean(
-    user.uid &&
-      (board.uid === user.uid ||
-        board.members[user.uid] === "owner" ||
-        board.members[user.uid] === "editor")
+  const history = useHistory();
+  const canUndo = useCanUndo();
+  const canRedo = useCanRedo();
+  const canEdit = board.role === "owner" || board.role === "editor";
+
+  const mutateShapes = useMutation(
+    ({ storage }, nextShapes: Shape[], previousShapes: Shape[]) => {
+      const nodes = storage.get("nodes");
+      const previousById = new Map(previousShapes.map((shape) => [shape.id, shape]));
+      const nextById = new Map(nextShapes.map((shape) => [shape.id, shape]));
+
+      previousById.forEach((_shape, id) => {
+        if (!nextById.has(id)) nodes.delete(id);
+      });
+      nextById.forEach((shape, id) => {
+        const previous = previousById.get(id);
+        const existing = nodes.get(id);
+        if (!previous || !existing) {
+          nodes.set(id, new LiveObject(storedShape(shape) as LsonObject));
+          return;
+        }
+        const patch = shapePatch(previous, shape);
+        if (Object.keys(patch.update).length) existing.update(patch.update);
+        patch.remove.forEach((key) => existing.delete(key));
+      });
+    },
+    []
   );
 
-  const persist = useCallback(
-    async (previous: WhiteBoardState, next: WhiteBoardState) => {
-      if (!user.uid || !next.id) return;
-      dispatch(setSaveStatus({ status: "saving" }));
-      try {
-        await saveBoardChanges(previous, next, user.uid);
-        dispatch(setSaveStatus({ status: "saved" }));
-      } catch (error) {
-        dispatch(
-          setSaveStatus({
-            status: "error",
-            error: error instanceof Error ? error.message : "We couldn't save this change.",
-          })
-        );
-      }
-    },
-    [dispatch, user.uid]
-  );
+  const mutateBackground = useMutation(({ storage }, color: string) => {
+    storage.set("backgroundColor", color);
+  }, []);
 
   const previewShapes = useCallback(
     (shapes: Shape[]) => dispatch(replaceShapes(shapes)),
@@ -80,43 +76,49 @@ export const useEditorActions = () => {
       if (!activeBoard.id || !canEdit) return;
       const normalized = nextShapes.map(normalizeShape);
       if (JSON.stringify(previousShapes) === JSON.stringify(normalized)) return;
-
-      const previous = { ...activeBoard, shapes: cloneShapes(previousShapes) };
-      const next = {
-        ...activeBoard,
-        shapes: normalized,
-        lastChangedBy: user.uid,
-      };
       dispatch(replaceShapes(normalized));
-      dispatch(
-        commitEditorSnapshot({
-          boardId: activeBoard.id,
-          shapes: normalized,
-          backgroundColor: activeBoard.backGroundColor,
-        })
-      );
-      void persist(previous, next);
+      dispatch(commitEditorSnapshot({
+        boardId: activeBoard.id,
+        shapes: normalized,
+        backgroundColor: activeBoard.backGroundColor,
+      }));
+      mutateShapes(normalized, previousShapes);
     },
-    [board, canEdit, dispatch, persist, user.uid]
+    [board, canEdit, dispatch, mutateShapes]
   );
 
   const commitBoardPatch = useCallback(
     (patch: Partial<WhiteBoardState>) => {
       if (!board.id || !canEdit) return;
-      if (patch.type !== undefined && board.uid !== user.uid) return;
-      const previous = { ...board };
-      const next = { ...board, ...patch, lastChangedBy: user.uid };
-      dispatch(setWhiteboardData(next));
-      dispatch(
-        commitEditorSnapshot({
-          boardId: board.id,
-          shapes: next.shapes,
-          backgroundColor: next.backGroundColor,
-        })
-      );
-      void persist(previous, next);
+      if ((patch.type !== undefined || patch.title !== undefined) && board.role !== "owner") return;
+
+      if (patch.backGroundColor !== undefined && patch.backGroundColor !== board.backGroundColor) {
+        dispatch(setWhiteboardData({ backGroundColor: patch.backGroundColor }));
+        mutateBackground(patch.backGroundColor);
+      }
+
+      const settings: { title?: string; visibility?: "private" | "public" } = {
+        ...(typeof patch.title === "string" ? { title: patch.title } : {}),
+        ...(patch.type === "private" || patch.type === "public"
+          ? { visibility: patch.type }
+          : {}),
+      };
+      if (Object.keys(settings).length) {
+        const previous = { title: board.title, type: board.type };
+        dispatch(setWhiteboardData(patch));
+        dispatch(setSaveStatus({ status: "saving" }));
+        void updateBoardSettings(board.id, settings)
+          .then(() => dispatch(setSaveStatus({ status: "saved" })))
+          .catch((error) => {
+            dispatch(setWhiteboardData(previous));
+            dispatch(setSaveStatus({
+              status: "error",
+              error: error instanceof Error ? error.message : "We couldn't save board settings.",
+            }));
+          });
+      }
     },
-    [board, canEdit, dispatch, persist, user.uid]
+    [board, canEdit, dispatch, mutateBackground]
   );
 
   const patchSelected = useCallback(
@@ -125,8 +127,7 @@ export const useEditorActions = () => {
   );
 
   const removeSelected = useCallback(() => {
-    const next = deleteShapes(board.shapes, selectedIds);
-    commitShapes(next);
+    commitShapes(deleteShapes(board.shapes, selectedIds));
     dispatch(clearSelectedShapes());
   }, [board.shapes, commitShapes, dispatch, selectedIds]);
 
@@ -173,63 +174,28 @@ export const useEditorActions = () => {
     (mode: OrderMode) => commitShapes(orderShapes(board.shapes, selectedIds, mode)),
     [board.shapes, commitShapes, selectedIds]
   );
-
   const alignSelected = useCallback(
     (mode: AlignMode) => commitShapes(alignShapes(board.shapes, selectedIds, mode)),
     [board.shapes, commitShapes, selectedIds]
   );
-
   const distributeSelected = useCallback(
-    (axis: "horizontal" | "vertical") =>
-      commitShapes(distributeShapes(board.shapes, selectedIds, axis)),
+    (axis: "horizontal" | "vertical") => commitShapes(distributeShapes(board.shapes, selectedIds, axis)),
     [board.shapes, commitShapes, selectedIds]
   );
-
   const groupSelected = useCallback(
     () => commitShapes(groupShapes(board.shapes, selectedIds)),
     [board.shapes, commitShapes, selectedIds]
   );
-
   const ungroupSelected = useCallback(
     () => commitShapes(ungroupShapes(board.shapes, selectedIds)),
     [board.shapes, commitShapes, selectedIds]
   );
-
   const nudgeSelected = useCallback(
-    (x: number, y: number) =>
-      commitShapes(moveShapesFromBaseline(board.shapes, selectedIds, { x, y })),
+    (x: number, y: number) => commitShapes(moveShapesFromBaseline(board.shapes, selectedIds, { x, y })),
     [board.shapes, commitShapes, selectedIds]
   );
-
-  const undo = useCallback(() => {
-    if (!editor.history || editor.history.past.length === 0 || !board.id) return;
-    const nextHistory = undoEditorHistory(editor.history);
-    const previous = { ...board };
-    const next = {
-      ...board,
-      shapes: cloneShapes(nextHistory.present.shapes),
-      backGroundColor: nextHistory.present.backgroundColor,
-      lastChangedBy: user.uid,
-    };
-    dispatch(undoEditor());
-    dispatch(setWhiteboardData(next));
-    void persist(previous, next);
-  }, [board, dispatch, editor.history, persist, user.uid]);
-
-  const redo = useCallback(() => {
-    if (!editor.history || editor.history.future.length === 0 || !board.id) return;
-    const nextHistory = redoEditorHistory(editor.history);
-    const previous = { ...board };
-    const next = {
-      ...board,
-      shapes: cloneShapes(nextHistory.present.shapes),
-      backGroundColor: nextHistory.present.backgroundColor,
-      lastChangedBy: user.uid,
-    };
-    dispatch(redoEditor());
-    dispatch(setWhiteboardData(next));
-    void persist(previous, next);
-  }, [board, dispatch, editor.history, persist, user.uid]);
+  const undo = useCallback(() => history.undo(), [history]);
+  const redo = useCallback(() => history.redo(), [history]);
 
   const setShapeGeometry = useCallback(
     (shape: Shape, values: Partial<{ x: number; y: number; width: number; height: number }>) => {
@@ -238,19 +204,17 @@ export const useEditorActions = () => {
       const y = values.y ?? bounds.y;
       const width = Math.max(1, values.width ?? bounds.width);
       const height = Math.max(1, values.height ?? bounds.height);
-      commitShapes(
-        board.shapes.map((item) =>
-          item.id === shape.id
-            ? normalizeShape({ ...item, x1: x, y1: y, x2: x + width, y2: y + height })
-            : item
-        )
-      );
+      commitShapes(board.shapes.map((item) => item.id === shape.id
+        ? normalizeShape({ ...item, x1: x, y1: y, x2: x + width, y2: y + height })
+        : item));
     },
     [board.shapes, commitShapes]
   );
 
   return {
     canEdit,
+    canUndo,
+    canRedo,
     previewShapes,
     commitShapes,
     commitBoardPatch,

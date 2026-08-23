@@ -6,6 +6,8 @@ import { normalizeShape } from "../../editor/geometry";
 export interface WhiteBoardState {
   shapes: Shape[];
   id: string | null;
+  roomId: string | null;
+  role: "owner" | "editor" | "viewer" | null;
   type: string | null;
   title: string | null;
   uid: string | null;
@@ -18,6 +20,7 @@ export interface WhiteBoardState {
     label?: string;
     cursorX: number;
     cursorY: number;
+    selectionIds?: string[];
   }[];
   schemaVersion: number;
   revision: number;
@@ -27,6 +30,8 @@ export interface WhiteBoardState {
 const initialState: WhiteBoardState = {
   shapes: [],
   id: null,
+  roomId: null,
+  role: null,
   type: null,
   title: null,
   uid: null,
@@ -51,6 +56,8 @@ const whiteBoardSlice = createSlice({
       const {
         shapes,
         id,
+        roomId,
+        role,
         type,
         title,
         uid,
@@ -64,28 +71,30 @@ const whiteBoardSlice = createSlice({
         updatedAt,
       } = action.payload;
 
-      state.shapes = (shapes ?? []).map(normalizeShape);
-      state.id = id ?? null;
-      state.type = type ?? null;
-      state.title = title ?? null;
-      state.uid = uid ?? null;
-      state.sharedWith = sharedWith ?? [];
-      state.members = members ?? {};
-      state.backGroundColor = backGroundColor ?? "#313131";
-      state.lastChangedBy = lastChangedBy ?? null;
-      state.currentUsers = currentUsers ?? [];
-      state.schemaVersion = schemaVersion ?? 2;
-      state.revision = revision ?? 0;
-      state.updatedAt = updatedAt ?? null;
+      if (shapes !== undefined) state.shapes = shapes.map(normalizeShape);
+      if (id !== undefined) state.id = id;
+      if (roomId !== undefined) state.roomId = roomId;
+      if (role !== undefined) state.role = role;
+      if (type !== undefined) state.type = type;
+      if (title !== undefined) state.title = title;
+      if (uid !== undefined) state.uid = uid;
+      if (sharedWith !== undefined) state.sharedWith = sharedWith;
+      if (members !== undefined) state.members = members;
+      if (backGroundColor !== undefined) state.backGroundColor = backGroundColor;
+      if (lastChangedBy !== undefined) state.lastChangedBy = lastChangedBy;
+      if (currentUsers !== undefined) state.currentUsers = currentUsers;
+      if (schemaVersion !== undefined) state.schemaVersion = schemaVersion;
+      if (revision !== undefined) state.revision = revision;
+      if (updatedAt !== undefined) state.updatedAt = updatedAt;
     },
     replaceShapes: (state, action: PayloadAction<Shape[]>) => {
       state.shapes = action.payload.map(normalizeShape);
     },
-    share: (state, action: PayloadAction<string>) => {
-      if (!state.sharedWith.includes(action.payload)) {
-        state.sharedWith.push(action.payload);
+    share: (state, action: PayloadAction<{ uid: string; role: "editor" | "viewer" }>) => {
+      if (!state.sharedWith.includes(action.payload.uid)) {
+        state.sharedWith.push(action.payload.uid);
       }
-      state.members[action.payload] = "editor";
+      state.members[action.payload.uid] = action.payload.role;
     },
     removeShare: (state, action: PayloadAction<string>) => {
       state.sharedWith = state.sharedWith.filter(

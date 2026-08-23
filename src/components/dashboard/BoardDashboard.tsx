@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
@@ -10,10 +10,9 @@ import {
   createBoard,
   duplicateBoard,
   getBoard,
-  migrateLegacyBoardIndex,
-  subscribePublicBoards,
-  subscribeUserBoards,
-} from "../../firebase/services/boardRepository";
+  listBoards,
+  searchPublicBoards,
+} from "../../services/boardRepository";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./BoardDashboard.module.css";
 
@@ -53,34 +52,39 @@ const BoardDashboard = () => {
 
   useEffect(() => {
     if (!user.uid) return;
-    void migrateLegacyBoardIndex(user.uid);
-    const unsubscribeBoards = subscribeUserBoards(
-      user.uid,
-      (nextBoards) => {
+    let active = true;
+    void listBoards()
+      .then((nextBoards) => {
+        if (!active) return;
         setBoards(nextBoards);
         setLoading(false);
-      },
-      () => {
+      })
+      .catch(() => {
+        if (!active) return;
         setError("We couldn't load your boards.");
         setLoading(false);
-      }
-    );
-    const unsubscribePublic = subscribePublicBoards(setPublicBoards, () => undefined);
-    return () => {
-      unsubscribeBoards();
-      unsubscribePublic();
-    };
+      });
+    return () => { active = false; };
   }, [user.uid]);
+
+  useEffect(() => {
+    const normalized = query.trim();
+    if (!normalized) return;
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      void searchPublicBoards(normalized)
+        .then((results) => active && setPublicBoards(results))
+        .catch(() => active && setPublicBoards([]));
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [query]);
 
   const myBoards = boards.filter((board) => board.ownerId === user.uid);
   const sharedBoards = boards.filter((board) => board.ownerId !== user.uid);
-  const publicResults = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return [];
-    return publicBoards
-      .filter((board) => board.title.toLowerCase().includes(normalized))
-      .slice(0, 12);
-  }, [publicBoards, query]);
+  const publicResults = publicBoards;
 
   const openBoard = async (boardId: string) => {
     setError(null);
@@ -98,7 +102,7 @@ const BoardDashboard = () => {
     setCreating(true);
     setError(null);
     try {
-      const boardId = await createBoard(user.uid, "Untitled board");
+      const boardId = await createBoard("Untitled board");
       await openBoard(boardId);
     } catch {
       setError("We couldn't create a board.");
@@ -111,7 +115,7 @@ const BoardDashboard = () => {
     if (!user.uid) return;
     setError(null);
     try {
-      const copyId = await duplicateBoard(boardId, user.uid);
+      const copyId = await duplicateBoard(boardId);
       await openBoard(copyId);
     } catch {
       setError("We couldn't copy this board.");

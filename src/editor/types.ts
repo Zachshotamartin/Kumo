@@ -6,7 +6,8 @@ export type EditorTool =
   | "rectangle"
   | "ellipse"
   | "text"
-  | "image";
+  | "image"
+  | "board";
 
 export interface Point {
   x: number;

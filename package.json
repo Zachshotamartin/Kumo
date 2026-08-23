@@ -4,10 +4,15 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22 <25"
   },
   "dependencies": {
+    "@liveblocks/client": "^3.24.1",
+    "@liveblocks/node": "^3.24.1",
+    "@liveblocks/react": "^3.24.1",
+    "@liveblocks/redux": "^3.24.1",
     "@reduxjs/toolkit": "^2.5.0",
+    "@supabase/supabase-js": "^2.112.3",
     "firebase": "^11.1.0",
     "firebase-admin": "^14.3.0",
     "react": "^19.0.0",
@@ -26,7 +31,7 @@
     "test:e2e": "playwright test",
     "sync:vercel-env": "node scripts/sync-vercel-env.mjs",
     "verify:vercel-account": "node scripts/verify-vercel-account.mjs",
-    "validate:config": "node -e \"JSON.parse(require('node:fs').readFileSync('database.rules.json','utf8')); JSON.parse(require('node:fs').readFileSync('firebase.json','utf8')); JSON.parse(require('node:fs').readFileSync('vercel.json','utf8'))\""
+    "validate:config": "node scripts/validate-config.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9",

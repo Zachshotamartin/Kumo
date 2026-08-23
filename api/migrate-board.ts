@@ -1,7 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { requireActor } from "./_auth";
+import { getBoardAccess, provisionBoard } from "./_boards";
 import { adminAuth, adminDatabase } from "./_firebaseAdmin";
+import { allowMethods } from "./_http";
+import { liveblocksAdmin } from "./_liveblocks";
+import { ensureActorProfile, supabaseAdmin } from "./_supabase";
 
-const values = (value: unknown): string[] => {
+type BoardRole = "owner" | "editor" | "viewer";
+
+const stringValues = (value: unknown): string[] => {
   if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
   if (value && typeof value === "object") {
     return Object.values(value).filter((item): item is string => typeof item === "string");
@@ -9,26 +16,52 @@ const values = (value: unknown): string[] => {
   return [];
 };
 
-const bearerToken = (request: VercelRequest): string | null => {
-  const authorization = request.headers.authorization;
-  return authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;
+const shapeNodes = (board: Record<string, unknown>): Record<string, unknown> => {
+  const source = board.shapesById && typeof board.shapesById === "object"
+    ? board.shapesById as Record<string, unknown>
+    : board.shapes;
+  const shapes = Array.isArray(source)
+    ? source.map((shape, index) => [`legacy-${index}`, shape] as const)
+    : source && typeof source === "object"
+    ? Object.entries(source)
+    : [];
+  return Object.fromEntries(
+    shapes.flatMap(([sourceId, shape]) => {
+      if (!shape || typeof shape !== "object") return [];
+      const clean = JSON.parse(JSON.stringify(shape)) as Record<string, unknown>;
+      const id = typeof clean.id === "string" && clean.id ? clean.id : sourceId;
+      clean.id = id;
+      return [[id, clean] as const];
+    })
+  );
+};
+
+const ensureFirebaseProfile = async (uid: string) => {
+  try {
+    const user = await adminAuth().getUser(uid);
+    await ensureActorProfile({
+      uid,
+      email: user.email,
+      name: user.displayName,
+      picture: user.photoURL,
+    });
+  } catch {
+    await ensureActorProfile({ uid });
+  }
 };
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (request.method !== "POST") {
-    response.setHeader("Allow", "POST");
-    return response.status(405).json({ error: "Method not allowed." });
-  }
-
-  const token = bearerToken(request);
-  if (!token) return response.status(401).json({ error: "Authentication required." });
-
+  if (!allowMethods(request, response, ["POST"])) return;
   try {
-    const actor = await adminAuth.verifyIdToken(token);
+    const actor = await requireActor(request);
+    await ensureActorProfile(actor);
     const boardId = typeof request.body?.boardId === "string" ? request.body.boardId : "";
     if (!boardId) return response.status(400).json({ error: "Board is required." });
 
-    const snapshot = await adminDatabase.ref(`boards/${boardId}`).get();
+    const existing = await getBoardAccess(boardId, actor.uid);
+    if (existing) return response.status(200).json({ migrated: false, boardId });
+
+    const snapshot = await adminDatabase().ref(`boards/${boardId}`).get();
     if (!snapshot.exists()) return response.status(404).json({ error: "Board not found." });
     const board = snapshot.val() as Record<string, unknown>;
     const ownerId = typeof board.ownerId === "string"
@@ -39,45 +72,59 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (!ownerId) return response.status(409).json({ error: "This board has no valid owner." });
 
     const existingMembers = board.members && typeof board.members === "object"
-      ? { ...(board.members as Record<string, string>) }
+      ? board.members as Record<string, string>
       : {};
-    const legacyMembers = values(board.sharedWith);
+    const legacyMembers = stringValues(board.sharedWith);
     const isPublic = board.visibility === "public" || board.type === "public";
     const canRead = actor.uid === ownerId || isPublic || actor.uid in existingMembers || legacyMembers.includes(actor.uid);
     if (!canRead) return response.status(403).json({ error: "You do not have access to this board." });
 
-    const members: Record<string, "owner" | "editor" | "viewer"> = { [ownerId]: "owner" };
+    const members = new Map<string, BoardRole>([[ownerId, "owner"]]);
     Object.entries(existingMembers).forEach(([uid, role]) => {
-      if (uid !== ownerId && (role === "editor" || role === "viewer")) members[uid] = role;
+      if (uid !== ownerId && (role === "editor" || role === "viewer")) members.set(uid, role);
     });
     legacyMembers.forEach((uid) => {
-      if (uid !== ownerId && !members[uid]) members[uid] = "editor";
+      if (uid !== ownerId && !members.has(uid)) members.set(uid, "editor");
     });
 
-    const visibility = isPublic ? "public" : "private";
-    const title = (typeof board.title === "string" ? board.title : "Untitled board").slice(0, 120);
-    const summary = { id: boardId, title, ownerId, visibility, updatedAt: Date.now() };
-    const updates: Record<string, unknown> = {
-      [`boards/${boardId}/schemaVersion`]: 2,
-      [`boards/${boardId}/id`]: boardId,
-      [`boards/${boardId}/ownerId`]: ownerId,
-      [`boards/${boardId}/title`]: title,
-      [`boards/${boardId}/visibility`]: visibility,
-      [`boards/${boardId}/backgroundColor`]:
-        typeof board.backgroundColor === "string"
+    await Promise.all([...members.keys()].map(ensureFirebaseProfile));
+    const created = await provisionBoard({
+      id: boardId,
+      ownerId,
+      title: typeof board.title === "string" ? board.title : "Untitled board",
+      visibility: isPublic ? "public" : "private",
+      legacyRtdbId: boardId,
+      document: {
+        schemaVersion: 3,
+        backgroundColor: typeof board.backgroundColor === "string"
           ? board.backgroundColor
           : typeof board.backGroundColor === "string"
           ? board.backGroundColor
           : "#252629",
-      [`boards/${boardId}/members`]: members,
-    };
-    Object.keys(members).forEach((uid) => {
-      updates[`userBoards/${uid}/${boardId}`] = summary;
+        nodes: shapeNodes(board),
+      },
     });
-    updates[`publicBoards/${boardId}`] = isPublic ? summary : null;
-    await adminDatabase.ref().update(updates);
-    return response.status(200).json({ migrated: true });
-  } catch {
-    return response.status(400).json({ error: "This legacy board could not be migrated." });
+
+    try {
+      const collaborators = [...members.entries()]
+        .filter(([uid]) => uid !== ownerId)
+        .map(([uid, role]) => ({ board_id: boardId, user_id: uid, role }));
+      if (collaborators.length) {
+        const { error } = await supabaseAdmin().from("board_members").upsert(collaborators, {
+          onConflict: "board_id,user_id",
+        });
+        if (error) throw error;
+      }
+    } catch (error) {
+      await Promise.allSettled([
+        supabaseAdmin().from("boards").delete().eq("id", boardId),
+        liveblocksAdmin().deleteRoom(created.liveblocks_room_id),
+      ]);
+      throw error;
+    }
+    return response.status(201).json({ migrated: true, boardId: created.id });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "This legacy board could not be migrated.";
+    return response.status(message === "Authentication required." ? 401 : 400).json({ error: message });
   }
 }
