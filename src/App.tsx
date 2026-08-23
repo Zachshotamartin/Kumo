@@ -9,17 +9,17 @@ import { AppDispatch, RootState } from "./store";
 import KumoLogo from "./components/brand/KumoLogo";
 
 const WorkSpace = lazy(() => import("./components/workSpace/workSpace"));
-const HomePage = lazy(() => import("./components/homepage/homePage"));
 const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
+const HomePage = lazy(() => import("./components/homepage/homePage"));
 export const MINIMUM_LOADING_DURATION_MS = 1800;
 
 const LoadingScreen = () => (
   <div className="app-loading" role="status">
-    <div className="app-loading-brand">
-      <KumoLogo className="app-loading-logo" context="loading" startupAnimation="startup" decorative />
+    <KumoLogo className="app-loading-logo" context="loading" startupAnimation="startup" animationScope="app-startup" decorative />
+    <div className="app-loading-copy">
       <span className="app-loading-word">Kumo</span>
+      <span className="app-loading-status">Opening your canvas</span>
     </div>
-    <span className="app-loading-status">Loading workspace</span>
   </div>
 );
 

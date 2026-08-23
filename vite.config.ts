@@ -6,6 +6,9 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   server: {
     proxy: devProxyForMode(mode),
+    watch: {
+      ignored: ["**/coverage/**", "**/test-results/**", "**/playwright-report/**"],
+    },
   },
   build: {
     target: "es2022",
@@ -26,12 +29,19 @@ export default defineConfig(({ mode }) => ({
         "src/vite-env.d.ts",
         "src/liveblocks.config.ts",
         "src/index.tsx",
+        "src/e2e/**",
       ],
       thresholds: {
-        statements: 70,
-        branches: 60,
-        functions: 70,
-        lines: 70,
+        statements: 82,
+        branches: 68,
+        functions: 86,
+        lines: 84,
+        "src/editor/**": {
+          statements: 90,
+          branches: 80,
+          functions: 95,
+          lines: 90,
+        },
       },
     },
   },

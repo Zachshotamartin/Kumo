@@ -10,6 +10,7 @@ import type { Bounds } from "./types";
 
 export type AlignMode = "left" | "horizontal-center" | "right" | "top" | "vertical-center" | "bottom";
 export type OrderMode = "front" | "forward" | "backward" | "back";
+export type RelativeOrder = "front" | "back";
 
 const translateShape = (shape: Shape, x: number, y: number): Shape => ({
   ...shape,
@@ -29,6 +30,22 @@ const orderedShapes = (shapes: Shape[]): Shape[] =>
       left.shape.zIndex - right.shape.zIndex || left.index - right.index
     )
     .map(({ shape }) => shape);
+
+const orderedLayerUnits = (shapes: Shape[]): Shape[][] => {
+  const ordered = orderedShapes(shapes);
+  const visitedGroups = new Set<string>();
+  const units: Shape[][] = [];
+  ordered.forEach((shape) => {
+    if (!shape.groupId) {
+      units.push([shape]);
+      return;
+    }
+    if (visitedGroups.has(shape.groupId)) return;
+    visitedGroups.add(shape.groupId);
+    units.push(ordered.filter((candidate) => candidate.groupId === shape.groupId));
+  });
+  return units;
+};
 
 const selectedInLayerOrder = (
   shapes: Shape[],
@@ -271,28 +288,71 @@ export const orderShapes = (
     return next.map((shape, index) => ({ ...shape, zIndex: index + 1 }));
   }
 
+  const units = orderedLayerUnits(shapes);
   const direction = mode === "forward" ? 1 : -1;
   const indices = direction > 0
-    ? ordered.map((_, index) => index).reverse()
-    : ordered.map((_, index) => index);
+    ? units.map((_, index) => index).reverse()
+    : units.map((_, index) => index);
 
   indices.forEach((index) => {
     const neighbor = index + direction;
-    const currentShape = ordered[index];
-    const neighborShape = ordered[neighbor];
+    const currentUnit = units[index];
+    const neighborUnit = units[neighbor];
     if (
-      currentShape &&
-      neighborShape &&
-      selected.has(currentShape.id) &&
-      !selected.has(neighborShape.id)
+      currentUnit &&
+      neighborUnit &&
+      currentUnit.every((shape) => selected.has(shape.id)) &&
+      neighborUnit.every((shape) => !selected.has(shape.id))
     ) {
-      ordered[index] = neighborShape;
-      ordered[neighbor] = currentShape;
+      units[index] = neighborUnit;
+      units[neighbor] = currentUnit;
     }
   });
 
-  if (ordered.every((shape, index) => shape.id === originalOrder[index])) return shapes;
-  return ordered.map((shape, index) => ({ ...shape, zIndex: index + 1 }));
+  const next = units.flat();
+  if (next.every((shape, index) => shape.id === originalOrder[index])) return shapes;
+  return next.map((shape, index) => ({ ...shape, zIndex: index + 1 }));
+};
+
+/**
+ * Moves a layer or logical group directly beside another layer or group.
+ * `front` places the moving unit above the target in the visual stack while
+ * `back` places it below. Relative order inside both units is preserved.
+ */
+export const moveShapesRelative = (
+  shapes: Shape[],
+  selectedIds: readonly string[],
+  targetId: string,
+  placement: RelativeOrder
+): Shape[] => {
+  const ordered = orderedShapes(shapes);
+  const originalOrder = ordered.map((shape) => shape.id);
+  const moving = editableSelectionIds(shapes, selectedIds);
+  const target = expandSelectionIds(shapes, [targetId]);
+  if (
+    moving.size === 0 ||
+    target.size === 0 ||
+    [...moving].some((id) => target.has(id))
+  ) {
+    return shapes;
+  }
+
+  const units = orderedLayerUnits(shapes);
+  const movingUnits = units.filter((unit) => unit.every((shape) => moving.has(shape.id)));
+  const remainingUnits = units.filter((unit) => unit.every((shape) => !moving.has(shape.id)));
+  const targetIndex = remainingUnits.findIndex((unit) =>
+    unit.some((shape) => target.has(shape.id))
+  );
+  if (targetIndex < 0) return shapes;
+
+  const insertionIndex = placement === "front" ? targetIndex + 1 : targetIndex;
+  const next = [
+    ...remainingUnits.slice(0, insertionIndex),
+    ...movingUnits,
+    ...remainingUnits.slice(insertionIndex),
+  ].flat();
+  if (next.every((shape, index) => shape.id === originalOrder[index])) return shapes;
+  return next.map((shape, index) => ({ ...shape, zIndex: index + 1 }));
 };
 
 export const alignShapes = (
@@ -385,9 +445,17 @@ export const groupShapes = (
   if (selected.size !== expanded.size) return shapes;
   if (selected.size < 2) return shapes;
   const ordered = orderedShapes(shapes);
+  const selectedBeforeGrouping = ordered.filter((shape) => selected.has(shape.id));
+  const existingGroupId = selectedBeforeGrouping[0]?.groupId;
+  if (
+    existingGroupId &&
+    selectedBeforeGrouping.every((shape) => shape.groupId === existingGroupId)
+  ) {
+    return shapes;
+  }
   const selectedShapes = ordered
     .filter((shape) => selected.has(shape.id))
-    .map((shape) => ({ ...shape, groupId, groupRotation }));
+    .map((shape) => ({ ...shape, groupId, groupName: "Group", groupRotation }));
   const selectedIndexes = ordered
     .map((shape, index) => selected.has(shape.id) ? index : -1)
     .filter((index) => index >= 0);
@@ -416,7 +484,7 @@ export const ungroupShapes = (
   );
   return shapes.map((shape) =>
     shape.groupId && groups.has(shape.groupId)
-      ? { ...shape, groupId: null, groupRotation: undefined }
+      ? { ...shape, groupId: null, groupName: undefined, groupRotation: undefined }
       : shape
   );
 };

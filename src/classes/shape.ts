@@ -1,6 +1,3 @@
-import calendarImage from "../res/calendar.png";
-import imagePlaceholder from "../res/image.png";
-
 export interface Shape {
   id: string;
   type: string;
@@ -18,6 +15,8 @@ export interface Shape {
   flipY?: boolean;
   shapes?: Shape[];
   groupId?: string | null;
+  /** User-visible name shared by every member of a logical group. */
+  groupName?: string;
   /** Rotation of the logical group frame shared by every member. */
   groupRotation?: number;
   locked?: boolean;
@@ -85,8 +84,7 @@ export const ShapeFunctions = {
       borderStyle: "solid",
       borderColor: "#000000",
       backgroundColor: type === "text" || isMedia ? "transparent" : "#ffffff",
-      backgroundImage:
-        type === "calendar" ? calendarImage : type === "image" ? imagePlaceholder : "",
+      backgroundImage: "",
       color: "#ffffff",
       opacity: 1,
       text: "",

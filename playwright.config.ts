@@ -18,6 +18,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "node node_modules/vite/bin/vite.js --host localhost --port 4173",
+    env: { VITE_E2E: "true" },
     url: "http://localhost:4173",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

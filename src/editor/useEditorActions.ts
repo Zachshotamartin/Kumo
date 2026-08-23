@@ -250,3 +250,5 @@ export const useEditorActions = () => {
     setShapeGeometry,
   };
 };
+
+export type EditorActions = ReturnType<typeof useEditorActions>;

@@ -1,8 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  AlignBottomSimple,
+  AlignCenterHorizontal,
+  AlignCenterVerticalSimple,
+  AlignLeft,
+  AlignRight,
+  AlignTopSimple,
+  TextStrikethrough,
+  TextT,
+  TextUnderline,
+} from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape } from "../../classes/shape";
 import { shapeBounds } from "../../editor/geometry";
-import { useEditorActions } from "../../editor/useEditorActions";
+import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setGrid } from "../../features/actions/actionsSlice";
 import { setGridSize, setSnapToGrid } from "../../features/editor/editorSlice";
 import { AppDispatch, RootState } from "../../store";
@@ -18,26 +29,41 @@ interface NumberFieldProps {
   onCommit: (value: number) => void;
 }
 
+const formatNumber = (number: number) => String(Math.round(number * 100) / 100);
+
 const NumberField = ({ label, value, min, max, step = 1, onCommit }: NumberFieldProps) => {
-  const commit = (draft: string, input: HTMLInputElement) => {
-    const number = Number(draft);
-    if (!Number.isFinite(number)) {
-      input.value = String(value);
-      return;
-    }
-    onCommit(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, number)));
+  const clamp = (number: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, number));
+  const [draft, setDraft] = useState(() => formatNumber(value));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(formatNumber(value));
+  }, [value]);
+
+  const update = (nextDraft: string) => {
+    setDraft(nextDraft);
+    const number = Number(nextDraft);
+    if (nextDraft.trim() && Number.isFinite(number)) onCommit(clamp(number));
   };
+
+  const finishEditing = () => {
+    focused.current = false;
+    const number = Number(draft);
+    setDraft(draft.trim() && Number.isFinite(number) ? formatNumber(clamp(number)) : formatNumber(value));
+  };
+
   return (
     <label className={styles.field}>
       <span>{label}</span>
       <input
-        key={value}
         type="number"
-        defaultValue={Math.round(value * 100) / 100}
+        value={draft}
         min={min}
         max={max}
         step={step}
-        onBlur={(event) => commit(event.currentTarget.value, event.currentTarget)}
+        onFocus={() => { focused.current = true; }}
+        onChange={(event) => update(event.currentTarget.value)}
+        onBlur={finishEditing}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
         }}
@@ -48,18 +74,44 @@ const NumberField = ({ label, value, min, max, step = 1, onCommit }: NumberField
 
 const ColorField = ({ label, value, onCommit }: { label: string; value: string; onCommit: (value: string) => void }) => {
   const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+  const pickerValue = /^#[0-9a-f]{6}$/i.test(draft) ? draft : "#000000";
+  const isValid = (candidate: string) =>
+    /^#[0-9a-f]{6}$/i.test(candidate) || candidate.toLowerCase() === "transparent";
+
+  useEffect(() => {
+    if (!focused.current) setDraft(value);
+  }, [value]);
+
+  const update = (nextDraft: string) => {
+    setDraft(nextDraft);
+    if (isValid(nextDraft)) onCommit(nextDraft.toLowerCase());
+  };
+
+  const finishEditing = () => {
+    focused.current = false;
+    setDraft(isValid(draft) ? draft.toLowerCase() : value);
+  };
+
   return (
     <label className={styles.colorField}>
       <span>{label}</span>
       <span className={styles.colorControl}>
-        <input type="color" value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => onCommit(draft)} />
+        <input
+          type="color"
+          value={pickerValue}
+          onFocus={() => { focused.current = true; }}
+          onChange={(event) => update(event.currentTarget.value)}
+          onBlur={() => { focused.current = false; }}
+        />
         <input
           type="text"
           value={draft}
-          maxLength={7}
+          maxLength={11}
           aria-label={`${label} hex value`}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => /^#[0-9a-f]{6}$/i.test(draft) && onCommit(draft)}
+          onFocus={() => { focused.current = true; }}
+          onChange={(event) => update(event.currentTarget.value)}
+          onBlur={finishEditing}
           onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
         />
       </span>
@@ -67,8 +119,7 @@ const ColorField = ({ label, value, onCommit }: { label: string; value: string; 
   );
 };
 
-const ShapeInspector = ({ shape }: { shape: Shape }) => {
-  const actions = useEditorActions();
+const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActions }) => {
   const bounds = shapeBounds(shape);
   const currentBoardId = useSelector((state: RootState) => state.whiteBoard.id);
   const [boardChoices, setBoardChoices] = useState<BoardSummary[]>([]);
@@ -99,12 +150,24 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
       </section>
       <section className={styles.inspectorSection}>
         <h2>Appearance</h2>
-        <ColorField key={`fill-${shape.backgroundColor}`} label="Fill" value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
-        <ColorField key={`stroke-${shape.borderColor}`} label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
+        {shape.type === "text" && (
+          <ColorField label="Text" value={shape.color ?? "#f7f7f5"} onCommit={(color) => actions.patchSelected({ color })} />
+        )}
+        <ColorField label={shape.type === "text" ? "Back" : "Fill"} value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
+        <ColorField label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
         <div className={styles.fieldGrid}>
           <NumberField label="Stroke" min={0} value={shape.borderWidth ?? 0} onCommit={(borderWidth) => actions.patchSelected({ borderWidth })} />
           <NumberField label="Radius" min={0} value={shape.borderRadius ?? 0} onCommit={(borderRadius) => actions.patchSelected({ borderRadius })} />
         </div>
+        <label className={styles.fullField}>
+          <span>Stroke style</span>
+          <select value={shape.borderStyle ?? "solid"} onChange={(event) => actions.patchSelected({ borderStyle: event.target.value })}>
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+            <option value="double">Double</option>
+          </select>
+        </label>
       </section>
       {shape.type === "text" && (
         <section className={styles.inspectorSection}>
@@ -118,14 +181,57 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
             <span>Font family</span>
             <select value={shape.fontFamily ?? "Arial"} onChange={(event) => actions.patchSelected({ fontFamily: event.target.value })}>
               <option value="Arial">Arial</option>
+              <option value="Helvetica Neue">Helvetica Neue</option>
+              <option value="Inter">Inter</option>
               <option value="Georgia">Georgia</option>
+              <option value="Times New Roman">Times New Roman</option>
               <option value="Courier New">Courier New</option>
             </select>
           </label>
+          <label className={styles.fullField}>
+            <span>Font weight</span>
+            <select value={shape.fontWeight ?? "normal"} onChange={(event) => actions.patchSelected({ fontWeight: event.target.value })}>
+              <option value="lighter">Light</option>
+              <option value="normal">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semibold</option>
+              <option value="bold">Bold</option>
+            </select>
+          </label>
+          <span className={styles.controlLabel}>Horizontal alignment</span>
           <div className={styles.segmented} role="group" aria-label="Text alignment">
             {["left", "center", "right"].map((textAlign) => (
               <button key={textAlign} type="button" aria-pressed={shape.textAlign === textAlign} onClick={() => actions.patchSelected({ textAlign })}>
-                {textAlign === "left" ? "⇤" : textAlign === "center" ? "↔" : "⇥"}
+                {textAlign === "left"
+                  ? <AlignLeft aria-hidden="true" />
+                  : textAlign === "center"
+                    ? <AlignCenterHorizontal aria-hidden="true" />
+                    : <AlignRight aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+          <span className={styles.controlLabel}>Vertical alignment</span>
+          <div className={styles.segmented} role="group" aria-label="Vertical text alignment">
+            {[
+              { value: "flex-start", label: "Align text to top", Icon: AlignTopSimple },
+              { value: "center", label: "Align text to middle", Icon: AlignCenterVerticalSimple },
+              { value: "flex-end", label: "Align text to bottom", Icon: AlignBottomSimple },
+            ].map(({ value, label, Icon }) => (
+              <button key={value} type="button" aria-label={label} aria-pressed={(shape.alignItems ?? "flex-start") === value} onClick={() => actions.patchSelected({ alignItems: value })}>
+                <Icon aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+          <span className={styles.controlLabel}>Decoration</span>
+          <div className={`${styles.segmented} ${styles.segmentedFour}`} role="group" aria-label="Text decoration">
+            {[
+              { value: "none", label: "No text decoration", Icon: TextT },
+              { value: "underline", label: "Underline text", Icon: TextUnderline },
+              { value: "overline", label: "Overline text", Icon: TextT },
+              { value: "line-through", label: "Strike through text", Icon: TextStrikethrough },
+            ].map(({ value, label, Icon }) => (
+              <button key={value} type="button" aria-label={label} aria-pressed={(shape.textDecoration ?? "none") === value} onClick={() => actions.patchSelected({ textDecoration: value })}>
+                <Icon aria-hidden="true" className={value === "overline" ? styles.overlineIcon : undefined} />
               </button>
             ))}
           </div>
@@ -151,7 +257,7 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
               )}
               {boardChoices.map((board) => (
                 <option key={board.id} value={board.id}>
-                  {board.title} · {board.role === "owner" ? "yours" : "shared"}
+                  {board.title} - {board.role === "owner" ? "yours" : "shared"}
                 </option>
               ))}
             </select>
@@ -164,6 +270,8 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
         <h2>Layer</h2>
         <div className={styles.buttonGrid}>
           <button type="button" onClick={() => actions.orderSelected("front")}>Front</button>
+          <button type="button" onClick={() => actions.orderSelected("forward")}>Forward</button>
+          <button type="button" onClick={() => actions.orderSelected("backward")}>Backward</button>
           <button type="button" onClick={() => actions.orderSelected("back")}>Back</button>
           <button type="button" onClick={() => actions.patchSelected({ locked: !shape.locked })}>{shape.locked ? "Unlock" : "Lock"}</button>
           <button type="button" onClick={actions.removeSelected} className={styles.dangerButton}>Delete</button>
@@ -173,14 +281,20 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
   );
 };
 
-const InspectorPanel = () => {
+export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
   const editor = useSelector((state: RootState) => state.editor);
   const showGrid = useSelector((state: RootState) => state.actions.grid);
-  const actions = useEditorActions();
   const selected = board.shapes.filter((shape) => selectedIds.includes(shape.id));
+  const selectedGroupId = selected[0]?.groupId;
+  const isExistingGroup = Boolean(
+    selected.length > 1 &&
+    selectedGroupId &&
+    selected.every((shape) => shape.groupId === selectedGroupId)
+  );
+  const canUngroup = selected.some((shape) => Boolean(shape.groupId));
 
   return (
     <aside className={styles.inspectorPanel} aria-label="Properties">
@@ -192,7 +306,7 @@ const InspectorPanel = () => {
           <>
             <section className={styles.inspectorSection}>
               <h2>Canvas</h2>
-              <ColorField key={`board-${board.backGroundColor}`} label="Background" value={board.backGroundColor} onCommit={(backGroundColor) => actions.commitBoardPatch({ backGroundColor })} />
+              <ColorField label="Background" value={board.backGroundColor} onCommit={(backGroundColor) => actions.commitBoardPatch({ backGroundColor })} />
               <label className={styles.toggleRow}>
                 <span>Show grid</span>
                 <input type="checkbox" checked={showGrid} onChange={(event) => dispatch(setGrid(event.target.checked))} />
@@ -209,7 +323,7 @@ const InspectorPanel = () => {
             </div>
           </>
         )}
-        {selected.length === 1 && selected[0] && <ShapeInspector key={selected[0].id} shape={selected[0]} />}
+        {selected.length === 1 && selected[0] && <ShapeInspector key={selected[0].id} shape={selected[0]} actions={actions} />}
         {selected.length > 1 && (
           <>
             <section className={styles.inspectorSection}>
@@ -226,10 +340,14 @@ const InspectorPanel = () => {
             <section className={styles.inspectorSection}>
               <h2>Arrange</h2>
               <div className={styles.buttonGrid}>
+                <button type="button" onClick={() => actions.orderSelected("front")}>Front</button>
+                <button type="button" onClick={() => actions.orderSelected("forward")}>Forward</button>
+                <button type="button" onClick={() => actions.orderSelected("backward")}>Backward</button>
+                <button type="button" onClick={() => actions.orderSelected("back")}>Back</button>
                 <button type="button" onClick={() => actions.distributeSelected("horizontal")}>Distribute X</button>
                 <button type="button" onClick={() => actions.distributeSelected("vertical")}>Distribute Y</button>
-                <button type="button" onClick={actions.groupSelected}>Group</button>
-                <button type="button" onClick={actions.ungroupSelected}>Ungroup</button>
+                {!isExistingGroup && <button type="button" onClick={actions.groupSelected}>Group</button>}
+                {canUngroup && <button type="button" onClick={actions.ungroupSelected}>Ungroup</button>}
               </div>
             </section>
           </>
@@ -238,5 +356,7 @@ const InspectorPanel = () => {
     </aside>
   );
 };
+
+const InspectorPanel = () => <InspectorPanelView actions={useEditorActions()} />;
 
 export default InspectorPanel;

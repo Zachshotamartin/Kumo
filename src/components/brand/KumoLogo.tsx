@@ -25,10 +25,9 @@ interface KumoLogoProps {
   decorative?: boolean;
   label?: string;
   startupAnimation?: KumoAnimation;
+  animationScope?: string;
   style?: CSSProperties;
 }
-
-const serializedConfig = JSON.stringify(KUMO_LOGO_CONFIG);
 
 interface KumoLogoElement extends HTMLElement {
   configure: (config: typeof KUMO_LOGO_CONFIG) => KumoLogoElement;
@@ -43,55 +42,46 @@ const whenLogoIsDefined = () => {
   return window.customElements.whenDefined("kumo-logo");
 };
 
-/**
- * Shared host for the locally bundled Kumo Logo Studio web component loaded in index.html.
- * Keeping configuration here prevents visual drift between product surfaces.
- */
+const playedAnimationScopes = new Set<string>();
+
+/** Shared host for the locally bundled Kumo Logo Studio web component. */
 const KumoLogo = ({
   className,
   context = "idle",
   decorative = false,
   label = "Kumo",
   startupAnimation,
+  animationScope,
   style,
 }: KumoLogoProps) => {
   const [element, setElement] = useState<KumoLogoElement | null>(null);
-  const latestContext = useRef(context);
+  const playedAnimation = useRef(false);
 
   useEffect(() => {
-    latestContext.current = context;
-    let active = true;
-    void whenLogoIsDefined().then(() => {
-      const logo = element;
-      if (!active || !logo) return;
-      logo.configure(KUMO_LOGO_CONFIG);
-      if (context === "idle") logo.resumeIdle();
-      else logo.setContext(context);
-    });
-    return () => { active = false; };
-  }, [context, element]);
-
-  useEffect(() => {
-    if (!startupAnimation) return;
+    if (!element) return;
     let active = true;
     void whenLogoIsDefined().then(async () => {
       const logo = element;
       if (!active || !logo) return;
+      // React assigns known custom-element properties instead of retaining their
+      // attributes. Configure imperatively so the authored paddle-leg rig is
+      // installed before any animation samples its geometry.
+      logo.configure(KUMO_LOGO_CONFIG);
+      if (!startupAnimation || playedAnimation.current) return;
+      if (animationScope && playedAnimationScopes.has(animationScope)) return;
+      playedAnimation.current = true;
+      if (animationScope) playedAnimationScopes.add(animationScope);
       if (logo.playAnimation) await logo.playAnimation(startupAnimation);
       else logo.playBreak(startupAnimation === "intro" ? "scuttle" : "stretch");
-      if (!active) return;
-      const currentContext = latestContext.current;
-      if (currentContext === "idle") logo.resumeIdle();
-      else logo.setContext(currentContext);
     });
     return () => { active = false; };
-  }, [element, startupAnimation]);
+  }, [animationScope, element, startupAnimation]);
 
   return createElement("kumo-logo", {
     "aria-hidden": decorative ? "true" : undefined,
     "aria-label": decorative ? undefined : label,
     className,
-    config: serializedConfig,
+    config: KUMO_LOGO_CONFIG,
     context,
     ref: setElement,
     style,

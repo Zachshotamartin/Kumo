@@ -5,7 +5,7 @@ import { Shape } from "../../classes/shape";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer from "../../features/auth/authSlice";
 import editorReducer from "../../features/editor/editorSlice";
-import selectedReducer, { setSelectedShapes } from "../../features/selected/selectedSlice";
+import selectedReducer, { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import EditorCanvas from "./EditorCanvas";
 import { getBoard } from "../../services/boardRepository";
@@ -61,6 +61,25 @@ const rectangle = (rotation = 0): Shape => ({
   zIndex: 1,
   rotation,
   backgroundColor: "#ffffff",
+});
+
+const textShape = (): Shape => ({
+  ...rectangle(),
+  id: "text-1",
+  type: "text",
+  name: "Text",
+  text: "Select part of this text",
+  backgroundColor: "transparent",
+  borderWidth: 0,
+  color: "#ffffff",
+  fontSize: 18,
+  fontFamily: "Arial",
+  fontWeight: "normal",
+  textAlign: "left",
+  alignItems: "center",
+  textDecoration: "none",
+  lineHeight: 1.2,
+  letterSpacing: 0,
 });
 
 const renderCanvas = (input: Shape | Shape[]) => {
@@ -163,7 +182,7 @@ describe("EditorCanvas transform interactions", () => {
     expect(presence.update).toHaveBeenLastCalledWith({ cursor: { x: 30, y: 40 } });
   });
 
-  it("cancels browser pinch zoom and zooms the canvas around the pointer", () => {
+  it("cancels browser pinch zoom and applies a strong, symmetric canvas zoom", () => {
     const { canvas, store } = renderCanvas(rectangle());
     const event = new WheelEvent("wheel", {
       bubbles: true,
@@ -176,11 +195,21 @@ describe("EditorCanvas transform interactions", () => {
 
     expect(canvas.dispatchEvent(event)).toBe(false);
     expect(event.defaultPrevented).toBe(true);
-    expect(store.getState().editor.viewport.zoom).toBeGreaterThan(1);
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1.5);
     expect(store.getState().editor.viewport).toMatchObject({
       x: expect.any(Number),
       y: expect.any(Number),
     });
+
+    canvas.dispatchEvent(new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 400,
+      clientY: 300,
+      ctrlKey: true,
+      deltaY: 100,
+    }));
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1);
   });
 
   it("cancels page scrolling and pans the canvas for an ordinary wheel gesture", () => {
@@ -227,5 +256,70 @@ describe("EditorCanvas transform interactions", () => {
     expect(store.getState().whiteBoard.id).toBe("board-b");
     await act(async () => { resolveFirst(boardState("board-a")); });
     expect(store.getState().whiteBoard.id).toBe("board-b");
+  });
+
+  it("supports native text ranges and commits the exact edited value", () => {
+    const { canvas } = renderCanvas(textShape());
+    fireEvent.doubleClick(canvas, { clientX: 10, clientY: 10 });
+    const editor = screen.getByRole("textbox", { name: "Edit text" }) as HTMLTextAreaElement;
+
+    editor.setSelectionRange(7, 11);
+    expect({ start: editor.selectionStart, end: editor.selectionEnd }).toEqual({ start: 7, end: 11 });
+    fireEvent.change(editor, { target: { value: "Select a section of this text" } });
+    expect(editorActions.previewShapes).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: "text-1", text: "Select a section of this text" }),
+    ]);
+    fireEvent.blur(editor);
+    expect(editorActions.commitShapes).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ id: "text-1", text: "Select a section of this text" })],
+      [expect.objectContaining({ id: "text-1", text: "Select part of this text" })]
+    );
+  });
+
+  it("enters text editing from the keyboard", () => {
+    renderCanvas(textShape());
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(screen.getByRole("textbox", { name: "Edit text" })).toBeInTheDocument();
+  });
+
+  it("exposes the complete ordering and grouping context actions", () => {
+    const first = rectangle();
+    const second = { ...rectangle(), id: "shape-2", x1: 150, x2: 250, zIndex: 2 };
+    const { canvas, store } = renderCanvas([first, second]);
+    act(() => { store.dispatch(setSelectedShapes([first.id, second.id])); });
+    fireEvent.contextMenu(canvas, { clientX: 10, clientY: 10 });
+
+    expect(screen.getByRole("menuitem", { name: "Group" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Bring forward" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Send backward" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Ungroup" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Group" }));
+    expect(editorActions.groupSelected).toHaveBeenCalledOnce();
+  });
+
+  it("offers ungroup instead of regrouping an existing group", () => {
+    const first = { ...rectangle(), groupId: "group" };
+    const second = { ...rectangle(), id: "shape-2", x1: 150, x2: 250, zIndex: 2, groupId: "group" };
+    const { canvas, store } = renderCanvas([first, second]);
+    act(() => { store.dispatch(setSelectedShapes([first.id, second.id])); });
+    fireEvent.contextMenu(canvas, { clientX: 10, clientY: 10 });
+
+    expect(screen.getByRole("menuitem", { name: "Ungroup" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Group" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ungroup" }));
+    expect(editorActions.ungroupSelected).toHaveBeenCalledOnce();
+  });
+
+  it("opens a newly drawn text box for typing immediately", () => {
+    const { canvas, store } = renderCanvas(rectangle());
+    act(() => { store.dispatch(setSelectedTool("text")); });
+    fireEvent.pointerDown(canvas, { pointerId: 12, button: 0, clientX: 240, clientY: 180 });
+    fireEvent.pointerUp(canvas, { pointerId: 12, button: 0, clientX: 240, clientY: 180 });
+
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    const created = committed.find((shape) => shape.type === "text");
+    expect(created).toMatchObject({ width: 180, height: 40, text: "Type something" });
+    expect(store.getState().editor.editingShapeId).toBe(created?.id);
+    expect(store.getState().selected.selectedTool).toBe("pointer");
   });
 });

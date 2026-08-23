@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer from "../../features/auth/authSlice";
@@ -37,6 +37,23 @@ describe("EditorToolbar image uploads", () => {
   });
 
   afterEach(() => vi.unstubAllGlobals());
+
+  it("renders the canvas tools with the shared vector icon system", () => {
+    const store = configureStore({
+      reducer: {
+        auth: authReducer,
+        whiteBoard: whiteBoardReducer,
+        actions: actionsReducer,
+        selected: selectedReducer,
+        editor: editorReducer,
+      },
+    });
+    store.dispatch(setWhiteboardData({ id: "board-a", role: "owner", shapes: [] }));
+    const view = render(<Provider store={store}><EditorToolbar /></Provider>);
+    expect(screen.getByRole("button", { name: "Rectangle tool (R)" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Linked board tool (B)" }).querySelector("svg")).toBeInTheDocument();
+    expect(view.container.querySelectorAll("[role='toolbar'] svg").length).toBeGreaterThanOrEqual(10);
+  });
 
   it("removes an uploaded asset if its board unmounts before completion", async () => {
     let finishUpload: (asset: Record<string, unknown>) => void = () => undefined;

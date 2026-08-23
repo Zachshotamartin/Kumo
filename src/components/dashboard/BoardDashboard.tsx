@@ -1,4 +1,12 @@
 import { useEffect, useState } from "react";
+import {
+  ArrowUpRight,
+  Copy,
+  Graph,
+  MagnifyingGlass,
+  Plus,
+  SignOut,
+} from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import KumoLogo from "../brand/KumoLogo";
@@ -29,14 +37,25 @@ const BoardCard = ({
   <article className={styles.boardCard}>
     <button type="button" className={styles.boardPreview} onClick={onOpen} aria-label={`${actionLabel} ${board.title}`}>
       <span className={styles.previewGrid} aria-hidden="true" />
-      <span className={styles.previewGlyph} aria-hidden="true">{board.title.slice(0, 1).toUpperCase()}</span>
+      <span className={styles.previewPath} aria-hidden="true">
+        <span />
+        <Graph weight="duotone" />
+        <span />
+      </span>
     </button>
     <div className={styles.boardMeta}>
       <div>
         <h3>{board.title}</h3>
         <p>{board.visibility === "public" ? "Public board" : "Private board"}</p>
       </div>
-      <button type="button" onClick={onOpen}>{actionLabel}</button>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`${actionLabel} ${board.title} from board details`}
+        title={actionLabel}
+      >
+        {actionLabel === "Copy" ? <Copy aria-hidden="true" /> : <ArrowUpRight aria-hidden="true" />}
+      </button>
     </div>
   </article>
 );
@@ -137,24 +156,24 @@ const BoardDashboard = () => {
         </a>
         <label className={styles.search}>
           <span className="sr-only">Search public boards</span>
-          <span aria-hidden="true">⌕</span>
+          <MagnifyingGlass aria-hidden="true" />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search public boards" />
         </label>
         <div className={styles.account}>
           <span>{user.email}</span>
-          <button type="button" onClick={handleLogout}>Sign out</button>
+          <button type="button" onClick={handleLogout}><SignOut aria-hidden="true" /><span>Sign out</span></button>
         </div>
       </header>
 
       <div className={styles.content}>
         <section className={styles.hero}>
           <div>
-            <p className={styles.eyebrow}>Your workspace</p>
-            <h1>Make the next thing clear.</h1>
-            <p>Open a board or start with an empty canvas.</p>
+            <p className={styles.eyebrow}><Graph aria-hidden="true" /> Your connected workspace</p>
+            <h1>Pick up where the idea moved.</h1>
+            <p>Open a board, follow a link, or give the next thought its own canvas.</p>
           </div>
           <button type="button" className={styles.createButton} onClick={handleCreate} disabled={creating}>
-            <span aria-hidden="true">＋</span>
+            <Plus aria-hidden="true" weight="bold" />
             {creating ? "Creating" : "New board"}
           </button>
         </section>
@@ -189,7 +208,12 @@ const BoardDashboard = () => {
               ) : myBoards.length > 0 ? (
                 <div className={styles.boardGrid}>{myBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} />)}</div>
               ) : (
-                <div className={styles.emptyState}><p>No boards yet.</p><span>Your first board starts as a clean, private canvas.</span><button type="button" onClick={handleCreate}>Create a board</button></div>
+                <div className={styles.emptyState}>
+                  <KumoLogo className={styles.emptyLogo} context="attention" decorative />
+                  <p>Start one board. Link the next.</p>
+                  <span>Your first board is a clean, private canvas.</span>
+                  <button type="button" onClick={handleCreate}><Plus aria-hidden="true" /> Create a board</button>
+                </div>
               )}
             </section>
             {sharedBoards.length > 0 && (

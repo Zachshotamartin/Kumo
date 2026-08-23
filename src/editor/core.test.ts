@@ -28,6 +28,7 @@ import {
   duplicateShapes,
   groupShapes,
   mergeShapeChanges,
+  moveShapesRelative,
   orderShapes,
   pasteShapes,
   patchShapes,
@@ -446,6 +447,53 @@ describe("editor commands", () => {
     expect(reordered.map((item) => item.zIndex)).toEqual([1, 2, 3, 4]);
   });
 
+  it("drops a group directly in front of another logical layer", () => {
+    const shapes = [
+      { ...shape("1", 0, 0), zIndex: 1, groupId: "moving" },
+      { ...shape("2", 0, 0), zIndex: 2, groupId: "moving" },
+      { ...shape("3", 0, 0), zIndex: 3 },
+      { ...shape("4", 0, 0), zIndex: 4, groupId: "target" },
+      { ...shape("5", 0, 0), zIndex: 5, groupId: "target" },
+    ];
+    const reordered = moveShapesRelative(shapes, ["1"], "4", "front");
+    expect(reordered.map((item) => item.id)).toEqual(["3", "4", "5", "1", "2"]);
+    expect(reordered.map((item) => item.zIndex)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("steps one group past another group without interleaving their members", () => {
+    const shapes = [
+      { ...shape("1", 0, 0), zIndex: 1, groupId: "back" },
+      { ...shape("2", 0, 0), zIndex: 2, groupId: "back" },
+      { ...shape("3", 0, 0), zIndex: 3, groupId: "front" },
+      { ...shape("4", 0, 0), zIndex: 4, groupId: "front" },
+    ];
+    const reordered = orderShapes(shapes, ["3"], "backward");
+    expect(reordered.map((item) => item.id)).toEqual(["3", "4", "1", "2"]);
+    expect(reordered.map((item) => item.groupId)).toEqual(["front", "front", "back", "back"]);
+  });
+
+  it("drops a layer directly behind a target group", () => {
+    const shapes = [
+      { ...shape("1", 0, 0), zIndex: 1 },
+      { ...shape("2", 0, 0), zIndex: 2, groupId: "target" },
+      { ...shape("3", 0, 0), zIndex: 3, groupId: "target" },
+      { ...shape("4", 0, 0), zIndex: 4 },
+    ];
+    expect(moveShapesRelative(shapes, ["4"], "2", "back").map((item) => item.id))
+      .toEqual(["1", "4", "2", "3"]);
+  });
+
+  it("does not reorder onto itself, an unknown target, or a locked group", () => {
+    const grouped = [
+      { ...shape("1", 0, 0), zIndex: 1, groupId: "group", locked: true },
+      { ...shape("2", 0, 0), zIndex: 2, groupId: "group" },
+      { ...shape("3", 0, 0), zIndex: 3 },
+    ];
+    expect(moveShapesRelative(grouped, ["1"], "3", "front")).toBe(grouped);
+    expect(moveShapesRelative(grouped, ["3"], "missing", "front")).toBe(grouped);
+    expect(moveShapesRelative(grouped, ["3"], "3", "back")).toBe(grouped);
+  });
+
   it("does not rewrite z-index values when a reorder cannot move anything", () => {
     const shapes = [
       { ...shape("1", 0, 0), zIndex: 10 },
@@ -461,7 +509,10 @@ describe("editor commands", () => {
     expect(distributeShapes(shapes, ["1", "2", "3"], "horizontal")[1]!.x1).toBe(70);
     const grouped = groupShapes(shapes, ["1", "2"], "group");
     expect(grouped[0]!.groupId).toBe("group");
-    expect(ungroupShapes(grouped, ["1"])[1]!.groupId).toBeNull();
+    expect(grouped[0]!.groupName).toBe("Group");
+    const ungrouped = ungroupShapes(grouped, ["1"]);
+    expect(ungrouped[1]!.groupId).toBeNull();
+    expect(ungrouped[1]!.groupName).toBeUndefined();
   });
 
   it("aligns and distributes groups as logical units", () => {
@@ -489,6 +540,14 @@ describe("editor commands", () => {
     const grouped = groupShapes(shapes, ["1", "3"], "group");
     expect(grouped.map((item) => item.id)).toEqual(["2", "1", "3"]);
     expect(grouped.map((item) => item.zIndex)).toEqual([1, 2, 3]);
+  });
+
+  it("does not create a new identity when an existing group is grouped again", () => {
+    const shapes = [
+      { ...shape("1", 0, 0), groupId: "existing" },
+      { ...shape("2", 0, 0), groupId: "existing" },
+    ];
+    expect(groupShapes(shapes, ["1"], "replacement")).toBe(shapes);
   });
 
   it("merges a local shape edit over an unrelated remote edit", () => {
