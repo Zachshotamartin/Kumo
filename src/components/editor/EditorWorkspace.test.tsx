@@ -129,4 +129,15 @@ describe("EditorWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show properties panel" }));
     expect(screen.getByText("Inspector")).toBeInTheDocument();
   });
+
+  it("uses stronger symmetric zoom controls", () => {
+    const store = renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1.4);
+    expect(screen.getByRole("button", { name: "Reset zoom (140%)" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1);
+    expect(screen.getByRole("button", { name: "Reset zoom (100%)" })).toBeVisible();
+  });
 });

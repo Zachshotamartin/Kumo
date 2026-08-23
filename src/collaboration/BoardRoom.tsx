@@ -8,7 +8,7 @@ import KumoLogo from "../components/brand/KumoLogo";
 
 const RoomLoading = () => (
   <div className="app-loading" role="status">
-    <KumoLogo className="app-loading-logo" context="loading" startupAnimation="startup" decorative />
+    <KumoLogo className="app-loading-logo" context="loading" startupAnimation="startup" animationScope="app-startup" decorative />
     <div className="app-loading-copy">
       <span className="app-loading-word">Kumo</span>
       <span className="app-loading-status">Connecting to board</span>

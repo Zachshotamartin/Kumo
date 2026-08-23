@@ -127,17 +127,18 @@ describe("InspectorPanel", () => {
   it("accepts valid colors, ignores invalid colors, and updates the color picker", () => {
     const { actions } = renderInspector();
     const textColor = screen.getByLabelText("Text hex value");
+    textColor.focus();
     fireEvent.change(textColor, { target: { value: "#b87a2e" } });
-    fireEvent.blur(textColor);
+    expect(actions.patchSelected).toHaveBeenCalledWith({ color: "#b87a2e" });
+    expect(textColor).toHaveFocus();
     const background = screen.getByLabelText("Back hex value");
+    fireEvent.change(background, { target: { value: "#abcdef" } });
     fireEvent.change(background, { target: { value: "transparent" } });
-    fireEvent.blur(background);
     const stroke = screen.getByLabelText("Stroke hex value");
     fireEvent.change(stroke, { target: { value: "invalid" } });
     fireEvent.blur(stroke);
     const picker = document.querySelector("input[type='color']") as HTMLInputElement;
     fireEvent.change(picker, { target: { value: "#123456" } });
-    fireEvent.blur(picker);
 
     expect(actions.patchSelected).toHaveBeenCalledWith({ color: "#b87a2e" });
     expect(actions.patchSelected).toHaveBeenCalledWith({ backgroundColor: "transparent" });
@@ -147,15 +148,14 @@ describe("InspectorPanel", () => {
 
   it("commits clamped geometry and numeric appearance values", () => {
     const { actions } = renderInspector();
-    fireEvent.change(screen.getByLabelText("X"), { target: { value: "42" } });
-    fireEvent.blur(screen.getByLabelText("X"));
+    const x = screen.getByLabelText("X");
+    x.focus();
+    fireEvent.change(x, { target: { value: "42" } });
+    expect(actions.setShapeGeometry).toHaveBeenCalledWith(expect.objectContaining({ id: "text" }), { x: 42 });
+    expect(x).toHaveFocus();
     fireEvent.change(screen.getByLabelText("W"), { target: { value: "0" } });
-    fireEvent.keyDown(screen.getByLabelText("W"), { key: "Enter" });
-    fireEvent.blur(screen.getByLabelText("W"));
     fireEvent.change(screen.getByLabelText("α"), { target: { value: "120" } });
-    fireEvent.blur(screen.getByLabelText("α"));
     fireEvent.change(screen.getByLabelText("Size"), { target: { value: "4" } });
-    fireEvent.blur(screen.getByLabelText("Size"));
 
     expect(actions.setShapeGeometry).toHaveBeenCalledWith(expect.objectContaining({ id: "text" }), { x: 42 });
     expect(actions.setShapeGeometry).toHaveBeenCalledWith(expect.objectContaining({ id: "text" }), { width: 1 });
@@ -192,11 +192,9 @@ describe("InspectorPanel", () => {
     const { actions, store } = renderInspector([], []);
     const background = screen.getByLabelText("Background hex value");
     fireEvent.change(background, { target: { value: "#121212" } });
-    fireEvent.blur(background);
     fireEvent.click(screen.getByLabelText("Show grid"));
     fireEvent.click(screen.getByLabelText("Snap to grid"));
     fireEvent.change(screen.getByLabelText("Grid"), { target: { value: "200" } });
-    fireEvent.blur(screen.getByLabelText("Grid"));
 
     expect(actions.commitBoardPatch).toHaveBeenCalledWith({ backGroundColor: "#121212" });
     expect(store.getState().actions.grid).toBe(false);

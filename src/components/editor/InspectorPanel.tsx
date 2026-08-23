@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   AlignBottomSimple,
   AlignCenterHorizontal,
@@ -29,26 +29,41 @@ interface NumberFieldProps {
   onCommit: (value: number) => void;
 }
 
+const formatNumber = (number: number) => String(Math.round(number * 100) / 100);
+
 const NumberField = ({ label, value, min, max, step = 1, onCommit }: NumberFieldProps) => {
-  const commit = (draft: string, input: HTMLInputElement) => {
-    const number = Number(draft);
-    if (!draft.trim() || !Number.isFinite(number)) {
-      input.value = String(value);
-      return;
-    }
-    onCommit(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, number)));
+  const clamp = (number: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, number));
+  const [draft, setDraft] = useState(() => formatNumber(value));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(formatNumber(value));
+  }, [value]);
+
+  const update = (nextDraft: string) => {
+    setDraft(nextDraft);
+    const number = Number(nextDraft);
+    if (nextDraft.trim() && Number.isFinite(number)) onCommit(clamp(number));
   };
+
+  const finishEditing = () => {
+    focused.current = false;
+    const number = Number(draft);
+    setDraft(draft.trim() && Number.isFinite(number) ? formatNumber(clamp(number)) : formatNumber(value));
+  };
+
   return (
     <label className={styles.field}>
       <span>{label}</span>
       <input
-        key={value}
         type="number"
-        defaultValue={Math.round(value * 100) / 100}
+        value={draft}
         min={min}
         max={max}
         step={step}
-        onBlur={(event) => commit(event.currentTarget.value, event.currentTarget)}
+        onFocus={() => { focused.current = true; }}
+        onChange={(event) => update(event.currentTarget.value)}
+        onBlur={finishEditing}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
         }}
@@ -59,21 +74,44 @@ const NumberField = ({ label, value, min, max, step = 1, onCommit }: NumberField
 
 const ColorField = ({ label, value, onCommit }: { label: string; value: string; onCommit: (value: string) => void }) => {
   const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
   const pickerValue = /^#[0-9a-f]{6}$/i.test(draft) ? draft : "#000000";
   const isValid = (candidate: string) =>
     /^#[0-9a-f]{6}$/i.test(candidate) || candidate.toLowerCase() === "transparent";
+
+  useEffect(() => {
+    if (!focused.current) setDraft(value);
+  }, [value]);
+
+  const update = (nextDraft: string) => {
+    setDraft(nextDraft);
+    if (isValid(nextDraft)) onCommit(nextDraft.toLowerCase());
+  };
+
+  const finishEditing = () => {
+    focused.current = false;
+    setDraft(isValid(draft) ? draft.toLowerCase() : value);
+  };
+
   return (
     <label className={styles.colorField}>
       <span>{label}</span>
       <span className={styles.colorControl}>
-        <input type="color" value={pickerValue} onChange={(event) => setDraft(event.target.value)} onBlur={() => onCommit(draft)} />
+        <input
+          type="color"
+          value={pickerValue}
+          onFocus={() => { focused.current = true; }}
+          onChange={(event) => update(event.currentTarget.value)}
+          onBlur={() => { focused.current = false; }}
+        />
         <input
           type="text"
           value={draft}
           maxLength={11}
           aria-label={`${label} hex value`}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => isValid(draft) && onCommit(draft.toLowerCase())}
+          onFocus={() => { focused.current = true; }}
+          onChange={(event) => update(event.currentTarget.value)}
+          onBlur={finishEditing}
           onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
         />
       </span>
@@ -113,10 +151,10 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
       <section className={styles.inspectorSection}>
         <h2>Appearance</h2>
         {shape.type === "text" && (
-          <ColorField key={`text-${shape.color}`} label="Text" value={shape.color ?? "#f7f7f5"} onCommit={(color) => actions.patchSelected({ color })} />
+          <ColorField label="Text" value={shape.color ?? "#f7f7f5"} onCommit={(color) => actions.patchSelected({ color })} />
         )}
-        <ColorField key={`fill-${shape.backgroundColor}`} label={shape.type === "text" ? "Back" : "Fill"} value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
-        <ColorField key={`stroke-${shape.borderColor}`} label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
+        <ColorField label={shape.type === "text" ? "Back" : "Fill"} value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
+        <ColorField label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
         <div className={styles.fieldGrid}>
           <NumberField label="Stroke" min={0} value={shape.borderWidth ?? 0} onCommit={(borderWidth) => actions.patchSelected({ borderWidth })} />
           <NumberField label="Radius" min={0} value={shape.borderRadius ?? 0} onCommit={(borderRadius) => actions.patchSelected({ borderRadius })} />
@@ -268,7 +306,7 @@ export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
           <>
             <section className={styles.inspectorSection}>
               <h2>Canvas</h2>
-              <ColorField key={`board-${board.backGroundColor}`} label="Background" value={board.backGroundColor} onCommit={(backGroundColor) => actions.commitBoardPatch({ backGroundColor })} />
+              <ColorField label="Background" value={board.backGroundColor} onCommit={(backGroundColor) => actions.commitBoardPatch({ backGroundColor })} />
               <label className={styles.toggleRow}>
                 <span>Show grid</span>
                 <input type="checkbox" checked={showGrid} onChange={(event) => dispatch(setGrid(event.target.checked))} />

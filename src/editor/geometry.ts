@@ -10,9 +10,23 @@ import {
 } from "./types";
 
 const EPSILON = 0.0001;
+const WHEEL_ZOOM_SENSITIVITY = 0.0045;
+const MAX_WHEEL_ZOOM_FACTOR = 1.5;
+
+export const ZOOM_STEP_FACTOR = 1.4;
 
 export const clampZoom = (zoom: number): number =>
   Math.min(8, Math.max(0.1, zoom));
+
+/** A stronger but bounded response for mouse-wheel and trackpad pinch deltas. */
+export const wheelZoomFactor = (delta: number): number => {
+  const maximumExponent = Math.log(MAX_WHEEL_ZOOM_FACTOR);
+  const exponent = Math.min(
+    maximumExponent,
+    Math.max(-maximumExponent, -delta * WHEEL_ZOOM_SENSITIVITY)
+  );
+  return Math.exp(exponent);
+};
 
 export const shapeBounds = (shape: Shape): Bounds => ({
   x: Math.min(shape.x1, shape.x2),

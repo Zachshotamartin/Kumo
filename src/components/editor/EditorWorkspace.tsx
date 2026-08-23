@@ -18,7 +18,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { logout } from "../../features/auth/authSlice";
-import { zoomAtPoint } from "../../editor/geometry";
+import { zoomAtPoint, ZOOM_STEP_FACTOR } from "../../editor/geometry";
 import { setViewport } from "../../features/editor/editorSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
@@ -294,11 +294,16 @@ const EditorWorkspace = () => {
             {propertiesCollapsed ? <CaretLeft aria-hidden="true" /> : <CaretRight aria-hidden="true" />}
           </button>
           <div className={styles.zoomControl} aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / 1.25)}><Minus aria-hidden="true" /></button>
-            <button type="button" className={styles.zoomValue} onClick={() => setZoomAroundCanvasCenter(1)}>
+            <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / ZOOM_STEP_FACTOR)}><Minus aria-hidden="true" /></button>
+            <button
+              type="button"
+              className={styles.zoomValue}
+              aria-label={`Reset zoom (${Math.round(editor.viewport.zoom * 100)}%)`}
+              onClick={() => setZoomAroundCanvasCenter(1)}
+            >
               {Math.round(editor.viewport.zoom * 100)}%
             </button>
-            <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * 1.25)}><Plus aria-hidden="true" /></button>
+            <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * ZOOM_STEP_FACTOR)}><Plus aria-hidden="true" /></button>
           </div>
         </section>
         <div

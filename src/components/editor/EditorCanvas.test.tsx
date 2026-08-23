@@ -182,7 +182,7 @@ describe("EditorCanvas transform interactions", () => {
     expect(presence.update).toHaveBeenLastCalledWith({ cursor: { x: 30, y: 40 } });
   });
 
-  it("cancels browser pinch zoom and zooms the canvas around the pointer", () => {
+  it("cancels browser pinch zoom and applies a strong, symmetric canvas zoom", () => {
     const { canvas, store } = renderCanvas(rectangle());
     const event = new WheelEvent("wheel", {
       bubbles: true,
@@ -195,11 +195,21 @@ describe("EditorCanvas transform interactions", () => {
 
     expect(canvas.dispatchEvent(event)).toBe(false);
     expect(event.defaultPrevented).toBe(true);
-    expect(store.getState().editor.viewport.zoom).toBeGreaterThan(1);
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1.5);
     expect(store.getState().editor.viewport).toMatchObject({
       x: expect.any(Number),
       y: expect.any(Number),
     });
+
+    canvas.dispatchEvent(new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 400,
+      clientY: 300,
+      ctrlKey: true,
+      deltaY: 100,
+    }));
+    expect(store.getState().editor.viewport.zoom).toBeCloseTo(1);
   });
 
   it("cancels page scrolling and pans the canvas for an ordinary wheel gesture", () => {

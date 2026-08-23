@@ -21,6 +21,8 @@ import {
   shapesInMarquee,
   snapPointToGrid,
   worldToScreen,
+  wheelZoomFactor,
+  ZOOM_STEP_FACTOR,
   zoomAtPoint,
 } from "../../editor/geometry";
 import { EditorTool, Point, ResizeHandle, SelectionFrame, Viewport } from "../../editor/types";
@@ -259,7 +261,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         ? zoomAtPoint(
             current,
             { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            current.zoom * Math.exp(-event.deltaY * unit * 0.002)
+            current.zoom * wheelZoomFactor(event.deltaY * unit)
           )
         : panViewport(current, {
             x: -event.deltaX * unit,
@@ -711,7 +713,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
         event.preventDefault();
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
-        const factor = event.key === "-" ? 0.8 : 1.25;
+        const factor = event.key === "-" ? 1 / ZOOM_STEP_FACTOR : ZOOM_STEP_FACTOR;
         dispatch(
           setViewport(
             zoomAtPoint(editor.viewport, { x: rect.width / 2, y: rect.height / 2 }, editor.viewport.zoom * factor)

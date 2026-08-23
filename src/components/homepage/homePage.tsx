@@ -143,7 +143,7 @@ const HomePage = () => {
           <span>Connected visual workspace</span>
         </header>
         <div className={styles.heroVisual} data-context={logoContext}>
-          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" />
+          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" animationScope="app-startup" />
           <div className={styles.connectionModel} aria-label="A chain of connected Kumo boards">
             <span>Explore</span>
             <ArrowRight aria-hidden="true" />

@@ -65,6 +65,23 @@ test.describe("editor regression workflows", () => {
     await expect(page.getByRole("button", { name: "Text tool (T)" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  test("applies inspector geometry and colors immediately while the input stays focused", async ({ page }) => {
+    await page.getByRole("button", { name: "Ochre card", exact: true }).click();
+    const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
+    const before = await rectangle.boundingBox();
+    expect(before).not.toBeNull();
+
+    const x = page.getByRole("spinbutton", { name: "X", exact: true });
+    await x.fill("260");
+    await expect(x).toBeFocused();
+    await expect.poll(async () => (await rectangle.boundingBox())?.x ?? 0).not.toBe(before!.x);
+
+    const fill = page.getByRole("textbox", { name: "Fill hex value", exact: true });
+    await fill.fill("#123456");
+    await expect(fill).toBeFocused();
+    await expect(rectangle).toHaveCSS("background-color", "rgb(18, 52, 86)");
+  });
+
   test("flips from a crossed resize handle and preserves undo and redo", async ({ page }) => {
     await page.getByRole("button", { name: "Ochre card", exact: true }).click();
     const handle = page.getByRole("button", { name: "Resize from bottom right" });
@@ -191,7 +208,14 @@ test.describe("editor regression workflows", () => {
     await page.keyboard.up("Control");
 
     await expect.poll(async () => (await rectangle.boundingBox())?.width ?? 0)
-      .toBeGreaterThan(shapeBefore!.width);
+      .toBeGreaterThan(shapeBefore!.width * 1.4);
+    const zoomedWidth = (await rectangle.boundingBox())!.width;
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, 120);
+    await page.keyboard.up("Control");
+    await expect.poll(async () => (await rectangle.boundingBox())?.width ?? 0)
+      .toBeLessThan(zoomedWidth * 0.75);
+
     expect(await page.evaluate(() => window.devicePixelRatio)).toBe(before);
     expect(await page.evaluate(() => document.documentElement.style.zoom)).toBe("");
   });
