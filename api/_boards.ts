@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { boardDocumentFromJson, emptyBoardDocument, liveblocksAdmin } from "./_liveblocks";
-import { supabaseAdmin } from "./_supabase";
+import { boardDocumentFromJson, emptyBoardDocument, liveblocksAdmin } from "./_liveblocks.js";
+import { supabaseAdmin } from "./_supabase.js";
 
 export type BoardRole = "owner" | "editor" | "viewer";
 export type BoardVisibility = "private" | "public";

@@ -1,15 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth";
+import { requireActor } from "./_auth.js";
 import {
   boardSummary,
   getBoardAccess,
   listBoardsForUser,
   provisionBoard,
   searchPublicBoards,
-} from "./_boards";
-import { allowMethods, errorMessage, stringQuery } from "./_http";
-import { liveblocksAdmin } from "./_liveblocks";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase";
+} from "./_boards.js";
+import { allowMethods, errorMessage, stringQuery } from "./_http.js";
+import { liveblocksAdmin } from "./_liveblocks.js";
+import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
 
 const cleanTitle = (value: unknown): string =>
   (typeof value === "string" ? value.trim() : "").slice(0, 120) || "Untitled board";

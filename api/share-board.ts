@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth";
-import { getBoardAccess } from "./_boards";
-import { adminAuth } from "./_firebaseAdmin";
-import { allowMethods, errorMessage } from "./_http";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase";
+import { requireActor } from "./_auth.js";
+import { getBoardAccess } from "./_boards.js";
+import { adminAuth } from "./_firebaseAdmin.js";
+import { allowMethods, errorMessage } from "./_http.js";
+import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
 
 type BoardRole = "editor" | "viewer";
 

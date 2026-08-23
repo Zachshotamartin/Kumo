@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 for (const file of ["database.rules.json", "firebase.json", "vercel.json"]) {
   JSON.parse(readFileSync(file, "utf8"));
@@ -27,6 +27,17 @@ const clientSource = [
 ].map((file) => readFileSync(file, "utf8")).join("\n");
 if (/firebase\/database|realtimeDb|getDatabase\s*\(/.test(clientSource)) {
   throw new Error("Firebase Realtime Database must not be used by normal client code.");
+}
+
+for (const file of readdirSync("api").filter((name) => name.endsWith(".ts"))) {
+  const source = readFileSync(`api/${file}`, "utf8");
+  for (const match of source.matchAll(/\bfrom\s+["'](\.{1,2}\/[^"']+)["']/g)) {
+    if (!match[1].endsWith(".js")) {
+      throw new Error(
+        `Vercel ESM import in api/${file} must include its emitted .js extension: ${match[1]}`,
+      );
+    }
+  }
 }
 
 console.log("Configuration and migration boundaries are valid.");

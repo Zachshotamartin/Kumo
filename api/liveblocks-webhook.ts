@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { WebhookHandler } from "@liveblocks/node";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { allowMethods } from "./_http";
-import { liveblocksAdmin } from "./_liveblocks";
-import { supabaseAdmin } from "./_supabase";
+import { allowMethods } from "./_http.js";
+import { liveblocksAdmin } from "./_liveblocks.js";
+import { supabaseAdmin } from "./_supabase.js";
 
 export const config = { api: { bodyParser: false } };
 

@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth";
-import { getBoardAccess } from "./_boards";
-import { allowMethods, errorMessage } from "./_http";
-import { liveblocksAdmin } from "./_liveblocks";
-import { ensureActorProfile } from "./_supabase";
+import { requireActor } from "./_auth.js";
+import { getBoardAccess } from "./_boards.js";
+import { allowMethods, errorMessage } from "./_http.js";
+import { liveblocksAdmin } from "./_liveblocks.js";
+import { ensureActorProfile } from "./_supabase.js";
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!allowMethods(request, response, ["POST"])) return;
