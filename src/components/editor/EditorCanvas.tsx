@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Cursor, X } from "@phosphor-icons/react";
 import { useUpdateMyPresence } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape, ShapeFunctions } from "../../classes/shape";
@@ -23,7 +24,7 @@ import {
   zoomAtPoint,
 } from "../../editor/geometry";
 import { EditorTool, Point, ResizeHandle, SelectionFrame, Viewport } from "../../editor/types";
-import { useEditorActions } from "../../editor/useEditorActions";
+import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { initializeEditor, setEditingShapeId, setHoveredShapeId, setViewport } from "../../features/editor/editorSlice";
 import {
   clearSelectedShapes,
@@ -61,27 +62,58 @@ interface ContextMenuState {
 interface TextEditorProps {
   value: string;
   style: React.CSSProperties;
+  verticalAlign: React.CSSProperties["alignItems"];
   onChange: (value: string) => void;
-  onBlur: () => void;
+  onBlur: (value: string) => void;
 }
 
-const TextEditor = ({ value, style, onChange, onBlur }: TextEditorProps) => {
+export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: TextEditorProps) => {
   const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
+  const [draft, setDraft] = useState(value);
+
+  const fitEditorToContent = useCallback(() => {
+    const textarea = ref.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, textarea.parentElement?.clientHeight ?? textarea.scrollHeight)}px`;
   }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      ref.current?.focus();
+      ref.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useLayoutEffect(() => {
+    fitEditorToContent();
+  }, [draft, fitEditorToContent, style]);
+
   return (
-    <textarea
-      ref={ref}
-      className={styles.textEditor}
-      style={style}
-      value={value}
-      aria-label="Edit text"
-      onPointerDown={(event) => event.stopPropagation()}
-      onChange={(event) => onChange(event.target.value)}
-      onBlur={onBlur}
-    />
+    <div className={styles.textEditorFrame} style={{ alignItems: verticalAlign }}>
+      <textarea
+        ref={ref}
+        className={styles.textEditor}
+        style={style}
+        value={draft}
+        rows={1}
+        wrap="soft"
+        spellCheck
+        aria-label="Edit text"
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerMove={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          onChange(event.target.value);
+          fitEditorToContent();
+        }}
+        onBlur={(event) => onBlur(event.currentTarget.value)}
+      />
+    </div>
   );
 };
 
@@ -140,7 +172,12 @@ const draftAtPoint = (draft: Shape, start: Point, end: Point, square: boolean): 
   });
 };
 
-const EditorCanvas = () => {
+interface EditorCanvasViewProps {
+  actions: EditorActions;
+  updateMyPresence: (patch: { cursor?: Point | null; selectionIds?: string[] }) => void;
+}
+
+export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasViewProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -162,9 +199,6 @@ const EditorCanvas = () => {
   const editor = useSelector((state: RootState) => state.editor);
   const user = useSelector((state: RootState) => state.auth);
   const showGrid = useSelector((state: RootState) => state.actions.grid);
-  const actions = useEditorActions();
-  const updateMyPresence = useUpdateMyPresence();
-
   const selectedFrame = useMemo(
     () => selectionFrame(board.shapes, selectedIds, selectionRotation),
     [board.shapes, selectedIds, selectionRotation]
@@ -558,6 +592,10 @@ const EditorCanvas = () => {
     if (shouldCommit) {
       actions.commitShapes(interaction.preview, interaction.baseline);
     }
+    if (interaction.mode === "draw" && interaction.shapeId) {
+      const created = interaction.preview.find((shape) => shape.id === interaction.shapeId);
+      if (created?.type === "text") dispatch(setEditingShapeId(created.id));
+    }
   };
 
   const cancelInteraction = (event?: React.PointerEvent<HTMLDivElement>) => {
@@ -608,8 +646,8 @@ const EditorCanvas = () => {
 
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null) => {
-      const element = target as HTMLElement | null;
-      return Boolean(element?.closest("input, textarea, select, [contenteditable='true']"));
+      return target instanceof Element
+        && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === "Space" && !isEditableTarget(event.target)) {
@@ -702,6 +740,14 @@ const EditorCanvas = () => {
         dispatch(setSelectedTool("pointer"));
         return;
       }
+      if ((event.key === "Enter" || event.key === "F2") && selectedIds.length === 1) {
+        const selectedShape = board.shapes.find((shape) => shape.id === selectedIds[0]);
+        if (selectedShape?.type === "text" && !selectedShape.locked) {
+          event.preventDefault();
+          dispatch(setEditingShapeId(selectedShape.id));
+          return;
+        }
+      }
       if (event.key.startsWith("Arrow") && selectedIds.length > 0) {
         event.preventDefault();
         const distance = event.shiftKey ? 10 : 1;
@@ -736,7 +782,7 @@ const EditorCanvas = () => {
     };
     // cancelInteraction reads only refs and the current action facade.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actions, dispatch, editor.viewport, fitToContent, selectedIds.length]);
+  }, [actions, board.shapes, dispatch, editor.viewport, fitToContent, selectedIds]);
 
   const handleTextChange = (shapeId: string, text: string) => {
     if (!textBaselineRef.current) textBaselineRef.current = cloneShapes(board.shapes);
@@ -745,9 +791,12 @@ const EditorCanvas = () => {
     );
   };
 
-  const commitText = () => {
+  const commitText = (shapeId: string, text: string) => {
     if (textBaselineRef.current) {
-      actions.commitShapes(board.shapes, textBaselineRef.current);
+      const nextShapes = board.shapes.map((shape) =>
+        shape.id === shapeId ? { ...shape, text } : shape
+      );
+      actions.commitShapes(nextShapes, textBaselineRef.current);
       textBaselineRef.current = null;
     }
     dispatch(setEditingShapeId(null));
@@ -870,13 +919,18 @@ const EditorCanvas = () => {
             return (
               <div
                 key={shape.id}
-                className={`${styles.shape} ${selectedIds.includes(shape.id) ? styles.selectedShape : ""}`}
+                className={`${styles.shape} ${selectedIds.includes(shape.id) ? styles.selectedShape : ""} ${editor.hoveredShapeId === shape.id && !selectedIds.includes(shape.id) ? styles.hoveredShape : ""}`}
                 style={commonStyle}
                 data-shape-id={shape.id}
+                data-group-id={shape.groupId ?? undefined}
+                data-z-index={shape.zIndex}
+                data-flip-x={shape.flipX ? "true" : "false"}
+                data-flip-y={shape.flipY ? "true" : "false"}
               >
                 {shape.type === "text" &&
                   (isEditing ? (
                     <TextEditor
+                      verticalAlign={(shape.alignItems as React.CSSProperties["alignItems"]) ?? "flex-start"}
                       style={{
                         fontFamily: shape.fontFamily ?? "Arial",
                         fontSize: `${(shape.fontSize ?? 18) * editor.viewport.zoom}px`,
@@ -888,28 +942,30 @@ const EditorCanvas = () => {
                       }}
                       value={shape.text ?? ""}
                       onChange={(text) => handleTextChange(shape.id, text)}
-                      onBlur={commitText}
+                      onBlur={(text) => commitText(shape.id, text)}
                     />
                   ) : (
                     <div
                       className={styles.textContent}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        if (shape.locked) return;
+                        dispatch(setSelectedShapes([shape.id]));
+                        dispatch(setEditingShapeId(shape.id));
+                      }}
                       style={{
                         alignItems: shape.alignItems ?? "flex-start",
                         fontFamily: shape.fontFamily ?? "Arial",
                         fontSize: `${(shape.fontSize ?? 18) * editor.viewport.zoom}px`,
                         fontWeight: shape.fontWeight ?? "normal",
-                        justifyContent:
-                          shape.textAlign === "center"
-                            ? "center"
-                            : shape.textAlign === "right"
-                            ? "flex-end"
-                            : "flex-start",
                         lineHeight: shape.lineHeight ?? 1.2,
                         letterSpacing: `${(shape.letterSpacing ?? 0) * editor.viewport.zoom}px`,
                         textDecoration: shape.textDecoration ?? "none",
                       }}
                     >
-                      {shape.text}
+                      <span style={{ textAlign: (shape.textAlign as React.CSSProperties["textAlign"]) ?? "left" }}>
+                        {shape.text}
+                      </span>
                     </div>
                   ))}
                 {shape.type === "calendar" && <span className={styles.placeholderGlyph}>31</span>}
@@ -975,7 +1031,7 @@ const EditorCanvas = () => {
               key={presence.uid}
               style={{ left: point.x, top: point.y }}
             >
-              <span className={styles.cursorArrow}>◆</span>
+              <span className={styles.cursorArrow}><Cursor aria-hidden="true" weight="fill" /></span>
               <span className={styles.cursorLabel}>{presence.label ?? "Collaborator"}</span>
             </div>
           );
@@ -1014,11 +1070,17 @@ const EditorCanvas = () => {
       {navigationError && (
         <div className={styles.navigationError} role="alert">
           <span>{navigationError}</span>
-          <button type="button" aria-label="Dismiss navigation error" onClick={() => setNavigationError(null)}>×</button>
+          <button type="button" aria-label="Dismiss navigation error" onClick={() => setNavigationError(null)}><X aria-hidden="true" /></button>
         </div>
       )}
     </div>
   );
+};
+
+const EditorCanvas = () => {
+  const actions = useEditorActions();
+  const updateMyPresence = useUpdateMyPresence();
+  return <EditorCanvasView actions={actions} updateMyPresence={updateMyPresence} />;
 };
 
 export default EditorCanvas;

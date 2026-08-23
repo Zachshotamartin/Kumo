@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import {
+  CaretLeft,
+  CaretRight,
+  DotsThree,
+  Globe,
+  Minus,
+  Plus,
+  ShareNetwork,
+  SignOut,
+  Trash,
+  X,
+} from "@phosphor-icons/react";
 import { useSyncStatus } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
@@ -70,8 +82,12 @@ const EditorWorkspace = () => {
   const [error, setError] = useState<string | null>(null);
   const [layersWidth, setLayersWidth] = useState(236);
   const [propertiesWidth, setPropertiesWidth] = useState(268);
-  const [layersCollapsed, setLayersCollapsed] = useState(false);
-  const [propertiesCollapsed, setPropertiesCollapsed] = useState(false);
+  const [layersCollapsed, setLayersCollapsed] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 720
+  );
+  const [propertiesCollapsed, setPropertiesCollapsed] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 960
+  );
   const [resizingPanel, setResizingPanel] = useState<PanelSide | null>(null);
 
   useEffect(() => {
@@ -214,18 +230,19 @@ const EditorWorkspace = () => {
             ))}
           </div>
           <button type="button" className={styles.shareButton} onClick={() => setShareOpen(true)}>
-            Share
+            <ShareNetwork aria-hidden="true" />
+            <span>Share</span>
           </button>
-          <button type="button" className={styles.menuButton} aria-label="Board menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>•••</button>
+          <button type="button" className={styles.menuButton} aria-label="Board menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><DotsThree aria-hidden="true" weight="bold" /></button>
           {menuOpen && (
             <div className={styles.boardMenu} role="menu">
               <button type="button" role="menuitem" onClick={() => actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" })} disabled={board.role !== "owner"}>
-                Make {board.type === "public" ? "private" : "public"}
+                <Globe aria-hidden="true" /> <span>Make {board.type === "public" ? "private" : "public"}</span>
               </button>
               <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)} disabled={board.role !== "owner"}>
-                Delete board
+                <Trash aria-hidden="true" /> <span>Delete board</span>
               </button>
-              <button type="button" role="menuitem" onClick={handleLogout}>Sign out</button>
+              <button type="button" role="menuitem" onClick={handleLogout}><SignOut aria-hidden="true" /> <span>Sign out</span></button>
             </div>
           )}
         </div>
@@ -265,7 +282,7 @@ const EditorWorkspace = () => {
             aria-expanded={!layersCollapsed}
             onClick={() => setLayersCollapsed((collapsed) => !collapsed)}
           >
-            {layersCollapsed ? "›" : "‹"}
+            {layersCollapsed ? <CaretRight aria-hidden="true" /> : <CaretLeft aria-hidden="true" />}
           </button>
           <button
             type="button"
@@ -274,14 +291,14 @@ const EditorWorkspace = () => {
             aria-expanded={!propertiesCollapsed}
             onClick={() => setPropertiesCollapsed((collapsed) => !collapsed)}
           >
-            {propertiesCollapsed ? "‹" : "›"}
+            {propertiesCollapsed ? <CaretLeft aria-hidden="true" /> : <CaretRight aria-hidden="true" />}
           </button>
           <div className={styles.zoomControl} aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / 1.25)}>−</button>
+            <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / 1.25)}><Minus aria-hidden="true" /></button>
             <button type="button" className={styles.zoomValue} onClick={() => setZoomAroundCanvasCenter(1)}>
               {Math.round(editor.viewport.zoom * 100)}%
             </button>
-            <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * 1.25)}>＋</button>
+            <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * 1.25)}><Plus aria-hidden="true" /></button>
           </div>
         </section>
         <div
@@ -303,7 +320,7 @@ const EditorWorkspace = () => {
       {(error || editor.saveError) && (
         <div className={styles.errorToast} role="alert">
           <span>{error ?? editor.saveError}</span>
-          <button type="button" aria-label="Dismiss error" onClick={() => setError(null)}>×</button>
+          <button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X aria-hidden="true" /></button>
         </div>
       )}
 

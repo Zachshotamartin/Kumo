@@ -1,8 +1,25 @@
+:root {
+  --kumo-canvas: #252629;
+  --kumo-ink: #e8e6df;
+  --kumo-muted: #9c9b95;
+  --kumo-surface: #1d1e20;
+  --kumo-surface-raised: #292a2d;
+  --kumo-line: #3a3b3f;
+  --kumo-accent: #b87a2e;
+  --kumo-accent-hover: #ca8d42;
+  --kumo-danger: #d9785f;
+  --kumo-success: #83ae95;
+  --kumo-radius-control: 7px;
+  --kumo-radius-panel: 12px;
+  --kumo-font: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
+  --kumo-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
   min-width: 320px;
-  color-scheme: light dark;
+  color-scheme: dark;
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
 }
@@ -13,7 +30,9 @@ body {
   min-height: 100dvh;
   margin: 0;
   overflow-x: hidden;
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--kumo-ink);
+  font-family: var(--kumo-font);
+  background: var(--kumo-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -21,7 +40,12 @@ body {
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
-::selection { color: #fffaf4; background: #c95438; }
+::selection { color: #18191b; background: #c99048; }
+
+:focus-visible {
+  outline: 2px solid var(--kumo-accent-hover);
+  outline-offset: 3px;
+}
 
 .sr-only {
   position: absolute;

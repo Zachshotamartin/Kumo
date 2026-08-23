@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from "react";
+import {
+  AlignBottomSimple,
+  AlignCenterHorizontal,
+  AlignCenterVerticalSimple,
+  AlignLeft,
+  AlignRight,
+  AlignTopSimple,
+  TextStrikethrough,
+  TextT,
+  TextUnderline,
+} from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape } from "../../classes/shape";
 import { shapeBounds } from "../../editor/geometry";
-import { useEditorActions } from "../../editor/useEditorActions";
+import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setGrid } from "../../features/actions/actionsSlice";
 import { setGridSize, setSnapToGrid } from "../../features/editor/editorSlice";
 import { AppDispatch, RootState } from "../../store";
@@ -48,18 +59,21 @@ const NumberField = ({ label, value, min, max, step = 1, onCommit }: NumberField
 
 const ColorField = ({ label, value, onCommit }: { label: string; value: string; onCommit: (value: string) => void }) => {
   const [draft, setDraft] = useState(value);
+  const pickerValue = /^#[0-9a-f]{6}$/i.test(draft) ? draft : "#000000";
+  const isValid = (candidate: string) =>
+    /^#[0-9a-f]{6}$/i.test(candidate) || candidate.toLowerCase() === "transparent";
   return (
     <label className={styles.colorField}>
       <span>{label}</span>
       <span className={styles.colorControl}>
-        <input type="color" value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={() => onCommit(draft)} />
+        <input type="color" value={pickerValue} onChange={(event) => setDraft(event.target.value)} onBlur={() => onCommit(draft)} />
         <input
           type="text"
           value={draft}
-          maxLength={7}
+          maxLength={11}
           aria-label={`${label} hex value`}
           onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => /^#[0-9a-f]{6}$/i.test(draft) && onCommit(draft)}
+          onBlur={() => isValid(draft) && onCommit(draft.toLowerCase())}
           onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
         />
       </span>
@@ -67,8 +81,7 @@ const ColorField = ({ label, value, onCommit }: { label: string; value: string; 
   );
 };
 
-const ShapeInspector = ({ shape }: { shape: Shape }) => {
-  const actions = useEditorActions();
+const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActions }) => {
   const bounds = shapeBounds(shape);
   const currentBoardId = useSelector((state: RootState) => state.whiteBoard.id);
   const [boardChoices, setBoardChoices] = useState<BoardSummary[]>([]);
@@ -99,12 +112,24 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
       </section>
       <section className={styles.inspectorSection}>
         <h2>Appearance</h2>
-        <ColorField key={`fill-${shape.backgroundColor}`} label="Fill" value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
+        {shape.type === "text" && (
+          <ColorField key={`text-${shape.color}`} label="Text" value={shape.color ?? "#f7f7f5"} onCommit={(color) => actions.patchSelected({ color })} />
+        )}
+        <ColorField key={`fill-${shape.backgroundColor}`} label={shape.type === "text" ? "Back" : "Fill"} value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
         <ColorField key={`stroke-${shape.borderColor}`} label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
         <div className={styles.fieldGrid}>
           <NumberField label="Stroke" min={0} value={shape.borderWidth ?? 0} onCommit={(borderWidth) => actions.patchSelected({ borderWidth })} />
           <NumberField label="Radius" min={0} value={shape.borderRadius ?? 0} onCommit={(borderRadius) => actions.patchSelected({ borderRadius })} />
         </div>
+        <label className={styles.fullField}>
+          <span>Stroke style</span>
+          <select value={shape.borderStyle ?? "solid"} onChange={(event) => actions.patchSelected({ borderStyle: event.target.value })}>
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+            <option value="double">Double</option>
+          </select>
+        </label>
       </section>
       {shape.type === "text" && (
         <section className={styles.inspectorSection}>
@@ -118,14 +143,57 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
             <span>Font family</span>
             <select value={shape.fontFamily ?? "Arial"} onChange={(event) => actions.patchSelected({ fontFamily: event.target.value })}>
               <option value="Arial">Arial</option>
+              <option value="Helvetica Neue">Helvetica Neue</option>
+              <option value="Inter">Inter</option>
               <option value="Georgia">Georgia</option>
+              <option value="Times New Roman">Times New Roman</option>
               <option value="Courier New">Courier New</option>
             </select>
           </label>
+          <label className={styles.fullField}>
+            <span>Font weight</span>
+            <select value={shape.fontWeight ?? "normal"} onChange={(event) => actions.patchSelected({ fontWeight: event.target.value })}>
+              <option value="lighter">Light</option>
+              <option value="normal">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600">Semibold</option>
+              <option value="bold">Bold</option>
+            </select>
+          </label>
+          <span className={styles.controlLabel}>Horizontal alignment</span>
           <div className={styles.segmented} role="group" aria-label="Text alignment">
             {["left", "center", "right"].map((textAlign) => (
               <button key={textAlign} type="button" aria-pressed={shape.textAlign === textAlign} onClick={() => actions.patchSelected({ textAlign })}>
-                {textAlign === "left" ? "⇤" : textAlign === "center" ? "↔" : "⇥"}
+                {textAlign === "left"
+                  ? <AlignLeft aria-hidden="true" />
+                  : textAlign === "center"
+                    ? <AlignCenterHorizontal aria-hidden="true" />
+                    : <AlignRight aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+          <span className={styles.controlLabel}>Vertical alignment</span>
+          <div className={styles.segmented} role="group" aria-label="Vertical text alignment">
+            {[
+              { value: "flex-start", label: "Align text to top", Icon: AlignTopSimple },
+              { value: "center", label: "Align text to middle", Icon: AlignCenterVerticalSimple },
+              { value: "flex-end", label: "Align text to bottom", Icon: AlignBottomSimple },
+            ].map(({ value, label, Icon }) => (
+              <button key={value} type="button" aria-label={label} aria-pressed={(shape.alignItems ?? "flex-start") === value} onClick={() => actions.patchSelected({ alignItems: value })}>
+                <Icon aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+          <span className={styles.controlLabel}>Decoration</span>
+          <div className={`${styles.segmented} ${styles.segmentedFour}`} role="group" aria-label="Text decoration">
+            {[
+              { value: "none", label: "No text decoration", Icon: TextT },
+              { value: "underline", label: "Underline text", Icon: TextUnderline },
+              { value: "overline", label: "Overline text", Icon: TextT },
+              { value: "line-through", label: "Strike through text", Icon: TextStrikethrough },
+            ].map(({ value, label, Icon }) => (
+              <button key={value} type="button" aria-label={label} aria-pressed={(shape.textDecoration ?? "none") === value} onClick={() => actions.patchSelected({ textDecoration: value })}>
+                <Icon aria-hidden="true" className={value === "overline" ? styles.overlineIcon : undefined} />
               </button>
             ))}
           </div>
@@ -151,7 +219,7 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
               )}
               {boardChoices.map((board) => (
                 <option key={board.id} value={board.id}>
-                  {board.title} · {board.role === "owner" ? "yours" : "shared"}
+                  {board.title} - {board.role === "owner" ? "yours" : "shared"}
                 </option>
               ))}
             </select>
@@ -173,13 +241,12 @@ const ShapeInspector = ({ shape }: { shape: Shape }) => {
   );
 };
 
-const InspectorPanel = () => {
+export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
   const editor = useSelector((state: RootState) => state.editor);
   const showGrid = useSelector((state: RootState) => state.actions.grid);
-  const actions = useEditorActions();
   const selected = board.shapes.filter((shape) => selectedIds.includes(shape.id));
 
   return (
@@ -209,7 +276,7 @@ const InspectorPanel = () => {
             </div>
           </>
         )}
-        {selected.length === 1 && selected[0] && <ShapeInspector key={selected[0].id} shape={selected[0]} />}
+        {selected.length === 1 && selected[0] && <ShapeInspector key={selected[0].id} shape={selected[0]} actions={actions} />}
         {selected.length > 1 && (
           <>
             <section className={styles.inspectorSection}>
@@ -238,5 +305,7 @@ const InspectorPanel = () => {
     </aside>
   );
 };
+
+const InspectorPanel = () => <InspectorPanelView actions={useEditorActions()} />;
 
 export default InspectorPanel;

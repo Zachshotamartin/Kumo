@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowRight, GoogleLogo, Graph } from "@phosphor-icons/react";
 import styles from "./homePage.module.css";
 import { auth, firebaseApiKey, provider } from "../../config/firebase";
 import {
@@ -127,25 +128,35 @@ const HomePage = () => {
         ? "success"
         : "idle";
   const logoStatus = submitting
-    ? "Opening your workspace…"
+    ? "Opening your workspace"
     : error
       ? "Something needs another look."
       : message
-        ? "You’re all set."
+        ? "You are all set."
         : "Ready when the idea is.";
 
   return (
     <main className={styles.homePage}>
       <section className={styles.intro}>
-        <div className={styles.logo} data-context={logoContext}>
-          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" />
+        <header className={styles.brandBar}>
           <span className={styles.logoText}>Kumo</span>
+          <span>Connected visual workspace</span>
+        </header>
+        <div className={styles.heroVisual} data-context={logoContext}>
+          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" />
+          <div className={styles.connectionModel} aria-label="A chain of connected Kumo boards">
+            <span>Explore</span>
+            <ArrowRight aria-hidden="true" />
+            <span>Shape</span>
+            <ArrowRight aria-hidden="true" />
+            <span>Build</span>
+          </div>
           <span className={styles.logoStatus} aria-live="polite">{logoStatus}</span>
         </div>
         <div className={styles.introText}>
-          <p className={styles.eyebrow}>A shared visual workspace</p>
-          <h1>Ideas move faster when the canvas stays out of the way.</h1>
-          <p className={styles.introCopy}>Shape interfaces, map product thinking, and work together in real time.</p>
+          <p className={styles.eyebrow}><Graph aria-hidden="true" /> Make space to think</p>
+          <h1>Every board can lead somewhere.</h1>
+          <p className={styles.introCopy}>Create together in real time, then link one board directly into the next.</p>
         </div>
       </section>
       <form className={styles.loginForm} onSubmit={handleLogin}>
@@ -154,8 +165,8 @@ const HomePage = () => {
           <button type="button" role="tab" aria-selected={mode === "register"} disabled={submitting} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>Create account</button>
         </div>
         <div>
-          <h2>{mode === "signin" ? "Welcome back" : "Start a workspace"}</h2>
-          <p className={styles.formIntro}>{mode === "signin" ? "Continue to your boards." : "Create an account with email or Google."}</p>
+          <h2>{mode === "signin" ? "Return to your boards" : "Start with a blank canvas"}</h2>
+          <p className={styles.formIntro}>{mode === "signin" ? "Your connected workspace is ready." : "Make an account, then make the first move."}</p>
         </div>
         <div className={styles.loginFormRow}>
           <div className={styles.inputContainer}>
@@ -186,7 +197,8 @@ const HomePage = () => {
         </div>
         <div className={styles.loginFormColumn}>
           <button className={styles.submit} type="submit" disabled={submitting}>
-            {submitting ? "Please wait" : mode === "signin" ? "Sign in" : "Create account"}
+            <span>{submitting ? "Please wait" : mode === "signin" ? "Sign in" : "Create account"}</span>
+            {!submitting && <ArrowRight aria-hidden="true" />}
           </button>
           {mode === "signin" && <button className={styles.resetButton} type="button" onClick={handleResetPassword} disabled={submitting}>Forgot password?</button>}
           <div className={styles.divider}><span>or</span></div>
@@ -196,7 +208,8 @@ const HomePage = () => {
             onClick={handleGoogleLogin}
             disabled={submitting}
           >
-            Continue with Google
+            <GoogleLogo aria-hidden="true" weight="bold" />
+            <span>Continue with Google</span>
           </button>
         </div>
         {error && <p className={styles.error} role="alert">{error}</p>}

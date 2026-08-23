@@ -5,7 +5,7 @@ import { Shape } from "../../classes/shape";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer from "../../features/auth/authSlice";
 import editorReducer from "../../features/editor/editorSlice";
-import selectedReducer, { setSelectedShapes } from "../../features/selected/selectedSlice";
+import selectedReducer, { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import EditorCanvas from "./EditorCanvas";
 import { getBoard } from "../../services/boardRepository";
@@ -61,6 +61,25 @@ const rectangle = (rotation = 0): Shape => ({
   zIndex: 1,
   rotation,
   backgroundColor: "#ffffff",
+});
+
+const textShape = (): Shape => ({
+  ...rectangle(),
+  id: "text-1",
+  type: "text",
+  name: "Text",
+  text: "Select part of this text",
+  backgroundColor: "transparent",
+  borderWidth: 0,
+  color: "#ffffff",
+  fontSize: 18,
+  fontFamily: "Arial",
+  fontWeight: "normal",
+  textAlign: "left",
+  alignItems: "center",
+  textDecoration: "none",
+  lineHeight: 1.2,
+  letterSpacing: 0,
 });
 
 const renderCanvas = (input: Shape | Shape[]) => {
@@ -227,5 +246,42 @@ describe("EditorCanvas transform interactions", () => {
     expect(store.getState().whiteBoard.id).toBe("board-b");
     await act(async () => { resolveFirst(boardState("board-a")); });
     expect(store.getState().whiteBoard.id).toBe("board-b");
+  });
+
+  it("supports native text ranges and commits the exact edited value", () => {
+    const { canvas } = renderCanvas(textShape());
+    fireEvent.doubleClick(canvas, { clientX: 10, clientY: 10 });
+    const editor = screen.getByRole("textbox", { name: "Edit text" }) as HTMLTextAreaElement;
+
+    editor.setSelectionRange(7, 11);
+    expect({ start: editor.selectionStart, end: editor.selectionEnd }).toEqual({ start: 7, end: 11 });
+    fireEvent.change(editor, { target: { value: "Select a section of this text" } });
+    expect(editorActions.previewShapes).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: "text-1", text: "Select a section of this text" }),
+    ]);
+    fireEvent.blur(editor);
+    expect(editorActions.commitShapes).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ id: "text-1", text: "Select a section of this text" })],
+      [expect.objectContaining({ id: "text-1", text: "Select part of this text" })]
+    );
+  });
+
+  it("enters text editing from the keyboard", () => {
+    renderCanvas(textShape());
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(screen.getByRole("textbox", { name: "Edit text" })).toBeInTheDocument();
+  });
+
+  it("opens a newly drawn text box for typing immediately", () => {
+    const { canvas, store } = renderCanvas(rectangle());
+    act(() => { store.dispatch(setSelectedTool("text")); });
+    fireEvent.pointerDown(canvas, { pointerId: 12, button: 0, clientX: 240, clientY: 180 });
+    fireEvent.pointerUp(canvas, { pointerId: 12, button: 0, clientX: 240, clientY: 180 });
+
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    const created = committed.find((shape) => shape.type === "text");
+    expect(created).toMatchObject({ width: 180, height: 40, text: "Type something" });
+    expect(store.getState().editor.editingShapeId).toBe(created?.id);
+    expect(store.getState().selected.selectedTool).toBe("pointer");
   });
 });

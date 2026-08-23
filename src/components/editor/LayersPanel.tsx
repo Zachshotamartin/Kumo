@@ -1,14 +1,34 @@
 import { useDispatch, useSelector } from "react-redux";
-import { useEditorActions } from "../../editor/useEditorActions";
+import {
+  Circle,
+  Eye,
+  EyeSlash,
+  Graph,
+  ImageSquare,
+  Lock,
+  LockOpen,
+  Plus,
+  Rectangle,
+  TextT,
+  type Icon,
+} from "@phosphor-icons/react";
+import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
-const LayersPanel = () => {
+const layerIcon = (type: string): Icon => {
+  if (type === "text") return TextT;
+  if (type === "ellipse") return Circle;
+  if (type === "image") return ImageSquare;
+  if (type === "board") return Graph;
+  return Rectangle;
+};
+
+export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
-  const actions = useEditorActions();
 
   const toggleShape = (shapeId: string, field: "locked" | "hidden", value: boolean) => {
     const target = board.shapes.find((shape) => shape.id === shapeId);
@@ -35,16 +55,17 @@ const LayersPanel = () => {
       <div className={styles.layerList}>
         {board.shapes.length === 0 ? (
           <div className={styles.emptyPanel}>
-            <span className={styles.emptyMark}>＋</span>
+            <span className={styles.emptyMark}><Plus aria-hidden="true" /></span>
             <p>Draw a shape to start this board.</p>
-            <small>R rectangle · O ellipse · T text</small>
+            <small>R rectangle / O ellipse / T text</small>
           </div>
         ) : (
           board.shapes
             .slice()
             .sort((left, right) => right.zIndex - left.zIndex)
-            .map((shape) => (
-              <div
+            .map((shape) => {
+              const LayerIcon = layerIcon(shape.type);
+              return <div
                 className={`${styles.layerRow} ${selectedIds.includes(shape.id) ? styles.selectedLayer : ""}`}
                 key={shape.id}
               >
@@ -70,7 +91,7 @@ const LayersPanel = () => {
                   }}
                 >
                   <span className={styles.layerType} aria-hidden="true">
-                    {shape.type === "text" ? "T" : shape.type === "ellipse" ? "○" : shape.type === "image" ? "▧" : "□"}
+                    <LayerIcon />
                   </span>
                   <span className={styles.layerName}>{shape.name ?? shape.type}</span>
                 </button>
@@ -81,7 +102,7 @@ const LayersPanel = () => {
                   title={shape.hidden ? "Show" : "Hide"}
                   onClick={() => toggleShape(shape.id, "hidden", !shape.hidden)}
                 >
-                  {shape.hidden ? "—" : "◉"}
+                  {shape.hidden ? <EyeSlash aria-hidden="true" /> : <Eye aria-hidden="true" />}
                 </button>
                 <button
                   type="button"
@@ -90,14 +111,16 @@ const LayersPanel = () => {
                   title={shape.locked ? "Unlock" : "Lock"}
                   onClick={() => toggleShape(shape.id, "locked", !shape.locked)}
                 >
-                  {shape.locked ? "◆" : "◇"}
+                  {shape.locked ? <Lock aria-hidden="true" /> : <LockOpen aria-hidden="true" />}
                 </button>
               </div>
-            ))
+            })
         )}
       </div>
     </aside>
   );
 };
+
+const LayersPanel = () => <LayersPanelView actions={useEditorActions()} />;
 
 export default LayersPanel;

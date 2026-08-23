@@ -1,6 +1,3 @@
-import calendarImage from "../res/calendar.png";
-import imagePlaceholder from "../res/image.png";
-
 export interface Shape {
   id: string;
   type: string;
@@ -85,8 +82,7 @@ export const ShapeFunctions = {
       borderStyle: "solid",
       borderColor: "#000000",
       backgroundColor: type === "text" || isMedia ? "transparent" : "#ffffff",
-      backgroundImage:
-        type === "calendar" ? calendarImage : type === "image" ? imagePlaceholder : "",
+      backgroundImage: "",
       color: "#ffffff",
       opacity: 1,
       text: "",

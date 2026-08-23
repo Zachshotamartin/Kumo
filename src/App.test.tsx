@@ -45,7 +45,7 @@ describe("App", () => {
         <App />
       </Provider>
     );
-    expect(screen.getByRole("status")).toHaveTextContent("KumoLoading workspace");
+    expect(screen.getByRole("status")).toHaveTextContent("KumoOpening your canvas");
     expect(container.querySelector('kumo-logo[context="loading"]')).toBeInTheDocument();
   });
 
@@ -56,10 +56,10 @@ describe("App", () => {
         <App />
       </Provider>
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Loading workspace");
-    await act(async () => { await vi.advanceTimersByTimeAsync(1800); });
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
     vi.useRealTimers();
-    expect(await screen.findByRole("heading", { name: /ideas move faster/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /every board can lead somewhere/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute("aria-selected", "true");
   });
 });

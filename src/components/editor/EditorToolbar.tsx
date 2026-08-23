@@ -1,30 +1,42 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  ArrowClockwise,
+  ArrowCounterClockwise,
+  Circle,
+  CursorClick,
+  Hand,
+  ImageSquare,
+  LinkSimple,
+  Rectangle,
+  TextT,
+  Trash,
+  type Icon,
+} from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { ShapeFunctions } from "../../classes/shape";
 import { normalizeShape } from "../../editor/geometry";
 import { EditorTool } from "../../editor/types";
-import { useEditorActions } from "../../editor/useEditorActions";
+import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import { deleteBoardAsset, uploadBoardImage } from "../../services/assetRepository";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
-const tools: Array<{ id: EditorTool; label: string; shortcut: string; icon: string }> = [
-  { id: "pointer", label: "Select", shortcut: "V", icon: "↖" },
-  { id: "hand", label: "Hand", shortcut: "H", icon: "✋" },
-  { id: "rectangle", label: "Rectangle", shortcut: "R", icon: "□" },
-  { id: "ellipse", label: "Ellipse", shortcut: "O", icon: "○" },
-  { id: "text", label: "Text", shortcut: "T", icon: "T" },
-  { id: "image", label: "Image", shortcut: "I", icon: "▧" },
-  { id: "board", label: "Linked board", shortcut: "B", icon: "↗" },
+const tools: Array<{ id: EditorTool; label: string; shortcut: string; Icon: Icon }> = [
+  { id: "pointer", label: "Select", shortcut: "V", Icon: CursorClick },
+  { id: "hand", label: "Hand", shortcut: "H", Icon: Hand },
+  { id: "rectangle", label: "Rectangle", shortcut: "R", Icon: Rectangle },
+  { id: "ellipse", label: "Ellipse", shortcut: "O", Icon: Circle },
+  { id: "text", label: "Text", shortcut: "T", Icon: TextT },
+  { id: "image", label: "Image", shortcut: "I", Icon: ImageSquare },
+  { id: "board", label: "Linked board", shortcut: "B", Icon: LinkSimple },
 ];
 
-const EditorToolbar = () => {
+export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
   const selectedTool = useSelector((state: RootState) => state.selected.selectedTool);
   const board = useSelector((state: RootState) => state.whiteBoard);
   const viewport = useSelector((state: RootState) => state.editor.viewport);
-  const actions = useEditorActions();
   const imageInput = useRef<HTMLInputElement>(null);
   const activeRef = useRef(true);
   const boardIdRef = useRef(board.id);
@@ -87,22 +99,25 @@ const EditorToolbar = () => {
   return (
     <div className={styles.toolbar} role="toolbar" aria-label="Editor tools">
       <div className={styles.toolGroup}>
-        {tools.map((tool) => (
-          <button
-            key={tool.id}
-            type="button"
-            className={selectedTool === tool.id ? styles.activeTool : undefined}
-            aria-label={`${tool.label} tool (${tool.shortcut})`}
-            aria-pressed={selectedTool === tool.id}
-            title={`${tool.label} · ${tool.shortcut}`}
-            disabled={tool.id === "image" && (uploading || !actions.canEdit)}
-            onClick={() => tool.id === "image"
-              ? imageInput.current?.click()
-              : dispatch(setSelectedTool(tool.id))}
-          >
-            <span aria-hidden="true">{tool.icon}</span>
-          </button>
-        ))}
+        {tools.map((tool) => {
+          const ToolIcon = tool.Icon;
+          return (
+            <button
+              key={tool.id}
+              type="button"
+              className={selectedTool === tool.id ? styles.activeTool : undefined}
+              aria-label={`${tool.label} tool (${tool.shortcut})`}
+              aria-pressed={selectedTool === tool.id}
+              title={`${tool.label} - ${tool.shortcut}`}
+              disabled={tool.id === "image" && (uploading || !actions.canEdit)}
+              onClick={() => tool.id === "image"
+                ? imageInput.current?.click()
+                : dispatch(setSelectedTool(tool.id))}
+            >
+              <ToolIcon aria-hidden="true" weight={selectedTool === tool.id ? "fill" : "regular"} />
+            </button>
+          );
+        })}
       </div>
       <input
         ref={imageInput}
@@ -120,20 +135,20 @@ const EditorToolbar = () => {
         <button
           type="button"
           aria-label="Undo"
-          title="Undo · ⌘Z"
+          title="Undo - Command Z"
           disabled={!actions.canUndo}
           onClick={actions.undo}
         >
-          ↶
+          <ArrowCounterClockwise aria-hidden="true" />
         </button>
         <button
           type="button"
           aria-label="Redo"
-          title="Redo · ⇧⌘Z"
+          title="Redo - Shift Command Z"
           disabled={!actions.canRedo}
           onClick={actions.redo}
         >
-          ↷
+          <ArrowClockwise aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -141,11 +156,13 @@ const EditorToolbar = () => {
           title="Delete"
           onClick={actions.removeSelected}
         >
-          ⌫
+          <Trash aria-hidden="true" />
         </button>
       </div>
     </div>
   );
 };
+
+const EditorToolbar = () => <EditorToolbarView actions={useEditorActions()} />;
 
 export default EditorToolbar;
