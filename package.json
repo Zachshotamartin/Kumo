@@ -30,11 +30,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "sync:vercel-env": "node scripts/sync-vercel-env.mjs",
     "verify:vercel-account": "node scripts/verify-vercel-account.mjs",
-    "validate:config": "node scripts/validate-config.mjs"
+    "validate:config": "node scripts/validate-config.mjs",
+    "validate:vercel-env": "node scripts/validate-vercel-runtime-env.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9",
@@ -43,6 +45,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",
+    "@vitest/coverage-v8": "^4.1.11",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

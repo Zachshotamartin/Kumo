@@ -43,8 +43,15 @@ jobs:
       - name: Type-check
         run: yarn typecheck
 
-      - name: Unit tests
-        run: yarn test
+      - name: Unit tests and coverage
+        run: yarn test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+          retention-days: 7
 
       - name: Production build
         run: yarn build
@@ -89,6 +96,8 @@ jobs:
         run: ./node_modules/.bin/vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Validate Vercel preview runtime
+        run: yarn validate:vercel-env .vercel/.env.preview.local
       - name: Build preview artifacts
         run: ./node_modules/.bin/vercel build --target=preview --token="$VERCEL_TOKEN"
         env:
@@ -133,6 +142,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Pull Vercel production configuration
         run: yarn vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Validate Vercel production runtime
+        run: yarn validate:vercel-env .vercel/.env.production.local
       - name: Build production artifacts
         run: yarn vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy production artifacts

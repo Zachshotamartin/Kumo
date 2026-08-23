@@ -41,6 +41,7 @@ export const normalizeShape = (shape: Shape): Shape => {
     width: bounds.width,
     height: bounds.height,
     rotation: shape.rotation ?? 0,
+    groupRotation: shape.groupId ? shape.groupRotation ?? 0 : undefined,
     opacity: shape.opacity ?? 1,
     zIndex: Number.isFinite(shape.zIndex) ? shape.zIndex : 0,
     groupId: shape.groupId ?? null,
@@ -48,6 +49,54 @@ export const normalizeShape = (shape: Shape): Shape => {
     hidden: shape.hidden ?? false,
     ...(normalizedChildren ? { shapes: normalizedChildren } : {}),
   };
+};
+
+export const expandSelectionIds = (
+  shapes: Shape[],
+  selectedIds: readonly string[]
+): Set<string> => {
+  const selected = new Set(selectedIds);
+  const groups = new Set(
+    shapes
+      .filter((shape) => selected.has(shape.id) && shape.groupId)
+      .map((shape) => shape.groupId as string)
+  );
+  shapes.forEach((shape) => {
+    if (shape.groupId && groups.has(shape.groupId)) selected.add(shape.id);
+  });
+  return selected;
+};
+
+/** Locked members lock their entire logical group. */
+export const editableSelectionIds = (
+  shapes: Shape[],
+  selectedIds: readonly string[]
+): Set<string> => {
+  const selected = expandSelectionIds(shapes, selectedIds);
+  const lockedGroups = new Set(
+    shapes
+      .filter((shape) => selected.has(shape.id) && shape.locked && shape.groupId)
+      .map((shape) => shape.groupId as string)
+  );
+  return new Set(
+    shapes
+      .filter((shape) =>
+        selected.has(shape.id) &&
+        !shape.locked &&
+        (!shape.groupId || !lockedGroups.has(shape.groupId))
+      )
+      .map((shape) => shape.id)
+  );
+};
+
+export const effectiveGridSize = (
+  gridSize: number,
+  zoom: number,
+  minimumScreenSpacing = 8
+): number => {
+  const safeGrid = Math.max(1, gridSize);
+  const safeZoom = Math.max(EPSILON, zoom);
+  return safeGrid * Math.max(1, Math.ceil(minimumScreenSpacing / (safeGrid * safeZoom)));
 };
 
 export const screenToWorld = (
@@ -175,8 +224,9 @@ export const selectionBounds = (
   shapes: Shape[],
   selectedIds: readonly string[]
 ): Bounds | null => {
+  const expanded = expandSelectionIds(shapes, selectedIds);
   const selected = shapes.filter(
-    (shape) => selectedIds.includes(shape.id) && !shape.hidden
+    (shape) => expanded.has(shape.id) && !shape.hidden
   );
   if (selected.length === 0) return null;
 
@@ -197,12 +247,43 @@ export const selectionBounds = (
   return { x: left, y: top, width: right - left, height: bottom - top };
 };
 
+const shapeCorners = (shape: Shape): Point[] => {
+  const bounds = shapeBounds(shape);
+  const center = boundsCenter(bounds);
+  return [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+    { x: bounds.x, y: bounds.y + bounds.height },
+  ].map((point) => rotatePoint(point, center, shape.rotation ?? 0));
+};
+
+const orientedSelectionBounds = (shapes: Shape[], rotation: number): Bounds => {
+  const localCorners = shapes
+    .flatMap(shapeCorners)
+    .map((point) => rotatePoint(point, { x: 0, y: 0 }, -rotation));
+  const left = Math.min(...localCorners.map((point) => point.x));
+  const right = Math.max(...localCorners.map((point) => point.x));
+  const top = Math.min(...localCorners.map((point) => point.y));
+  const bottom = Math.max(...localCorners.map((point) => point.y));
+  const localCenter = { x: (left + right) / 2, y: (top + bottom) / 2 };
+  const center = rotatePoint(localCenter, { x: 0, y: 0 }, rotation);
+  return {
+    x: center.x - (right - left) / 2,
+    y: center.y - (bottom - top) / 2,
+    width: right - left,
+    height: bottom - top,
+  };
+};
+
 export const selectionFrame = (
   shapes: Shape[],
-  selectedIds: readonly string[]
+  selectedIds: readonly string[],
+  multiSelectionRotation = 0
 ): SelectionFrame | null => {
+  const expanded = expandSelectionIds(shapes, selectedIds);
   const selected = shapes.filter(
-    (shape) => selectedIds.includes(shape.id) && !shape.hidden
+    (shape) => expanded.has(shape.id) && !shape.hidden
   );
   if (selected.length === 0) return null;
   if (selected.length === 1) {
@@ -212,8 +293,19 @@ export const selectionFrame = (
     };
   }
 
-  const bounds = selectionBounds(shapes, selectedIds);
-  return bounds ? { bounds, rotation: 0 } : null;
+  const groupId = selected[0]?.groupId;
+  const isSingleGroup = Boolean(
+    groupId && selected.every((shape) => shape.groupId === groupId)
+  );
+  const rotation = isSingleGroup
+    ? selected[0]?.groupRotation ?? 0
+    : multiSelectionRotation;
+  return {
+    bounds: Math.abs(rotation) < EPSILON
+      ? selectionBounds(shapes, [...expanded])!
+      : orientedSelectionBounds(selected, rotation),
+    rotation,
+  };
 };
 
 export const shapesInMarquee = (
@@ -228,7 +320,7 @@ export const shapesInMarquee = (
     bottom: Math.max(start.y, end.y),
   };
 
-  return shapes
+  const hits = shapes
     .filter((shape) => {
       if (shape.hidden || shape.locked) return false;
       const bounds = shapeVisualBounds(shape);
@@ -240,6 +332,7 @@ export const shapesInMarquee = (
       );
     })
     .map((shape) => shape.id);
+  return [...expandSelectionIds(shapes, hits)];
 };
 
 export const moveShapesFromBaseline = (
@@ -248,9 +341,15 @@ export const moveShapesFromBaseline = (
   delta: Point,
   gridSize = 0
 ): Shape[] => {
+  const editable = editableSelectionIds(baseline, selectedIds);
+  const anchor = selectionBounds(baseline, [...editable]);
   const snappedDelta = {
-    x: gridSize > 0 ? Math.round(delta.x / gridSize) * gridSize : delta.x,
-    y: gridSize > 0 ? Math.round(delta.y / gridSize) * gridSize : delta.y,
+    x: gridSize > 0 && anchor
+      ? Math.round((anchor.x + delta.x) / gridSize) * gridSize - anchor.x
+      : delta.x,
+    y: gridSize > 0 && anchor
+      ? Math.round((anchor.y + delta.y) / gridSize) * gridSize - anchor.y
+      : delta.y,
   };
 
   const translateShape = (shape: Shape): Shape => ({
@@ -265,7 +364,7 @@ export const moveShapesFromBaseline = (
   });
 
   return baseline.map((shape) => {
-    if (!selectedIds.includes(shape.id) || shape.locked) return shape;
+    if (!editable.has(shape.id)) return shape;
     return translateShape(shape);
   });
 };
@@ -388,7 +487,7 @@ export const resizeTransformForFrame = (
   return resizeTransform(frame.bounds, handle, localPointer, options);
 };
 
-const normalizeDegrees = (degrees: number): number => {
+export const normalizeDegrees = (degrees: number): number => {
   const normalized = ((degrees + 180) % 360 + 360) % 360 - 180;
   return Math.abs(normalized) < EPSILON ? 0 : normalized;
 };
@@ -396,30 +495,42 @@ const normalizeDegrees = (degrees: number): number => {
 const applyResizeTransform = (
   shape: Shape,
   transform: ResizeTransform,
-  reflectRotation: boolean
+  reflectRotation: boolean,
+  frame?: SelectionFrame
 ): Shape => {
   const bounds = shapeBounds(shape);
-  const mappedLeft = transform.origin.x + (bounds.x - transform.origin.x) * transform.scaleX;
-  const mappedRight = transform.origin.x + (bounds.x + bounds.width - transform.origin.x) * transform.scaleX;
-  const mappedTop = transform.origin.y + (bounds.y - transform.origin.y) * transform.scaleY;
-  const mappedBottom = transform.origin.y + (bounds.y + bounds.height - transform.origin.y) * transform.scaleY;
+  const frameCenter = frame ? boundsCenter(frame.bounds) : undefined;
+  const shapeCenter = boundsCenter(bounds);
+  const localCenter = frameCenter && Math.abs(frame!.rotation) >= EPSILON
+    ? rotatePoint(shapeCenter, frameCenter, -frame!.rotation)
+    : shapeCenter;
+  const mappedLocalCenter = {
+    x: transform.origin.x + (localCenter.x - transform.origin.x) * transform.scaleX,
+    y: transform.origin.y + (localCenter.y - transform.origin.y) * transform.scaleY,
+  };
+  const mappedCenter = frameCenter && Math.abs(frame!.rotation) >= EPSILON
+    ? rotatePoint(mappedLocalCenter, frameCenter, frame!.rotation)
+    : mappedLocalCenter;
+  const width = Math.max(1, bounds.width * Math.abs(transform.scaleX));
+  const height = Math.max(1, bounds.height * Math.abs(transform.scaleY));
   let rotation = shape.rotation ?? 0;
-  if (reflectRotation && transform.scaleX < 0) rotation = -rotation;
-  if (reflectRotation && transform.scaleY < 0) rotation = -rotation;
+  const reflectionAxis = frame?.rotation ?? 0;
+  if (reflectRotation && transform.scaleX < 0) rotation = 2 * reflectionAxis - rotation;
+  if (reflectRotation && transform.scaleY < 0) rotation = 2 * reflectionAxis - rotation;
 
   return normalizeShape({
     ...shape,
-    x1: Math.min(mappedLeft, mappedRight),
-    x2: Math.max(mappedLeft, mappedRight),
-    y1: Math.min(mappedTop, mappedBottom),
-    y2: Math.max(mappedTop, mappedBottom),
+    x1: mappedCenter.x - width / 2,
+    x2: mappedCenter.x + width / 2,
+    y1: mappedCenter.y - height / 2,
+    y2: mappedCenter.y + height / 2,
     rotation: normalizeDegrees(rotation),
     flipX: transform.scaleX < 0 ? !shape.flipX : shape.flipX,
     flipY: transform.scaleY < 0 ? !shape.flipY : shape.flipY,
     ...(shape.shapes
       ? {
           shapes: shape.shapes.map((child) =>
-            applyResizeTransform(child, transform, reflectRotation)
+            applyResizeTransform(child, transform, reflectRotation, frame)
           ),
         }
       : {}),
@@ -429,13 +540,16 @@ const applyResizeTransform = (
 export const resizeShapesWithTransform = (
   baseline: Shape[],
   selectedIds: readonly string[],
-  transform: ResizeTransform
-): Shape[] =>
-  baseline.map((shape) =>
-    selectedIds.includes(shape.id) && !shape.locked
-      ? applyResizeTransform(shape, transform, true)
+  transform: ResizeTransform,
+  frame?: SelectionFrame
+): Shape[] => {
+  const editable = editableSelectionIds(baseline, selectedIds);
+  return baseline.map((shape) =>
+    editable.has(shape.id)
+      ? applyResizeTransform(shape, transform, true, frame)
       : shape
   );
+};
 
 export const resizeShapesFromBaseline = (
   baseline: Shape[],
@@ -443,6 +557,7 @@ export const resizeShapesFromBaseline = (
   originalSelectionBounds: Bounds,
   nextSelectionBounds: Bounds
 ): Shape[] => {
+  const editable = editableSelectionIds(baseline, selectedIds);
   const scaleX =
     originalSelectionBounds.width > EPSILON
       ? nextSelectionBounds.width / originalSelectionBounds.width
@@ -474,7 +589,7 @@ export const resizeShapesFromBaseline = (
   };
 
   return baseline.map((shape) =>
-    selectedIds.includes(shape.id) && !shape.locked ? resizeShape(shape) : shape
+    editable.has(shape.id) ? resizeShape(shape) : shape
   );
 };
 
@@ -486,14 +601,20 @@ export const resizeSelectionFromPointer = (
   pointer: Point,
   options: ResizeOptions = {}
 ): Shape[] => {
-  const selected = baseline.filter(
-    (shape) => selectedIds.includes(shape.id) && !shape.locked && !shape.hidden
-  );
+  const editable = editableSelectionIds(baseline, selectedIds);
+  const selected = baseline.filter((shape) => editable.has(shape.id) && !shape.hidden);
   if (selected.length !== 1 || Math.abs(frame.rotation) < EPSILON) {
+    const hasRelativeRotation = selected.some(
+      (shape) => Math.abs(normalizeDegrees((shape.rotation ?? 0) - frame.rotation)) >= EPSILON
+    );
+    const safeOptions = hasRelativeRotation && selected.length > 1
+      ? { ...options, lockAspectRatio: true }
+      : options;
     return resizeShapesWithTransform(
       baseline,
       selectedIds,
-      resizeTransformForFrame(frame, handle, pointer, options)
+      resizeTransformForFrame(frame, handle, pointer, safeOptions),
+      frame
     );
   }
 
@@ -533,10 +654,30 @@ const rotateShapeAround = (shape: Shape, center: Point, degrees: number): Shape 
     x2: nextCenter.x + bounds.width / 2,
     y2: nextCenter.y + bounds.height / 2,
     rotation: normalizeDegrees((shape.rotation ?? 0) + degrees),
+    groupRotation: shape.groupId
+      ? normalizeDegrees((shape.groupRotation ?? 0) + degrees)
+      : undefined,
     ...(shape.shapes
       ? { shapes: shape.shapes.map((child) => rotateShapeAround(child, center, degrees)) }
       : {}),
   });
+};
+
+export const rotationDeltaForPointer = (
+  selection: Bounds,
+  start: Point,
+  pointer: Point,
+  snapIncrement = 0,
+  baselineRotation = 0
+): number => {
+  const center = boundsCenter(selection);
+  const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
+  const pointerAngle = Math.atan2(pointer.y - center.y, pointer.x - center.x);
+  const rawDelta = normalizeDegrees(((pointerAngle - startAngle) * 180) / Math.PI);
+  if (snapIncrement <= 0) return rawDelta;
+  const target = normalizeDegrees(baselineRotation + rawDelta);
+  const snappedTarget = Math.round(target / snapIncrement) * snapIncrement;
+  return normalizeDegrees(snappedTarget - baselineRotation);
 };
 
 export const rotateShapesFromBaseline = (
@@ -545,16 +686,21 @@ export const rotateShapesFromBaseline = (
   selection: Bounds,
   start: Point,
   pointer: Point,
-  snapIncrement = 0
+  snapIncrement = 0,
+  baselineRotation = 0
 ): Shape[] => {
   const center = boundsCenter(selection);
-  const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
-  const pointerAngle = Math.atan2(pointer.y - center.y, pointer.x - center.x);
-  let degrees = ((pointerAngle - startAngle) * 180) / Math.PI;
-  if (snapIncrement > 0) degrees = Math.round(degrees / snapIncrement) * snapIncrement;
+  const degrees = rotationDeltaForPointer(
+    selection,
+    start,
+    pointer,
+    snapIncrement,
+    baselineRotation
+  );
+  const editable = editableSelectionIds(baseline, selectedIds);
 
   return baseline.map((shape) =>
-    selectedIds.includes(shape.id) && !shape.locked
+    editable.has(shape.id)
       ? rotateShapeAround(shape, center, degrees)
       : shape
   );

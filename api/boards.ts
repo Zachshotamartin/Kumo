@@ -8,8 +8,14 @@ import {
   searchPublicBoards,
 } from "./_boards.js";
 import { allowMethods, errorMessage, stringQuery } from "./_http.js";
-import { liveblocksAdmin } from "./_liveblocks.js";
+import { boardDocumentFromJson, liveblocksAdmin } from "./_liveblocks.js";
 import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
+import {
+  cloneAssetsToBoard,
+  documentAssetIds,
+  rewriteDocumentAssetIds,
+} from "./_assets.js";
+import { syncBoardLinks } from "./_boardLinks.js";
 
 const cleanTitle = (value: unknown): string =>
   (typeof value === "string" ? value.trim() : "").slice(0, 120) || "Untitled board";
@@ -56,6 +62,37 @@ export default async function handler(request: VercelRequest, response: VercelRe
           title: `${access.board.title} copy`,
           document,
         });
+        try {
+          let duplicatedDocument: unknown = document;
+          const replacements = await cloneAssetsToBoard({
+            actorUid: actor.uid,
+            targetBoardId: board.id,
+            assetIds: documentAssetIds(document),
+          });
+          if (replacements.size) {
+            duplicatedDocument = rewriteDocumentAssetIds(document, replacements);
+            const liveblocks = liveblocksAdmin();
+            await liveblocks.deleteStorageDocument(board.liveblocks_room_id);
+            await liveblocks.initializeStorageDocument(
+              board.liveblocks_room_id,
+              boardDocumentFromJson(duplicatedDocument)
+            );
+          }
+          await syncBoardLinks(board.id, duplicatedDocument);
+        } catch (error) {
+          const database = supabaseAdmin();
+          const { data: assets } = await database
+            .from("assets")
+            .select("storage_key")
+            .eq("board_id", board.id);
+          const storageKeys = (assets ?? []).map((asset) => asset.storage_key as string);
+          if (storageKeys.length) {
+            await database.storage.from("board-assets").remove(storageKeys).catch(() => undefined);
+          }
+          await database.from("boards").delete().eq("id", board.id);
+          await liveblocksAdmin().deleteRoom(board.liveblocks_room_id).catch(() => undefined);
+          throw error;
+        }
         return response.status(201).json({ board: boardSummary(board, "owner") });
       }
       const board = await provisionBoard({ ownerId: actor.uid, title: cleanTitle(request.body?.title) });
@@ -102,6 +139,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
     return response.status(200).json({ board: boardSummary(data, "owner") });
   } catch (error) {
+    console.error("Board API request failed", error);
     const message = errorMessage(error, "The board request failed.");
     return response.status(message === "Authentication required." ? 401 : 500).json({ error: message });
   }

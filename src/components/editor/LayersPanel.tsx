@@ -11,9 +11,17 @@ const LayersPanel = () => {
   const actions = useEditorActions();
 
   const toggleShape = (shapeId: string, field: "locked" | "hidden", value: boolean) => {
+    const target = board.shapes.find((shape) => shape.id === shapeId);
+    const affected = field === "locked" && target?.groupId
+      ? new Set(
+          board.shapes
+            .filter((shape) => shape.groupId === target.groupId)
+            .map((shape) => shape.id)
+        )
+      : new Set([shapeId]);
     actions.commitShapes(
       board.shapes.map((shape) =>
-        shape.id === shapeId ? { ...shape, [field]: value } : shape
+        affected.has(shape.id) ? { ...shape, [field]: value } : shape
       )
     );
   };

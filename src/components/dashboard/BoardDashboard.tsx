@@ -104,8 +104,8 @@ const BoardDashboard = () => {
     try {
       const boardId = await createBoard("Untitled board");
       await openBoard(boardId);
-    } catch {
-      setError("We couldn't create a board.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn't create a board.");
     } finally {
       setCreating(false);
     }
@@ -117,8 +117,8 @@ const BoardDashboard = () => {
     try {
       const copyId = await duplicateBoard(boardId);
       await openBoard(copyId);
-    } catch {
-      setError("We couldn't copy this board.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn't copy this board.");
     }
   };
 

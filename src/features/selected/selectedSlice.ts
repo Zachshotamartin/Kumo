@@ -4,6 +4,8 @@ import { EditorTool } from "../../editor/types";
 
 interface SelectedState {
   selectedShapes: string[];
+  /** Rotation retained while a multi-selection remains active. */
+  selectionRotation: number;
   selectedTool: EditorTool;
   highlightStart: number[];
   highlightEnd: number[];
@@ -19,6 +21,7 @@ interface SelectedState {
 
 const initialState: SelectedState = {
   selectedShapes: [],
+  selectionRotation: 0,
   selectedTool: "pointer",
   highlightStart: [-100000, -100000],
   highlightEnd: [-100000, -100000],
@@ -37,7 +40,17 @@ const selectedSlice = createSlice({
   initialState,
   reducers: {
     setSelectedShapes: (state, action: PayloadAction<string[]>) => {
-      state.selectedShapes = [...new Set(action.payload)];
+      const next = [...new Set(action.payload)];
+      if (
+        next.length !== state.selectedShapes.length ||
+        next.some((id) => !state.selectedShapes.includes(id))
+      ) {
+        state.selectionRotation = 0;
+      }
+      state.selectedShapes = next;
+    },
+    setSelectionRotation: (state, action: PayloadAction<number>) => {
+      state.selectionRotation = action.payload;
     },
     setSelectedTool: (state, action: PayloadAction<EditorTool>) => {
       state.selectedTool = action.payload;
@@ -49,6 +62,7 @@ const selectedSlice = createSlice({
     },
     clearSelectedShapes: (state) => {
       state.selectedShapes = [];
+      state.selectionRotation = 0;
       state.borderStartX = -100000;
       state.borderStartY = -100000;
       state.borderEndX = -100000;
@@ -95,6 +109,7 @@ const selectedSlice = createSlice({
 
 export const {
   setSelectedShapes,
+  setSelectionRotation,
   setSelectedTool,
   addSelectedShape,
   clearSelectedShapes,

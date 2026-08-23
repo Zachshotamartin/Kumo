@@ -1,5 +1,12 @@
 import { createShapeId, Shape } from "../classes/shape";
-import { normalizeShape, selectionBounds, shapeVisualBounds } from "./geometry";
+import {
+  editableSelectionIds,
+  expandSelectionIds,
+  normalizeShape,
+  selectionBounds,
+  shapeVisualBounds,
+} from "./geometry";
+import type { Bounds } from "./types";
 
 export type AlignMode = "left" | "horizontal-center" | "right" | "top" | "vertical-center" | "bottom";
 export type OrderMode = "front" | "forward" | "backward" | "back";
@@ -34,17 +41,52 @@ const selectedInLayerOrder = (
 export const expandGroupedSelection = (
   shapes: Shape[],
   selectedIds: readonly string[]
-): Set<string> => {
-  const selected = new Set(selectedIds);
-  const selectedGroups = new Set(
-    shapes
-      .filter((shape) => selected.has(shape.id) && shape.groupId)
-      .map((shape) => shape.groupId as string)
-  );
-  shapes.forEach((shape) => {
-    if (shape.groupId && selectedGroups.has(shape.groupId)) selected.add(shape.id);
+): Set<string> => expandSelectionIds(shapes, selectedIds);
+
+interface SelectionUnit {
+  ids: string[];
+  bounds: Bounds;
+  locked: boolean;
+}
+
+const unitBounds = (shapes: Shape[]): Bounds | null => {
+  const visible = shapes.filter((shape) => !shape.hidden);
+  if (!visible.length) return null;
+  const bounds = visible.map(shapeVisualBounds);
+  const left = Math.min(...bounds.map((item) => item.x));
+  const top = Math.min(...bounds.map((item) => item.y));
+  const right = Math.max(...bounds.map((item) => item.x + item.width));
+  const bottom = Math.max(...bounds.map((item) => item.y + item.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
+const selectionUnits = (
+  shapes: Shape[],
+  selectedIds: readonly string[]
+): SelectionUnit[] => {
+  const expanded = expandSelectionIds(shapes, selectedIds);
+  const editable = editableSelectionIds(shapes, selectedIds);
+  const visitedGroups = new Set<string>();
+  const units: SelectionUnit[] = [];
+
+  orderedShapes(shapes).forEach((shape) => {
+    if (!expanded.has(shape.id)) return;
+    const members = shape.groupId
+      ? shapes.filter((candidate) => candidate.groupId === shape.groupId && expanded.has(candidate.id))
+      : [shape];
+    if (shape.groupId) {
+      if (visitedGroups.has(shape.groupId)) return;
+      visitedGroups.add(shape.groupId);
+    }
+    const bounds = unitBounds(members);
+    if (!bounds) return;
+    units.push({
+      ids: members.map((member) => member.id),
+      bounds,
+      locked: members.some((member) => !editable.has(member.id)),
+    });
   });
-  return selected;
+  return units;
 };
 
 const duplicatedGroupCounts = (shapes: Shape[]): Map<string, number> => {
@@ -152,7 +194,13 @@ export const mergeShapeChanges = (
     .map((shape) => changedLocally.has(shape.id) ? localById.get(shape.id) ?? shape : shape);
   const remoteIds = new Set(remote.map((shape) => shape.id));
   local.forEach((shape) => {
-    if (!remoteIds.has(shape.id) && changedLocally.has(shape.id)) merged.push(shape);
+    if (
+      !remoteIds.has(shape.id) &&
+      !baselineById.has(shape.id) &&
+      changedLocally.has(shape.id)
+    ) {
+      merged.push(shape);
+    }
   });
   return merged;
 };
@@ -161,17 +209,24 @@ export const patchShapes = (
   shapes: Shape[],
   selectedIds: readonly string[],
   patch: Partial<Shape>
-): Shape[] =>
-  shapes.map((shape) =>
-    selectedIds.includes(shape.id) && !shape.locked
+): Shape[] => {
+  const selected = Object.keys(patch).every((key) => key === "locked")
+    ? expandSelectionIds(shapes, selectedIds)
+    : editableSelectionIds(shapes, selectedIds);
+  return shapes.map((shape) =>
+    selected.has(shape.id)
       ? normalizeShape({ ...shape, ...patch })
       : shape
   );
+};
 
 export const deleteShapes = (
   shapes: Shape[],
   selectedIds: readonly string[]
-): Shape[] => shapes.filter((shape) => !selectedIds.includes(shape.id) || shape.locked);
+): Shape[] => {
+  const deletable = editableSelectionIds(shapes, selectedIds);
+  return shapes.filter((shape) => !deletable.has(shape.id));
+};
 
 export const duplicateShapes = (
   shapes: Shape[],
@@ -205,7 +260,7 @@ export const orderShapes = (
 ): Shape[] => {
   const ordered = orderedShapes(shapes);
   const originalOrder = ordered.map((shape) => shape.id);
-  const selected = expandGroupedSelection(shapes, selectedIds);
+  const selected = editableSelectionIds(shapes, selectedIds);
   if (selected.size === 0) return shapes;
 
   if (mode === "front" || mode === "back") {
@@ -245,12 +300,13 @@ export const alignShapes = (
   selectedIds: readonly string[],
   mode: AlignMode
 ): Shape[] => {
-  const bounds = selectionBounds(shapes, selectedIds);
-  if (!bounds || selectedIds.length < 2) return shapes;
+  const units = selectionUnits(shapes, selectedIds).filter((unit) => !unit.locked);
+  const bounds = selectionBounds(shapes, units.flatMap((unit) => unit.ids));
+  if (!bounds || units.length < 2) return shapes;
+  const deltas = new Map<string, { x: number; y: number }>();
 
-  return shapes.map((shape) => {
-    if (!selectedIds.includes(shape.id) || shape.locked) return shape;
-    const current = shapeVisualBounds(shape);
+  units.forEach((unit) => {
+    const current = unit.bounds;
     let deltaX = 0;
     let deltaY = 0;
 
@@ -269,7 +325,12 @@ export const alignShapes = (
       deltaY = bounds.y + bounds.height - (current.y + current.height);
     }
 
-    return translateShape(shape, deltaX, deltaY);
+    unit.ids.forEach((id) => deltas.set(id, { x: deltaX, y: deltaY }));
+  });
+
+  return shapes.map((shape) => {
+    const delta = deltas.get(shape.id);
+    return delta ? translateShape(shape, delta.x, delta.y) : shape;
   });
 };
 
@@ -278,20 +339,17 @@ export const distributeShapes = (
   selectedIds: readonly string[],
   axis: "horizontal" | "vertical"
 ): Shape[] => {
-  const selected = shapes
-    .filter((shape) => selectedIds.includes(shape.id) && !shape.locked)
+  const selected = selectionUnits(shapes, selectedIds)
+    .filter((unit) => !unit.locked)
     .sort((a, b) => {
-      const aBounds = shapeVisualBounds(a);
-      const bBounds = shapeVisualBounds(b);
-      return axis === "horizontal" ? aBounds.x - bBounds.x : aBounds.y - bBounds.y;
+      return axis === "horizontal" ? a.bounds.x - b.bounds.x : a.bounds.y - b.bounds.y;
     });
   if (selected.length < 3) return shapes;
 
-  const first = shapeVisualBounds(selected[0]!);
-  const last = shapeVisualBounds(selected[selected.length - 1]!);
-  const totalSize = selected.reduce((sum, shape) => {
-    const bounds = shapeVisualBounds(shape);
-    return sum + (axis === "horizontal" ? bounds.width : bounds.height);
+  const first = selected[0]!.bounds;
+  const last = selected[selected.length - 1]!.bounds;
+  const totalSize = selected.reduce((sum, unit) => {
+    return sum + (axis === "horizontal" ? unit.bounds.width : unit.bounds.height);
   }, 0);
   const available = axis === "horizontal"
     ? last.x + last.width - first.x
@@ -299,20 +357,19 @@ export const distributeShapes = (
   const gap = (available - totalSize) / (selected.length - 1);
   const positions = new Map<string, number>();
   let cursor = axis === "horizontal" ? first.x : first.y;
-  selected.forEach((shape) => {
-    positions.set(shape.id, cursor);
-    const bounds = shapeVisualBounds(shape);
-    cursor += (axis === "horizontal" ? bounds.width : bounds.height) + gap;
+  selected.forEach((unit) => {
+    const current = axis === "horizontal" ? unit.bounds.x : unit.bounds.y;
+    unit.ids.forEach((id) => positions.set(id, cursor - current));
+    cursor += (axis === "horizontal" ? unit.bounds.width : unit.bounds.height) + gap;
   });
 
   return shapes.map((shape) => {
-    const position = positions.get(shape.id);
-    if (position === undefined) return shape;
-    const bounds = shapeVisualBounds(shape);
+    const delta = positions.get(shape.id);
+    if (delta === undefined) return shape;
     return translateShape(
       shape,
-      axis === "horizontal" ? position - bounds.x : 0,
-      axis === "vertical" ? position - bounds.y : 0
+      axis === "horizontal" ? delta : 0,
+      axis === "vertical" ? delta : 0
     );
   });
 };
@@ -320,25 +377,46 @@ export const distributeShapes = (
 export const groupShapes = (
   shapes: Shape[],
   selectedIds: readonly string[],
-  groupId = createShapeId()
+  groupId = createShapeId(),
+  groupRotation = 0
 ): Shape[] => {
-  const selected = expandGroupedSelection(shapes, selectedIds);
+  const expanded = expandSelectionIds(shapes, selectedIds);
+  const selected = editableSelectionIds(shapes, selectedIds);
+  if (selected.size !== expanded.size) return shapes;
   if (selected.size < 2) return shapes;
-  return shapes.map((shape) =>
-    selected.has(shape.id) ? { ...shape, groupId } : shape
-  );
+  const ordered = orderedShapes(shapes);
+  const selectedShapes = ordered
+    .filter((shape) => selected.has(shape.id))
+    .map((shape) => ({ ...shape, groupId, groupRotation }));
+  const selectedIndexes = ordered
+    .map((shape, index) => selected.has(shape.id) ? index : -1)
+    .filter((index) => index >= 0);
+  const lastSelectedIndex = Math.max(...selectedIndexes);
+  const rest = ordered.filter((shape) => !selected.has(shape.id));
+  const insertionIndex = ordered
+    .slice(0, lastSelectedIndex)
+    .filter((shape) => !selected.has(shape.id)).length;
+  const next = [
+    ...rest.slice(0, insertionIndex),
+    ...selectedShapes,
+    ...rest.slice(insertionIndex),
+  ];
+  return next.map((shape, index) => ({ ...shape, zIndex: index + 1 }));
 };
 
 export const ungroupShapes = (
   shapes: Shape[],
   selectedIds: readonly string[]
 ): Shape[] => {
+  const editable = editableSelectionIds(shapes, selectedIds);
   const groups = new Set(
     shapes
-      .filter((shape) => selectedIds.includes(shape.id) && shape.groupId)
+      .filter((shape) => editable.has(shape.id) && shape.groupId)
       .map((shape) => shape.groupId as string)
   );
   return shapes.map((shape) =>
-    shape.groupId && groups.has(shape.groupId) ? { ...shape, groupId: null } : shape
+    shape.groupId && groups.has(shape.groupId)
+      ? { ...shape, groupId: null, groupRotation: undefined }
+      : shape
   );
 };

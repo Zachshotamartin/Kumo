@@ -67,3 +67,42 @@ export const resolveAssetUrl = async (assetId: string): Promise<string> => {
   signedUrlCache.set(assetId, { url: result.asset.url, expiresAt: Date.now() + 50 * 60_000 });
   return result.asset.url;
 };
+
+export const rewriteShapeAssetIds = (
+  shapes: import("../classes/shape").Shape[],
+  assetIds: Record<string, string>
+): import("../classes/shape").Shape[] => shapes.map((shape) => ({
+  ...shape,
+  ...(shape.assetId && assetIds[shape.assetId]
+    ? { assetId: assetIds[shape.assetId], backgroundImage: undefined }
+    : {}),
+  ...(shape.shapes
+    ? { shapes: rewriteShapeAssetIds(shape.shapes, assetIds) }
+    : {}),
+}));
+
+export const collectShapeAssetIds = (
+  shapes: import("../classes/shape").Shape[]
+): string[] => [...new Set(shapes.flatMap((shape): string[] => [
+  ...(shape.assetId ? [shape.assetId] : []),
+  ...(shape.shapes ? collectShapeAssetIds(shape.shapes) : []),
+]))];
+
+export const cloneBoardAssets = async (
+  boardId: string,
+  assetIds: string[]
+): Promise<Record<string, string>> => {
+  if (!assetIds.length) return {};
+  const result = await authenticatedFetch<{ assetIds: Record<string, string> }>("/api/assets", {
+    method: "POST",
+    body: JSON.stringify({ action: "clone", boardId, assetIds: [...new Set(assetIds)] }),
+  });
+  return result.assetIds;
+};
+
+export const deleteBoardAsset = async (assetId: string): Promise<void> => {
+  await authenticatedFetch<void>(`/api/assets?id=${encodeURIComponent(assetId)}`, {
+    method: "DELETE",
+  });
+  signedUrlCache.delete(assetId);
+};

@@ -18,6 +18,8 @@ export interface Shape {
   flipY?: boolean;
   shapes?: Shape[];
   groupId?: string | null;
+  /** Rotation of the logical group frame shared by every member. */
+  groupRotation?: number;
   locked?: boolean;
   hidden?: boolean;
   borderRadius?: number;

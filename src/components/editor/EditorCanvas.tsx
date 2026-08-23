@@ -4,12 +4,15 @@ import { useDispatch, useSelector } from "react-redux";
 import { Shape, ShapeFunctions } from "../../classes/shape";
 import {
   hitTest,
+  effectiveGridSize,
   moveShapesFromBaseline,
   normalizeShape,
+  normalizeDegrees,
   panViewport,
   resizeSelectionFromPointer,
   resizeTransformForFrame,
   rotateShapesFromBaseline,
+  rotationDeltaForPointer,
   screenToWorld,
   selectionBounds,
   selectionFrame,
@@ -22,7 +25,12 @@ import {
 import { EditorTool, Point, ResizeHandle, SelectionFrame, Viewport } from "../../editor/types";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { initializeEditor, setEditingShapeId, setHoveredShapeId, setViewport } from "../../features/editor/editorSlice";
-import { clearSelectedShapes, setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
+import {
+  clearSelectedShapes,
+  setSelectedShapes,
+  setSelectedTool,
+  setSelectionRotation,
+} from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch, RootState } from "../../store";
 import { getBoard } from "../../services/boardRepository";
@@ -139,6 +147,8 @@ const EditorCanvas = () => {
   const textBaselineRef = useRef<Shape[] | null>(null);
   const spacePressedRef = useRef(false);
   const cursorFrameRef = useRef<number | null>(null);
+  const latestCursorRef = useRef<Point | null>(null);
+  const navigationRequestRef = useRef(0);
   const [marquee, setMarquee] = useState<{ start: Point; end: Point } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [navigationError, setNavigationError] = useState<string | null>(null);
@@ -146,6 +156,7 @@ const EditorCanvas = () => {
 
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
+  const selectionRotation = useSelector((state: RootState) => state.selected.selectionRotation);
   const selectedTool = useSelector((state: RootState) => state.selected.selectedTool);
   const editor = useSelector((state: RootState) => state.editor);
   const user = useSelector((state: RootState) => state.auth);
@@ -154,9 +165,12 @@ const EditorCanvas = () => {
   const updateMyPresence = useUpdateMyPresence();
 
   const selectedFrame = useMemo(
-    () => selectionFrame(board.shapes, selectedIds),
-    [board.shapes, selectedIds]
+    () => selectionFrame(board.shapes, selectedIds, selectionRotation),
+    [board.shapes, selectedIds, selectionRotation]
   );
+  const activeGridSize = editor.snapToGrid
+    ? effectiveGridSize(editor.gridSize, editor.viewport.zoom)
+    : 0;
 
   useEffect(() => {
     if (!board.id) return;
@@ -175,6 +189,13 @@ const EditorCanvas = () => {
   useEffect(() => {
     updateMyPresence({ selectionIds: selectedIds });
   }, [selectedIds, updateMyPresence]);
+
+  useEffect(() => () => {
+    navigationRequestRef.current += 1;
+    if (cursorFrameRef.current !== null) {
+      window.cancelAnimationFrame(cursorFrameRef.current);
+    }
+  }, []);
 
   const pointerWorld = useCallback(
     (event: Pick<React.PointerEvent<HTMLDivElement>, "clientX" | "clientY">): Point => {
@@ -270,8 +291,8 @@ const EditorCanvas = () => {
     }
 
     if (selectedTool !== "pointer") {
-      const drawStart = editor.snapToGrid
-        ? snapPointToGrid(startWorld, editor.gridSize)
+      const drawStart = activeGridSize
+        ? snapPointToGrid(startWorld, activeGridSize)
         : startWorld;
       const draft = createDraftShape(selectedTool, drawStart, board.shapes);
       const preview = [...baseline, draft];
@@ -337,10 +358,11 @@ const EditorCanvas = () => {
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const world = pointerWorld(event);
+    latestCursorRef.current = world;
     if (cursorFrameRef.current === null) {
       cursorFrameRef.current = window.requestAnimationFrame(() => {
         cursorFrameRef.current = null;
-        updateMyPresence({ cursor: world });
+        if (latestCursorRef.current) updateMyPresence({ cursor: latestCursorRef.current });
       });
     }
 
@@ -368,8 +390,8 @@ const EditorCanvas = () => {
         ? interaction.preview.find((shape) => shape.id === interaction.shapeId)
         : undefined;
       if (!draft) return;
-      const drawEnd = editor.snapToGrid
-        ? snapPointToGrid(world, editor.gridSize)
+      const drawEnd = activeGridSize
+        ? snapPointToGrid(world, activeGridSize)
         : world;
       const nextDraft = draftAtPoint(
         draft,
@@ -387,7 +409,7 @@ const EditorCanvas = () => {
         interaction.baseline,
         interaction.selectedIds,
         { x: world.x - interaction.startWorld.x, y: world.y - interaction.startWorld.y },
-        editor.snapToGrid ? editor.gridSize : 0
+        activeGridSize
       );
       actions.previewShapes(interaction.preview);
       return;
@@ -398,7 +420,7 @@ const EditorCanvas = () => {
         fromCenter: event.altKey,
         lockAspectRatio: event.shiftKey,
         minimumSize: 1,
-        gridSize: editor.snapToGrid ? editor.gridSize : 0,
+        gridSize: activeGridSize,
       };
       const transform = resizeTransformForFrame(
         interaction.selectionFrame,
@@ -434,8 +456,19 @@ const EditorCanvas = () => {
         interaction.selectionFrame.bounds,
         interaction.startWorld,
         world,
-        event.shiftKey ? 15 : 0
+        event.shiftKey ? 15 : 0,
+        interaction.selectionFrame.rotation
       );
+      const delta = rotationDeltaForPointer(
+        interaction.selectionFrame.bounds,
+        interaction.startWorld,
+        world,
+        event.shiftKey ? 15 : 0,
+        interaction.selectionFrame.rotation
+      );
+      dispatch(setSelectionRotation(
+        normalizeDegrees(interaction.selectionFrame.rotation + delta)
+      ));
       actions.previewShapes(interaction.preview);
       return;
     }
@@ -491,7 +524,12 @@ const EditorCanvas = () => {
 
   const cancelInteraction = (event?: React.PointerEvent<HTMLDivElement>) => {
     const interaction = interactionRef.current;
-    if (interaction) actions.previewShapes(interaction.baseline);
+    if (interaction) {
+      actions.cancelPreview(interaction.baseline);
+      if (interaction.mode === "rotate" && interaction.selectionFrame) {
+        dispatch(setSelectionRotation(interaction.selectionFrame.rotation));
+      }
+    }
     interactionRef.current = null;
     setResizeDirection({ x: 1, y: 1 });
     setMarquee(null);
@@ -735,7 +773,7 @@ const EditorCanvas = () => {
           ? {
               backgroundImage:
                 "linear-gradient(rgba(255,255,255,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px)",
-              backgroundSize: `${Math.max(8, editor.gridSize * editor.viewport.zoom)}px ${Math.max(8, editor.gridSize * editor.viewport.zoom)}px`,
+              backgroundSize: `${effectiveGridSize(editor.gridSize, editor.viewport.zoom) * editor.viewport.zoom}px ${effectiveGridSize(editor.gridSize, editor.viewport.zoom) * editor.viewport.zoom}px`,
               backgroundPosition: `${-editor.viewport.x * editor.viewport.zoom}px ${-editor.viewport.y * editor.viewport.zoom}px`,
             }
           : {}),
@@ -746,6 +784,12 @@ const EditorCanvas = () => {
       onPointerMove={handlePointerMove}
       onPointerUp={finishInteraction}
       onPointerCancel={cancelInteraction}
+      onPointerLeave={() => {
+        if (!interactionRef.current) {
+          latestCursorRef.current = null;
+          updateMyPresence({ cursor: null });
+        }
+      }}
       onWheel={handleWheel}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -756,15 +800,21 @@ const EditorCanvas = () => {
       onDoubleClick={(event) => {
         const hit = hitTest(board.shapes, pointerWorld(event));
         if (hit?.type === "board" && hit.boardId) {
+          const requestId = ++navigationRequestRef.current;
           setNavigationError(null);
           void getBoard(hit.boardId)
             .then((nextBoard) => {
+              if (requestId !== navigationRequestRef.current) return;
               dispatch(clearSelectedShapes());
               dispatch(setWhiteboardData(nextBoard));
             })
-            .catch((error) => setNavigationError(
-              error instanceof Error ? error.message : "We couldn't open the linked board."
-            ));
+            .catch((error) => {
+              if (requestId === navigationRequestRef.current) {
+                setNavigationError(
+                  error instanceof Error ? error.message : "We couldn't open the linked board."
+                );
+              }
+            });
           return;
         }
         if (hit?.type === "text") {
@@ -891,9 +941,14 @@ const EditorCanvas = () => {
       )}
 
       {board.currentUsers
-        .filter((presence) => presence.uid !== user.uid)
+        .filter((presence) =>
+          presence.uid !== user.uid && presence.cursorX !== null && presence.cursorY !== null
+        )
         .map((presence) => {
-          const point = worldToScreen({ x: presence.cursorX, y: presence.cursorY }, editor.viewport);
+          const point = worldToScreen(
+            { x: presence.cursorX!, y: presence.cursorY! },
+            editor.viewport
+          );
           return (
             <div
               className={styles.remoteCursor}

@@ -18,8 +18,8 @@ export interface WhiteBoardState {
   currentUsers: {
     uid: string;
     label?: string;
-    cursorX: number;
-    cursorY: number;
+    cursorX: number | null;
+    cursorY: number | null;
     selectionIds?: string[];
   }[];
   schemaVersion: number;
@@ -90,6 +90,28 @@ const whiteBoardSlice = createSlice({
     replaceShapes: (state, action: PayloadAction<Shape[]>) => {
       state.shapes = action.payload.map(normalizeShape);
     },
+    replaceCollaborativeShapes: (state, action: PayloadAction<Shape[]>) => {
+      const previous = new Map(state.shapes.map((shape) => [shape.id, shape]));
+      state.shapes = action.payload.map((shape) => {
+        const normalized = normalizeShape(shape);
+        const existing = previous.get(normalized.id);
+        return normalized.assetId && existing?.assetId === normalized.assetId && existing.backgroundImage
+          ? { ...normalized, backgroundImage: existing.backgroundImage }
+          : normalized;
+      });
+    },
+    hydrateShapeAssets: (
+      state,
+      action: PayloadAction<Array<{ id: string; assetId: string; url: string }>>
+    ) => {
+      const hydration = new Map(action.payload.map((asset) => [asset.id, asset]));
+      state.shapes = state.shapes.map((shape) => {
+        const asset = hydration.get(shape.id);
+        return asset && shape.assetId === asset.assetId
+          ? { ...shape, backgroundImage: asset.url }
+          : shape;
+      });
+    },
     share: (state, action: PayloadAction<{ uid: string; role: "editor" | "viewer" }>) => {
       if (!state.sharedWith.includes(action.payload.uid)) {
         state.sharedWith.push(action.payload.uid);
@@ -129,6 +151,8 @@ const whiteBoardSlice = createSlice({
 export const {
   setWhiteboardData,
   replaceShapes,
+  replaceCollaborativeShapes,
+  hydrateShapeAssets,
   share,
   removeShare,
   updateBackgroundColor,

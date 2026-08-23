@@ -31,6 +31,16 @@ for (const required of [
   }
 }
 
+const boardLinkMigration = readFileSync(
+  "supabase/migrations/202608230002_atomic_board_link_sync.sql",
+  "utf8",
+);
+for (const required of ["sync_kumo_board_links", "security definer", "service_role"]) {
+  if (!boardLinkMigration.toLowerCase().includes(required.toLowerCase())) {
+    throw new Error(`Atomic board-link migration is missing required statement: ${required}`);
+  }
+}
+
 const sourceFiles = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
@@ -49,7 +59,8 @@ const requiredDataPaths = [
   ["src/services/assetRepository.ts", "VITE_SUPABASE_URL"],
   ["src/collaboration/LiveblocksRoot.tsx", "/api/liveblocks-auth"],
   ["api/liveblocks-webhook.ts", 'from("document_snapshots")'],
-  ["api/liveblocks-webhook.ts", 'from("board_links")'],
+  ["api/liveblocks-webhook.ts", "syncBoardLinks"],
+  ["api/_boardLinks.ts", 'rpc("sync_kumo_board_links"'],
 ];
 for (const [file, marker] of requiredDataPaths) {
   if (!readFileSync(file, "utf8").includes(marker)) {
