@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cursor, X } from "@phosphor-icons/react";
 import { useUpdateMyPresence } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
@@ -29,21 +29,18 @@ import {
 import { constrainFrameChildren, displayTextLines } from "../../editor/layout";
 import { measureShapes } from "../../editor/measurement";
 import {
-  createVectorShape,
-  effectStyles,
-  gradientCss,
-  shapePathData,
   updateVectorPoint,
-  vectorPathData,
 } from "../../editor/graphics";
+import { createDraftShape, draftAtPoint } from "../../editor/shapeCreation";
 import {
   adoptContainedShapes,
+  contextualSelectionIds,
   frameAtPoint,
   isEffectivelyHidden,
   isEffectivelyLocked,
   reparentAfterMove,
-  topLevelFrameFor,
 } from "../../editor/hierarchy";
+import { rulerTicks } from "../../editor/rulers";
 import {
   frameClipInsets,
   SmartGuide,
@@ -73,6 +70,10 @@ import { getBoard } from "../../services/boardRepository";
 import styles from "./EditorCanvas.module.css";
 import { CommentPins } from "../../comments/CommentPins";
 import { documentPages, shapesOnPage } from "../../editor/workspace";
+import { TextEditor } from "./TextEditor";
+import { ShapeVectorGraphic } from "./ShapeGraphic";
+import { shapeAppearanceStyle } from "../../editor/shapeAppearance";
+import { SelectionHighlight } from "./SelectionHighlight";
 
 type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan" | "vector-point";
 
@@ -101,14 +102,6 @@ interface ContextMenuState {
   worldPoint: Point;
 }
 
-interface TextEditorProps {
-  value: string;
-  style: React.CSSProperties;
-  verticalAlign: React.CSSProperties["alignItems"];
-  onChange: (value: string) => void;
-  onBlur: (value: string) => void;
-}
-
 type CanvasPointerReleaseEvent = {
   currentTarget: HTMLDivElement;
   pointerId: number;
@@ -117,56 +110,6 @@ type CanvasPointerReleaseEvent = {
   shiftKey: boolean;
   ctrlKey: boolean;
   metaKey: boolean;
-};
-
-export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: TextEditorProps) => {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const [draft, setDraft] = useState(value);
-
-  const fitEditorToContent = useCallback(() => {
-    const textarea = ref.current;
-    if (!textarea) return;
-    textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, textarea.parentElement?.clientHeight ?? textarea.scrollHeight)}px`;
-  }, []);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      ref.current?.focus();
-      ref.current?.select();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useLayoutEffect(() => {
-    fitEditorToContent();
-  }, [draft, fitEditorToContent, style]);
-
-  return (
-    <div className={styles.textEditorFrame} style={{ alignItems: verticalAlign }}>
-      <textarea
-        ref={ref}
-        className={styles.textEditor}
-        style={style}
-        value={draft}
-        rows={1}
-        wrap="soft"
-        spellCheck
-        aria-label="Edit text"
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerMove={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
-        onClick={(event) => event.stopPropagation()}
-        onDoubleClick={(event) => event.stopPropagation()}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          onChange(event.target.value);
-          fitEditorToContent();
-        }}
-        onBlur={(event) => onBlur(event.currentTarget.value)}
-      />
-    </div>
-  );
 };
 
 const cloneShapes = (shapes: Shape[]): Shape[] => JSON.parse(JSON.stringify(shapes));
@@ -191,92 +134,6 @@ const resizeHandles: Array<{
   { handle: "sw", label: "Resize from bottom left", left: "0%", top: "100%", cursor: "nesw-resize" },
   { handle: "w", label: "Resize from left", left: "0%", top: "50%", cursor: "ew-resize" },
 ];
-
-const createDraftShape = (
-  tool: Exclude<EditorTool, "pointer" | "hand" | "comment">,
-  point: Point,
-  shapes: Shape[]
-): Shape => {
-  if (tool === "pen") {
-    return createVectorShape(point, point, Math.max(0, ...shapes.map((shape) => shape.zIndex)) + 1);
-  }
-  const shape = ShapeFunctions.createShape(tool, point.x, point.y, shapes);
-  return normalizeShape({
-    ...shape,
-    text: tool === "text" ? "Type something" : shape.text,
-    fontSize: tool === "text" ? 18 : shape.fontSize,
-    name: tool === "board" ? "Linked board" : tool === "text" ? "Text" : tool === "image" ? "Image" : tool === "ellipse" ? "Ellipse" : tool === "frame" ? "Frame" : "Rectangle",
-    title: tool === "board" ? "Choose a destination" : shape.title,
-    backgroundColor: tool === "text" || tool === "image" || tool === "frame" ? "transparent" : tool === "board" ? "#303640" : "#f4f2ed",
-    color: "#f7f7f5",
-    borderColor: tool === "frame" ? "#8b8d92" : "#17181a",
-    borderWidth: tool === "text" ? 0 : 1,
-  });
-};
-
-const draftAtPoint = (draft: Shape, start: Point, end: Point, square: boolean): Shape => {
-  let dx = end.x - start.x;
-  let dy = end.y - start.y;
-  if (square) {
-    const size = Math.max(Math.abs(dx), Math.abs(dy));
-    dx = Math.sign(dx || 1) * size;
-    dy = Math.sign(dy || 1) * size;
-  }
-  if (draft.type === "vector" && draft.vectorPoints?.length) {
-    const last = draft.vectorPoints.at(-1)!;
-    return updateVectorPoint([draft], draft.id, last.id, { x: start.x + dx, y: start.y + dy })[0]!;
-  }
-  return normalizeShape({
-    ...draft,
-    x1: start.x,
-    y1: start.y,
-    x2: start.x + dx,
-    y2: start.y + dy,
-  });
-};
-
-const VectorGraphic = ({ shape }: { shape: Shape }) => {
-  const bounds = shapeBounds(shape);
-  const viewBox = `0 0 ${Math.max(1, bounds.width)} ${Math.max(1, bounds.height)}`;
-  if (shape.type === "boolean" && shape.booleanChildren?.length) {
-    const id = `boolean-${shape.id.replace(/[^a-z0-9]/gi, "")}`;
-    const paths = shape.booleanChildren.map((child) => shapePathData(child, bounds));
-    if (shape.booleanOperation === "subtract") {
-      return (
-        <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
-          <defs><mask id={`${id}-mask`}><rect width="100%" height="100%" fill="black" /><path d={paths[0]} fill="white" />{paths.slice(1).map((path, index) => <path key={index} d={path} fill="black" />)}</mask></defs>
-          <rect width="100%" height="100%" fill={shape.backgroundColor ?? "#fff"} mask={`url(#${id}-mask)`} />
-        </svg>
-      );
-    }
-    if (shape.booleanOperation === "intersect") {
-      return (
-        <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
-          <defs><clipPath id={`${id}-clip`}><path d={paths[0]} /></clipPath></defs>
-          {paths.slice(1).map((path, index) => <path key={index} d={path} fill={shape.backgroundColor ?? "#fff"} clipPath={`url(#${id}-clip)`} />)}
-        </svg>
-      );
-    }
-    return (
-      <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
-        {shape.booleanOperation === "exclude"
-          ? <path d={paths.join(" ")} fill={shape.backgroundColor ?? "#fff"} fillRule="evenodd" />
-          : paths.map((path, index) => <path key={index} d={path} fill={shape.backgroundColor ?? "#fff"} />)}
-      </svg>
-    );
-  }
-  return (
-    <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
-      <path
-        d={vectorPathData(shape.vectorPoints ?? [], bounds, shape.vectorClosed)}
-        fill={shape.vectorClosed ? shape.backgroundColor ?? "transparent" : "none"}
-        stroke={shape.borderColor ?? "#fff"}
-        strokeWidth={shape.borderWidth ?? 1}
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-};
 
 interface EditorCanvasViewProps {
   actions: EditorActions;
@@ -453,16 +310,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   );
 
   const selectHitTarget = useCallback(
-    (shape: Shape, deep = false): string[] => {
-      if (!deep) {
-        const frame = topLevelFrameFor(canvasShapes, shape);
-        if (frame) return [frame.id];
-      }
-      if (!shape.groupId) return [shape.id];
-      return canvasShapes
-        .filter((candidate) => candidate.groupId === shape.groupId)
-        .map((candidate) => candidate.id);
-    },
+    (shape: Shape, deep = false): string[] => contextualSelectionIds(canvasShapes, shape, deep),
     [canvasShapes]
   );
 
@@ -1380,15 +1228,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
               width: Math.max(1, bounds.width * editor.viewport.zoom),
               height: Math.max(1, bounds.height * editor.viewport.zoom),
               transform: `rotate(${shape.rotation ?? 0}deg) scaleX(${shape.flipX ? -1 : 1}) scaleY(${shape.flipY ? -1 : 1})`,
-              borderRadius: shape.type === "ellipse" ? "50%" : `${shape.borderRadius ?? 0}px`,
-              border: shape.type === "vector" || shape.type === "boolean" ? 0 : `${Math.max(0, (shape.borderWidth ?? 0) * editor.viewport.zoom)}px ${shape.borderStyle ?? "solid"} ${shape.borderColor ?? "transparent"}`,
-              backgroundColor: shape.backgroundColor ?? "transparent",
-              backgroundImage: shape.backgroundImage ? `url(${shape.backgroundImage})` : gradientCss(shape),
-              opacity: shape.opacity ?? 1,
-              color: shape.color ?? "#f7f7f5",
-              zIndex: shape.zIndex,
-              mixBlendMode: shape.blendMode as React.CSSProperties["mixBlendMode"],
-              ...effectStyles(shape),
+              ...shapeAppearanceStyle(shape, editor.viewport.zoom),
               ...(clipInsets ? {
                 clipPath: `inset(${clipInsets.top * editor.viewport.zoom}px ${clipInsets.right * editor.viewport.zoom}px ${clipInsets.bottom * editor.viewport.zoom}px ${clipInsets.left * editor.viewport.zoom}px)`,
               } : {}),
@@ -1412,7 +1252,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                 {(shape.type === "frame" || shape.type === "section") && (
                   <span className={styles.frameLabel}>{shape.name ?? "Frame"}</span>
                 )}
-                {(shape.type === "vector" || shape.type === "boolean") && <VectorGraphic shape={shape} />}
+                {(shape.type === "vector" || shape.type === "boolean") && <ShapeVectorGraphic shape={shape} />}
                 {shape.type === "text" &&
                   (isEditing ? (
                     <TextEditor
@@ -1435,7 +1275,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                       className={styles.textContent}
                       onDoubleClick={(event) => {
                         event.stopPropagation();
-                        if (shape.locked) return;
+                        if (isEffectivelyLocked(canvasShapes, shape)) return;
                         dispatch(setSelectedShapes([shape.id]));
                         dispatch(setEditingShapeId(shape.id));
                       }}
@@ -1498,8 +1338,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
             tabIndex={0}
             onPointerDown={(event) => createGuide("vertical", event)}
           >
-            {Array.from({ length: 41 }, (_, index) => (Math.floor(editor.viewport.x / 100) - 10 + index) * 100).map((value) => (
-              <span key={value} style={{ left: (value - editor.viewport.x) * editor.viewport.zoom }}><b>{value}</b></span>
+            {rulerTicks(editor.viewport.x, editor.viewport.zoom).map((tick) => (
+              <span key={tick.value} data-ruler-value={tick.value} style={{ left: tick.position }}><b>{tick.label}</b></span>
             ))}
           </div>
           <div
@@ -1509,8 +1349,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
             tabIndex={0}
             onPointerDown={(event) => createGuide("horizontal", event)}
           >
-            {Array.from({ length: 41 }, (_, index) => (Math.floor(editor.viewport.y / 100) - 10 + index) * 100).map((value) => (
-              <span key={value} style={{ top: (value - editor.viewport.y) * editor.viewport.zoom }}><b>{value}</b></span>
+            {rulerTicks(editor.viewport.y, editor.viewport.zoom).map((tick) => (
+              <span key={tick.value} data-ruler-value={tick.value} style={{ top: tick.position }}><b>{tick.label}</b></span>
             ))}
           </div>
           <span className={styles.rulerCorner} aria-hidden="true" />
@@ -1557,8 +1397,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       })}
 
       {screenFrame && selectedIds.length > 0 && (
-        <div
-          className={styles.selectionBox}
+        <SelectionHighlight
           style={{
             left: screenFrame.start.x,
             top: screenFrame.start.y,
@@ -1566,8 +1405,6 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
             height: screenFrame.height,
             transform: `rotate(${screenFrame.rotation}deg) scaleX(${resizeDirection.x}) scaleY(${resizeDirection.y})`,
           }}
-          role="group"
-          aria-label="Selection transform controls"
         >
           {actions.canEdit && !selectionLocked && (
             <>
@@ -1590,7 +1427,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
               ))}
             </>
           )}
-        </div>
+        </SelectionHighlight>
       )}
 
       {marqueeStyle && (

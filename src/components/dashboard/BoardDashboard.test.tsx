@@ -35,6 +35,7 @@ const summary = (id: string, ownerId = "user") => ({
   roomId: `board:${id}`,
   role: ownerId === "user" ? "owner" as const : "viewer" as const,
   updatedAt: 1,
+  thumbnailUrl: id === "mine" ? "https://signed.example/mine.svg" : null,
   members: { [ownerId]: "owner" as const },
 });
 
@@ -77,6 +78,8 @@ describe("BoardDashboard", () => {
     const store = renderDashboard();
     expect(screen.getByRole("link", { name: "Kumo boards" })).toHaveTextContent("Kumo");
     expect(await screen.findByText("My map")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open My map" }).querySelector("img"))
+      .toHaveAttribute("src", "https://signed.example/mine.svg");
     expect(screen.getByText("Shared with me")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open My map" }));
     await waitFor(() => expect(store.getState().whiteBoard.id).toBe("mine"));

@@ -8,13 +8,8 @@
 }
 
 .intro {
-  --intro-gutter: clamp(34px, 6vw, 88px);
   position: relative;
-  display: grid;
   min-width: 0;
-  grid-template-rows: auto 1fr;
-  align-items: end;
-  padding: var(--intro-gutter);
   overflow: hidden;
   background-color: var(--kumo-canvas);
   background-image:
@@ -25,6 +20,7 @@
 
 .intro::after {
   position: absolute;
+  z-index: 0;
   width: min(58vw, 720px);
   height: min(58vw, 720px);
   top: -32%;
@@ -33,103 +29,6 @@
   border-radius: 50%;
   content: "";
   pointer-events: none;
-}
-
-.brandBar {
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #8f8e89;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.logoText {
-  color: var(--kumo-ink);
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  text-transform: none;
-}
-
-.heroVisual {
-  position: absolute;
-  top: clamp(92px, 13vh, 148px);
-  right: clamp(30px, 7vw, 92px);
-  z-index: 2;
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  transition: filter 220ms ease, transform 220ms ease;
-}
-
-.heroVisual[data-context="loading"] { filter: drop-shadow(0 0 22px rgb(184 122 46 / 0.22)); }
-.heroVisual[data-context="success"] { transform: translateY(-3px); }
-.heroVisual[data-context="error"] { filter: saturate(0.72); }
-.brandLogo { width: clamp(144px, 17vw, 230px); }
-
-.connectionModel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #8e8d88;
-  font: 700 9px/1 var(--kumo-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.connectionModel svg { color: var(--kumo-accent-hover); }
-
-.logoStatus {
-  color: #9b9a94;
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.introText {
-  position: relative;
-  z-index: 1;
-  width: min(760px, 86%);
-  padding-top: clamp(250px, 34vh, 390px);
-  animation: copy-enter 650ms 90ms both cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 16px;
-  color: var(--kumo-accent-hover);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.eyebrow svg { width: 15px; height: 15px; }
-
-.intro h1 {
-  max-width: 800px;
-  margin: 0;
-  color: var(--kumo-ink);
-  font-size: clamp(46px, 5.4vw, 78px);
-  font-weight: 620;
-  line-height: 0.98;
-  letter-spacing: -0.062em;
-  text-wrap: balance;
-}
-
-.introCopy {
-  position: relative;
-  z-index: 1;
-  max-width: 520px;
-  margin: 25px 0 0;
-  color: #a9a8a2;
-  font-size: clamp(15px, 1.35vw, 18px);
-  line-height: 1.55;
 }
 
 .loginForm {
@@ -246,19 +145,8 @@
 .error { color: #f0b4a5; background: #38241f; border-color: var(--kumo-danger); }
 .message { color: #c2dfce; background: #203129; border-color: var(--kumo-success); }
 
-@keyframes copy-enter {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 @media (max-width: 820px) {
   .homePage { grid-template-columns: 1fr; }
-  .intro { --intro-gutter: 24px; min-height: 620px; padding: 26px 24px 46px; }
-  .brandBar > span:last-child { display: none; }
-  .heroVisual { top: 82px; right: 24px; }
-  .brandLogo { width: 146px; }
-  .connectionModel { display: none; }
-  .introText { width: 100%; padding-top: 270px; }
-  .intro h1 { font-size: clamp(38px, 11vw, 60px); }
+  .intro { min-height: 620px; }
   .loginForm { min-height: 600px; padding: 54px 24px 70px; border-top: 1px solid #36373a; border-left: 0; }
 }

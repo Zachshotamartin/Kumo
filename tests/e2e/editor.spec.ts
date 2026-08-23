@@ -119,6 +119,22 @@ test.describe("editor regression workflows", () => {
     await expect(page.getByRole("button", { name: "Group, 2 layers", exact: true })).toHaveCount(1);
     await expect(page.getByRole("group", { name: "Group, 2 layers members" })).toBeVisible();
 
+    const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+    const [canvasBox, rectangleBox] = await Promise.all([canvas.boundingBox(), originalRectangle.boundingBox()]);
+    expect(canvasBox).not.toBeNull();
+    expect(rectangleBox).not.toBeNull();
+    await canvas.dblclick({
+      position: {
+        x: rectangleBox!.x - canvasBox!.x + rectangleBox!.width / 2,
+        y: rectangleBox!.y - canvasBox!.y + rectangleBox!.height / 2,
+      },
+    });
+    await expect(page.getByRole("button", { name: "Ochre card", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Product note", exact: true }))
+      .toHaveAttribute("aria-pressed", "false");
+    await page.getByRole("button", { name: "Group, 2 layers", exact: true }).click();
+
     await page.getByRole("button", { name: "Collapse Group, 2 layers" }).click();
     await expect(page.getByRole("button", { name: "Product note", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Expand Group, 2 layers" }).click();
@@ -221,6 +237,62 @@ test.describe("editor regression workflows", () => {
     expect(await page.evaluate(() => document.documentElement.style.zoom)).toBe("");
   });
 
+  test("aligns ruler ticks and numeric labels with world coordinates", async ({ page }) => {
+    const text = page.locator('[data-shape-id="e2e-text"]');
+    const horizontalTick = page.locator('[aria-label^="Horizontal ruler"] [data-ruler-value="100"]');
+    const verticalTick = page.locator('[aria-label^="Vertical ruler"] [data-ruler-value="100"]');
+    const [textBox, horizontalBox, verticalBox, horizontalLabel, verticalLabel] = await Promise.all([
+      text.boundingBox(),
+      horizontalTick.boundingBox(),
+      verticalTick.boundingBox(),
+      horizontalTick.locator("b").boundingBox(),
+      verticalTick.locator("b").boundingBox(),
+    ]);
+    expect(textBox).not.toBeNull();
+    expect(horizontalBox).not.toBeNull();
+    expect(verticalBox).not.toBeNull();
+    expect(horizontalLabel).not.toBeNull();
+    expect(verticalLabel).not.toBeNull();
+
+    expect(Math.abs(horizontalBox!.x - textBox!.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(verticalBox!.y - textBox!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(horizontalLabel!.x + horizontalLabel!.width / 2 - horizontalBox!.x))
+      .toBeLessThanOrEqual(1);
+    expect(Math.abs(verticalLabel!.y + verticalLabel!.height / 2 - verticalBox!.y))
+      .toBeLessThanOrEqual(1);
+  });
+
+  test("keeps inspector labels clear of right-aligned tabular values", async ({ page }) => {
+    await page.getByRole("button", { name: "Ochre card", exact: true }).click();
+    const fields = ["X", "Y", "W", "H", "Stroke", "Radius"];
+    for (const name of fields) {
+      const input = page.getByRole("spinbutton", { name, exact: true });
+      const geometry = await input.evaluate((element) => {
+        const inputRect = element.getBoundingClientRect();
+        const labelRect = element.parentElement?.querySelector("span")?.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          inputLeft: inputRect.left,
+          labelRight: labelRect?.right ?? 0,
+          textAlign: style.textAlign,
+          numericVariant: style.fontVariantNumeric,
+        };
+      });
+      expect(geometry.labelRight).toBeLessThanOrEqual(geometry.inputLeft);
+      expect(geometry.textAlign).toBe("right");
+      expect(geometry.numericVariant).toContain("tabular-nums");
+    }
+
+    const appearanceGap = await page.getByLabel("Fill type").evaluate((select) => {
+      const fillType = select.closest("label")?.getBoundingClientRect();
+      const stroke = document.querySelector<HTMLInputElement>('input[aria-label="Stroke hex value"]')
+        ?.closest("label")?.getBoundingClientRect();
+      if (!fillType || !stroke) return -1;
+      return stroke.top - fillType.bottom;
+    });
+    expect(appearanceGap).toBeGreaterThanOrEqual(7);
+  });
+
   test("creates frames with parent-first selection, deep selection, copy/paste, and inherited locking", async ({ page }) => {
     const canvas = page.getByRole("application", { name: "Kumo design canvas" });
     const canvasBox = await canvas.boundingBox();
@@ -234,12 +306,17 @@ test.describe("editor regression workflows", () => {
 
     const frame = page.locator('[data-shape-type="frame"]');
     await expect(frame).toHaveCount(1);
+    await expect(frame).toHaveCSS("background-color", "rgb(255, 255, 255)");
     const frameId = await frame.getAttribute("data-shape-id");
     expect(frameId).toBeTruthy();
     await expect(page.locator('[data-shape-id="e2e-text"]')).toHaveAttribute("data-parent-id", frameId!);
     await expect(page.locator('[data-shape-id="e2e-rectangle"]')).toHaveAttribute("data-parent-id", frameId!);
 
     await canvas.click({ position: { x: 120, y: 140 } });
+    await expect(page.getByRole("button", { name: "Frame", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await canvas.dblclick({ position: { x: 550, y: 160 } });
+    await expect(page.getByRole("button", { name: "Ochre card", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Shift+Enter");
     await expect(page.getByRole("button", { name: "Frame", exact: true })).toHaveAttribute("aria-pressed", "true");
     await canvas.click({ position: { x: 120, y: 140 }, modifiers: ["ControlOrMeta"] });
     await expect(page.getByRole("button", { name: "Product note", exact: true })).toHaveAttribute("aria-pressed", "true");

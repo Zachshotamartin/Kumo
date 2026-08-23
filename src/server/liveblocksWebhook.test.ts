@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     data: { roomId: "board:source", updatedAt: new Date().toISOString() },
   },
   syncLinks: vi.fn().mockResolvedValue(undefined),
+  updateThumbnail: vi.fn().mockResolvedValue("thumbnail"),
   getDocument: vi.fn().mockResolvedValue({
     nodes: { link: { type: "board", boardId: "target" } },
   }),
@@ -24,6 +25,7 @@ vi.mock("../../api/_liveblocks", () => ({
 }));
 
 vi.mock("../../api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
+vi.mock("../../api/_boardThumbnail", () => ({ updateBoardThumbnail: mocks.updateThumbnail }));
 
 vi.mock("../../api/_supabase", () => ({
   supabaseAdmin: () => ({
@@ -81,6 +83,10 @@ describe("Liveblocks webhook", () => {
     expect(mocks.syncLinks).toHaveBeenCalledWith("source", {
       nodes: { link: { type: "board", boardId: "target" } },
     });
+    expect(mocks.updateThumbnail).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "source" }),
+      { nodes: { link: { type: "board", boardId: "target" } } }
+    );
     expect(reply.statusCode).toBe(200);
   });
 

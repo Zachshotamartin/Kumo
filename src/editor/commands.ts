@@ -770,7 +770,7 @@ export const frameShapes = (
     y2: bounds.y + Math.max(1, bounds.height),
     parentId,
     clipContent: true,
-    backgroundColor: "transparent",
+    backgroundColor: "#ffffff",
     borderColor: "#8b8d92",
     borderWidth: 1,
     zIndex: Math.min(...roots.map((id) => shapes.find((shape) => shape.id === id)!.zIndex)) - 1,

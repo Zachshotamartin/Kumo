@@ -3,6 +3,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
   CaretLeft,
   CaretRight,
+  Broadcast,
   ChatCenteredText,
   ClockCounterClockwise,
   DotsThree,
@@ -296,6 +297,7 @@ const EditorWorkspace = () => {
             aria-pressed={myPresence.spotlight}
             onClick={toggleSpotlight}
           >
+            <Broadcast aria-hidden="true" />
             <span>{myPresence.spotlight ? "Stop spotlight" : "Spotlight"}</span>
           </button>
           <button

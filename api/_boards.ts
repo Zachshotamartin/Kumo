@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { boardDocumentFromJson, emptyBoardDocument, liveblocksAdmin } from "./_liveblocks.js";
 import { supabaseAdmin } from "./_supabase.js";
+import { boardThumbnailUrls, updateBoardThumbnail } from "./_boardThumbnail.js";
 
 export type BoardRole = "owner" | "editor" | "viewer";
 export type BoardVisibility = "private" | "public";
@@ -11,6 +12,7 @@ export interface BoardRow {
   title: string;
   visibility: BoardVisibility;
   liveblocks_room_id: string;
+  thumbnail_asset_id: string | null;
   legacy_rtdb_id: string | null;
   created_at: string;
   updated_at: string;
@@ -22,7 +24,7 @@ export interface BoardAccess {
   role: BoardRole;
 }
 
-export const boardSummary = (board: BoardRow, role?: BoardRole) => ({
+export const boardSummary = (board: BoardRow, role?: BoardRole, thumbnailUrl?: string | null) => ({
   id: board.id,
   title: board.title,
   ownerId: board.owner_id,
@@ -30,7 +32,17 @@ export const boardSummary = (board: BoardRow, role?: BoardRole) => ({
   roomId: board.liveblocks_room_id,
   role,
   updatedAt: new Date(board.updated_at).getTime(),
+  thumbnailUrl: thumbnailUrl ?? null,
 });
+
+const boardSummaries = async (boards: BoardRow[], roles: Map<string, BoardRole>) => {
+  const thumbnailUrls = await boardThumbnailUrls(boards);
+  return boards.map((board) => boardSummary(
+    board,
+    roles.get(board.id),
+    board.thumbnail_asset_id ? thumbnailUrls.get(board.thumbnail_asset_id) ?? null : null
+  ));
+};
 
 export const getBoardAccess = async (
   boardId: string,
@@ -39,7 +51,7 @@ export const getBoardAccess = async (
   const database = supabaseAdmin();
   const { data: boardData, error: boardError } = await database
     .from("boards")
-    .select("id, owner_id, title, visibility, liveblocks_room_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
     .eq("id", boardId)
     .is("deleted_at", null)
     .maybeSingle();
@@ -71,12 +83,12 @@ export const listBoardsForUser = async (actorUid: string) => {
   const roles = new Map(members.map((member) => [member.board_id as string, member.role as BoardRole]));
   const { data: boards, error: boardError } = await database
     .from("boards")
-    .select("id, owner_id, title, visibility, liveblocks_room_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
     .in("id", [...roles.keys()])
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });
   if (boardError) throw boardError;
-  return (boards as BoardRow[]).map((board) => boardSummary(board, roles.get(board.id)));
+  return boardSummaries(boards as BoardRow[], roles);
 };
 
 export const searchPublicBoards = async (query: string) => {
@@ -85,14 +97,14 @@ export const searchPublicBoards = async (query: string) => {
   const escaped = normalized.replace(/[%,_]/g, "");
   const { data, error } = await supabaseAdmin()
     .from("boards")
-    .select("id, owner_id, title, visibility, liveblocks_room_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
     .eq("visibility", "public")
     .is("deleted_at", null)
     .ilike("title", `%${escaped}%`)
     .order("updated_at", { ascending: false })
     .limit(12);
   if (error) throw error;
-  return (data as BoardRow[]).map((board) => boardSummary(board, "viewer"));
+  return boardSummaries(data as BoardRow[], new Map((data as BoardRow[]).map((board) => [board.id, "viewer" as const])));
 };
 
 export const provisionBoard = async ({
@@ -131,7 +143,12 @@ export const provisionBoard = async ({
       p_legacy_rtdb_id: legacyRtdbId,
     });
     if (error) throw error;
-    return data as BoardRow;
+    const board = data as BoardRow;
+    await updateBoardThumbnail(
+      board,
+      document === undefined ? { backgroundColor: "#252629", nodes: {} } : document
+    ).catch(() => undefined);
+    return board;
   } catch (error) {
     await liveblocks.deleteRoom(roomId).catch(() => undefined);
     throw error;

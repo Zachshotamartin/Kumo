@@ -12,6 +12,7 @@ export interface BoardSummary {
   roomId: string;
   role: BoardRole;
   updatedAt: number | null;
+  thumbnailUrl?: string | null;
   members?: Record<string, BoardRole>;
 }
 

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   createRoom: vi.fn(),
   initializeStorageDocument: vi.fn(),
   deleteRoom: vi.fn(),
+  updateBoardThumbnail: vi.fn(),
 }));
 
 vi.mock("../../api/_supabase", () => ({
@@ -26,10 +27,14 @@ vi.mock("../../api/_liveblocks", () => ({
   emptyBoardDocument: () => ({ empty: true }),
   boardDocumentFromJson: (value: unknown) => ({ converted: value }),
 }));
+vi.mock("../../api/_boardThumbnail", () => ({
+  boardThumbnailUrls: () => Promise.resolve(new Map()),
+  updateBoardThumbnail: mocks.updateBoardThumbnail,
+}));
 
 const board = {
   id: "board", owner_id: "owner", title: "Board", visibility: "private" as const,
-  liveblocks_room_id: "board:board", legacy_rtdb_id: null,
+  liveblocks_room_id: "board:board", thumbnail_asset_id: null, legacy_rtdb_id: null,
   created_at: new Date(0).toISOString(), updated_at: new Date(10).toISOString(), deleted_at: null,
 };
 
@@ -39,6 +44,7 @@ describe("board persistence helpers", () => {
     mocks.createRoom.mockResolvedValue(undefined);
     mocks.initializeStorageDocument.mockResolvedValue(undefined);
     mocks.deleteRoom.mockResolvedValue(undefined);
+    mocks.updateBoardThumbnail.mockResolvedValue("thumbnail");
     mocks.rpc.mockResolvedValue({ data: board, error: null });
   });
 
@@ -82,6 +88,14 @@ describe("board persistence helpers", () => {
     expect(mocks.createRoom).toHaveBeenCalledWith("board:new", expect.objectContaining({ metadata: { boardId: "new" } }));
     expect(mocks.initializeStorageDocument).toHaveBeenCalledWith("board:new", { empty: true });
     expect(mocks.rpc).toHaveBeenCalledWith("create_kumo_board", expect.objectContaining({ p_id: "new" }));
+    expect(mocks.updateBoardThumbnail).toHaveBeenCalledWith(
+      board,
+      { backgroundColor: "#252629", nodes: {} }
+    );
+
+    mocks.updateBoardThumbnail.mockRejectedValueOnce(new Error("preview failed"));
+    await expect(provisionBoard({ id: "preview-failed", ownerId: "owner", title: "Still created" }))
+      .resolves.toEqual(board);
 
     mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("database failed") });
     await expect(provisionBoard({ id: "failed", ownerId: "owner", title: "Failed", document: { nodes: {} } }))
