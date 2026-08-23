@@ -288,11 +288,31 @@
 .layerRow {
   display: grid;
   min-height: 36px;
-  grid-template-columns: minmax(0, 1fr) 28px 28px;
+  grid-template-columns: 22px minmax(0, 1fr) repeat(4, 24px);
   align-items: center;
   margin: 2px 6px;
   border-radius: 5px;
 }
+
+.layerUnit {
+  position: relative;
+}
+
+.dropInFront::before,
+.dropBehind::after {
+  position: absolute;
+  z-index: 2;
+  right: 7px;
+  left: 7px;
+  height: 2px;
+  content: "";
+  background: var(--accent);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgb(184 122 46 / 0.18);
+}
+
+.dropInFront::before { top: -1px; }
+.dropBehind::after { bottom: -1px; }
 
 .layerRow:hover {
   background: #25262a;
@@ -300,6 +320,28 @@
 
 .selectedLayer {
   background: rgb(184 122 46 / 0.14);
+}
+
+.groupLayerRow {
+  margin-top: 5px;
+  background: #202125;
+}
+
+.nestedLayerRow {
+  margin-left: 17px;
+  border-left: 1px solid #37383d;
+  border-radius: 0 5px 5px 0;
+}
+
+.layerIndent,
+.layerActionSpacer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.layerDisclosure {
+  color: #9b9c98;
 }
 
 .layerMain {
@@ -313,6 +355,14 @@
   text-align: left;
   background: transparent;
   border: 0;
+}
+
+.layerMain[draggable="true"] {
+  cursor: grab;
+}
+
+.layerMain[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .layerMain:focus-visible,
@@ -337,9 +387,37 @@
   white-space: nowrap;
 }
 
+.groupCount {
+  margin-left: auto;
+  color: #72736f;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.layerRename {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 8px;
+}
+
+.layerRename input {
+  width: 100%;
+  min-width: 0;
+  height: 25px;
+  padding: 0 5px;
+  color: #e9e7e1;
+  font: inherit;
+  background: #17181b;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  outline: none;
+}
+
 .layerAction {
   display: grid;
-  width: 27px;
+  width: 23px;
   height: 27px;
   place-items: center;
   padding: 0;
@@ -347,6 +425,10 @@
   background: transparent;
   border: 0;
   border-radius: 4px;
+}
+
+.layerAction:disabled {
+  color: #48494d;
 }
 
 .layerAction svg { width: 15px; height: 15px; }

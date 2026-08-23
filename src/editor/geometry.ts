@@ -41,6 +41,7 @@ export const normalizeShape = (shape: Shape): Shape => {
     width: bounds.width,
     height: bounds.height,
     rotation: shape.rotation ?? 0,
+    groupName: shape.groupId ? shape.groupName?.trim() || "Group" : undefined,
     groupRotation: shape.groupId ? shape.groupRotation ?? 0 : undefined,
     opacity: shape.opacity ?? 1,
     zIndex: Number.isFinite(shape.zIndex) ? shape.zIndex : 0,

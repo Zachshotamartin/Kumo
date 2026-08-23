@@ -1,5 +1,10 @@
+import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
+  ArrowDown,
+  ArrowUp,
+  CaretDown,
+  CaretRight,
   Circle,
   Eye,
   EyeSlash,
@@ -9,9 +14,13 @@ import {
   LockOpen,
   Plus,
   Rectangle,
+  Stack,
   TextT,
   type Icon,
 } from "@phosphor-icons/react";
+import type { Shape } from "../../classes/shape";
+import { moveShapesRelative, orderShapes, type RelativeOrder } from "../../editor/commands";
+import { buildLayerUnits, type LayerUnit } from "../../editor/layers";
 import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import { AppDispatch, RootState } from "../../store";
@@ -25,24 +34,219 @@ const layerIcon = (type: string): Icon => {
   return Rectangle;
 };
 
+const unitLabel = (unit: LayerUnit) => unit.groupId
+  ? `${unit.members[0]?.groupName ?? "Group"}, ${unit.members.length} layers`
+  : unit.members[0]?.name ?? unit.members[0]?.type ?? "Layer";
+
+const LayerNameInput = ({
+  label,
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancellingRef = useRef(false);
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+  return (
+    <input
+      ref={inputRef}
+      aria-label={label}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={() => {
+        if (cancellingRef.current) onCancel();
+        else onCommit();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") {
+          cancellingRef.current = true;
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+};
+
 export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [draggedIds, setDraggedIds] = useState<string[] | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ key: string; placement: RelativeOrder } | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const units = buildLayerUnits(board.shapes);
 
-  const toggleShape = (shapeId: string, field: "locked" | "hidden", value: boolean) => {
-    const target = board.shapes.find((shape) => shape.id === shapeId);
-    const affected = field === "locked" && target?.groupId
-      ? new Set(
-          board.shapes
-            .filter((shape) => shape.groupId === target.groupId)
-            .map((shape) => shape.id)
-        )
-      : new Set([shapeId]);
+  const selectUnit = (event: MouseEvent, ids: string[]) => {
+    if (event.shiftKey) {
+      const next = new Set(selectedIds);
+      const removing = ids.every((id) => next.has(id));
+      ids.forEach((id) => (removing ? next.delete(id) : next.add(id)));
+      dispatch(setSelectedShapes([...next]));
+      return;
+    }
+    dispatch(setSelectedShapes(ids));
+  };
+
+  const toggleShapes = (
+    shapeIds: readonly string[],
+    field: "locked" | "hidden",
+    value: boolean
+  ) => {
+    const affected = new Set(shapeIds);
     actions.commitShapes(
       board.shapes.map((shape) =>
         affected.has(shape.id) ? { ...shape, [field]: value } : shape
       )
+    );
+  };
+
+  const toggleMember = (shape: Shape, field: "locked" | "hidden", value: boolean) => {
+    const ids = field === "locked" && shape.groupId
+      ? board.shapes.filter((candidate) => candidate.groupId === shape.groupId).map((candidate) => candidate.id)
+      : [shape.id];
+    toggleShapes(ids, field, value);
+  };
+
+  const moveUnit = (unit: LayerUnit, mode: "forward" | "backward") => {
+    actions.commitShapes(orderShapes(board.shapes, unit.ids, mode));
+    dispatch(setSelectedShapes(unit.ids));
+  };
+
+  const startDrag = (event: DragEvent, unit: LayerUnit) => {
+    if (!actions.canEdit) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", unit.key);
+    setDraggedIds(unit.ids);
+    dispatch(setSelectedShapes(unit.ids));
+  };
+
+  const updateDropTarget = (event: DragEvent, unit: LayerUnit) => {
+    if (!draggedIds || unit.ids.some((id) => draggedIds.includes(id))) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const placement: RelativeOrder = event.clientY < bounds.top + bounds.height / 2
+      ? "front"
+      : "back";
+    setDropTarget({ key: unit.key, placement });
+  };
+
+  const finishDrop = (event: DragEvent, unit: LayerUnit) => {
+    event.preventDefault();
+    if (draggedIds && dropTarget?.key === unit.key) {
+      actions.commitShapes(
+        moveShapesRelative(
+          board.shapes,
+          draggedIds,
+          unit.members[0]!.id,
+          dropTarget.placement
+        )
+      );
+      dispatch(setSelectedShapes(draggedIds));
+    }
+    setDraggedIds(null);
+    setDropTarget(null);
+  };
+
+  const finishRename = (shape: Shape) => {
+    const name = draftName.trim() || shape.type;
+    actions.commitShapes(
+      board.shapes.map((candidate) => candidate.id === shape.id ? { ...candidate, name } : candidate)
+    );
+    setRenamingId(null);
+  };
+
+  const finishUnitRename = (unit: LayerUnit) => {
+    const name = draftName.trim() || (unit.groupId ? "Group" : unit.members[0]?.type ?? "Layer");
+    const ids = new Set(unit.ids);
+    actions.commitShapes(
+      board.shapes.map((shape) => {
+        if (!ids.has(shape.id)) return shape;
+        return unit.groupId ? { ...shape, groupName: name } : { ...shape, name };
+      })
+    );
+    setRenamingId(null);
+  };
+
+  const renderMember = (shape: Shape) => {
+    const LayerIcon = layerIcon(shape.type);
+    const name = shape.name ?? shape.type;
+    const selected = selectedIds.includes(shape.id);
+    const selectionIds = shape.groupId
+      ? board.shapes.filter((candidate) => candidate.groupId === shape.groupId).map((candidate) => candidate.id)
+      : [shape.id];
+    return (
+      <div
+        className={`${styles.layerRow} ${styles.nestedLayerRow} ${selected ? styles.selectedLayer : ""}`}
+        key={shape.id}
+      >
+        <span className={styles.layerIndent} aria-hidden="true" />
+        {renamingId === shape.id ? (
+          <div className={styles.layerRename}>
+            <span className={styles.layerType} aria-hidden="true"><LayerIcon /></span>
+            <LayerNameInput
+              label={`Rename ${name}`}
+              value={draftName}
+              onChange={setDraftName}
+              onCommit={() => finishRename(shape)}
+              onCancel={() => setRenamingId(null)}
+            />
+          </div>
+        ) : (
+          <button
+            className={styles.layerMain}
+            type="button"
+            aria-pressed={selected}
+            onClick={(event) => selectUnit(event, selectionIds)}
+            onDoubleClick={() => {
+              if (!actions.canEdit) return;
+              setDraftName(name);
+              setRenamingId(shape.id);
+            }}
+          >
+            <span className={styles.layerType} aria-hidden="true"><LayerIcon /></span>
+            <span className={styles.layerName}>{name}</span>
+          </button>
+        )}
+        <span className={styles.layerActionSpacer} />
+        <span className={styles.layerActionSpacer} />
+        <button
+          type="button"
+          className={styles.layerAction}
+          aria-label={`${shape.hidden ? "Show" : "Hide"} ${name}`}
+          title={shape.hidden ? "Show" : "Hide"}
+          disabled={!actions.canEdit}
+          onClick={() => toggleMember(shape, "hidden", !shape.hidden)}
+        >
+          {shape.hidden ? <EyeSlash aria-hidden="true" /> : <Eye aria-hidden="true" />}
+        </button>
+        <button
+          type="button"
+          className={styles.layerAction}
+          aria-label={`${shape.locked ? "Unlock" : "Lock"} ${name}`}
+          title={shape.locked ? "Unlock" : "Lock"}
+          disabled={!actions.canEdit}
+          onClick={() => toggleMember(shape, "locked", !shape.locked)}
+        >
+          {shape.locked ? <Lock aria-hidden="true" /> : <LockOpen aria-hidden="true" />}
+        </button>
+      </div>
     );
   };
 
@@ -52,70 +256,134 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
         <span>Layers</span>
         <span className={styles.count}>{board.shapes.length}</span>
       </div>
-      <div className={styles.layerList}>
+      <div className={styles.layerList} role={board.shapes.length ? "list" : undefined} aria-label={board.shapes.length ? "Layer stack" : undefined}>
         {board.shapes.length === 0 ? (
           <div className={styles.emptyPanel}>
             <span className={styles.emptyMark}><Plus aria-hidden="true" /></span>
             <p>Draw a shape to start this board.</p>
             <small>R rectangle / O ellipse / T text</small>
           </div>
-        ) : (
-          board.shapes
-            .slice()
-            .sort((left, right) => right.zIndex - left.zIndex)
-            .map((shape) => {
-              const LayerIcon = layerIcon(shape.type);
-              return <div
-                className={`${styles.layerRow} ${selectedIds.includes(shape.id) ? styles.selectedLayer : ""}`}
-                key={shape.id}
-              >
+        ) : units.map((unit, unitIndex) => {
+          const isGroup = Boolean(unit.groupId);
+          const label = unitLabel(unit);
+          const selected = unit.ids.every((id) => selectedIds.includes(id));
+          const collapsed = unit.groupId ? collapsedGroups.has(unit.groupId) : false;
+          const allHidden = unit.members.every((shape) => shape.hidden);
+          const allLocked = unit.members.every((shape) => shape.locked);
+          const dropClass = dropTarget?.key === unit.key
+            ? dropTarget.placement === "front" ? styles.dropInFront : styles.dropBehind
+            : "";
+          const UnitIcon = isGroup ? Stack : layerIcon(unit.members[0]!.type);
+
+          return (
+            <div
+              className={`${styles.layerUnit} ${dropClass}`}
+              key={unit.key}
+              role="listitem"
+              onDragOver={(event) => updateDropTarget(event, unit)}
+              onDrop={(event) => finishDrop(event, unit)}
+            >
+              <div className={`${styles.layerRow} ${isGroup ? styles.groupLayerRow : ""} ${selected ? styles.selectedLayer : ""}`}>
+                {isGroup ? (
+                  <button
+                    type="button"
+                    className={`${styles.layerAction} ${styles.layerDisclosure}`}
+                    aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
+                    aria-expanded={!collapsed}
+                    onClick={() => setCollapsedGroups((current) => {
+                      const next = new Set(current);
+                      if (unit.groupId && next.has(unit.groupId)) next.delete(unit.groupId);
+                      else if (unit.groupId) next.add(unit.groupId);
+                      return next;
+                    })}
+                  >
+                    {collapsed ? <CaretRight aria-hidden="true" /> : <CaretDown aria-hidden="true" />}
+                  </button>
+                ) : <span className={styles.layerIndent} aria-hidden="true" />}
+                {renamingId === (isGroup ? unit.key : unit.members[0]?.id) ? (
+                  <div className={styles.layerRename}>
+                    <span className={styles.layerType} aria-hidden="true"><UnitIcon /></span>
+                    <LayerNameInput
+                      label={`Rename ${label}`}
+                      value={draftName}
+                      onChange={setDraftName}
+                      onCommit={() => finishUnitRename(unit)}
+                      onCancel={() => setRenamingId(null)}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    className={styles.layerMain}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={selected}
+                    draggable={actions.canEdit}
+                    title="Drag to reorder"
+                    onDragStart={(event) => startDrag(event, unit)}
+                    onDragEnd={() => { setDraggedIds(null); setDropTarget(null); }}
+                    onClick={(event) => selectUnit(event, unit.ids)}
+                    onDoubleClick={() => {
+                      const shape = unit.members[0];
+                      if (shape && actions.canEdit) {
+                        setDraftName(isGroup ? shape.groupName ?? "Group" : shape.name ?? shape.type);
+                        setRenamingId(isGroup ? unit.key : shape.id);
+                      }
+                    }}
+                  >
+                    <span className={styles.layerType} aria-hidden="true"><UnitIcon /></span>
+                    <span className={styles.layerName}>{isGroup ? unit.members[0]?.groupName ?? "Group" : unit.members[0]?.name ?? unit.members[0]?.type}</span>
+                    {isGroup && <span className={styles.groupCount} aria-hidden="true">{unit.members.length}</span>}
+                  </button>
+                )}
                 <button
-                  className={styles.layerMain}
                   type="button"
-                  aria-pressed={selectedIds.includes(shape.id)}
-                  onClick={(event) => {
-                    if (event.shiftKey) {
-                      const next = new Set(selectedIds);
-                      const groupIds = shape.groupId
-                        ? board.shapes.filter((item) => item.groupId === shape.groupId).map((item) => item.id)
-                        : [shape.id];
-                      const removing = groupIds.every((id) => next.has(id));
-                      groupIds.forEach((id) => (removing ? next.delete(id) : next.add(id)));
-                      dispatch(setSelectedShapes([...next]));
-                    } else {
-                      const groupIds = shape.groupId
-                        ? board.shapes.filter((item) => item.groupId === shape.groupId).map((item) => item.id)
-                        : [shape.id];
-                      dispatch(setSelectedShapes(groupIds));
-                    }
-                  }}
+                  className={styles.layerAction}
+                  aria-label={`Move ${label} forward`}
+                  title="Move forward"
+                  disabled={!actions.canEdit || unitIndex === 0}
+                  onClick={() => moveUnit(unit, "forward")}
                 >
-                  <span className={styles.layerType} aria-hidden="true">
-                    <LayerIcon />
-                  </span>
-                  <span className={styles.layerName}>{shape.name ?? shape.type}</span>
+                  <ArrowUp aria-hidden="true" />
                 </button>
                 <button
                   type="button"
                   className={styles.layerAction}
-                  aria-label={`${shape.hidden ? "Show" : "Hide"} ${shape.name ?? shape.type}`}
-                  title={shape.hidden ? "Show" : "Hide"}
-                  onClick={() => toggleShape(shape.id, "hidden", !shape.hidden)}
+                  aria-label={`Move ${label} backward`}
+                  title="Move backward"
+                  disabled={!actions.canEdit || unitIndex === units.length - 1}
+                  onClick={() => moveUnit(unit, "backward")}
                 >
-                  {shape.hidden ? <EyeSlash aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                  <ArrowDown aria-hidden="true" />
                 </button>
                 <button
                   type="button"
                   className={styles.layerAction}
-                  aria-label={`${shape.locked ? "Unlock" : "Lock"} ${shape.name ?? shape.type}`}
-                  title={shape.locked ? "Unlock" : "Lock"}
-                  onClick={() => toggleShape(shape.id, "locked", !shape.locked)}
+                  aria-label={`${allHidden ? "Show" : "Hide"} ${label}`}
+                  title={allHidden ? "Show" : "Hide"}
+                  disabled={!actions.canEdit}
+                  onClick={() => toggleShapes(unit.ids, "hidden", !allHidden)}
                 >
-                  {shape.locked ? <Lock aria-hidden="true" /> : <LockOpen aria-hidden="true" />}
+                  {allHidden ? <EyeSlash aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                </button>
+                <button
+                  type="button"
+                  className={styles.layerAction}
+                  aria-label={`${allLocked ? "Unlock" : "Lock"} ${label}`}
+                  title={allLocked ? "Unlock" : "Lock"}
+                  disabled={!actions.canEdit}
+                  onClick={() => toggleShapes(unit.ids, "locked", !allLocked)}
+                >
+                  {allLocked ? <Lock aria-hidden="true" /> : <LockOpen aria-hidden="true" />}
                 </button>
               </div>
-            })
-        )}
+              {isGroup && !collapsed && (
+                <div role="group" aria-label={`${label} members`}>
+                  {unit.members.map(renderMember)}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );

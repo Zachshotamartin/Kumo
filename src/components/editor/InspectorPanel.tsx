@@ -32,7 +32,7 @@ interface NumberFieldProps {
 const NumberField = ({ label, value, min, max, step = 1, onCommit }: NumberFieldProps) => {
   const commit = (draft: string, input: HTMLInputElement) => {
     const number = Number(draft);
-    if (!Number.isFinite(number)) {
+    if (!draft.trim() || !Number.isFinite(number)) {
       input.value = String(value);
       return;
     }
@@ -232,6 +232,8 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
         <h2>Layer</h2>
         <div className={styles.buttonGrid}>
           <button type="button" onClick={() => actions.orderSelected("front")}>Front</button>
+          <button type="button" onClick={() => actions.orderSelected("forward")}>Forward</button>
+          <button type="button" onClick={() => actions.orderSelected("backward")}>Backward</button>
           <button type="button" onClick={() => actions.orderSelected("back")}>Back</button>
           <button type="button" onClick={() => actions.patchSelected({ locked: !shape.locked })}>{shape.locked ? "Unlock" : "Lock"}</button>
           <button type="button" onClick={actions.removeSelected} className={styles.dangerButton}>Delete</button>
@@ -248,6 +250,13 @@ export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
   const editor = useSelector((state: RootState) => state.editor);
   const showGrid = useSelector((state: RootState) => state.actions.grid);
   const selected = board.shapes.filter((shape) => selectedIds.includes(shape.id));
+  const selectedGroupId = selected[0]?.groupId;
+  const isExistingGroup = Boolean(
+    selected.length > 1 &&
+    selectedGroupId &&
+    selected.every((shape) => shape.groupId === selectedGroupId)
+  );
+  const canUngroup = selected.some((shape) => Boolean(shape.groupId));
 
   return (
     <aside className={styles.inspectorPanel} aria-label="Properties">
@@ -293,10 +302,14 @@ export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
             <section className={styles.inspectorSection}>
               <h2>Arrange</h2>
               <div className={styles.buttonGrid}>
+                <button type="button" onClick={() => actions.orderSelected("front")}>Front</button>
+                <button type="button" onClick={() => actions.orderSelected("forward")}>Forward</button>
+                <button type="button" onClick={() => actions.orderSelected("backward")}>Backward</button>
+                <button type="button" onClick={() => actions.orderSelected("back")}>Back</button>
                 <button type="button" onClick={() => actions.distributeSelected("horizontal")}>Distribute X</button>
                 <button type="button" onClick={() => actions.distributeSelected("vertical")}>Distribute Y</button>
-                <button type="button" onClick={actions.groupSelected}>Group</button>
-                <button type="button" onClick={actions.ungroupSelected}>Ungroup</button>
+                {!isExistingGroup && <button type="button" onClick={actions.groupSelected}>Group</button>}
+                {canUngroup && <button type="button" onClick={actions.ungroupSelected}>Ungroup</button>}
               </div>
             </section>
           </>

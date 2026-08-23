@@ -272,6 +272,34 @@ describe("EditorCanvas transform interactions", () => {
     expect(screen.getByRole("textbox", { name: "Edit text" })).toBeInTheDocument();
   });
 
+  it("exposes the complete ordering and grouping context actions", () => {
+    const first = rectangle();
+    const second = { ...rectangle(), id: "shape-2", x1: 150, x2: 250, zIndex: 2 };
+    const { canvas, store } = renderCanvas([first, second]);
+    act(() => { store.dispatch(setSelectedShapes([first.id, second.id])); });
+    fireEvent.contextMenu(canvas, { clientX: 10, clientY: 10 });
+
+    expect(screen.getByRole("menuitem", { name: "Group" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Bring forward" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Send backward" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Ungroup" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Group" }));
+    expect(editorActions.groupSelected).toHaveBeenCalledOnce();
+  });
+
+  it("offers ungroup instead of regrouping an existing group", () => {
+    const first = { ...rectangle(), groupId: "group" };
+    const second = { ...rectangle(), id: "shape-2", x1: 150, x2: 250, zIndex: 2, groupId: "group" };
+    const { canvas, store } = renderCanvas([first, second]);
+    act(() => { store.dispatch(setSelectedShapes([first.id, second.id])); });
+    fireEvent.contextMenu(canvas, { clientX: 10, clientY: 10 });
+
+    expect(screen.getByRole("menuitem", { name: "Ungroup" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Group" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ungroup" }));
+    expect(editorActions.ungroupSelected).toHaveBeenCalledOnce();
+  });
+
   it("opens a newly drawn text box for typing immediately", () => {
     const { canvas, store } = renderCanvas(rectangle());
     act(() => { store.dispatch(setSelectedTool("text")); });

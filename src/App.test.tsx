@@ -13,6 +13,15 @@ vi.mock("./config/firebase", () => ({
   provider: {},
 }));
 
+vi.mock("./components/homepage/homePage", () => ({
+  default: () => (
+    <main>
+      <h1>Every board can lead somewhere</h1>
+      <button type="button" role="tab" aria-selected="true">Sign in</button>
+    </main>
+  ),
+}));
+
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (
     _auth: unknown,

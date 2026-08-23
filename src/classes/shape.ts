@@ -15,6 +15,8 @@ export interface Shape {
   flipY?: boolean;
   shapes?: Shape[];
   groupId?: string | null;
+  /** User-visible name shared by every member of a logical group. */
+  groupName?: string;
   /** Rotation of the logical group frame shared by every member. */
   groupRotation?: number;
   locked?: boolean;

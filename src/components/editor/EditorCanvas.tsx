@@ -203,6 +203,17 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
     () => selectionFrame(board.shapes, selectedIds, selectionRotation),
     [board.shapes, selectedIds, selectionRotation]
   );
+  const selectedShapes = useMemo(
+    () => board.shapes.filter((shape) => selectedIds.includes(shape.id)),
+    [board.shapes, selectedIds]
+  );
+  const selectedGroupId = selectedShapes[0]?.groupId;
+  const isExistingGroup = Boolean(
+    selectedShapes.length > 1 &&
+    selectedGroupId &&
+    selectedShapes.every((shape) => shape.groupId === selectedGroupId)
+  );
+  const canUngroup = selectedShapes.some((shape) => Boolean(shape.groupId));
   const activeGridSize = editor.snapToGrid
     ? effectiveGridSize(editor.gridSize, editor.viewport.zoom)
     : 0;
@@ -1045,24 +1056,29 @@ export const EditorCanvasView = ({ actions, updateMyPresence }: EditorCanvasView
           onPointerDown={(event) => event.stopPropagation()}
         >
           {[
-            ["Copy", actions.copySelected],
-            ["Paste", actions.paste],
-            ["Duplicate", actions.duplicateSelected],
-            ["Group", actions.groupSelected],
-            ["Bring to front", () => actions.orderSelected("front")],
-            ["Send to back", () => actions.orderSelected("back")],
-            ["Delete", actions.removeSelected],
+            ...(selectedShapes.length ? [["Copy", actions.copySelected] as const] : []),
+            ["Paste", actions.paste] as const,
+            ...(selectedShapes.length ? [["Duplicate", actions.duplicateSelected] as const] : []),
+            ...(selectedShapes.length > 1 && !isExistingGroup ? [["Group", actions.groupSelected] as const] : []),
+            ...(canUngroup ? [["Ungroup", actions.ungroupSelected] as const] : []),
+            ...(selectedShapes.length ? [
+              ["Bring to front", () => actions.orderSelected("front")] as const,
+              ["Bring forward", () => actions.orderSelected("forward")] as const,
+              ["Send backward", () => actions.orderSelected("backward")] as const,
+              ["Send to back", () => actions.orderSelected("back")] as const,
+              ["Delete", actions.removeSelected] as const,
+            ] : []),
           ].map(([label, action]) => (
             <button
               type="button"
               role="menuitem"
-              key={label as string}
+              key={label}
               onClick={() => {
-                (action as () => void)();
+                action();
                 setContextMenu(null);
               }}
             >
-              {label as string}
+              {label}
             </button>
           ))}
         </div>

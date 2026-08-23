@@ -42,4 +42,11 @@ describe("collaborative shape persistence", () => {
       boardId: "board-product-map",
     });
   });
+
+  it("persists and removes user-visible group names with the group identity", () => {
+    const before = shape({ groupId: "group", groupName: "Navigation" });
+    expect(storedShape(before).groupName).toBe("Navigation");
+    const after = shape({ groupId: null, groupName: undefined });
+    expect(shapePatch(before, after).remove).toContain("groupName");
+  });
 });
