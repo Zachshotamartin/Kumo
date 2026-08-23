@@ -292,7 +292,6 @@ test.describe("editor regression workflows", () => {
         rectangleBox!.y + rectangleBox!.height / 2
       );
       await page.mouse.down();
-      await page.keyboard.down("Control");
       await page.mouse.move(
         frameBox!.x + frameBox!.width / 2,
         frameBox!.y + frameBox!.height / 2
@@ -300,7 +299,6 @@ test.describe("editor regression workflows", () => {
       if (keepCurrentParent) await page.keyboard.down("Space");
       await page.mouse.up();
       if (keepCurrentParent) await page.keyboard.up("Space");
-      await page.keyboard.up("Control");
     };
 
     await dragRectangleToFrame();
