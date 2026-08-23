@@ -15,7 +15,11 @@ describe("deployed preview smoke verification", () => {
       sessionStatus: 401,
     });
     expect(fetcher).toHaveBeenNthCalledWith(1, new URL("https://preview.example/"), { redirect: "follow" });
-    expect(fetcher).toHaveBeenNthCalledWith(2, new URL("https://preview.example/api/session"), { redirect: "manual" });
+    expect(fetcher).toHaveBeenNthCalledWith(2, new URL("https://preview.example/api/session"), {
+      method: "POST",
+      redirect: "manual",
+      headers: { accept: "application/json" },
+    });
   });
 
   it("rejects insecure, missing, and accidentally public deployments", async () => {

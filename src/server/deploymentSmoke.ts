@@ -19,7 +19,11 @@ export const verifyDeploymentSmoke = async (
     throw new Error("The deployed application did not return the Kumo client shell.");
   }
 
-  const session = await fetcher(new URL("/api/session", base), { redirect: "manual" });
+  const session = await fetcher(new URL("/api/session", base), {
+    method: "POST",
+    redirect: "manual",
+    headers: { accept: "application/json" },
+  });
   if (session.status !== 401) {
     throw new Error(`The deployed session API returned HTTP ${session.status} instead of an authentication challenge.`);
   }
