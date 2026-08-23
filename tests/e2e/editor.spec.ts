@@ -383,11 +383,44 @@ test.describe("editor regression workflows", () => {
     const canvas = page.getByRole("application", { name: "Kumo design canvas" });
     const canvasBox = await canvas.boundingBox();
     expect(canvasBox).not.toBeNull();
+    const pointerDrag = async (
+      target: typeof canvas,
+      start: { clientX: number; clientY: number },
+      end: { clientX: number; clientY: number },
+      pointerId: number
+    ) => {
+      await target.dispatchEvent("pointerdown", {
+        ...start,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
+      await canvas.dispatchEvent("pointermove", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
+      await canvas.dispatchEvent("pointerup", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+      });
+    };
     await page.getByRole("button", { name: "Pen tool (P)" }).click();
-    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 320);
-    await page.mouse.down();
-    await page.mouse.move(canvasBox!.x + 340, canvasBox!.y + 420, { steps: 6 });
-    await page.mouse.up();
+    await pointerDrag(
+      canvas,
+      { clientX: canvasBox!.x + 120, clientY: canvasBox!.y + 320 },
+      { clientX: canvasBox!.x + 340, clientY: canvasBox!.y + 420 },
+      80
+    );
     const vector = page.locator('[data-shape-type="vector"]');
     await expect(vector).toHaveCount(1);
     await expect(page.getByText("2 editable nodes.")).toBeVisible();
@@ -396,10 +429,18 @@ test.describe("editor regression workflows", () => {
     const nodeBeforeMove = await nodes.first().boundingBox();
     expect(vectorBeforeMove).not.toBeNull();
     expect(nodeBeforeMove).not.toBeNull();
-    await page.mouse.move(vectorBeforeMove!.x + vectorBeforeMove!.width / 2, vectorBeforeMove!.y + vectorBeforeMove!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(vectorBeforeMove!.x + vectorBeforeMove!.width / 2 + 80, vectorBeforeMove!.y + vectorBeforeMove!.height / 2 + 60, { steps: 6 });
-    await page.mouse.up();
+    await pointerDrag(
+      canvas,
+      {
+        clientX: vectorBeforeMove!.x + vectorBeforeMove!.width / 2,
+        clientY: vectorBeforeMove!.y + vectorBeforeMove!.height / 2,
+      },
+      {
+        clientX: vectorBeforeMove!.x + vectorBeforeMove!.width / 2 + 80,
+        clientY: vectorBeforeMove!.y + vectorBeforeMove!.height / 2 + 60,
+      },
+      81
+    );
     const vectorAfterMove = await vector.boundingBox();
     const nodeAfterMove = await nodes.first().boundingBox();
     expect(vectorAfterMove!.x).toBeGreaterThan(vectorBeforeMove!.x + 70);
@@ -408,10 +449,18 @@ test.describe("editor regression workflows", () => {
     const resize = page.getByRole("button", { name: "Resize from bottom right" });
     const resizeBox = await resize.boundingBox();
     expect(resizeBox).not.toBeNull();
-    await page.mouse.move(resizeBox!.x + resizeBox!.width / 2, resizeBox!.y + resizeBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(resizeBox!.x + resizeBox!.width / 2 + 100, resizeBox!.y + resizeBox!.height / 2 + 50, { steps: 6 });
-    await page.mouse.up();
+    await pointerDrag(
+      resize,
+      {
+        clientX: resizeBox!.x + resizeBox!.width / 2,
+        clientY: resizeBox!.y + resizeBox!.height / 2,
+      },
+      {
+        clientX: resizeBox!.x + resizeBox!.width / 2 + 100,
+        clientY: resizeBox!.y + resizeBox!.height / 2 + 50,
+      },
+      82
+    );
     await expect.poll(async () => (await vector.boundingBox())?.width ?? 0).toBeGreaterThan(vectorAfterMove!.width + 80);
     await page.getByRole("checkbox", { name: "Closed path" }).check();
 
