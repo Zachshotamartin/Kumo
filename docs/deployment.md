@@ -21,7 +21,12 @@ The `VITE_FIREBASE_*` values are browser-visible Firebase identifiers. Kumo curr
 
 For `FIREBASE_ADMIN_PRIVATE_KEY`, paste the service-account private key with escaped newlines (`\\n`) or literal newlines. Never prefix an Admin variable with `VITE_`.
 
-In Firebase Authentication, add the production Vercel domain and any stable custom domain to Authorized domains. Preview-domain authentication may require an intentional preview-domain policy.
+In Firebase Authentication, add these exact hostnames to **Authentication → Settings → Authorized domains**:
+
+- Production: `kumo-ochre.vercel.app`
+- Preview: `kumo-preview-zach-2267.vercel.app`
+
+Vercel's generated deployment URL changes for each pull request deployment, so the preview job assigns the stable preview hostname above to the newest same-repository pull request preview. This lets Google sign-in work without authorizing every generated deployment hostname. The alias is shared across open pull requests and therefore always represents the most recently deployed preview.
 
 ## 3. Configure GitHub
 
@@ -40,11 +45,11 @@ The `main` branch is protected for administrators and contributors. Changes must
 ## 4. Delivery flow
 
 - Every pull request: config validation, lint, type-check, unit tests, build, and desktop/mobile Chromium smoke tests.
-- Same-repository pull request after quality gates: Vercel Preview deployment.
+- Same-repository pull request after quality gates: Vercel Preview deployment, explicitly targeted to the `preview` environment and assigned to `kumo-preview-zach-2267.vercel.app`.
 - Merge of a passing pull request to protected `main`: Vercel Production deployment.
 - Fork pull requests never receive deployment secrets and therefore do not deploy previews.
 
-The workflow follows Vercel's supported `vercel pull` → `vercel build` → `vercel deploy --prebuilt` sequence.
+The workflow follows Vercel's supported `vercel pull` → `vercel build` → `vercel deploy --prebuilt` sequence. Preview builds and deployments both specify `--target=preview`; the preview job then updates the stable alias used by Firebase Authentication.
 
 Firebase schema, IAM, and rules changes use a separate reviewed database release process. This prevents an application deploy token from gaining database-administration privileges and allows the database architecture to evolve independently.
 
