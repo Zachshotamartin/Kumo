@@ -109,6 +109,16 @@ interface TextEditorProps {
   onBlur: (value: string) => void;
 }
 
+type CanvasPointerReleaseEvent = {
+  currentTarget: HTMLDivElement;
+  pointerId: number;
+  clientX: number;
+  clientY: number;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+};
+
 export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: TextEditorProps) => {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(value);
@@ -279,6 +289,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
   const interactionRef = useRef<Interaction | null>(null);
+  const finishInteractionRef = useRef<(event: CanvasPointerReleaseEvent) => void>(() => undefined);
+  const cancelInteractionRef = useRef<(event?: Pick<CanvasPointerReleaseEvent, "currentTarget" | "pointerId">) => void>(() => undefined);
   const textBaselineRef = useRef<Shape[] | null>(null);
   const spacePressedRef = useRef(false);
   const cursorFrameRef = useRef<number | null>(null);
@@ -805,7 +817,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     }
   };
 
-  const finishInteraction = (event: React.PointerEvent<HTMLDivElement>) => {
+  const finishInteraction = (event: CanvasPointerReleaseEvent) => {
     const interaction = interactionRef.current;
     if (!interaction || interaction.pointerId !== event.pointerId) return;
 
@@ -902,7 +914,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     }
   };
 
-  const cancelInteraction = (event?: React.PointerEvent<HTMLDivElement>) => {
+  const cancelInteraction = (event?: Pick<CanvasPointerReleaseEvent, "currentTarget" | "pointerId">) => {
     const interaction = interactionRef.current;
     if (interaction) {
       actions.cancelPreview(interaction.commitBaseline ?? interaction.baseline);
@@ -991,6 +1003,38 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     if (touchPointersRef.current.size < 2) pinchRef.current = null;
     cancelInteraction(event);
   };
+
+  useEffect(() => {
+    finishInteractionRef.current = finishInteraction;
+    cancelInteractionRef.current = cancelInteraction;
+  });
+
+  useEffect(() => {
+    const finishOutsideCanvas = (event: PointerEvent) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !interactionRef.current) return;
+      finishInteractionRef.current({
+        currentTarget: canvas,
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+      });
+    };
+    const cancelOutsideCanvas = (event: PointerEvent) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !interactionRef.current) return;
+      cancelInteractionRef.current({ currentTarget: canvas, pointerId: event.pointerId });
+    };
+    window.addEventListener("pointerup", finishOutsideCanvas);
+    window.addEventListener("pointercancel", cancelOutsideCanvas);
+    return () => {
+      window.removeEventListener("pointerup", finishOutsideCanvas);
+      window.removeEventListener("pointercancel", cancelOutsideCanvas);
+    };
+  }, []);
 
   const fitToContent = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();

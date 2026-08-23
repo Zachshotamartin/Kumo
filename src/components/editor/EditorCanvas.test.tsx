@@ -405,6 +405,24 @@ describe("EditorCanvas transform interactions", () => {
     expect(result.zIndex).toBeGreaterThan(existing.zIndex);
   });
 
+  it("commits and reparents when pointer capture is lost before release", () => {
+    const parent: Shape = { ...rectangle(), id: "frame", type: "frame", name: "Frame", x2: 220, y2: 180, width: 220, height: 180, zIndex: 1 };
+    const moving: Shape = { ...rectangle(), id: "moving", x1: 300, y1: 40, x2: 360, y2: 100, width: 60, height: 60, zIndex: 2 };
+    const { canvas, store } = renderCanvas([parent, moving]);
+    act(() => { store.dispatch(setSelectedShapes([moving.id])); });
+
+    fireEvent.pointerDown(canvas, { pointerId: 44, button: 0, clientX: 320, clientY: 60 });
+    fireEvent.pointerMove(canvas, { pointerId: 44, clientX: 100, clientY: 80, ctrlKey: true });
+    fireEvent.pointerUp(window, { pointerId: 44, clientX: 100, clientY: 80, ctrlKey: true });
+
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    expect(committed.find((shape) => shape.id === moving.id)).toMatchObject({
+      parentId: parent.id,
+      x1: 80,
+      y1: 60,
+    });
+  });
+
   it("shows smart alignment guides during drag and disables them with Control", () => {
     const first = rectangle();
     const target = { ...rectangle(), id: "shape-2", x1: 200, x2: 300, y1: 0, y2: 80, zIndex: 2 };
