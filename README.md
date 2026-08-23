@@ -21,10 +21,10 @@ Requirements: Node.js 22 or 24 and Yarn 1.x. The checked-in `.nvmrc` pins the su
 nvm use
 yarn install --frozen-lockfile
 cp .env.example .env.local
-yarn dev
+yarn dev:full
 ```
 
-Open `http://localhost:5173`. Firebase's existing public web configuration is used as a development fallback, but `.env.local` is recommended. Board APIs require the server-only Firebase Admin, Supabase, and Liveblocks variables from `.env.example` and should be tested with `yarn vercel dev`.
+Open the URL printed by Vercel (normally `http://localhost:3000`). `yarn dev:full` runs both Vite and the `/api/*` Vercel Functions; use `yarn dev` only for client-only UI work. Firebase's existing public web configuration is used as a development fallback, but `.env.local` is recommended. Board APIs require the server-only Firebase Admin, Supabase, and Liveblocks variables from `.env.example`.
 
 ## Quality commands
 

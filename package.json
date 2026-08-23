@@ -24,6 +24,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:full": "vercel dev",
+    "dev:client": "vite",
     "start": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
