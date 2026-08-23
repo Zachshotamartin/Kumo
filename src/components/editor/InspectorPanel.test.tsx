@@ -72,6 +72,8 @@ const editorActions = (): EditorActions => ({
   distributeSelected: vi.fn(),
   groupSelected: vi.fn(),
   ungroupSelected: vi.fn(),
+  frameSelected: vi.fn(),
+  unframeSelected: vi.fn(),
   nudgeSelected: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),

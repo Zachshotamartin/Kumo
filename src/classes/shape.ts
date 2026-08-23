@@ -19,6 +19,10 @@ export interface Shape {
   groupName?: string;
   /** Rotation of the logical group frame shared by every member. */
   groupRotation?: number;
+  /** Frame parent. Coordinates remain in board/world space when reparenting. */
+  parentId?: string | null;
+  /** Frames can hide child content outside their bounds. */
+  clipContent?: boolean;
   locked?: boolean;
   hidden?: boolean;
   borderRadius?: number;
@@ -77,6 +81,8 @@ export const ShapeFunctions = {
       flipX: false,
       flipY: false,
       groupId: null,
+      parentId: null,
+      clipContent: type === "frame",
       locked: false,
       hidden: false,
       borderRadius: type === "ellipse" ? 1000 : 0,

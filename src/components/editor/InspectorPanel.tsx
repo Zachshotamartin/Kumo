@@ -266,6 +266,33 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
           {boardLoadError && <p className={styles.fieldError} role="alert">{boardLoadError}</p>}
         </section>
       )}
+      {shape.type === "frame" && (
+        <section className={styles.inspectorSection}>
+          <h2>Frame</h2>
+          <label className={styles.toggleRow}>
+            <span>Clip content</span>
+            <input
+              type="checkbox"
+              checked={shape.clipContent !== false}
+              onChange={(event) => actions.patchSelected({ clipContent: event.target.checked })}
+            />
+          </label>
+          <button type="button" onClick={actions.unframeSelected}>Remove frame</button>
+        </section>
+      )}
+      {shape.parentId && (
+        <section className={styles.inspectorSection}>
+          <h2>Align to frame</h2>
+          <div className={styles.buttonGrid}>
+            <button type="button" onClick={() => actions.alignSelected("left")}>Left</button>
+            <button type="button" onClick={() => actions.alignSelected("horizontal-center")}>Center X</button>
+            <button type="button" onClick={() => actions.alignSelected("right")}>Right</button>
+            <button type="button" onClick={() => actions.alignSelected("top")}>Top</button>
+            <button type="button" onClick={() => actions.alignSelected("vertical-center")}>Center Y</button>
+            <button type="button" onClick={() => actions.alignSelected("bottom")}>Bottom</button>
+          </div>
+        </section>
+      )}
       <section className={styles.inspectorSection}>
         <h2>Layer</h2>
         <div className={styles.buttonGrid}>
@@ -348,6 +375,7 @@ export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
                 <button type="button" onClick={() => actions.distributeSelected("vertical")}>Distribute Y</button>
                 {!isExistingGroup && <button type="button" onClick={actions.groupSelected}>Group</button>}
                 {canUngroup && <button type="button" onClick={actions.ungroupSelected}>Ungroup</button>}
+                <button type="button" onClick={actions.frameSelected}>Frame selection</button>
               </div>
             </section>
           </>

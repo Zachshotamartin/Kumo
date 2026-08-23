@@ -29,6 +29,20 @@
   pointer-events: none;
 }
 
+.frameLabel {
+  position: absolute;
+  left: 0;
+  top: -22px;
+  max-width: 220px;
+  overflow: hidden;
+  color: #aeb0b4;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .selectedShape {
   will-change: left, top, width, height;
 }
@@ -153,6 +167,23 @@
   background: rgb(184 122 46 / 0.13);
   border: 1px solid rgb(184 122 46 / 0.9);
   pointer-events: none;
+}
+
+.smartGuide {
+  position: absolute;
+  z-index: 10020;
+  min-width: 1px;
+  min-height: 1px;
+  background: #f04467;
+  pointer-events: none;
+}
+
+.smartGuide[data-guide-axis="x"] {
+  width: 1px;
+}
+
+.smartGuide[data-guide-axis="y"] {
+  height: 1px;
 }
 
 .remoteCursor {

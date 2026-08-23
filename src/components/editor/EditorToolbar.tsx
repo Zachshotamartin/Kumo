@@ -4,6 +4,7 @@ import {
   ArrowCounterClockwise,
   Circle,
   CursorClick,
+  FrameCorners,
   Hand,
   ImageSquare,
   LinkSimple,
@@ -25,6 +26,7 @@ import styles from "./EditorWorkspace.module.css";
 const tools: Array<{ id: EditorTool; label: string; shortcut: string; Icon: Icon }> = [
   { id: "pointer", label: "Select", shortcut: "V", Icon: CursorClick },
   { id: "hand", label: "Hand", shortcut: "H", Icon: Hand },
+  { id: "frame", label: "Frame", shortcut: "F", Icon: FrameCorners },
   { id: "rectangle", label: "Rectangle", shortcut: "R", Icon: Rectangle },
   { id: "ellipse", label: "Ellipse", shortcut: "O", Icon: Circle },
   { id: "text", label: "Text", shortcut: "T", Icon: TextT },

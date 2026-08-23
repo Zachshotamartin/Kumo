@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   ArrowDown,
@@ -8,6 +8,7 @@ import {
   Circle,
   Eye,
   EyeSlash,
+  FrameCorners,
   Graph,
   ImageSquare,
   Lock,
@@ -31,6 +32,7 @@ const layerIcon = (type: string): Icon => {
   if (type === "ellipse") return Circle;
   if (type === "image") return ImageSquare;
   if (type === "board") return Graph;
+  if (type === "frame") return FrameCorners;
   return Rectangle;
 };
 
@@ -250,6 +252,105 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
     );
   };
 
+  const renderFrameChildren = (frameId: string, depth = 1): ReactNode => {
+    const childUnits = buildLayerUnits(board.shapes, frameId);
+    return childUnits.map((unit) => {
+      const isGroup = Boolean(unit.groupId);
+      const shape = unit.members[0]!;
+      const isFrame = !isGroup && shape.type === "frame";
+      const label = unitLabel(unit);
+      const key = isGroup ? unit.key : `frame-child:${shape.id}`;
+      const collapsedKey = isGroup ? unit.groupId! : `frame:${shape.id}`;
+      const collapsed = collapsedGroups.has(collapsedKey);
+      const selectionIds = unit.ids;
+      const selected = selectionIds.every((id) => selectedIds.includes(id));
+      const UnitIcon = isGroup ? Stack : layerIcon(shape.type);
+      const dropClass = dropTarget?.key === unit.key
+        ? dropTarget.placement === "front" ? styles.dropInFront : styles.dropBehind
+        : "";
+      return (
+        <div
+          className={`${styles.layerUnit} ${dropClass}`}
+          key={key}
+          style={{ paddingLeft: `${depth * 12}px` }}
+          onDragOver={(event) => updateDropTarget(event, unit)}
+          onDrop={(event) => finishDrop(event, unit)}
+        >
+          <div className={`${styles.layerRow} ${styles.nestedLayerRow} ${selected ? styles.selectedLayer : ""}`}>
+            {isGroup || isFrame ? (
+              <button
+                type="button"
+                className={`${styles.layerAction} ${styles.layerDisclosure}`}
+                aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
+                aria-expanded={!collapsed}
+                onClick={() => setCollapsedGroups((current) => {
+                  const next = new Set(current);
+                  if (next.has(collapsedKey)) next.delete(collapsedKey);
+                  else next.add(collapsedKey);
+                  return next;
+                })}
+              >
+                {collapsed ? <CaretRight aria-hidden="true" /> : <CaretDown aria-hidden="true" />}
+              </button>
+            ) : <span className={styles.layerIndent} aria-hidden="true" />}
+            <button
+              className={styles.layerMain}
+              type="button"
+              aria-label={label}
+              aria-pressed={selected}
+              draggable={actions.canEdit}
+              title="Drag to reorder"
+              onDragStart={(event) => startDrag(event, unit)}
+              onDragEnd={() => { setDraggedIds(null); setDropTarget(null); }}
+              onClick={(event) => selectUnit(event, selectionIds)}
+            >
+              <span className={styles.layerType} aria-hidden="true"><UnitIcon /></span>
+              <span className={styles.layerName}>{label}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.layerAction}
+              aria-label={`Move ${label} forward`}
+              disabled={!actions.canEdit}
+              onClick={() => moveUnit(unit, "forward")}
+            >
+              <ArrowUp aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={styles.layerAction}
+              aria-label={`Move ${label} backward`}
+              disabled={!actions.canEdit}
+              onClick={() => moveUnit(unit, "backward")}
+            >
+              <ArrowDown aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={styles.layerAction}
+              aria-label={`${unit.members.every((member) => member.hidden) ? "Show" : "Hide"} ${label}`}
+              disabled={!actions.canEdit}
+              onClick={() => toggleShapes(unit.ids, "hidden", !unit.members.every((member) => member.hidden))}
+            >
+              {unit.members.every((member) => member.hidden) ? <EyeSlash aria-hidden="true" /> : <Eye aria-hidden="true" />}
+            </button>
+            <button
+              type="button"
+              className={styles.layerAction}
+              aria-label={`${unit.members.every((member) => member.locked) ? "Unlock" : "Lock"} ${label}`}
+              disabled={!actions.canEdit}
+              onClick={() => toggleShapes(unit.ids, "locked", !unit.members.every((member) => member.locked))}
+            >
+              {unit.members.every((member) => member.locked) ? <Lock aria-hidden="true" /> : <LockOpen aria-hidden="true" />}
+            </button>
+          </div>
+          {!collapsed && isGroup && unit.members.map((member) => renderMember(member))}
+          {!collapsed && isFrame && renderFrameChildren(shape.id, depth + 1)}
+        </div>
+      );
+    });
+  };
+
   return (
     <aside className={styles.layersPanel} aria-label="Layers">
       <div className={styles.panelHeading}>
@@ -265,9 +366,12 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
           </div>
         ) : units.map((unit, unitIndex) => {
           const isGroup = Boolean(unit.groupId);
+          const isFrame = !isGroup && unit.members[0]?.type === "frame";
+          const isContainer = isGroup || isFrame;
           const label = unitLabel(unit);
           const selected = unit.ids.every((id) => selectedIds.includes(id));
-          const collapsed = unit.groupId ? collapsedGroups.has(unit.groupId) : false;
+          const collapsedKey = unit.groupId ?? `frame:${unit.members[0]?.id}`;
+          const collapsed = isContainer ? collapsedGroups.has(collapsedKey) : false;
           const allHidden = unit.members.every((shape) => shape.hidden);
           const allLocked = unit.members.every((shape) => shape.locked);
           const dropClass = dropTarget?.key === unit.key
@@ -283,8 +387,8 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
               onDragOver={(event) => updateDropTarget(event, unit)}
               onDrop={(event) => finishDrop(event, unit)}
             >
-              <div className={`${styles.layerRow} ${isGroup ? styles.groupLayerRow : ""} ${selected ? styles.selectedLayer : ""}`}>
-                {isGroup ? (
+              <div className={`${styles.layerRow} ${isContainer ? styles.groupLayerRow : ""} ${selected ? styles.selectedLayer : ""}`}>
+                {isContainer ? (
                   <button
                     type="button"
                     className={`${styles.layerAction} ${styles.layerDisclosure}`}
@@ -292,8 +396,8 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                     aria-expanded={!collapsed}
                     onClick={() => setCollapsedGroups((current) => {
                       const next = new Set(current);
-                      if (unit.groupId && next.has(unit.groupId)) next.delete(unit.groupId);
-                      else if (unit.groupId) next.add(unit.groupId);
+                      if (next.has(collapsedKey)) next.delete(collapsedKey);
+                      else next.add(collapsedKey);
                       return next;
                     })}
                   >
@@ -381,6 +485,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                   {unit.members.map(renderMember)}
                 </div>
               )}
+              {isFrame && !collapsed && renderFrameChildren(unit.members[0]!.id)}
             </div>
           );
         })}

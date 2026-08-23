@@ -219,4 +219,83 @@ test.describe("editor regression workflows", () => {
     expect(await page.evaluate(() => window.devicePixelRatio)).toBe(before);
     expect(await page.evaluate(() => document.documentElement.style.zoom)).toBe("");
   });
+
+  test("creates frames with parent-first selection, deep selection, copy/paste, and inherited locking", async ({ page }) => {
+    const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+    const canvasBox = await canvas.boundingBox();
+    expect(canvasBox).not.toBeNull();
+
+    await page.getByRole("button", { name: "Frame tool (F)" }).click();
+    await page.mouse.move(canvasBox!.x + 80, canvasBox!.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(canvasBox!.x + 650, canvasBox!.y + 240, { steps: 8 });
+    await page.mouse.up();
+
+    const frame = page.locator('[data-shape-type="frame"]');
+    await expect(frame).toHaveCount(1);
+    const frameId = await frame.getAttribute("data-shape-id");
+    expect(frameId).toBeTruthy();
+    await expect(page.locator('[data-shape-id="e2e-text"]')).toHaveAttribute("data-parent-id", frameId!);
+    await expect(page.locator('[data-shape-id="e2e-rectangle"]')).toHaveAttribute("data-parent-id", frameId!);
+
+    await canvas.click({ position: { x: 120, y: 140 } });
+    await expect(page.getByRole("button", { name: "Frame", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await canvas.click({ position: { x: 120, y: 140 }, modifiers: ["ControlOrMeta"] });
+    await expect(page.getByRole("button", { name: "Product note", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Shift+Enter");
+    await expect(page.getByRole("button", { name: "Frame", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "Ochre card", exact: true })).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("button", { name: "Frame", exact: true }).click();
+    await page.keyboard.press("ControlOrMeta+c");
+    await page.keyboard.press("ControlOrMeta+v");
+    await expect(page.locator('[data-shape-type="frame"]')).toHaveCount(2);
+    await expect(page.locator("[data-parent-id]")).toHaveCount(4);
+    const pastedFrame = page.locator('[data-shape-type="frame"]').last();
+    const pastedFrameId = await pastedFrame.getAttribute("data-shape-id");
+    expect(pastedFrameId).not.toBe(frameId);
+    await expect(page.locator(`[data-parent-id="${pastedFrameId}"]`)).toHaveCount(2);
+
+    await page.getByRole("button", { name: "Lock Frame", exact: true }).first().click();
+    const lockedFrameId = await page.locator('[data-shape-type="frame"][data-locked="true"]').first().getAttribute("data-shape-id");
+    expect(lockedFrameId).toBeTruthy();
+    const lockedChildren = page.locator(`[data-parent-id="${lockedFrameId}"]`);
+    await expect(lockedChildren).toHaveCount(2);
+    await expect(lockedChildren.first()).toHaveAttribute("data-locked", "true");
+  });
+
+  test("drag-reparents into frames, resolves z-index, and Space suppresses reparenting", async ({ page }) => {
+    const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+    const canvasBox = await canvas.boundingBox();
+    expect(canvasBox).not.toBeNull();
+    await page.getByRole("button", { name: "Frame tool (F)" }).click();
+    await page.mouse.move(canvasBox!.x + 20, canvasBox!.y + 280);
+    await page.mouse.down();
+    await page.mouse.move(canvasBox!.x + 280, canvasBox!.y + 520, { steps: 8 });
+    await page.mouse.up();
+    const frame = page.locator('[data-shape-type="frame"]');
+    const frameId = await frame.getAttribute("data-shape-id");
+    const frameZ = Number(await frame.getAttribute("data-z-index"));
+
+    await page.mouse.move(canvasBox!.x + 520, canvasBox!.y + 160);
+    await page.mouse.down();
+    await page.keyboard.down("Control");
+    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 380, { steps: 8 });
+    await page.keyboard.up("Control");
+    await page.mouse.up();
+    const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
+    await expect(rectangle).toHaveAttribute("data-parent-id", frameId!);
+    expect(Number(await rectangle.getAttribute("data-z-index"))).toBeGreaterThan(frameZ);
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(rectangle).not.toHaveAttribute("data-parent-id", frameId!);
+    await page.mouse.move(canvasBox!.x + 520, canvasBox!.y + 160);
+    await page.mouse.down();
+    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 380, { steps: 8 });
+    await page.keyboard.down("Space");
+    await page.mouse.up();
+    await page.keyboard.up("Space");
+    await expect(rectangle).not.toHaveAttribute("data-parent-id", frameId!);
+  });
 });

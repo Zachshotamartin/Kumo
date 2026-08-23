@@ -8,8 +8,9 @@ export interface LayerUnit {
 }
 
 /** Builds the front-to-back logical stack rendered by the Layers panel. */
-export const buildLayerUnits = (shapes: Shape[]): LayerUnit[] => {
+export const buildLayerUnits = (shapes: Shape[], parentId: string | null = null): LayerUnit[] => {
   const frontToBack = shapes
+    .filter((shape) => (shape.parentId ?? null) === parentId)
     .map((shape, index) => ({ shape, index }))
     .sort((left, right) =>
       right.shape.zIndex - left.shape.zIndex || right.index - left.index
@@ -25,7 +26,9 @@ export const buildLayerUnits = (shapes: Shape[]): LayerUnit[] => {
     }
     if (visitedGroups.has(shape.groupId)) return;
     visitedGroups.add(shape.groupId);
-    const members = frontToBack.filter((candidate) => candidate.groupId === shape.groupId);
+    const members = frontToBack.filter((candidate) =>
+      candidate.groupId === shape.groupId && (candidate.parentId ?? null) === parentId
+    );
     units.push({
       key: `group:${shape.groupId}`,
       groupId: shape.groupId,

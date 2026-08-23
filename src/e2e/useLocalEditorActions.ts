@@ -7,13 +7,16 @@ import {
   deleteShapes,
   distributeShapes,
   duplicateShapes,
+  frameShapes,
   groupShapes,
   orderShapes,
   pasteShapes,
   patchShapes,
+  unframeShapes,
   ungroupShapes,
 } from "../editor/commands";
-import { moveShapesFromBaseline, normalizeShape, shapeBounds } from "../editor/geometry";
+import { moveShapesFromBaseline, normalizeShape, selectionBounds, shapeBounds } from "../editor/geometry";
+import { commonParentId, rootSelectionIds } from "../editor/hierarchy";
 import type { EditorActions } from "../editor/useEditorActions";
 import { setClipboard } from "../features/editor/editorSlice";
 import { setSelectedShapes } from "../features/selected/selectedSlice";
@@ -54,17 +57,36 @@ export const useLocalEditorActions = (): EditorActions => {
     const remaining = new Set(next.map((shape) => shape.id));
     dispatch(setSelectedShapes(selectedIds.filter((id) => remaining.has(id))));
   };
-  const copySelected = () =>
-    dispatch(setClipboard({ shapes: copyShapes(board.shapes, selectedIds), boardId: board.id }));
+  const copySelected = () => {
+    const roots = rootSelectionIds(board.shapes, selectedIds);
+    const parentId = commonParentId(board.shapes, roots);
+    const parent = parentId ? board.shapes.find((shape) => shape.id === parentId) : undefined;
+    dispatch(setClipboard({
+      shapes: copyShapes(board.shapes, roots),
+      boardId: board.id,
+      sourceBounds: selectionBounds(board.shapes, roots),
+      parentBounds: parent ? shapeBounds(parent) : null,
+    }));
+  };
   const cutSelected = () => {
     copySelected();
     removeSelected();
   };
-  const paste = async () => {
-    const result = pasteShapes(board.shapes, editor.clipboard);
+  const paste: EditorActions["paste"] = async (context) => {
+    const result = pasteShapes(board.shapes, editor.clipboard, {
+      context,
+      sourceParentBounds: editor.clipboardParentBounds,
+    });
     commitShapes(result.shapes);
     dispatch(setSelectedShapes(result.pastedIds));
-    dispatch(setClipboard({ shapes: result.pasted, boardId: board.id }));
+    const parentId = commonParentId(result.shapes, result.pastedIds);
+    const parent = parentId ? result.shapes.find((shape) => shape.id === parentId) : undefined;
+    dispatch(setClipboard({
+      shapes: result.pasted,
+      boardId: board.id,
+      sourceBounds: selectionBounds(result.shapes, result.pastedIds),
+      parentBounds: parent ? shapeBounds(parent) : null,
+    }));
   };
   const duplicateSelected = () => {
     const result = duplicateShapes(board.shapes, selectedIds);
@@ -105,6 +127,17 @@ export const useLocalEditorActions = (): EditorActions => {
     distributeSelected: (axis) => commitShapes(distributeShapes(board.shapes, selectedIds, axis)),
     groupSelected: () => commitShapes(groupShapes(board.shapes, selectedIds, undefined, selectionRotation)),
     ungroupSelected: () => commitShapes(ungroupShapes(board.shapes, selectedIds)),
+    frameSelected: () => {
+      const result = frameShapes(board.shapes, selectedIds);
+      if (!result.frameId) return;
+      commitShapes(result.shapes);
+      dispatch(setSelectedShapes([result.frameId]));
+    },
+    unframeSelected: () => {
+      const result = unframeShapes(board.shapes, selectedIds);
+      commitShapes(result.shapes);
+      dispatch(setSelectedShapes(result.selectedIds));
+    },
     nudgeSelected: (x, y) => commitShapes(moveShapesFromBaseline(board.shapes, selectedIds, { x, y })),
     undo,
     redo,

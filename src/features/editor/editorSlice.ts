@@ -6,13 +6,15 @@ import {
   redoEditorHistory,
   undoEditorHistory,
 } from "../../editor/history";
-import { EditorDocumentSnapshot, EditorHistory, Viewport } from "../../editor/types";
+import { Bounds, EditorDocumentSnapshot, EditorHistory, Viewport } from "../../editor/types";
 
 interface EditorState {
   viewport: Viewport;
   history: EditorHistory | null;
   clipboard: Shape[];
   clipboardBoardId: string | null;
+  clipboardSourceBounds: Bounds | null;
+  clipboardParentBounds: Bounds | null;
   hoveredShapeId: string | null;
   editingShapeId: string | null;
   snapToGrid: boolean;
@@ -27,6 +29,8 @@ const initialState: EditorState = {
   history: null,
   clipboard: [],
   clipboardBoardId: null,
+  clipboardSourceBounds: null,
+  clipboardParentBounds: null,
   hoveredShapeId: null,
   editingShapeId: null,
   snapToGrid: false,
@@ -67,10 +71,17 @@ const editorSlice = createSlice({
     },
     setClipboard: (
       state,
-      action: PayloadAction<{ shapes: Shape[]; boardId: string | null }>
+      action: PayloadAction<{
+        shapes: Shape[];
+        boardId: string | null;
+        sourceBounds?: Bounds | null;
+        parentBounds?: Bounds | null;
+      }>
     ) => {
       state.clipboard = JSON.parse(JSON.stringify(action.payload.shapes));
       state.clipboardBoardId = action.payload.boardId;
+      state.clipboardSourceBounds = action.payload.sourceBounds ?? null;
+      state.clipboardParentBounds = action.payload.parentBounds ?? null;
     },
     setHoveredShapeId: (state, action: PayloadAction<string | null>) => {
       state.hoveredShapeId = action.payload;
