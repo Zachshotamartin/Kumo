@@ -4,6 +4,7 @@ import { requireActor } from "./_auth.js";
 import { getBoardAccess } from "./_boards.js";
 import { allowMethods, errorMessage, stringQuery } from "./_http.js";
 import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
+import { cloneAssetsToBoard } from "./_assets.js";
 
 const bucket = "board-assets";
 const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
@@ -15,7 +16,7 @@ const assetUrl = async (storageKey: string) => {
 };
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (!allowMethods(request, response, ["GET", "POST"])) return;
+  if (!allowMethods(request, response, ["GET", "POST", "DELETE"])) return;
   try {
     const actor = await requireActor(request);
     await ensureActorProfile(actor);
@@ -35,10 +36,43 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.status(200).json({ asset: { ...asset, url: await assetUrl(asset.storage_key) } });
     }
 
+    if (request.method === "DELETE") {
+      const assetId = stringQuery(request.query.id);
+      const { data: asset, error } = await database
+        .from("assets")
+        .select("id, board_id, storage_key, uploader_id")
+        .eq("id", assetId)
+        .maybeSingle();
+      if (error) throw error;
+      const access = asset ? await getBoardAccess(asset.board_id, actor.uid) : null;
+      if (!asset || !access) return response.status(404).json({ error: "Asset not found." });
+      if (access.role === "viewer") return response.status(403).json({ error: "This board is view-only." });
+      if (access.role !== "owner" && asset.uploader_id !== actor.uid) {
+        return response.status(403).json({ error: "Only the uploader can remove this asset." });
+      }
+      const { error: storageError } = await database.storage.from(bucket).remove([asset.storage_key]);
+      if (storageError) throw storageError;
+      const { error: deleteError } = await database.from("assets").delete().eq("id", asset.id);
+      if (deleteError) throw deleteError;
+      return response.status(204).send("");
+    }
+
     const boardId = typeof request.body?.boardId === "string" ? request.body.boardId : "";
     const access = await getBoardAccess(boardId, actor.uid);
     if (!access) return response.status(404).json({ error: "Board not found." });
     if (access.role === "viewer") return response.status(403).json({ error: "This board is view-only." });
+
+    if (request.body?.action === "clone") {
+      const assetIds = Array.isArray(request.body?.assetIds)
+        ? request.body.assetIds.filter((id: unknown): id is string => typeof id === "string").slice(0, 100)
+        : [];
+      const replacements = await cloneAssetsToBoard({
+        actorUid: actor.uid,
+        targetBoardId: boardId,
+        assetIds,
+      });
+      return response.status(201).json({ assetIds: Object.fromEntries(replacements) });
+    }
 
     if (request.body?.action === "prepare") {
       const mimeType = typeof request.body?.mimeType === "string" ? request.body.mimeType : "";

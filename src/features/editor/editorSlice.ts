@@ -12,24 +12,28 @@ interface EditorState {
   viewport: Viewport;
   history: EditorHistory | null;
   clipboard: Shape[];
+  clipboardBoardId: string | null;
   hoveredShapeId: string | null;
   editingShapeId: string | null;
   snapToGrid: boolean;
   gridSize: number;
   saveStatus: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
+  localPreviewActive: boolean;
 }
 
 const initialState: EditorState = {
   viewport: { x: 0, y: 0, zoom: 1 },
   history: null,
   clipboard: [],
+  clipboardBoardId: null,
   hoveredShapeId: null,
   editingShapeId: null,
   snapToGrid: false,
   gridSize: 8,
   saveStatus: "idle",
   saveError: null,
+  localPreviewActive: false,
 };
 
 const editorSlice = createSlice({
@@ -45,6 +49,7 @@ const editorSlice = createSlice({
       state.editingShapeId = null;
       state.saveStatus = "idle";
       state.saveError = null;
+      state.localPreviewActive = false;
     },
     commitEditorSnapshot: (
       state,
@@ -60,14 +65,21 @@ const editorSlice = createSlice({
     redoEditor: (state) => {
       if (state.history) state.history = redoEditorHistory(state.history);
     },
-    setClipboard: (state, action: PayloadAction<Shape[]>) => {
-      state.clipboard = JSON.parse(JSON.stringify(action.payload));
+    setClipboard: (
+      state,
+      action: PayloadAction<{ shapes: Shape[]; boardId: string | null }>
+    ) => {
+      state.clipboard = JSON.parse(JSON.stringify(action.payload.shapes));
+      state.clipboardBoardId = action.payload.boardId;
     },
     setHoveredShapeId: (state, action: PayloadAction<string | null>) => {
       state.hoveredShapeId = action.payload;
     },
     setEditingShapeId: (state, action: PayloadAction<string | null>) => {
       state.editingShapeId = action.payload;
+    },
+    setLocalPreviewActive: (state, action: PayloadAction<boolean>) => {
+      state.localPreviewActive = action.payload;
     },
     setSnapToGrid: (state, action: PayloadAction<boolean>) => {
       state.snapToGrid = action.payload;
@@ -97,6 +109,7 @@ export const {
   setClipboard,
   setHoveredShapeId,
   setEditingShapeId,
+  setLocalPreviewActive,
   setSnapToGrid,
   setGridSize,
   setSaveStatus,

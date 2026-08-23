@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useSyncStatus } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
@@ -16,6 +17,7 @@ import EditorToolbar from "./EditorToolbar";
 import InspectorPanel from "./InspectorPanel";
 import LayersPanel from "./LayersPanel";
 import styles from "./EditorWorkspace.module.css";
+import KumoLogo from "../brand/KumoLogo";
 import ShareDialog from "./ShareDialog";
 
 const emptyBoard = {
@@ -36,6 +38,22 @@ const emptyBoard = {
   updatedAt: null,
 };
 
+type PanelSide = "layers" | "properties";
+
+interface PanelResize {
+  side: PanelSide;
+  startX: number;
+  startWidth: number;
+}
+
+const PANEL_LIMITS: Record<PanelSide, { min: number; max: number }> = {
+  layers: { min: 168, max: 420 },
+  properties: { min: 220, max: 480 },
+};
+
+const clampPanelWidth = (side: PanelSide, width: number) =>
+  Math.min(PANEL_LIMITS[side].max, Math.max(PANEL_LIMITS[side].min, width));
+
 const EditorWorkspace = () => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
@@ -44,11 +62,69 @@ const EditorWorkspace = () => {
   const actions = useEditorActions();
   const syncStatus = useSyncStatus({ smooth: true });
   const canvasRegionRef = useRef<HTMLElement>(null);
+  const panelResizeRef = useRef<PanelResize | null>(null);
   const [title, setTitle] = useState(board.title ?? "Untitled board");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [layersWidth, setLayersWidth] = useState(236);
+  const [propertiesWidth, setPropertiesWidth] = useState(268);
+  const [layersCollapsed, setLayersCollapsed] = useState(false);
+  const [propertiesCollapsed, setPropertiesCollapsed] = useState(false);
+  const [resizingPanel, setResizingPanel] = useState<PanelSide | null>(null);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const resize = panelResizeRef.current;
+      if (!resize) return;
+      const direction = resize.side === "layers" ? 1 : -1;
+      const width = clampPanelWidth(
+        resize.side,
+        resize.startWidth + (event.clientX - resize.startX) * direction
+      );
+      if (resize.side === "layers") setLayersWidth(width);
+      else setPropertiesWidth(width);
+    };
+    const finishPanelResize = () => {
+      panelResizeRef.current = null;
+      setResizingPanel(null);
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", finishPanelResize);
+    window.addEventListener("pointercancel", finishPanelResize);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishPanelResize);
+      window.removeEventListener("pointercancel", finishPanelResize);
+    };
+  }, []);
+
+  const beginPanelResize = (
+    side: PanelSide,
+    event: ReactPointerEvent<HTMLElement>
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    panelResizeRef.current = {
+      side,
+      startX: event.clientX,
+      startWidth: side === "layers" ? layersWidth : propertiesWidth,
+    };
+    setResizingPanel(side);
+  };
+
+  const resizePanelFromKeyboard = (side: PanelSide, event: React.KeyboardEvent) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const screenDirection = event.key === "ArrowRight" ? 1 : -1;
+    const widthDirection = side === "layers" ? screenDirection : -screenDirection;
+    if (side === "layers") {
+      setLayersWidth((width) => clampPanelWidth(side, width + widthDirection * 8));
+    } else {
+      setPropertiesWidth((width) => clampPanelWidth(side, width + widthDirection * 8));
+    }
+  };
 
   const goHome = () => {
     dispatch(clearSelectedShapes());
@@ -102,7 +178,7 @@ const EditorWorkspace = () => {
       <header className={styles.topbar}>
         <div className={styles.topbarStart}>
           <button type="button" className={styles.brandButton} onClick={goHome} aria-label="Back to boards">
-            <span className={styles.brandMark} aria-hidden="true">K</span>
+            <KumoLogo className={styles.brandLogo} decorative />
             <span className={styles.brandWord}>Kumo</span>
           </button>
           <span className={styles.breadcrumb} aria-hidden="true">/</span>
@@ -155,11 +231,51 @@ const EditorWorkspace = () => {
         </div>
       </header>
 
-      <div className={styles.editorGrid}>
-        <LayersPanel />
+      <div
+        className={`${styles.editorGrid} ${resizingPanel ? styles.resizingPanels : ""}`}
+        data-testid="editor-grid"
+        style={{
+          "--layers-panel-width": layersCollapsed ? "0px" : `${layersWidth}px`,
+          "--layers-resizer-width": layersCollapsed ? "0px" : "6px",
+          "--properties-panel-width": propertiesCollapsed ? "0px" : `${propertiesWidth}px`,
+          "--properties-resizer-width": propertiesCollapsed ? "0px" : "6px",
+        } as CSSProperties}
+      >
+        <div className={styles.panelSlot}>{!layersCollapsed && <LayersPanel />}</div>
+        <div
+          className={styles.panelResizer}
+          role="slider"
+          aria-label="Resize layers panel"
+          aria-orientation="horizontal"
+          aria-valuemin={PANEL_LIMITS.layers.min}
+          aria-valuemax={PANEL_LIMITS.layers.max}
+          aria-valuenow={layersWidth}
+          tabIndex={layersCollapsed ? -1 : 0}
+          onPointerDown={(event) => beginPanelResize("layers", event)}
+          onKeyDown={(event) => resizePanelFromKeyboard("layers", event)}
+          onDoubleClick={() => setLayersWidth(236)}
+        />
         <section ref={canvasRegionRef} className={styles.canvasRegion} aria-label="Design editor">
           <EditorCanvas />
           <EditorToolbar />
+          <button
+            type="button"
+            className={`${styles.panelToggle} ${styles.layersToggle}`}
+            aria-label={`${layersCollapsed ? "Show" : "Hide"} layers panel`}
+            aria-expanded={!layersCollapsed}
+            onClick={() => setLayersCollapsed((collapsed) => !collapsed)}
+          >
+            {layersCollapsed ? "›" : "‹"}
+          </button>
+          <button
+            type="button"
+            className={`${styles.panelToggle} ${styles.propertiesToggle}`}
+            aria-label={`${propertiesCollapsed ? "Show" : "Hide"} properties panel`}
+            aria-expanded={!propertiesCollapsed}
+            onClick={() => setPropertiesCollapsed((collapsed) => !collapsed)}
+          >
+            {propertiesCollapsed ? "‹" : "›"}
+          </button>
           <div className={styles.zoomControl} aria-label="Zoom controls">
             <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / 1.25)}>−</button>
             <button type="button" className={styles.zoomValue} onClick={() => setZoomAroundCanvasCenter(1)}>
@@ -168,7 +284,20 @@ const EditorWorkspace = () => {
             <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * 1.25)}>＋</button>
           </div>
         </section>
-        <InspectorPanel />
+        <div
+          className={styles.panelResizer}
+          role="slider"
+          aria-label="Resize properties panel"
+          aria-orientation="horizontal"
+          aria-valuemin={PANEL_LIMITS.properties.min}
+          aria-valuemax={PANEL_LIMITS.properties.max}
+          aria-valuenow={propertiesWidth}
+          tabIndex={propertiesCollapsed ? -1 : 0}
+          onPointerDown={(event) => beginPanelResize("properties", event)}
+          onKeyDown={(event) => resizePanelFromKeyboard("properties", event)}
+          onDoubleClick={() => setPropertiesWidth(268)}
+        />
+        <div className={styles.panelSlot}>{!propertiesCollapsed && <InspectorPanel />}</div>
       </div>
 
       {(error || editor.saveError) && (

@@ -1,14 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./homePage.module.css";
-import { auth, provider } from "../../config/firebase";
+import { auth, firebaseApiKey, provider } from "../../config/firebase";
 import {
   signInWithEmailAndPassword,
-  signInWithPopup,
+  getRedirectResult,
+  signInWithRedirect,
+  signInWithCredential,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import logo from "../../res/logo3.png";
 import { ensureUserProfile } from "../../services/userRepository";
+import KumoLogo from "../brand/KumoLogo";
+import { type KumoLogoContext } from "../brand/KumoLogoConfig";
+import {
+  consumeLocalGoogleRedirect,
+  hasLocalGoogleRedirectResult,
+  prepareLocalGoogleRedirect,
+  usesLocalGoogleRedirect,
+} from "../../config/localGoogleRedirect";
 
 const HomePage = () => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
@@ -17,6 +26,28 @@ const HomePage = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const completeRedirect = async () => {
+      if (hasLocalGoogleRedirectResult(window.location.href)) {
+        const localResult = consumeLocalGoogleRedirect(window.location.href, window.sessionStorage);
+        if (localResult) {
+          window.history.replaceState({}, "", localResult.returnUrl);
+          await signInWithCredential(auth, localResult.credential);
+          await ensureUserProfile();
+        }
+        return;
+      }
+      await getRedirectResult(auth);
+    };
+    void completeRedirect().catch((caught: unknown) => {
+      if (!active) return;
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
+      setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
+    });
+    return () => { active = false; };
+  }, []);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -49,11 +80,24 @@ const HomePage = () => {
   };
 
   const handleGoogleLogin = async () => {
+    setError("");
+    setMessage("");
+    setSubmitting(true);
     try {
-      await signInWithPopup(auth, provider);
-      await ensureUserProfile();
+      if (usesLocalGoogleRedirect(window.location)) {
+        const redirectUrl = await prepareLocalGoogleRedirect(
+          firebaseApiKey,
+          window.location.href,
+          window.sessionStorage
+        );
+        window.location.assign(redirectUrl);
+      } else {
+        await signInWithRedirect(auth, provider);
+      }
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -64,29 +108,50 @@ const HomePage = () => {
       setError("Enter your email first, then request a reset link.");
       return;
     }
+    setSubmitting(true);
     try {
       await sendPasswordResetEmail(auth, email.trim());
       setMessage("Password reset email sent.");
     } catch {
       setError("We couldn't send a reset email. Check the address and try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  const logoContext: KumoLogoContext = submitting
+    ? "loading"
+    : error
+      ? "error"
+      : message
+        ? "success"
+        : "idle";
+  const logoStatus = submitting
+    ? "Opening your workspace…"
+    : error
+      ? "Something needs another look."
+      : message
+        ? "You’re all set."
+        : "Ready when the idea is.";
 
   return (
     <main className={styles.homePage}>
       <section className={styles.intro}>
-        <div className={styles.logo}>
-          <img className={styles.icon} src={logo} alt="" />
+        <div className={styles.logo} data-context={logoContext}>
+          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" />
           <span className={styles.logoText}>Kumo</span>
+          <span className={styles.logoStatus} aria-live="polite">{logoStatus}</span>
         </div>
-        <p className={styles.eyebrow}>A shared visual workspace</p>
-        <h1>Ideas move faster when the canvas stays out of the way.</h1>
-        <p className={styles.introCopy}>Shape interfaces, map product thinking, and work together in real time.</p>
+        <div className={styles.introText}>
+          <p className={styles.eyebrow}>A shared visual workspace</p>
+          <h1>Ideas move faster when the canvas stays out of the way.</h1>
+          <p className={styles.introCopy}>Shape interfaces, map product thinking, and work together in real time.</p>
+        </div>
       </section>
       <form className={styles.loginForm} onSubmit={handleLogin}>
         <div className={styles.modeSwitch} role="tablist" aria-label="Authentication mode">
-          <button type="button" role="tab" aria-selected={mode === "signin"} onClick={() => { setMode("signin"); setError(""); }}>Sign in</button>
-          <button type="button" role="tab" aria-selected={mode === "register"} onClick={() => { setMode("register"); setError(""); }}>Create account</button>
+          <button type="button" role="tab" aria-selected={mode === "signin"} disabled={submitting} onClick={() => { setMode("signin"); setError(""); setMessage(""); }}>Sign in</button>
+          <button type="button" role="tab" aria-selected={mode === "register"} disabled={submitting} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>Create account</button>
         </div>
         <div>
           <h2>{mode === "signin" ? "Welcome back" : "Start a workspace"}</h2>
@@ -123,12 +188,13 @@ const HomePage = () => {
           <button className={styles.submit} type="submit" disabled={submitting}>
             {submitting ? "Please wait" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
-          {mode === "signin" && <button className={styles.resetButton} type="button" onClick={handleResetPassword}>Forgot password?</button>}
+          {mode === "signin" && <button className={styles.resetButton} type="button" onClick={handleResetPassword} disabled={submitting}>Forgot password?</button>}
           <div className={styles.divider}><span>or</span></div>
           <button
             className={styles.googleButton}
             type="button"
             onClick={handleGoogleLogin}
+            disabled={submitting}
           >
             Continue with Google
           </button>

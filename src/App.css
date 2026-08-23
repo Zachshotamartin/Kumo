@@ -1,5 +1,11 @@
 .App { min-height: 100dvh; }
 
+kumo-logo {
+  display: inline-block;
+  max-width: 100%;
+  aspect-ratio: 1;
+}
+
 .skip-link {
   position: fixed;
   top: 8px;
@@ -22,21 +28,38 @@
   min-height: 100dvh;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
   gap: 12px;
   color: #aaa9a4;
   font: 600 13px/1 "Avenir Next", "Segoe UI", sans-serif;
   background: #1b1c1e;
 }
 
-.app-loading-mark {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  color: #17181a;
-  background: #ef6f4d;
-  border-radius: 6px 6px 6px 2px;
+.app-loading-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f3f0e8;
 }
+
+.app-loading-word {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.app-loading-status {
+  color: #8f8e89;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.app-loading-logo {
+  width: 92px;
+  flex: 0 0 auto;
+}
+
+.fatal-error .app-loading-logo { width: 92px; }
 
 .fatal-error {
   display: grid;

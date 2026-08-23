@@ -1,11 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { ShapeFunctions } from "../../classes/shape";
 import { normalizeShape } from "../../editor/geometry";
 import { EditorTool } from "../../editor/types";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
-import { uploadBoardImage } from "../../services/assetRepository";
+import { deleteBoardAsset, uploadBoardImage } from "../../services/assetRepository";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
@@ -26,20 +26,35 @@ const EditorToolbar = () => {
   const viewport = useSelector((state: RootState) => state.editor.viewport);
   const actions = useEditorActions();
   const imageInput = useRef<HTMLInputElement>(null);
+  const activeRef = useRef(true);
+  const boardIdRef = useRef(board.id);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  useEffect(() => {
+    boardIdRef.current = board.id;
+  }, [board.id]);
+
+  useEffect(() => () => {
+    activeRef.current = false;
+  }, []);
+
   const uploadImage = async (file: File) => {
     if (!board.id || !actions.canEdit) return;
+    const uploadBoardId = board.id;
     setUploading(true);
     setUploadError(null);
+    let bitmap: ImageBitmap | null = null;
     try {
-      const bitmap = await createImageBitmap(file);
-      const asset = await uploadBoardImage(board.id, file, {
+      bitmap = await createImageBitmap(file);
+      const asset = await uploadBoardImage(uploadBoardId, file, {
         width: bitmap.width,
         height: bitmap.height,
       });
-      bitmap.close();
+      if (!activeRef.current || boardIdRef.current !== uploadBoardId) {
+        await deleteBoardAsset(asset.id).catch(() => undefined);
+        return;
+      }
       const scale = Math.min(1, 480 / Math.max(asset.width ?? 1, asset.height ?? 1));
       const width = Math.max(40, (asset.width ?? 240) * scale);
       const height = Math.max(40, (asset.height ?? 180) * scale);
@@ -59,9 +74,12 @@ const EditorToolbar = () => {
       dispatch(setSelectedShapes([shape.id]));
       dispatch(setSelectedTool("pointer"));
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "We couldn't upload this image.");
+      if (activeRef.current) {
+        setUploadError(error instanceof Error ? error.message : "We couldn't upload this image.");
+      }
     } finally {
-      setUploading(false);
+      bitmap?.close();
+      if (activeRef.current) setUploading(false);
       if (imageInput.current) imageInput.current.value = "";
     }
   };

@@ -3,6 +3,7 @@ import {
   clampZoom,
   hitTest,
   moveShapesFromBaseline,
+  effectiveGridSize,
   resizeBounds,
   resizeSelectionFromPointer,
   resizeShapesFromBaseline,
@@ -80,19 +81,44 @@ describe("editor geometry", () => {
     expect(hitTest([first, later], { x: 50, y: 40 })?.id).toBe("2");
   });
 
-  it("selects every intersecting unlocked shape in a marquee", () => {
-    const locked = { ...shape("3", 40, 40), locked: true };
-    expect(shapesInMarquee([shape("1", 0, 0), shape("2", 200, 200), locked], { x: 20, y: 20 }, { x: 70, y: 70 }))
-      .toEqual(["1"]);
+  it("selects intersecting unlocked shapes and expands logical groups", () => {
+    const grouped = { ...shape("1", 0, 0), groupId: "group" };
+    const lockedMember = { ...shape("3", 200, 200), groupId: "group", locked: true };
+    expect(shapesInMarquee([grouped, shape("2", 400, 400), lockedMember], { x: 20, y: 20 }, { x: 70, y: 70 }))
+      .toEqual(["1", "3"]);
   });
 
-  it("moves from an immutable baseline and snaps the delta", () => {
+  it("moves from an immutable baseline and snaps the final position", () => {
     const baseline = [shape("1", 10, 10), shape("2", 40, 40)];
     const moved = moveShapesFromBaseline(baseline, ["1"], { x: 13, y: 17 }, 8);
-    expect(moved[0]!.x1).toBe(26);
-    expect(moved[0]!.y1).toBe(26);
+    expect(moved[0]!.x1).toBe(24);
+    expect(moved[0]!.y1).toBe(24);
     expect(baseline[0]!.x1).toBe(10);
     expect(moved[1]).toBe(baseline[1]);
+  });
+
+  it("uses one effective grid increment for rendering and snapping", () => {
+    expect(effectiveGridSize(8, 1)).toBe(8);
+    expect(effectiveGridSize(8, 0.5)).toBe(16);
+    expect(effectiveGridSize(8, 0.2)).toBe(40);
+  });
+
+  it("blocks a whole group transform when one member is locked", () => {
+    const baseline = [
+      { ...shape("1", 0, 0), groupId: "group" },
+      { ...shape("2", 100, 0), groupId: "group", locked: true },
+    ];
+    expect(moveShapesFromBaseline(baseline, ["1"], { x: 20, y: 20 })).toEqual(baseline);
+    const frame = selectionFrame(baseline, ["1"]);
+    expect(resizeSelectionFromPointer(baseline, ["1"], frame!, "se", { x: 300, y: 200 }))
+      .toEqual(baseline);
+    expect(rotateShapesFromBaseline(
+      baseline,
+      ["1"],
+      frame!.bounds,
+      { x: 100, y: -100 },
+      { x: 300, y: 40 }
+    )).toEqual(baseline);
   });
 
   it("snaps drawing points without mutating their input", () => {
@@ -270,6 +296,56 @@ describe("editor geometry", () => {
     expect(rotated[1]!.x1).toBeCloseTo(50);
     expect(rotated[1]!.y1).toBeCloseTo(50);
   });
+
+  it("snaps the resulting angle instead of only the pointer delta", () => {
+    const baseline = [{ ...shape("1", 0, 0, 100, 80), rotation: 7 }];
+    const rotated = rotateShapesFromBaseline(
+      baseline,
+      ["1"],
+      shapeBounds(baseline[0]!),
+      { x: 100, y: 40 },
+      { x: 99.03, y: 49.73 },
+      15,
+      7
+    );
+    expect(rotated[0]!.rotation).toBe(15);
+  });
+
+  it("retains an oriented frame for a rotated logical group", () => {
+    const grouped = [
+      { ...shape("1", 0, 0, 100, 50), groupId: "group", groupRotation: 0 },
+      { ...shape("2", 120, 0, 100, 50), groupId: "group", groupRotation: 0 },
+    ];
+    const initial = selectionFrame(grouped, ["1"]);
+    const baseline = rotateShapesFromBaseline(
+      grouped,
+      ["1"],
+      initial!.bounds,
+      { x: 210, y: 25 },
+      { x: 196.6025, y: 75 }
+    );
+    const frame = selectionFrame(baseline, ["1"]);
+    expect(frame?.rotation).toBeCloseTo(30);
+    expect(frame?.bounds.width).toBeCloseTo(220);
+    expect(frame?.bounds.height).toBeCloseTo(50);
+  });
+
+  it("forces uniform scaling when a rotated member cannot represent skew", () => {
+    const baseline = [
+      { ...shape("1", 0, 0, 100, 100), rotation: 45 },
+      shape("2", 150, 0, 100, 100),
+    ];
+    const frame = selectionFrame(baseline, ["1", "2"]);
+    const resized = resizeSelectionFromPointer(
+      baseline,
+      ["1", "2"],
+      frame!,
+      "se",
+      { x: frame!.bounds.x + frame!.bounds.width * 2, y: frame!.bounds.y + frame!.bounds.height }
+    );
+    expect(resized[0]!.width / baseline[0]!.width)
+      .toBeCloseTo(resized[0]!.height / baseline[0]!.height);
+  });
 });
 
 describe("editor commands", () => {
@@ -283,6 +359,23 @@ describe("editor commands", () => {
   it("deletes selected unlocked shapes", () => {
     expect(deleteShapes([shape("1", 0, 0), shape("2", 0, 0)], ["1"]).map((item) => item.id))
       .toEqual(["2"]);
+  });
+
+  it("deletes an unlocked group atomically and preserves a locked group", () => {
+    const group = [
+      { ...shape("1", 0, 0), groupId: "group" },
+      { ...shape("2", 100, 0), groupId: "group" },
+    ];
+    expect(deleteShapes(group, ["1"])).toEqual([]);
+    const locked = [{ ...group[0]!, locked: true }, group[1]!];
+    expect(deleteShapes(locked, ["2"])).toEqual(locked);
+  });
+
+  it("can unlock a locked shape but blocks unrelated property changes", () => {
+    const locked = { ...shape("1", 0, 0), locked: true };
+    expect(patchShapes([locked], ["1"], { locked: false })[0]!.locked).toBe(false);
+    expect(patchShapes([locked], ["1"], { backgroundColor: "#f00" })[0])
+      .toBe(locked);
   });
 
   it("duplicates with new stable ids and offsets", () => {
@@ -371,6 +464,33 @@ describe("editor commands", () => {
     expect(ungroupShapes(grouped, ["1"])[1]!.groupId).toBeNull();
   });
 
+  it("aligns and distributes groups as logical units", () => {
+    const grouped = [
+      { ...shape("1", 0, 0, 20), groupId: "group" },
+      { ...shape("2", 40, 0, 20), groupId: "group" },
+    ];
+    const target = shape("3", 200, 0, 20);
+    const aligned = alignShapes([...grouped, target], ["1", "3"], "right");
+    expect(aligned[1]!.x1 - aligned[0]!.x1).toBe(40);
+    expect(aligned[1]!.x2).toBe(aligned[2]!.x2);
+
+    const middle = shape("4", 110, 0, 20);
+    const end = shape("5", 300, 0, 20);
+    const distributed = distributeShapes([...grouped, middle, end], ["1", "4", "5"], "horizontal");
+    expect(distributed[1]!.x1 - distributed[0]!.x1).toBe(40);
+  });
+
+  it("makes newly grouped layers contiguous at the highest selected layer", () => {
+    const shapes = [
+      { ...shape("1", 0, 0), zIndex: 1 },
+      { ...shape("2", 0, 0), zIndex: 2 },
+      { ...shape("3", 0, 0), zIndex: 3 },
+    ];
+    const grouped = groupShapes(shapes, ["1", "3"], "group");
+    expect(grouped.map((item) => item.id)).toEqual(["2", "1", "3"]);
+    expect(grouped.map((item) => item.zIndex)).toEqual([1, 2, 3]);
+  });
+
   it("merges a local shape edit over an unrelated remote edit", () => {
     const baseline = [shape("1", 0, 0), shape("2", 100, 0)];
     const local = [shape("1", 25, 0), baseline[1]!];
@@ -379,6 +499,13 @@ describe("editor commands", () => {
     expect(merged.find((item) => item.id === "1")?.x1).toBe(25);
     expect(merged.find((item) => item.id === "2")?.x1).toBe(150);
     expect(merged.find((item) => item.id === "3")?.x1).toBe(300);
+  });
+
+  it("does not resurrect a remotely deleted baseline shape", () => {
+    const baseline = [shape("1", 0, 0), shape("2", 100, 0)];
+    const local = [shape("1", 25, 0), baseline[1]!, shape("3", 300, 0)];
+    const merged = mergeShapeChanges(baseline, local, [baseline[0]!]);
+    expect(merged.map((item) => item.id)).toEqual(["1", "3"]);
   });
 });
 

@@ -30,16 +30,8 @@
   text-decoration: none;
 }
 
-.brand span {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  place-items: center;
-  color: #fbfaf6;
-  font-size: 12px;
-  background: #df6546;
-  border-radius: 6px 6px 6px 2px;
-}
+.brandLogo { width: 36px; }
+.brandName { font-size: 14px; }
 
 .search {
   display: grid;
@@ -338,6 +330,7 @@
   }
 
   .account { display: none; }
+  .brandName { display: none; }
   .content { width: min(100% - 28px, 1340px); padding-top: 42px; }
   .hero { align-items: flex-start; flex-direction: column; }
   .boardGrid,
@@ -345,7 +338,6 @@
 }
 
 @media (max-width: 460px) {
-  .brand { font-size: 0; }
   .boardGrid,
   .skeletonGrid { grid-template-columns: 1fr; }
 }

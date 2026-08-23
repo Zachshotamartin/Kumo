@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "./_auth.js";
 import { getBoardAccess, provisionBoard } from "./_boards.js";
-import { adminAuth, adminDatabase } from "./_firebaseAdmin.js";
+import { adminDatabase, privilegedAdminAuth } from "./_firebaseAdmin.js";
 import { allowMethods } from "./_http.js";
 import { liveblocksAdmin } from "./_liveblocks.js";
 import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
@@ -38,7 +38,7 @@ const shapeNodes = (board: Record<string, unknown>): Record<string, unknown> => 
 
 const ensureFirebaseProfile = async (uid: string) => {
   try {
-    const user = await adminAuth().getUser(uid);
+    const user = await privilegedAdminAuth().getUser(uid);
     await ensureActorProfile({
       uid,
       email: user.email,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
+import KumoLogo from "../brand/KumoLogo";
 import { auth } from "../../config/firebase";
 import { logout } from "../../features/auth/authSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
@@ -104,8 +105,8 @@ const BoardDashboard = () => {
     try {
       const boardId = await createBoard("Untitled board");
       await openBoard(boardId);
-    } catch {
-      setError("We couldn't create a board.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn't create a board.");
     } finally {
       setCreating(false);
     }
@@ -117,8 +118,8 @@ const BoardDashboard = () => {
     try {
       const copyId = await duplicateBoard(boardId);
       await openBoard(copyId);
-    } catch {
-      setError("We couldn't copy this board.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn't copy this board.");
     }
   };
 
@@ -131,8 +132,8 @@ const BoardDashboard = () => {
     <main className={styles.dashboard}>
       <header className={styles.header}>
         <a className={styles.brand} href="#main-content" aria-label="Kumo boards">
-          <span>K</span>
-          Kumo
+          <KumoLogo className={styles.brandLogo} decorative />
+          <span className={styles.brandName}>Kumo</span>
         </a>
         <label className={styles.search}>
           <span className="sr-only">Search public boards</span>

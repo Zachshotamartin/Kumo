@@ -7,12 +7,12 @@
   background: #18191b;
 }
 .intro {
+  --intro-gutter: clamp(42px, 8vw, 118px);
   position: relative;
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  padding: clamp(42px, 8vw, 118px);
+  align-items: center;
+  padding: var(--intro-gutter);
   overflow: hidden;
   background-color: #242527;
   background-image: radial-gradient(circle at 18% 22%, rgba(223, 101, 70, 0.2), transparent 32%), radial-gradient(circle at 88% 72%, rgba(131, 178, 158, 0.12), transparent 36%);
@@ -30,16 +30,44 @@
 }
 
 .logo {
-  position: relative;
+  position: absolute;
+  top: var(--intro-gutter);
+  left: var(--intro-gutter);
   z-index: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto;
   align-items: center;
-  gap: 10px;
-  margin-bottom: clamp(80px, 18vh, 180px);
+  align-self: flex-start;
+  column-gap: 10px;
+  transition: filter 220ms ease, transform 220ms ease;
 }
 
-.icon { width: 34px; height: 34px; object-fit: contain; }
-.logoText { font-size: 18px; font-weight: 800; letter-spacing: -0.04em; }
+.logo[data-context="loading"] { filter: drop-shadow(0 0 16px rgba(184, 122, 46, 0.22)); }
+.logo[data-context="success"] { transform: translateY(-2px); }
+.logo[data-context="error"] { filter: saturate(0.78); }
+.brandLogo { width: 52px; }
+
+.logoText {
+  color: #f3f0e8;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.logoStatus {
+  grid-column: 2;
+  margin-top: -12px;
+  color: #aaa9a4;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.introText {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+}
 
 .eyebrow {
   position: relative;
@@ -142,6 +170,7 @@
 .submit:disabled { color: #8b8982; background: #d7d4cc; }
 .googleButton { color: #383732; background: transparent; border: 1px solid #c7c3b9; }
 .googleButton:hover, .googleButton:focus-visible { background: #e5e2da; outline: none; }
+.googleButton:disabled { color: #9b9891; background: #e3e0d8; cursor: wait; }
 
 .resetButton {
   justify-self: end;
@@ -154,6 +183,7 @@
 }
 
 .resetButton:hover, .resetButton:focus-visible { text-decoration: underline; outline: none; }
+.resetButton:disabled { color: #9b9891; cursor: wait; text-decoration: none; }
 
 .divider {
   display: grid;
@@ -179,8 +209,11 @@
 
 @media (max-width: 820px) {
   .homePage { grid-template-columns: 1fr; }
-  .intro { min-height: 330px; padding: 34px 24px 46px; }
-  .logo { margin-bottom: 64px; }
+  .intro { --intro-gutter: 24px; min-height: 520px; padding: 76px 24px 46px; }
+  .logo { top: 28px; }
+  .brandLogo { width: 46px; }
+  .logoStatus { display: none; }
+  .introText { margin-top: 28px; }
   .intro h1 { font-size: clamp(38px, 11vw, 60px); }
   .loginForm { min-height: 560px; padding: 42px 24px 64px; }
 }

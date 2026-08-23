@@ -4,6 +4,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { allowMethods } from "./_http.js";
 import { liveblocksAdmin } from "./_liveblocks.js";
 import { supabaseAdmin } from "./_supabase.js";
+import { syncBoardLinks } from "./_boardLinks.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -16,52 +17,21 @@ const rawBody = async (request: VercelRequest): Promise<string> => {
   return Buffer.concat(chunks).toString("utf8");
 };
 
-const syncBoardLinks = async (
-  sourceBoardId: string,
-  document: unknown
-): Promise<void> => {
-  const source = document && typeof document === "object" ? document as Record<string, unknown> : {};
-  const nodes = source.nodes && typeof source.nodes === "object"
-    ? source.nodes as Record<string, unknown>
-    : {};
-  const candidates = Object.entries(nodes).flatMap(([shapeId, value]) => {
-    if (!value || typeof value !== "object") return [];
-    const shape = value as Record<string, unknown>;
-    return shape.type === "board" && typeof shape.boardId === "string" && shape.boardId !== sourceBoardId
-      ? [{ source_board_id: sourceBoardId, target_board_id: shape.boardId, shape_id: shapeId }]
-      : [];
-  });
-  const database = supabaseAdmin();
-  const { error: deleteError } = await database
-    .from("board_links")
-    .delete()
-    .eq("source_board_id", sourceBoardId);
-  if (deleteError) throw deleteError;
-  if (!candidates.length) return;
-  const targetIds = [...new Set(candidates.map((link) => link.target_board_id))];
-  const { data: targets, error: targetError } = await database
-    .from("boards")
-    .select("id")
-    .in("id", targetIds)
-    .is("deleted_at", null);
-  if (targetError) throw targetError;
-  const existing = new Set((targets ?? []).map((target) => target.id));
-  const valid = candidates.filter((link) => existing.has(link.target_board_id));
-  if (valid.length) {
-    const { error } = await database.from("board_links").insert(valid);
-    if (error) throw error;
-  }
-};
-
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!allowMethods(request, response, ["POST"])) return;
+  let event: ReturnType<WebhookHandler["verifyRequest"]>;
   try {
     const secret = process.env.LIVEBLOCKS_WEBHOOK_SECRET;
     if (!secret) throw new Error("Liveblocks webhook environment variables are incomplete.");
-    const event = new WebhookHandler(secret).verifyRequest({
+    event = new WebhookHandler(secret).verifyRequest({
       headers: request.headers,
       rawBody: await rawBody(request),
     });
+  } catch {
+    return response.status(400).json({ error: "Invalid webhook request." });
+  }
+
+  try {
     if (event.type !== "storageUpdated") return response.status(200).json({ accepted: true });
 
     const database = supabaseAdmin();
@@ -84,8 +54,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
       .maybeSingle();
     if (latestError) throw latestError;
     const recent = latest && Date.now() - new Date(latest.created_at).getTime() < 5 * 60_000;
+    const document = await liveblocksAdmin().getStorageDocument(event.data.roomId, "json");
+    await syncBoardLinks(board.id, document);
     if (!recent) {
-      const document = await liveblocksAdmin().getStorageDocument(event.data.roomId, "json");
       const serialized = JSON.stringify(document);
       const { error } = await database.from("document_snapshots").insert({
         board_id: board.id,
@@ -94,10 +65,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
         checksum: createHash("sha256").update(serialized).digest("hex"),
       });
       if (error) throw error;
-      await syncBoardLinks(board.id, document);
     }
     return response.status(200).json({ accepted: true });
   } catch {
-    return response.status(400).json({ error: "Invalid webhook request." });
+    return response.status(500).json({ error: "The webhook could not be processed." });
   }
 }

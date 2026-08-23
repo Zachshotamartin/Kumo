@@ -5,6 +5,7 @@
   overflow: hidden;
   outline: none;
   touch-action: none;
+  overscroll-behavior: none;
   user-select: none;
 }
 

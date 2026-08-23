@@ -1,4 +1,3 @@
-import { LiveObject, LsonObject } from "@liveblocks/client";
 import { useCanRedo, useCanUndo, useHistory, useMutation } from "@liveblocks/react";
 import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -18,17 +17,28 @@ import {
   ungroupShapes,
 } from "./commands";
 import { moveShapesFromBaseline, normalizeShape, shapeBounds } from "./geometry";
-import { commitEditorSnapshot, setClipboard, setSaveStatus } from "../features/editor/editorSlice";
+import {
+  commitEditorSnapshot,
+  setClipboard,
+  setLocalPreviewActive,
+  setSaveStatus,
+} from "../features/editor/editorSlice";
 import { replaceShapes, setWhiteboardData, WhiteBoardState } from "../features/whiteBoard/whiteBoardSlice";
-import { clearSelectedShapes, setSelectedShapes } from "../features/selected/selectedSlice";
+import { setSelectedShapes } from "../features/selected/selectedSlice";
 import { updateBoardSettings } from "../services/boardRepository";
+import {
+  cloneBoardAssets,
+  collectShapeAssetIds,
+  rewriteShapeAssetIds,
+} from "../services/assetRepository";
 import { AppDispatch, RootState } from "../store";
-import { shapePatch, storedShape } from "../collaboration/shapes";
+import { applyShapeMutation } from "../collaboration/mutations";
 
 export const useEditorActions = () => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
+  const selectionRotation = useSelector((state: RootState) => state.selected.selectionRotation);
   const editor = useSelector((state: RootState) => state.editor);
   const history = useHistory();
   const canUndo = useCanUndo();
@@ -37,24 +47,7 @@ export const useEditorActions = () => {
 
   const mutateShapes = useMutation(
     ({ storage }, nextShapes: Shape[], previousShapes: Shape[]) => {
-      const nodes = storage.get("nodes");
-      const previousById = new Map(previousShapes.map((shape) => [shape.id, shape]));
-      const nextById = new Map(nextShapes.map((shape) => [shape.id, shape]));
-
-      previousById.forEach((_shape, id) => {
-        if (!nextById.has(id)) nodes.delete(id);
-      });
-      nextById.forEach((shape, id) => {
-        const previous = previousById.get(id);
-        const existing = nodes.get(id);
-        if (!previous || !existing) {
-          nodes.set(id, new LiveObject(storedShape(shape) as LsonObject));
-          return;
-        }
-        const patch = shapePatch(previous, shape);
-        if (Object.keys(patch.update).length) existing.update(patch.update);
-        patch.remove.forEach((key) => existing.delete(key));
-      });
+      applyShapeMutation(storage.get("nodes"), nextShapes, previousShapes);
     },
     []
   );
@@ -64,9 +57,17 @@ export const useEditorActions = () => {
   }, []);
 
   const previewShapes = useCallback(
-    (shapes: Shape[]) => dispatch(replaceShapes(shapes)),
+    (shapes: Shape[]) => {
+      dispatch(setLocalPreviewActive(true));
+      dispatch(replaceShapes(shapes));
+    },
     [dispatch]
   );
+
+  const cancelPreview = useCallback((shapes: Shape[]) => {
+    dispatch(replaceShapes(shapes));
+    dispatch(setLocalPreviewActive(false));
+  }, [dispatch]);
 
   const commitShapes = useCallback(
     (
@@ -75,16 +76,23 @@ export const useEditorActions = () => {
       boardOverride?: WhiteBoardState
     ) => {
       const activeBoard = boardOverride ?? board;
-      if (!activeBoard.id || !canEdit) return;
+      if (!activeBoard.id || !canEdit) {
+        dispatch(setLocalPreviewActive(false));
+        return;
+      }
       const normalized = nextShapes.map(normalizeShape);
-      if (JSON.stringify(previousShapes) === JSON.stringify(normalized)) return;
+      if (JSON.stringify(previousShapes) === JSON.stringify(normalized)) {
+        dispatch(setLocalPreviewActive(false));
+        return;
+      }
+      mutateShapes(normalized, previousShapes);
       dispatch(replaceShapes(normalized));
+      dispatch(setLocalPreviewActive(false));
       dispatch(commitEditorSnapshot({
         boardId: activeBoard.id,
         shapes: normalized,
         backgroundColor: activeBoard.backGroundColor,
       }));
-      mutateShapes(normalized, previousShapes);
     },
     [board, canEdit, dispatch, mutateShapes]
   );
@@ -129,33 +137,51 @@ export const useEditorActions = () => {
   );
 
   const removeSelected = useCallback(() => {
-    commitShapes(deleteShapes(board.shapes, selectedIds));
-    dispatch(clearSelectedShapes());
-  }, [board.shapes, commitShapes, dispatch, selectedIds]);
+    if (!canEdit) return;
+    const next = deleteShapes(board.shapes, selectedIds);
+    commitShapes(next);
+    const remaining = new Set(next.map((shape) => shape.id));
+    dispatch(setSelectedShapes(selectedIds.filter((id) => remaining.has(id))));
+  }, [board.shapes, canEdit, commitShapes, dispatch, selectedIds]);
 
   const copySelected = useCallback(() => {
     if (selectedIds.length === 0) return;
-    dispatch(setClipboard(copyShapes(board.shapes, selectedIds)));
-  }, [board.shapes, dispatch, selectedIds]);
+    dispatch(setClipboard({ shapes: copyShapes(board.shapes, selectedIds), boardId: board.id }));
+  }, [board.id, board.shapes, dispatch, selectedIds]);
 
   const cutSelected = useCallback(() => {
+    if (!canEdit) return;
     copySelected();
     removeSelected();
-  }, [copySelected, removeSelected]);
+  }, [canEdit, copySelected, removeSelected]);
 
   const duplicateSelected = useCallback(() => {
+    if (!canEdit) return;
     const result = duplicateShapes(board.shapes, selectedIds);
     commitShapes(result.shapes);
     dispatch(setSelectedShapes(result.duplicatedIds));
-  }, [board.shapes, commitShapes, dispatch, selectedIds]);
+  }, [board.shapes, canEdit, commitShapes, dispatch, selectedIds]);
 
-  const paste = useCallback(() => {
-    if (editor.clipboard.length === 0) return;
-    const result = pasteShapes(board.shapes, editor.clipboard);
-    commitShapes(result.shapes);
-    dispatch(setSelectedShapes(result.pastedIds));
-    dispatch(setClipboard(result.pasted));
-  }, [board.shapes, commitShapes, dispatch, editor.clipboard]);
+  const paste = useCallback(async () => {
+    if (!canEdit || !board.id || editor.clipboard.length === 0) return;
+    try {
+      let clipboard = editor.clipboard;
+      if (editor.clipboardBoardId && editor.clipboardBoardId !== board.id) {
+        const assetIds = collectShapeAssetIds(clipboard);
+        const replacements = await cloneBoardAssets(board.id, assetIds);
+        clipboard = rewriteShapeAssetIds(clipboard, replacements);
+      }
+      const result = pasteShapes(board.shapes, clipboard);
+      commitShapes(result.shapes);
+      dispatch(setSelectedShapes(result.pastedIds));
+      dispatch(setClipboard({ shapes: result.pasted, boardId: board.id }));
+    } catch (error) {
+      dispatch(setSaveStatus({
+        status: "error",
+        error: error instanceof Error ? error.message : "We couldn't paste these assets.",
+      }));
+    }
+  }, [board.id, board.shapes, canEdit, commitShapes, dispatch, editor.clipboard, editor.clipboardBoardId]);
 
   const orderSelected = useCallback(
     (mode: OrderMode) => commitShapes(orderShapes(board.shapes, selectedIds, mode)),
@@ -170,8 +196,8 @@ export const useEditorActions = () => {
     [board.shapes, commitShapes, selectedIds]
   );
   const groupSelected = useCallback(
-    () => commitShapes(groupShapes(board.shapes, selectedIds)),
-    [board.shapes, commitShapes, selectedIds]
+    () => commitShapes(groupShapes(board.shapes, selectedIds, undefined, selectionRotation)),
+    [board.shapes, commitShapes, selectedIds, selectionRotation]
   );
   const ungroupSelected = useCallback(
     () => commitShapes(ungroupShapes(board.shapes, selectedIds)),
@@ -186,6 +212,7 @@ export const useEditorActions = () => {
 
   const setShapeGeometry = useCallback(
     (shape: Shape, values: Partial<{ x: number; y: number; width: number; height: number }>) => {
+      if (shape.locked) return;
       const bounds = shapeBounds(shape);
       const x = values.x ?? bounds.x;
       const y = values.y ?? bounds.y;
@@ -203,6 +230,7 @@ export const useEditorActions = () => {
     canUndo,
     canRedo,
     previewShapes,
+    cancelPreview,
     commitShapes,
     commitBoardPatch,
     patchSelected,

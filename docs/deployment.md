@@ -17,6 +17,8 @@ The SPA rewrite in `vercel.json` preserves deep links. Filesystem routes, includ
 
 Store the server-only `FIREBASE_ADMIN_*`, `SUPABASE_*`, and `LIVEBLOCKS_*` variables from `.env.example` directly in Vercel's Production and Preview environments. They are runtime configuration for authenticated Vercel Functions and are not part of the application-deployment credentials. The repository includes `yarn sync:vercel-env` as an explicit credential-rotation helper; it is not run on every application deployment.
 
+Vercel Sensitive variables are deliberately non-retrievable: `vercel env pull` writes placeholders instead of their values. For local work, either place the original values in the gitignored `.env.local` and run `yarn dev:full`, or run `yarn dev:remote` to use the stable Preview API without copying server credentials to the laptop.
+
 The `VITE_FIREBASE_*` values are browser-visible Firebase identifiers. Kumo currently has safe defaults for its existing Firebase project; add explicit values from `.env.example` in Vercel Project Settings if that project configuration changes.
 
 For `FIREBASE_ADMIN_PRIVATE_KEY`, paste the service-account private key with escaped newlines (`\\n`) or literal newlines. Never prefix an Admin variable with `VITE_`.
@@ -25,6 +27,12 @@ In Firebase Authentication, add these exact hostnames to **Authentication → Se
 
 - Production: `kumo-ochre.vercel.app`
 - Preview: `kumo-preview-zach-2267.vercel.app`
+- Local development: `localhost`
+
+On HTTPS deployments, Google redirect authentication is served through Kumo's own origin at `/__/auth/*` and transparently proxied to Firebase. This avoids the third-party-storage failure that otherwise returns a successfully authenticated user to the login page. HTTP localhost uses popup authentication instead because the Firebase hosted redirect helper only generates HTTPS URLs. In the Google OAuth web client used by the Firebase project, authorize these exact production redirect URIs:
+
+- `https://kumo-ochre.vercel.app/__/auth/handler`
+- `https://kumo-preview-zach-2267.vercel.app/__/auth/handler`
 
 Vercel's generated deployment URL changes for each pull request deployment, so the preview job assigns the stable preview hostname above to the newest same-repository pull request preview. This lets Google sign-in work without authorizing every generated deployment hostname. The alias is shared across open pull requests and therefore always represents the most recently deployed preview.
 

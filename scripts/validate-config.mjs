@@ -1,8 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
-for (const file of ["database.rules.json", "firebase.json", "vercel.json"]) {
-  JSON.parse(readFileSync(file, "utf8"));
+const jsonFiles = new Map();
+for (const file of ["database.rules.json", "firebase.json", "vercel.json", "vercel.dev.json"]) {
+  jsonFiles.set(file, JSON.parse(readFileSync(file, "utf8")));
+}
+
+const authRewrite = jsonFiles.get("vercel.json")?.rewrites?.[0];
+if (
+  authRewrite?.source !== "/__/auth/:path*" ||
+  authRewrite?.destination !== "https://kumo-7d8e1.firebaseapp.com/__/auth/:path*"
+) {
+  throw new Error("vercel.json must proxy the same-origin Firebase authentication helper first.");
 }
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
@@ -31,6 +40,16 @@ for (const required of [
   }
 }
 
+const boardLinkMigration = readFileSync(
+  "supabase/migrations/202608230002_atomic_board_link_sync.sql",
+  "utf8",
+);
+for (const required of ["sync_kumo_board_links", "security definer", "service_role"]) {
+  if (!boardLinkMigration.toLowerCase().includes(required.toLowerCase())) {
+    throw new Error(`Atomic board-link migration is missing required statement: ${required}`);
+  }
+}
+
 const sourceFiles = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
@@ -44,12 +63,24 @@ if (/firebase\/database|realtimeDb|getDatabase\s*\(/.test(clientSource)) {
   throw new Error("Firebase Realtime Database must not be used by normal client code.");
 }
 
+if (readFileSync("src/App.css", "utf8").includes("logo512.png")) {
+  throw new Error("The animated Kumo component must not fall back to the legacy logo bitmap.");
+}
+
+const logoRuntime = readFileSync("public/embed/kumo-logo.js", "utf8");
+for (const marker of ["playAnimation", "startup", "kumo-animation-start"]) {
+  if (!logoRuntime.includes(marker)) {
+    throw new Error(`The bundled Kumo logo runtime is missing authored animation support: ${marker}`);
+  }
+}
+
 const requiredDataPaths = [
   ["src/services/boardRepository.ts", "/api/boards"],
   ["src/services/assetRepository.ts", "VITE_SUPABASE_URL"],
   ["src/collaboration/LiveblocksRoot.tsx", "/api/liveblocks-auth"],
   ["api/liveblocks-webhook.ts", 'from("document_snapshots")'],
-  ["api/liveblocks-webhook.ts", 'from("board_links")'],
+  ["api/liveblocks-webhook.ts", "syncBoardLinks"],
+  ["api/_boardLinks.ts", 'rpc("sync_kumo_board_links"'],
 ];
 for (const [file, marker] of requiredDataPaths) {
   if (!readFileSync(file, "utf8").includes(marker)) {
