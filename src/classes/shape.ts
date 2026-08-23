@@ -26,6 +26,7 @@ export interface Shape {
   borderColor?: string;
   backgroundColor?: string;
   backgroundImage?: string;
+  assetId?: string;
   color?: string;
   opacity?: number;
   text?: string;

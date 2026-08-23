@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useUpdateMyPresence } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape, ShapeFunctions } from "../../classes/shape";
-import { mergeShapeChanges } from "../../editor/commands";
 import {
   hitTest,
   moveShapesFromBaseline,
@@ -20,14 +20,9 @@ import { Bounds, EditorTool, Point, ResizeHandle, Viewport } from "../../editor/
 import { useEditorActions } from "../../editor/useEditorActions";
 import { initializeEditor, setEditingShapeId, setHoveredShapeId, setViewport } from "../../features/editor/editorSlice";
 import { clearSelectedShapes, setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
-import { setCurrentUsers, setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
-import {
-  connectPresence,
-  subscribeBoard,
-  subscribePresence,
-  updatePresenceCursor,
-} from "../../firebase/services/boardRepository";
+import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { AppDispatch, RootState } from "../../store";
+import { getBoard } from "../../services/boardRepository";
 import styles from "./EditorCanvas.module.css";
 
 type InteractionMode = "draw" | "move" | "resize" | "marquee" | "pan";
@@ -106,10 +101,11 @@ const createDraftShape = (
   const shape = ShapeFunctions.createShape(tool, point.x, point.y, shapes);
   return normalizeShape({
     ...shape,
-    name: tool === "text" ? "Text" : tool === "image" ? "Image" : tool === "ellipse" ? "Ellipse" : "Rectangle",
     text: tool === "text" ? "Type something" : shape.text,
     fontSize: tool === "text" ? 18 : shape.fontSize,
-    backgroundColor: tool === "text" || tool === "image" ? "transparent" : "#f4f2ed",
+    name: tool === "board" ? "Linked board" : tool === "text" ? "Text" : tool === "image" ? "Image" : tool === "ellipse" ? "Ellipse" : "Rectangle",
+    title: tool === "board" ? "Choose a destination" : shape.title,
+    backgroundColor: tool === "text" || tool === "image" ? "transparent" : tool === "board" ? "#303640" : "#f4f2ed",
     color: "#f7f7f5",
     borderColor: "#17181a",
     borderWidth: tool === "text" ? 0 : 1,
@@ -137,12 +133,12 @@ const EditorCanvas = () => {
   const dispatch = useDispatch<AppDispatch>();
   const canvasRef = useRef<HTMLDivElement>(null);
   const interactionRef = useRef<Interaction | null>(null);
-  const pendingRemoteRef = useRef<RootState["whiteBoard"] | null>(null);
   const textBaselineRef = useRef<Shape[] | null>(null);
   const spacePressedRef = useRef(false);
   const cursorFrameRef = useRef<number | null>(null);
   const [marquee, setMarquee] = useState<{ start: Point; end: Point } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [navigationError, setNavigationError] = useState<string | null>(null);
 
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
@@ -151,6 +147,7 @@ const EditorCanvas = () => {
   const user = useSelector((state: RootState) => state.auth);
   const showGrid = useSelector((state: RootState) => state.actions.grid);
   const actions = useEditorActions();
+  const updateMyPresence = useUpdateMyPresence();
 
   const selectedBounds = useMemo(
     () => selectionBounds(board.shapes, selectedIds),
@@ -172,41 +169,8 @@ const EditorCanvas = () => {
   }, [board.id, dispatch]);
 
   useEffect(() => {
-    if (!board.id || !user.uid) return;
-    const boardId = board.id;
-    const unsubscribeBoard = subscribeBoard(
-      boardId,
-      (remoteBoard) => {
-        if (remoteBoard.lastChangedBy === user.uid) return;
-        if (interactionRef.current) {
-          pendingRemoteRef.current = remoteBoard;
-          return;
-        }
-        dispatch(setWhiteboardData(remoteBoard));
-        dispatch(
-          initializeEditor({
-            boardId,
-            shapes: remoteBoard.shapes,
-            backgroundColor: remoteBoard.backGroundColor,
-          })
-        );
-      },
-      () => undefined
-    );
-    const unsubscribePresence = subscribePresence(boardId, (presence) =>
-      dispatch(setCurrentUsers(presence))
-    );
-    let disconnectPresence: (() => Promise<void>) | undefined;
-    void connectPresence(boardId, user.uid, user.email).then((disconnect) => {
-      disconnectPresence = disconnect;
-    });
-
-    return () => {
-      unsubscribeBoard();
-      unsubscribePresence();
-      void disconnectPresence?.();
-    };
-  }, [board.id, dispatch, user.email, user.uid]);
+    updateMyPresence({ selectionIds: selectedIds });
+  }, [selectedIds, updateMyPresence]);
 
   const pointerWorld = useCallback(
     (event: Pick<React.PointerEvent<HTMLDivElement>, "clientX" | "clientY">): Point => {
@@ -349,10 +313,10 @@ const EditorCanvas = () => {
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const world = pointerWorld(event);
-    if (board.id && user.uid && cursorFrameRef.current === null) {
+    if (cursorFrameRef.current === null) {
       cursorFrameRef.current = window.requestAnimationFrame(() => {
         cursorFrameRef.current = null;
-        void updatePresenceCursor(board.id as string, user.uid as string, world);
+        updateMyPresence({ cursor: world });
       });
     }
 
@@ -452,30 +416,8 @@ const EditorCanvas = () => {
       shouldCommit = true;
     }
 
-    const remote = pendingRemoteRef.current;
-    pendingRemoteRef.current = null;
-    if (remote && shouldCommit) {
-      const merged = mergeShapeChanges(interaction.baseline, interaction.preview, remote.shapes);
-      dispatch(setWhiteboardData({ ...remote, shapes: merged }));
-      dispatch(
-        initializeEditor({
-          boardId: remote.id as string,
-          shapes: remote.shapes,
-          backgroundColor: remote.backGroundColor,
-        })
-      );
-      actions.commitShapes(merged, remote.shapes, remote);
-    } else if (shouldCommit) {
+    if (shouldCommit) {
       actions.commitShapes(interaction.preview, interaction.baseline);
-    } else if (remote) {
-      dispatch(setWhiteboardData(remote));
-      dispatch(
-        initializeEditor({
-          boardId: remote.id as string,
-          shapes: remote.shapes,
-          backgroundColor: remote.backGroundColor,
-        })
-      );
     }
   };
 
@@ -630,6 +572,7 @@ const EditorCanvas = () => {
         o: "ellipse",
         t: "text",
         i: "image",
+        b: "board",
       };
       const tool = toolByKey[event.key.toLowerCase()];
       if (tool && !command) dispatch(setSelectedTool(tool));
@@ -721,6 +664,18 @@ const EditorCanvas = () => {
       }}
       onDoubleClick={(event) => {
         const hit = hitTest(board.shapes, pointerWorld(event));
+        if (hit?.type === "board" && hit.boardId) {
+          setNavigationError(null);
+          void getBoard(hit.boardId)
+            .then((nextBoard) => {
+              dispatch(clearSelectedShapes());
+              dispatch(setWhiteboardData(nextBoard));
+            })
+            .catch((error) => setNavigationError(
+              error instanceof Error ? error.message : "We couldn't open the linked board."
+            ));
+          return;
+        }
         if (hit?.type === "text") {
           dispatch(setSelectedShapes([hit.id]));
           dispatch(setEditingShapeId(hit.id));
@@ -875,6 +830,12 @@ const EditorCanvas = () => {
               {label as string}
             </button>
           ))}
+        </div>
+      )}
+      {navigationError && (
+        <div className={styles.navigationError} role="alert">
+          <span>{navigationError}</span>
+          <button type="button" aria-label="Dismiss navigation error" onClick={() => setNavigationError(null)}>×</button>
         </div>
       )}
     </div>

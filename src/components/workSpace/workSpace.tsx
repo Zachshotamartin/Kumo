@@ -1,7 +1,7 @@
-import EditorWorkspace from "../editor/EditorWorkspace";
+import BoardRoom from "../../collaboration/BoardRoom";
 
 const WorkSpace = () => {
-  return <EditorWorkspace />;
+  return <BoardRoom />;
 };
 
 export default WorkSpace;

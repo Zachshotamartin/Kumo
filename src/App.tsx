@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./config/firebase";
 import { login, logout, setAuthInitialized } from "./features/auth/authSlice";
-import { ensureUserProfile } from "./firebase/services/userRepository";
+import { ensureUserProfile } from "./services/userRepository";
 import { AppDispatch, RootState } from "./store";
 
 const WorkSpace = lazy(() => import("./components/workSpace/workSpace"));
@@ -35,13 +35,7 @@ function App() {
           email: firebaseUser.email ?? "",
         })
       );
-      void ensureUserProfile(
-        firebaseUser.uid,
-        firebaseUser.email,
-        firebaseUser.providerData.some((profile) => profile.providerId === "google.com")
-          ? "google"
-          : "email"
-      );
+      void ensureUserProfile();
     });
     return () => unsubscribe();
   }, [dispatch]);

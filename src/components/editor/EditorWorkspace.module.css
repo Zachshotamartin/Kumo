@@ -394,6 +394,21 @@
   background: #3c3e42;
 }
 
+.toolbarError {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  width: max-content;
+  max-width: min(320px, 80vw);
+  padding: 8px 10px;
+  color: #ffd9cf;
+  font-size: 11px;
+  line-height: 1.4;
+  background: #702f24;
+  border: 1px solid #a94a37;
+  border-radius: 6px;
+}
+
 .zoomControl {
   position: absolute;
   right: 14px;
@@ -482,6 +497,16 @@
   background: #27282c;
   border-radius: 5px;
 }
+
+.fieldHint,
+.fieldError {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.fieldHint { color: #85868a; }
+.fieldError { color: #f1a38f; }
 
 .colorField {
   grid-template-columns: 48px minmax(0, 1fr);
