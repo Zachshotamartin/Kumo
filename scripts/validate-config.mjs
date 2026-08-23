@@ -1,8 +1,19 @@
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
 for (const file of ["database.rules.json", "firebase.json", "vercel.json"]) {
   JSON.parse(readFileSync(file, "utf8"));
 }
+
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+if (packageJson.resolutions?.jose !== "5.10.0") {
+  throw new Error("Firebase Admin requires the Vercel-compatible jwks-rsa/jose resolution.");
+}
+execFileSync(
+  process.execPath,
+  ["--no-experimental-require-module", "--eval", "require('jwks-rsa')"],
+  { stdio: "pipe" },
+);
 
 const migration = readFileSync("supabase/migrations/202608230001_initial_kumo.sql", "utf8");
 for (const required of [

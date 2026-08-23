@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=22 <25"
   },
+  "resolutions": {
+    "jose": "5.10.0"
+  },
   "dependencies": {
     "@liveblocks/client": "^3.24.1",
     "@liveblocks/node": "^3.24.1",

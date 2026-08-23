@@ -51,6 +51,8 @@ The `main` branch is protected for administrators and contributors. Changes must
 
 The workflow follows Vercel's supported `vercel pull` → `vercel build` → `vercel deploy --prebuilt` sequence. Preview builds and deployments both specify `--target=preview`; the preview job then updates the stable alias used by Firebase Authentication.
 
+Firebase Admin currently brings in `jwks-rsa`, whose default `jose` v6 dependency relies on native `require(esm)` behavior that Vercel's serverless loader does not provide. The package resolution pins that transitive edge to the dual CommonJS/ESM `jose` 5.10.0 build; keep it until Firebase Admin or `jwks-rsa` removes the incompatibility.
+
 Supabase migrations and Liveblocks webhook configuration use a separate reviewed release step before the application cutover. This prevents an application deploy token from gaining database-administration privileges and keeps infrastructure changes auditable.
 
 ## 5. First cutover
