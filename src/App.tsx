@@ -6,6 +6,7 @@ import { auth } from "./config/firebase";
 import { login, logout, setAuthInitialized } from "./features/auth/authSlice";
 import { ensureUserProfile } from "./services/userRepository";
 import { AppDispatch, RootState } from "./store";
+import KumoLogo from "./components/brand/KumoLogo";
 
 const WorkSpace = lazy(() => import("./components/workSpace/workSpace"));
 const HomePage = lazy(() => import("./components/homepage/homePage"));
@@ -13,7 +14,7 @@ const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
 
 const LoadingScreen = () => (
   <div className="app-loading" role="status">
-    <span className="app-loading-mark">K</span>
+    <KumoLogo className="app-loading-logo" context="loading" decorative />
     <span>Loading Kumo</span>
   </div>
 );

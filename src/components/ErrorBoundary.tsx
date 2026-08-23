@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from "react";
+import KumoLogo from "./brand/KumoLogo";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -23,7 +24,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (!this.state.failed) return this.props.children;
     return (
       <main className="fatal-error">
-        <span className="app-loading-mark" aria-hidden="true">K</span>
+        <KumoLogo className="app-loading-logo" context="error" decorative />
         <p>Something interrupted this workspace.</p>
         <button type="button" onClick={() => window.location.reload()}>Reload Kumo</button>
       </main>

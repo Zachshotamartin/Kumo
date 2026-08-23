@@ -41,6 +41,7 @@ describe("HomePage authentication", () => {
     fillCredentials();
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("An account already uses this email");
+    expect(screen.getByLabelText("Animated Kumo mascot")).toHaveAttribute("context", "error");
   });
 
   it("validates and sends password reset requests", async () => {
@@ -50,6 +51,7 @@ describe("HomePage authentication", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Password reset email sent");
+    expect(screen.getByLabelText("Animated Kumo mascot")).toHaveAttribute("context", "success");
   });
 
   it("reports Google authentication failures", async () => {
@@ -57,5 +59,6 @@ describe("HomePage authentication", () => {
     render(<HomePage />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Popup closed");
+    expect(screen.getByLabelText("Animated Kumo mascot")).toHaveAttribute("context", "error");
   });
 });

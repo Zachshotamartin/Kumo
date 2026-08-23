@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
+import KumoLogo from "../brand/KumoLogo";
 import { auth } from "../../config/firebase";
 import { logout } from "../../features/auth/authSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
@@ -131,8 +132,8 @@ const BoardDashboard = () => {
     <main className={styles.dashboard}>
       <header className={styles.header}>
         <a className={styles.brand} href="#main-content" aria-label="Kumo boards">
-          <span>K</span>
-          Kumo
+          <KumoLogo className={styles.brandLogo} decorative />
+          <span className={styles.brandName}>Kumo</span>
         </a>
         <label className={styles.search}>
           <span className="sr-only">Search public boards</span>

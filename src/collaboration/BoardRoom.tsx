@@ -4,10 +4,11 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import EditorWorkspace from "../components/editor/EditorWorkspace";
 import CollaborationBridge from "./CollaborationBridge";
+import KumoLogo from "../components/brand/KumoLogo";
 
 const RoomLoading = () => (
   <div className="app-loading" role="status">
-    <span className="app-loading-mark">K</span>
+    <KumoLogo className="app-loading-logo" context="loading" decorative />
     <span>Connecting to board</span>
   </div>
 );

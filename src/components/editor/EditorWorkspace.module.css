@@ -60,16 +60,7 @@
   outline: none;
 }
 
-.brandMark {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  color: #17181a;
-  font-size: 12px;
-  background: var(--accent);
-  border-radius: 5px 5px 5px 1px;
-}
+.brandLogo { width: 32px; }
 
 .brandWord {
   letter-spacing: -0.02em;

@@ -1,5 +1,14 @@
 .App { min-height: 100dvh; }
 
+kumo-logo {
+  display: inline-block;
+  max-width: 100%;
+  aspect-ratio: 1;
+  background: url("/logo512.png") center / contain no-repeat;
+}
+
+kumo-logo:defined { background-image: none; }
+
 .skip-link {
   position: fixed;
   top: 8px;
@@ -28,15 +37,12 @@
   background: #1b1c1e;
 }
 
-.app-loading-mark {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  color: #17181a;
-  background: #ef6f4d;
-  border-radius: 6px 6px 6px 2px;
+.app-loading-logo {
+  width: 44px;
+  flex: 0 0 auto;
 }
+
+.fatal-error .app-loading-logo { width: 72px; }
 
 .fatal-error {
   display: grid;

@@ -30,16 +30,9 @@
   text-decoration: none;
 }
 
-.brand span {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  place-items: center;
-  color: #fbfaf6;
-  font-size: 12px;
-  background: #df6546;
-  border-radius: 6px 6px 6px 2px;
-}
+.brandLogo { width: 36px; }
+
+.brandName { font-size: 14px; }
 
 .search {
   display: grid;
@@ -345,7 +338,7 @@
 }
 
 @media (max-width: 460px) {
-  .brand { font-size: 0; }
+  .brandName { display: none; }
   .boardGrid,
   .skeletonGrid { grid-template-columns: 1fr; }
 }

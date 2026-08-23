@@ -16,6 +16,7 @@ import EditorToolbar from "./EditorToolbar";
 import InspectorPanel from "./InspectorPanel";
 import LayersPanel from "./LayersPanel";
 import styles from "./EditorWorkspace.module.css";
+import KumoLogo from "../brand/KumoLogo";
 import ShareDialog from "./ShareDialog";
 
 const emptyBoard = {
@@ -102,7 +103,7 @@ const EditorWorkspace = () => {
       <header className={styles.topbar}>
         <div className={styles.topbarStart}>
           <button type="button" className={styles.brandButton} onClick={goHome} aria-label="Back to boards">
-            <span className={styles.brandMark} aria-hidden="true">K</span>
+            <KumoLogo className={styles.brandLogo} decorative />
             <span className={styles.brandWord}>Kumo</span>
           </button>
           <span className={styles.breadcrumb} aria-hidden="true">/</span>
