@@ -2,41 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
   ArrowCounterClockwise,
-  Circle,
-  ChatCenteredText,
-  CursorClick,
-  FrameCorners,
-  Hand,
-  ImageSquare,
-  LinkSimple,
-  PenNib,
-  Rectangle,
-  TextT,
   Trash,
-  type Icon,
 } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { ShapeFunctions } from "../../classes/shape";
 import { normalizeShape } from "../../editor/geometry";
-import { EditorTool } from "../../editor/types";
+import { EDITOR_TOOL_DEFINITIONS } from "../../editor/toolDefinitions";
 import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import { deleteBoardAsset, uploadBoardImage } from "../../services/assetRepository";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
-
-const tools: Array<{ id: EditorTool; label: string; shortcut: string; Icon: Icon }> = [
-  { id: "pointer", label: "Select", shortcut: "V", Icon: CursorClick },
-  { id: "hand", label: "Hand", shortcut: "H", Icon: Hand },
-  { id: "frame", label: "Frame", shortcut: "F", Icon: FrameCorners },
-  { id: "rectangle", label: "Rectangle", shortcut: "R", Icon: Rectangle },
-  { id: "ellipse", label: "Ellipse", shortcut: "O", Icon: Circle },
-  { id: "pen", label: "Pen", shortcut: "P", Icon: PenNib },
-  { id: "text", label: "Text", shortcut: "T", Icon: TextT },
-  { id: "image", label: "Image", shortcut: "I", Icon: ImageSquare },
-  { id: "board", label: "Linked board", shortcut: "B", Icon: LinkSimple },
-  { id: "comment", label: "Comment", shortcut: "C", Icon: ChatCenteredText },
-];
 
 export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -107,7 +83,7 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
   return (
     <div className={styles.toolbar} role="toolbar" aria-label="Editor tools">
       <div className={styles.toolGroup}>
-        {tools.map((tool) => {
+        {EDITOR_TOOL_DEFINITIONS.map((tool) => {
           const ToolIcon = tool.Icon;
           return (
             <button

@@ -5,6 +5,7 @@ import { allowMethods } from "./_http.js";
 import { liveblocksAdmin } from "./_liveblocks.js";
 import { supabaseAdmin } from "./_supabase.js";
 import { syncBoardLinks } from "./_boardLinks.js";
+import { updateBoardThumbnail } from "./_boardThumbnail.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -37,7 +38,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const database = supabaseAdmin();
     const { data: board, error: boardError } = await database
       .from("boards")
-      .select("id")
+      .select("id, owner_id, thumbnail_asset_id")
       .eq("liveblocks_room_id", event.data.roomId)
       .is("deleted_at", null)
       .maybeSingle();
@@ -56,6 +57,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const recent = latest && Date.now() - new Date(latest.created_at).getTime() < 5 * 60_000;
     const document = await liveblocksAdmin().getStorageDocument(event.data.roomId, "json");
     await syncBoardLinks(board.id, document);
+    await updateBoardThumbnail(board, document);
     if (!recent) {
       const serialized = JSON.stringify(document);
       const { error } = await database.from("document_snapshots").insert({

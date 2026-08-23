@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, GoogleLogo, Graph } from "@phosphor-icons/react";
+import { ArrowRight, GoogleLogo } from "@phosphor-icons/react";
 import styles from "./homePage.module.css";
 import { auth, firebaseApiKey, provider } from "../../config/firebase";
 import {
@@ -11,8 +11,8 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { ensureUserProfile } from "../../services/userRepository";
-import KumoLogo from "../brand/KumoLogo";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
+import MarketingCanvas from "./MarketingCanvas";
 import {
   consumeLocalGoogleRedirect,
   hasLocalGoogleRedirectResult,
@@ -138,26 +138,7 @@ const HomePage = () => {
   return (
     <main className={styles.homePage}>
       <section className={styles.intro}>
-        <header className={styles.brandBar}>
-          <span className={styles.logoText}>Kumo</span>
-          <span>Connected visual workspace</span>
-        </header>
-        <div className={styles.heroVisual} data-context={logoContext}>
-          <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" animationScope="app-startup" />
-          <div className={styles.connectionModel} aria-label="A chain of connected Kumo boards">
-            <span>Explore</span>
-            <ArrowRight aria-hidden="true" />
-            <span>Shape</span>
-            <ArrowRight aria-hidden="true" />
-            <span>Build</span>
-          </div>
-          <span className={styles.logoStatus} aria-live="polite">{logoStatus}</span>
-        </div>
-        <div className={styles.introText}>
-          <p className={styles.eyebrow}><Graph aria-hidden="true" /> Make space to think</p>
-          <h1>Every board can lead somewhere.</h1>
-          <p className={styles.introCopy}>Create together in real time, then link one board directly into the next.</p>
-        </div>
+        <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} />
       </section>
       <form className={styles.loginForm} onSubmit={handleLogin}>
         <div className={styles.modeSwitch} role="tablist" aria-label="Authentication mode">

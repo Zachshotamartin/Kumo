@@ -23,6 +23,7 @@ import {
 import {
   adoptContainedShapes,
   ancestorsOf,
+  contextualSelectionIds,
   descendantIds,
   frameAtPoint,
   isEffectivelyHidden,
@@ -108,6 +109,18 @@ describe("frame hierarchy and contextual selection", () => {
       .toEqual([parent.id, child.id]);
   });
 
+  it("selects frames and groups contextually, then isolates the exact deep target", () => {
+    const parent = frame("f1", 0, 0, 200, 200);
+    const first = rectangle("c1", 20, 20, 40, 40, { parentId: parent.id, groupId: "group", zIndex: 2 });
+    const second = rectangle("c2", 80, 20, 40, 40, { parentId: parent.id, groupId: "group", zIndex: 3 });
+    const unrelated = rectangle("c3", 300, 20, 40, 40, { groupId: "group", zIndex: 4 });
+    const shapes = [parent, first, second, unrelated];
+
+    expect(contextualSelectionIds(shapes, first)).toEqual([parent.id]);
+    expect(contextualSelectionIds(shapes, first, true)).toEqual([first.id]);
+    expect(contextualSelectionIds([first, second, unrelated], first)).toEqual([first.id, second.id]);
+  });
+
   it("reparents a smaller moved object into the smallest frame and resolves z-order", () => {
     const parent = frame("f1", 100, 100, 300, 240, { zIndex: 5 });
     const existing = rectangle("c1", 130, 130, 40, 40, { parentId: parent.id, zIndex: 8 });
@@ -147,6 +160,7 @@ describe("frame-aware editing commands", () => {
     const framed = frameShapes([first, second], [first.id, second.id]);
     const created = framed.shapes.find((shape) => shape.id === framed.frameId)!;
     expect(created.type).toBe("frame");
+    expect(created.backgroundColor).toBe("#ffffff");
     expect([created.x1, created.y1, created.x2, created.y2]).toEqual([10, 20, 100, 90]);
     expect(framed.shapes.filter((shape) => shape.id !== created.id).every((shape) => shape.parentId === created.id)).toBe(true);
 

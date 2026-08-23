@@ -1,0 +1,8 @@
+.selectionHighlight {
+  position: absolute;
+  box-sizing: border-box;
+  z-index: 10000;
+  border: 1px solid var(--kumo-accent);
+  pointer-events: none;
+  transform-origin: center;
+}

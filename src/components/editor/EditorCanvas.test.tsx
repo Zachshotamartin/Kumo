@@ -368,6 +368,32 @@ describe("EditorCanvas transform interactions", () => {
     fireEvent.pointerDown(canvas, { pointerId: 32, button: 0, clientX: 30, clientY: 30, metaKey: true });
     fireEvent.pointerUp(canvas, { pointerId: 32, clientX: 30, clientY: 30, metaKey: true });
     expect(store.getState().selected.selectedShapes).toEqual([child.id]);
+
+    act(() => { store.dispatch(setSelectedShapes([])); });
+    fireEvent.doubleClick(canvas, { clientX: 30, clientY: 30 });
+    expect(store.getState().selected.selectedShapes).toEqual([child.id]);
+  });
+
+  it("double-clicks through a logical group to select only the pointed object", () => {
+    const first = { ...rectangle(), groupId: "group-1", name: "First" };
+    const second = {
+      ...rectangle(),
+      id: "shape-2",
+      groupId: "group-1",
+      name: "Second",
+      x1: 140,
+      x2: 240,
+      zIndex: 2,
+    };
+    const { canvas, store } = renderCanvas([first, second]);
+    act(() => { store.dispatch(setSelectedShapes([])); });
+
+    fireEvent.pointerDown(canvas, { pointerId: 42, button: 0, clientX: 20, clientY: 20 });
+    fireEvent.pointerUp(canvas, { pointerId: 42, clientX: 20, clientY: 20 });
+    expect(store.getState().selected.selectedShapes).toEqual([first.id, second.id]);
+
+    fireEvent.doubleClick(canvas, { clientX: 20, clientY: 20 });
+    expect(store.getState().selected.selectedShapes).toEqual([first.id]);
   });
 
   it("draws a frame around objects and adopts them without moving their coordinates", () => {

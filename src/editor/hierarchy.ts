@@ -62,6 +62,29 @@ export const topLevelFrameFor = (
   return frames.at(-1);
 };
 
+/**
+ * Mirrors contextual canvas selection: a normal click selects the outer frame
+ * or logical group, while deep selection targets only the object under the
+ * pointer. Deep selection powers both modifier-click and double-click.
+ */
+export const contextualSelectionIds = (
+  shapes: readonly Shape[],
+  shape: Shape,
+  deep = false
+): string[] => {
+  if (deep) return [shape.id];
+  const frame = topLevelFrameFor(shapes, shape);
+  if (frame) return [frame.id];
+  if (!shape.groupId) return [shape.id];
+  return shapes
+    .filter((candidate) =>
+      candidate.groupId === shape.groupId &&
+      (candidate.parentId ?? null) === (shape.parentId ?? null)
+    )
+    .sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id))
+    .map((candidate) => candidate.id);
+};
+
 export const immediateFrameFor = (
   shapes: readonly Shape[],
   shape: Shape

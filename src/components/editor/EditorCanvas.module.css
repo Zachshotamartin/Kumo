@@ -29,13 +29,6 @@
   pointer-events: none;
 }
 
-.vectorGraphic {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
 .vectorPoint {
   position: absolute;
   z-index: 10025;
@@ -90,33 +83,6 @@
   display: block;
 }
 
-.textEditorFrame {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.textEditor {
-  width: 100%;
-  min-height: 1em;
-  max-height: 100%;
-  margin: 0;
-  padding: 0;
-  resize: none;
-  overflow: auto;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  outline: 0;
-  cursor: text;
-  pointer-events: auto;
-  -webkit-user-select: text;
-  user-select: text;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .placeholderGlyph,
 .boardLabel {
   display: grid;
@@ -124,15 +90,6 @@
   height: 100%;
   place-items: center;
   font-weight: 700;
-}
-
-.selectionBox {
-  position: absolute;
-  box-sizing: border-box;
-  border: 1px solid var(--kumo-accent);
-  pointer-events: none;
-  transform-origin: center;
-  z-index: 10000;
 }
 
 .resizeHandle {
@@ -212,7 +169,8 @@
   background: rgb(31 32 34 / 0.94);
   border-color: #424448;
   border-style: solid;
-  font-size: 8px;
+  font: 500 8px/1 "SFMono-Regular", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
   pointer-events: auto;
 }
 
@@ -225,7 +183,8 @@
 
 .ruler b {
   position: absolute;
-  font-weight: 500;
+  font: inherit;
+  white-space: nowrap;
 }
 
 .horizontalRuler {
@@ -246,7 +205,8 @@
 
 .horizontalRuler b {
   top: -10px;
-  left: 3px;
+  left: 0;
+  transform: translateX(-50%);
 }
 
 .verticalRuler {
@@ -266,9 +226,11 @@
 }
 
 .verticalRuler b {
-  top: 3px;
-  left: -11px;
-  transform: rotate(-90deg);
+  top: 50%;
+  right: 7px;
+  text-orientation: mixed;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
 }
 
 .rulerCorner {

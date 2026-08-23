@@ -36,12 +36,13 @@ const BoardCard = ({
 }) => (
   <article className={styles.boardCard}>
     <button type="button" className={styles.boardPreview} onClick={onOpen} aria-label={`${actionLabel} ${board.title}`}>
-      <span className={styles.previewGrid} aria-hidden="true" />
-      <span className={styles.previewPath} aria-hidden="true">
-        <span />
-        <Graph weight="duotone" />
-        <span />
-      </span>
+      {board.thumbnailUrl ? (
+        <img className={styles.previewImage} src={board.thumbnailUrl} alt="" />
+      ) : (
+        <span className={styles.previewPlaceholder} aria-hidden="true">
+          <Graph weight="duotone" />
+        </span>
+      )}
     </button>
     <div className={styles.boardMeta}>
       <div>

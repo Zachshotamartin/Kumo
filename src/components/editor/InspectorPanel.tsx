@@ -150,64 +150,66 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
       </section>
       <section className={styles.inspectorSection}>
         <h2>Appearance</h2>
-        {shape.type === "text" && (
-          <ColorField label="Text" value={shape.color ?? "#f7f7f5"} onCommit={(color) => actions.patchSelected({ color })} />
-        )}
-        <ColorField label={shape.type === "text" ? "Back" : "Fill"} value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
-        <label className={styles.fullField}>
-          <span>Fill type</span>
-          <select
-            value={shape.fillType ?? "solid"}
-            onChange={(event) => {
-              const fillType = event.target.value as Shape["fillType"];
-              actions.patchSelected({
-                fillType,
-                ...((fillType !== "solid" && !shape.gradientStops?.length) ? {
-                  gradientStops: [
-                    { id: createShapeId(), position: 0, color: shape.backgroundColor ?? "#f4f2ed", opacity: 1 },
-                    { id: createShapeId(), position: 1, color: "#ffffff", opacity: 1 },
-                  ],
-                } : {}),
-              });
-            }}
-          >
-            <option value="solid">Solid</option>
-            <option value="linear-gradient">Linear gradient</option>
-            <option value="radial-gradient">Radial gradient</option>
-          </select>
-        </label>
-        {shape.fillType && shape.fillType !== "solid" && (
-          <>
-            {shape.fillType === "linear-gradient" && <NumberField label="Gradient angle" value={shape.gradientAngle ?? 90} onCommit={(gradientAngle) => actions.patchSelected({ gradientAngle })} />}
-            {(shape.gradientStops ?? []).map((stop, index) => (
-              <div className={styles.gradientStop} key={stop.id}>
-                <ColorField label={`Stop ${index + 1}`} value={stop.color} onCommit={(color) => actions.patchSelected({ gradientStops: shape.gradientStops?.map((candidate) => candidate.id === stop.id ? { ...candidate, color } : candidate) })} />
-                <NumberField label="At %" min={0} max={100} value={stop.position * 100} onCommit={(position) => actions.patchSelected({ gradientStops: shape.gradientStops?.map((candidate) => candidate.id === stop.id ? { ...candidate, position: position / 100 } : candidate) })} />
-              </div>
-            ))}
-          </>
-        )}
-        <ColorField label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
-        <div className={styles.fieldGrid}>
-          <NumberField label="Stroke" min={0} value={shape.borderWidth ?? 0} onCommit={(borderWidth) => actions.patchSelected({ borderWidth })} />
-          <NumberField label="Radius" min={0} value={shape.borderRadius ?? 0} onCommit={(borderRadius) => actions.patchSelected({ borderRadius })} />
+        <div className={styles.inspectorStack}>
+          {shape.type === "text" && (
+            <ColorField label="Text" value={shape.color ?? "#f7f7f5"} onCommit={(color) => actions.patchSelected({ color })} />
+          )}
+          <ColorField label={shape.type === "text" ? "Back" : "Fill"} value={shape.backgroundColor ?? "#f4f2ed"} onCommit={(backgroundColor) => actions.patchSelected({ backgroundColor })} />
+          <label className={styles.fullField}>
+            <span>Fill type</span>
+            <select
+              value={shape.fillType ?? "solid"}
+              onChange={(event) => {
+                const fillType = event.target.value as Shape["fillType"];
+                actions.patchSelected({
+                  fillType,
+                  ...((fillType !== "solid" && !shape.gradientStops?.length) ? {
+                    gradientStops: [
+                      { id: createShapeId(), position: 0, color: shape.backgroundColor ?? "#f4f2ed", opacity: 1 },
+                      { id: createShapeId(), position: 1, color: "#ffffff", opacity: 1 },
+                    ],
+                  } : {}),
+                });
+              }}
+            >
+              <option value="solid">Solid</option>
+              <option value="linear-gradient">Linear gradient</option>
+              <option value="radial-gradient">Radial gradient</option>
+            </select>
+          </label>
+          {shape.fillType && shape.fillType !== "solid" && (
+            <>
+              {shape.fillType === "linear-gradient" && <NumberField label="Gradient angle" value={shape.gradientAngle ?? 90} onCommit={(gradientAngle) => actions.patchSelected({ gradientAngle })} />}
+              {(shape.gradientStops ?? []).map((stop, index) => (
+                <div className={styles.gradientStop} key={stop.id}>
+                  <ColorField label={`Stop ${index + 1}`} value={stop.color} onCommit={(color) => actions.patchSelected({ gradientStops: shape.gradientStops?.map((candidate) => candidate.id === stop.id ? { ...candidate, color } : candidate) })} />
+                  <NumberField label="At %" min={0} max={100} value={stop.position * 100} onCommit={(position) => actions.patchSelected({ gradientStops: shape.gradientStops?.map((candidate) => candidate.id === stop.id ? { ...candidate, position: position / 100 } : candidate) })} />
+                </div>
+              ))}
+            </>
+          )}
+          <ColorField label="Stroke" value={shape.borderColor ?? "#17181a"} onCommit={(borderColor) => actions.patchSelected({ borderColor })} />
+          <div className={styles.fieldGrid}>
+            <NumberField label="Stroke" min={0} value={shape.borderWidth ?? 0} onCommit={(borderWidth) => actions.patchSelected({ borderWidth })} />
+            <NumberField label="Radius" min={0} value={shape.borderRadius ?? 0} onCommit={(borderRadius) => actions.patchSelected({ borderRadius })} />
+          </div>
+          <label className={styles.fullField}>
+            <span>Stroke style</span>
+            <select value={shape.borderStyle ?? "solid"} onChange={(event) => actions.patchSelected({ borderStyle: event.target.value })}>
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+              <option value="double">Double</option>
+            </select>
+          </label>
+          <label className={styles.fullField}>
+            <span>Blend mode</span>
+            <select value={shape.blendMode ?? "normal"} onChange={(event) => actions.patchSelected({ blendMode: event.target.value as Shape["blendMode"] })}>
+              <option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option>
+              <option value="overlay">Overlay</option><option value="darken">Darken</option><option value="lighten">Lighten</option><option value="difference">Difference</option>
+            </select>
+          </label>
         </div>
-        <label className={styles.fullField}>
-          <span>Stroke style</span>
-          <select value={shape.borderStyle ?? "solid"} onChange={(event) => actions.patchSelected({ borderStyle: event.target.value })}>
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
-            <option value="double">Double</option>
-          </select>
-        </label>
-        <label className={styles.fullField}>
-          <span>Blend mode</span>
-          <select value={shape.blendMode ?? "normal"} onChange={(event) => actions.patchSelected({ blendMode: event.target.value as Shape["blendMode"] })}>
-            <option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option>
-            <option value="overlay">Overlay</option><option value="darken">Darken</option><option value="lighten">Lighten</option><option value="difference">Difference</option>
-          </select>
-        </label>
       </section>
       <section className={styles.inspectorSection}>
         <h2>Effects</h2>

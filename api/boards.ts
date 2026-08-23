@@ -128,7 +128,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       .update(patch)
       .eq("id", boardId)
       .eq("owner_id", actor.uid)
-      .select("id, owner_id, title, visibility, liveblocks_room_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+      .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
       .single();
     if (error) throw error;
     await supabaseAdmin().from("audit_events").insert({
