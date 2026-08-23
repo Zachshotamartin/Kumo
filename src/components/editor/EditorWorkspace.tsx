@@ -1,25 +1,43 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
   CaretLeft,
   CaretRight,
+  ChatCenteredText,
+  ClockCounterClockwise,
   DotsThree,
+  DiamondsFour,
   Globe,
+  FlowArrow,
+  Export,
+  Code,
+  GitBranch,
   Minus,
   Plus,
   ShareNetwork,
+  Presentation,
   SignOut,
   Trash,
   X,
 } from "@phosphor-icons/react";
 import { useSyncStatus } from "@liveblocks/react";
+import {
+  useBroadcastEvent,
+  useMyPresence,
+  useUnreadInboxNotificationsCount,
+} from "@liveblocks/react/suspense";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { logout } from "../../features/auth/authSlice";
 import { zoomAtPoint, ZOOM_STEP_FACTOR } from "../../editor/geometry";
-import { setViewport } from "../../features/editor/editorSlice";
+import {
+  setFollowingUserId,
+  setPresentationMode,
+  setRightPanel,
+  setViewport,
+} from "../../features/editor/editorSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { deleteBoard } from "../../services/boardRepository";
@@ -31,11 +49,24 @@ import LayersPanel from "./LayersPanel";
 import styles from "./EditorWorkspace.module.css";
 import KumoLogo from "../brand/KumoLogo";
 import ShareDialog from "./ShareDialog";
+import CommandPalette from "./CommandPalette";
+
+const CommentsPanel = lazy(() => import("../../comments/CommentsPanel").then((module) => ({ default: module.CommentsPanel })));
+const VersionHistoryPanel = lazy(() => import("../../history/VersionHistoryPanel").then((module) => ({ default: module.VersionHistoryPanel })));
+const DesignLibraryPanel = lazy(() => import("./DesignLibraryPanel"));
+const PrototypePanel = lazy(() => import("./PrototypePanel"));
+const PresentationView = lazy(() => import("./PresentationView"));
+const ExportPanel = lazy(() => import("./ExportPanel"));
+const InspectPanel = lazy(() => import("./InspectPanel"));
+const BranchesPanel = lazy(() => import("./BranchesPanel"));
 
 const emptyBoard = {
   shapes: [],
   id: null,
   roomId: null,
+  baseRoomId: null,
+  activeBranchId: null,
+  activeBranchName: null,
   role: null,
   type: null,
   title: null,
@@ -45,7 +76,7 @@ const emptyBoard = {
   backGroundColor: "#252629",
   lastChangedBy: null,
   currentUsers: [],
-  schemaVersion: 3,
+  schemaVersion: 4,
   revision: 0,
   updatedAt: null,
 };
@@ -73,6 +104,9 @@ const EditorWorkspace = () => {
   const editor = useSelector((state: RootState) => state.editor);
   const actions = useEditorActions();
   const syncStatus = useSyncStatus({ smooth: true });
+  const [myPresence, updateMyPresence] = useMyPresence();
+  const broadcastEvent = useBroadcastEvent();
+  const { count: unreadCommentCount } = useUnreadInboxNotificationsCount();
   const canvasRegionRef = useRef<HTMLElement>(null);
   const panelResizeRef = useRef<PanelResize | null>(null);
   const [title, setTitle] = useState(board.title ?? "Untitled board");
@@ -189,6 +223,17 @@ const EditorWorkspace = () => {
     );
   };
 
+  const toggleSpotlight = () => {
+    if (!user.uid) return;
+    const spotlight = !myPresence.spotlight;
+    updateMyPresence({ spotlight });
+    broadcastEvent({
+      type: spotlight ? "SPOTLIGHT_START" : "SPOTLIGHT_STOP",
+      presenterId: user.uid,
+    });
+  };
+  const propertiesVisible = !propertiesCollapsed || editor.rightPanel !== "properties";
+
   return (
     <main className={styles.workspace}>
       <header className={styles.topbar}>
@@ -208,8 +253,10 @@ const EditorWorkspace = () => {
             onBlur={commitTitle}
             onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
           />
+          {board.activeBranchName && <span className={styles.branchBadge}><GitBranch aria-hidden="true" />{board.activeBranchName}</span>}
         </div>
         <div className={styles.topbarEnd}>
+          <CommandPalette />
           <span
             className={`${styles.saveStatus} ${editor.saveStatus === "error" ? styles.saveError : ""}`}
             role="status"
@@ -224,11 +271,82 @@ const EditorWorkspace = () => {
           </span>
           <div className={styles.presenceStack} aria-label={`${board.currentUsers.length} people on this board`}>
             {board.currentUsers.slice(0, 3).map((presence) => (
-              <span key={presence.uid} title={presence.label ?? "Collaborator"}>
+              <button
+                type="button"
+                key={presence.uid}
+                title={`Follow ${presence.label ?? "collaborator"}`}
+                aria-label={`Follow ${presence.label ?? "collaborator"}`}
+                onClick={() => dispatch(setFollowingUserId(presence.uid))}
+              >
                 {(presence.label ?? "C").slice(0, 1).toUpperCase()}
-              </span>
+              </button>
             ))}
           </div>
+          <button
+            type="button"
+            className={styles.secondaryTopbarButton}
+            onClick={() => dispatch(setPresentationMode(true))}
+          >
+            <Presentation aria-hidden="true" />
+            <span>Present</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${myPresence.spotlight ? styles.activeTopbarButton : ""}`}
+            aria-pressed={myPresence.spotlight}
+            onClick={toggleSpotlight}
+          >
+            <span>{myPresence.spotlight ? "Stop spotlight" : "Spotlight"}</span>
+          </button>
+          <button
+            type="button"
+            className={styles.secondaryTopbarButton}
+            onClick={() => dispatch(setRightPanel("comments"))}
+          >
+            <ChatCenteredText aria-hidden="true" />
+            <span>Comments</span>
+            {unreadCommentCount > 0 && <b className={styles.notificationBadge}>{unreadCommentCount}</b>}
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "assets" ? styles.activeTopbarButton : ""}`}
+            onClick={() => dispatch(setRightPanel("assets"))}
+          >
+            <DiamondsFour aria-hidden="true" />
+            <span>Assets</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "prototype" ? styles.activeTopbarButton : ""}`}
+            onClick={() => dispatch(setRightPanel("prototype"))}
+          >
+            <FlowArrow aria-hidden="true" />
+            <span>Prototype</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "export" ? styles.activeTopbarButton : ""}`}
+            onClick={() => dispatch(setRightPanel("export"))}
+          >
+            <Export aria-hidden="true" />
+            <span>Export</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "inspect" ? styles.activeTopbarButton : ""}`}
+            onClick={() => dispatch(setRightPanel("inspect"))}
+          >
+            <Code aria-hidden="true" />
+            <span>Inspect</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "branches" ? styles.activeTopbarButton : ""}`}
+            onClick={() => dispatch(setRightPanel("branches"))}
+          >
+            <GitBranch aria-hidden="true" />
+            <span>Branches</span>
+          </button>
           <button type="button" className={styles.shareButton} onClick={() => setShareOpen(true)}>
             <ShareNetwork aria-hidden="true" />
             <span>Share</span>
@@ -238,6 +356,9 @@ const EditorWorkspace = () => {
             <div className={styles.boardMenu} role="menu">
               <button type="button" role="menuitem" onClick={() => actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" })} disabled={board.role !== "owner"}>
                 <Globe aria-hidden="true" /> <span>Make {board.type === "public" ? "private" : "public"}</span>
+              </button>
+              <button type="button" role="menuitem" onClick={() => { dispatch(setRightPanel("history")); setMenuOpen(false); }}>
+                <ClockCounterClockwise aria-hidden="true" /> <span>Version history</span>
               </button>
               <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)} disabled={board.role !== "owner"}>
                 <Trash aria-hidden="true" /> <span>Delete board</span>
@@ -254,8 +375,8 @@ const EditorWorkspace = () => {
         style={{
           "--layers-panel-width": layersCollapsed ? "0px" : `${layersWidth}px`,
           "--layers-resizer-width": layersCollapsed ? "0px" : "6px",
-          "--properties-panel-width": propertiesCollapsed ? "0px" : `${propertiesWidth}px`,
-          "--properties-resizer-width": propertiesCollapsed ? "0px" : "6px",
+          "--properties-panel-width": propertiesVisible ? `${propertiesWidth}px` : "0px",
+          "--properties-resizer-width": propertiesVisible ? "6px" : "0px",
         } as CSSProperties}
       >
         <div className={styles.panelSlot}>{!layersCollapsed && <LayersPanel />}</div>
@@ -287,11 +408,18 @@ const EditorWorkspace = () => {
           <button
             type="button"
             className={`${styles.panelToggle} ${styles.propertiesToggle}`}
-            aria-label={`${propertiesCollapsed ? "Show" : "Hide"} properties panel`}
-            aria-expanded={!propertiesCollapsed}
-            onClick={() => setPropertiesCollapsed((collapsed) => !collapsed)}
+            aria-label={`${propertiesVisible ? "Hide" : "Show"} properties panel`}
+            aria-expanded={propertiesVisible}
+            onClick={() => {
+              if (editor.rightPanel !== "properties") {
+                dispatch(setRightPanel("properties"));
+                setPropertiesCollapsed(true);
+              } else {
+                setPropertiesCollapsed((collapsed) => !collapsed);
+              }
+            }}
           >
-            {propertiesCollapsed ? <CaretLeft aria-hidden="true" /> : <CaretRight aria-hidden="true" />}
+            {propertiesVisible ? <CaretRight aria-hidden="true" /> : <CaretLeft aria-hidden="true" />}
           </button>
           <div className={styles.zoomControl} aria-label="Zoom controls">
             <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / ZOOM_STEP_FACTOR)}><Minus aria-hidden="true" /></button>
@@ -314,13 +442,40 @@ const EditorWorkspace = () => {
           aria-valuemin={PANEL_LIMITS.properties.min}
           aria-valuemax={PANEL_LIMITS.properties.max}
           aria-valuenow={propertiesWidth}
-          tabIndex={propertiesCollapsed ? -1 : 0}
+          tabIndex={propertiesVisible ? 0 : -1}
           onPointerDown={(event) => beginPanelResize("properties", event)}
           onKeyDown={(event) => resizePanelFromKeyboard("properties", event)}
           onDoubleClick={() => setPropertiesWidth(268)}
         />
-        <div className={styles.panelSlot}>{!propertiesCollapsed && <InspectorPanel />}</div>
+        <div className={styles.panelSlot}>
+          {propertiesVisible && (
+            <Suspense fallback={<div className={styles.panelLoading} role="status">Loading panel</div>}>
+              {editor.rightPanel === "comments"
+                ? <CommentsPanel />
+                : editor.rightPanel === "history"
+                  ? <VersionHistoryPanel key={`${board.id ?? "board"}:${board.activeBranchId ?? "main"}`} />
+                  : editor.rightPanel === "assets"
+                    ? <DesignLibraryPanel />
+                    : editor.rightPanel === "prototype"
+                      ? <PrototypePanel />
+                      : editor.rightPanel === "export"
+                        ? <ExportPanel />
+                        : editor.rightPanel === "inspect"
+                          ? <InspectPanel />
+                          : editor.rightPanel === "branches"
+                            ? <BranchesPanel />
+                            : <InspectorPanel />}
+            </Suspense>
+          )}
+        </div>
       </div>
+
+      {editor.followingUserId && (
+        <div className={styles.followBanner} role="status">
+          <span>Following {board.currentUsers.find((person) => person.uid === editor.followingUserId)?.label ?? "presenter"}</span>
+          <button type="button" onClick={() => dispatch(setFollowingUserId(null))}>Stop following</button>
+        </div>
+      )}
 
       {(error || editor.saveError) && (
         <div className={styles.errorToast} role="alert">
@@ -343,6 +498,7 @@ const EditorWorkspace = () => {
         </div>
       )}
       {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}
+      {editor.presentationMode && <Suspense fallback={null}><PresentationView /></Suspense>}
     </main>
   );
 };

@@ -14,16 +14,34 @@ import {
   orderShapes,
   OrderMode,
   pasteShapes,
-  patchShapes,
   unframeShapes,
   ungroupShapes,
 } from "./commands";
 import { moveShapesFromBaseline, normalizeShape, selectionBounds, shapeBounds } from "./geometry";
+import { applyDocumentLayout, constrainFrameChildren } from "./layout";
+import {
+  applySharedStyle,
+  bindVariable,
+  createComponent,
+  createSharedStyle,
+  createVariable,
+  createVariantSet,
+  detachInstance,
+  instantiateComponent,
+  patchInstanceAware,
+  resetInstance,
+  resolveVariables,
+  swapInstanceVariant,
+  synchronizeComponentInstances,
+  type SharedStyleKind,
+  type VariableKind,
+} from "./designSystem";
 import { commonParentId, isEffectivelyLocked, rootSelectionIds } from "./hierarchy";
 import type { PasteContext } from "./types";
 import {
   commitEditorSnapshot,
   setClipboard,
+  setCurrentPageId,
   setLocalPreviewActive,
   setSaveStatus,
 } from "../features/editor/editorSlice";
@@ -37,6 +55,21 @@ import {
 } from "../services/assetRepository";
 import { AppDispatch, RootState } from "../store";
 import { applyShapeMutation } from "../collaboration/mutations";
+import {
+  createBooleanOperation,
+  createMask,
+  flattenBooleanOperation,
+  releaseMask,
+  type BooleanOperation,
+} from "./graphics";
+import {
+  createPage,
+  createSection,
+  createSectionCollection,
+  deletePage,
+  duplicatePage,
+  renamePage,
+} from "./workspace";
 
 export const useEditorActions = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -84,7 +117,7 @@ export const useEditorActions = () => {
         dispatch(setLocalPreviewActive(false));
         return;
       }
-      const normalized = nextShapes.map(normalizeShape);
+      const normalized = applyDocumentLayout(resolveVariables(synchronizeComponentInstances(nextShapes.map(normalizeShape))));
       if (JSON.stringify(previousShapes) === JSON.stringify(normalized)) {
         dispatch(setLocalPreviewActive(false));
         return;
@@ -136,9 +169,119 @@ export const useEditorActions = () => {
   );
 
   const patchSelected = useCallback(
-    (patch: Partial<Shape>) => commitShapes(patchShapes(board.shapes, selectedIds, patch)),
+    (patch: Partial<Shape>) => commitShapes(patchInstanceAware(board.shapes, selectedIds, patch)),
     [board.shapes, commitShapes, selectedIds]
   );
+
+  const createComponentSelected = useCallback((name?: string) => {
+    if (!canEdit) return;
+    const result = createComponent(board.shapes, selectedIds, name ?? "Component");
+    if (!result.componentId) return;
+    commitShapes(result.shapes);
+    dispatch(setSelectedShapes([result.componentId]));
+  }, [board.shapes, canEdit, commitShapes, dispatch, selectedIds]);
+
+  const createVariantSetSelected = useCallback(() => {
+    if (!canEdit) return;
+    const result = createVariantSet(board.shapes, selectedIds);
+    if (!result.componentSetId) return;
+    commitShapes(result.shapes);
+  }, [board.shapes, canEdit, commitShapes, selectedIds]);
+
+  const addComponentInstance = useCallback((componentId: string, point?: { x: number; y: number }) => {
+    if (!canEdit) return;
+    const result = instantiateComponent(board.shapes, componentId, point);
+    if (!result.instanceId) return;
+    commitShapes(result.shapes.map((shape) => shape.instanceRootId === result.instanceId ? { ...shape, pageId: editor.currentPageId } : shape));
+    dispatch(setSelectedShapes([result.instanceId]));
+  }, [board.shapes, canEdit, commitShapes, dispatch, editor.currentPageId]);
+
+  const detachSelectedInstance = useCallback(() => {
+    const root = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.instanceRootId === shape.id);
+    if (root) commitShapes(detachInstance(board.shapes, root.id));
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const resetSelectedInstance = useCallback(() => {
+    const root = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.instanceRootId === shape.id);
+    if (root) commitShapes(resetInstance(board.shapes, root.id));
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const swapSelectedVariant = useCallback((componentId: string) => {
+    const root = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.instanceRootId === shape.id);
+    if (root) commitShapes(swapInstanceVariant(board.shapes, root.id, componentId));
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const createStyleFromSelected = useCallback((kind: SharedStyleKind, name: string) => {
+    const source = board.shapes.find((shape) => selectedIds.includes(shape.id));
+    if (!source) return;
+    const result = createSharedStyle(board.shapes, source, kind, name);
+    commitShapes(result.shapes);
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const applyStyleToSelected = useCallback((styleId: string) => {
+    commitShapes(applySharedStyle(board.shapes, selectedIds, styleId));
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const createLibraryVariable = useCallback((kind: VariableKind, name: string, value: string | number) => {
+    const result = createVariable(board.shapes, kind, name, value);
+    commitShapes(result.shapes);
+  }, [board.shapes, commitShapes]);
+
+  const bindVariableToSelected = useCallback((property: "backgroundColor" | "color" | "opacity" | "borderRadius", variableId: string) => {
+    commitShapes(bindVariable(board.shapes, selectedIds, property, variableId));
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const booleanSelected = useCallback((operation: BooleanOperation) => {
+    const result = createBooleanOperation(board.shapes, selectedIds, operation);
+    if (!result.booleanId) return;
+    commitShapes(result.shapes);
+    dispatch(setSelectedShapes([result.booleanId]));
+  }, [board.shapes, commitShapes, dispatch, selectedIds]);
+
+  const flattenSelectedBoolean = useCallback(() => {
+    const selected = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.type === "boolean");
+    if (selected) commitShapes(flattenBooleanOperation(board.shapes, selected.id));
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const maskSelected = useCallback(() => commitShapes(createMask(board.shapes, selectedIds)), [board.shapes, commitShapes, selectedIds]);
+  const releaseSelectedMask = useCallback(() => {
+    const mask = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.isMask)
+      ?? board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.maskId);
+    const maskId = mask?.isMask ? mask.id : mask?.maskId;
+    if (maskId) commitShapes(releaseMask(board.shapes, maskId));
+  }, [board.shapes, commitShapes, selectedIds]);
+
+  const addPage = useCallback(() => {
+    const result = createPage(board.shapes);
+    commitShapes(result.shapes);
+    dispatch(setCurrentPageId(result.pageId));
+    dispatch(setSelectedShapes([]));
+  }, [board.shapes, commitShapes, dispatch]);
+
+  const renameDocumentPage = useCallback((pageId: string, name: string) => commitShapes(renamePage(board.shapes, pageId, name)), [board.shapes, commitShapes]);
+  const duplicateDocumentPage = useCallback((pageId: string) => {
+    const result = duplicatePage(board.shapes, pageId);
+    commitShapes(result.shapes);
+    if (result.pageId) dispatch(setCurrentPageId(result.pageId));
+    dispatch(setSelectedShapes([]));
+  }, [board.shapes, commitShapes, dispatch]);
+  const deleteDocumentPage = useCallback((pageId: string) => {
+    const result = deletePage(board.shapes, pageId);
+    commitShapes(result.shapes);
+    dispatch(setCurrentPageId(result.nextPageId));
+    dispatch(setSelectedShapes([]));
+  }, [board.shapes, commitShapes, dispatch]);
+  const sectionSelected = useCallback(() => {
+    const pageId = editor.currentPageId ?? "page:default";
+    const result = createSection(board.shapes, selectedIds, pageId);
+    if (!result.sectionId) return;
+    commitShapes(result.shapes);
+    dispatch(setSelectedShapes([result.sectionId]));
+  }, [board.shapes, commitShapes, dispatch, editor.currentPageId, selectedIds]);
+  const collectSelectedSections = useCallback(() => {
+    const result = createSectionCollection(board.shapes, selectedIds);
+    if (result.collectionId) commitShapes(result.shapes);
+  }, [board.shapes, commitShapes, selectedIds]);
 
   const removeSelected = useCallback(() => {
     if (!canEdit) return;
@@ -252,9 +395,12 @@ export const useEditorActions = () => {
       const y = values.y ?? bounds.y;
       const width = Math.max(1, values.width ?? bounds.width);
       const height = Math.max(1, values.height ?? bounds.height);
-      commitShapes(board.shapes.map((item) => item.id === shape.id
+      const resized = board.shapes.map((item) => item.id === shape.id
         ? normalizeShape({ ...item, x1: x, y1: y, x2: x + width, y2: y + height })
-        : item));
+        : item);
+      commitShapes(shape.type === "frame"
+        ? constrainFrameChildren(board.shapes, resized, shape.id)
+        : resized);
     },
     [board.shapes, commitShapes]
   );
@@ -268,6 +414,26 @@ export const useEditorActions = () => {
     commitShapes,
     commitBoardPatch,
     patchSelected,
+    createComponentSelected,
+    createVariantSetSelected,
+    addComponentInstance,
+    detachSelectedInstance,
+    resetSelectedInstance,
+    swapSelectedVariant,
+    createStyleFromSelected,
+    applyStyleToSelected,
+    createLibraryVariable,
+    bindVariableToSelected,
+    booleanSelected,
+    flattenSelectedBoolean,
+    maskSelected,
+    releaseSelectedMask,
+    addPage,
+    renameDocumentPage,
+    duplicateDocumentPage,
+    deleteDocumentPage,
+    sectionSelected,
+    collectSelectedSections,
     removeSelected,
     copySelected,
     cutSelected,

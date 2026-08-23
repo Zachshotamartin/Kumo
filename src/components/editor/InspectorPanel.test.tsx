@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import type { EditorActions } from "../../editor/useEditorActions";
@@ -62,6 +62,26 @@ const editorActions = (): EditorActions => ({
   commitShapes: vi.fn(),
   commitBoardPatch: vi.fn(),
   patchSelected: vi.fn(),
+  createComponentSelected: vi.fn(),
+  createVariantSetSelected: vi.fn(),
+  addComponentInstance: vi.fn(),
+  detachSelectedInstance: vi.fn(),
+  resetSelectedInstance: vi.fn(),
+  swapSelectedVariant: vi.fn(),
+  createStyleFromSelected: vi.fn(),
+  applyStyleToSelected: vi.fn(),
+  createLibraryVariable: vi.fn(),
+  bindVariableToSelected: vi.fn(),
+  booleanSelected: vi.fn(),
+  flattenSelectedBoolean: vi.fn(),
+  maskSelected: vi.fn(),
+  releaseSelectedMask: vi.fn(),
+  addPage: vi.fn(),
+  renameDocumentPage: vi.fn(),
+  duplicateDocumentPage: vi.fn(),
+  deleteDocumentPage: vi.fn(),
+  sectionSelected: vi.fn(),
+  collectSelectedSections: vi.fn(),
   removeSelected: vi.fn(),
   copySelected: vi.fn(),
   cutSelected: vi.fn(),
@@ -256,5 +276,90 @@ describe("InspectorPanel", () => {
     renderInspector([linked], [linked.id]);
     expect(screen.getByRole("option", { name: "Existing destination" })).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("Board destinations could not be loaded.");
+  });
+
+  it("updates gradients, effects, blend modes, and complete auto-layout settings immediately", () => {
+    const frame = rectangle("frame", {
+      type: "frame", layoutMode: "horizontal", layoutGap: 8, layoutCounterGap: 10,
+      paddingTop: 12, paddingRight: 13, paddingBottom: 14, paddingLeft: 15,
+      fillType: "linear-gradient", gradientAngle: 30,
+      gradientStops: [{ id: "start", position: 0, color: "#ffffff", opacity: 1 }],
+      effects: [{ id: "shadow", type: "drop-shadow", color: "#00000066", x: 1, y: 2, blur: 3, spread: 4, visible: true }],
+    });
+    const { actions } = renderInspector([frame], [frame.id]);
+    fireEvent.change(screen.getByLabelText("Fill type"), { target: { value: "radial-gradient" } });
+    fireEvent.change(screen.getByLabelText("Blend mode"), { target: { value: "multiply" } });
+    fireEvent.change(screen.getByLabelText("Gradient angle"), { target: { value: "55" } });
+    fireEvent.change(screen.getByLabelText("Stop 1 hex value"), { target: { value: "#123456" } });
+    fireEvent.change(screen.getByLabelText("At %"), { target: { value: "40" } });
+
+    const effects = screen.getByText("Effects").closest("section")!;
+    fireEvent.click(within(effects).getByRole("checkbox"));
+    ["X", "Y", "Blur", "Spread"].forEach((label, index) => {
+      fireEvent.change(within(effects).getByLabelText(label), { target: { value: String(index + 6) } });
+    });
+    fireEvent.change(within(effects).getByLabelText("Add effect"), { target: { value: "inner-shadow" } });
+
+    const frameSection = screen.getByText("Frame").closest("section")!;
+    fireEvent.click(within(frameSection).getByRole("checkbox", { name: "Clip content" }));
+    fireEvent.change(within(frameSection).getByLabelText("Auto layout"), { target: { value: "grid" } });
+    ["Gap", "Row gap", "Top", "Right", "Bottom", "Left"].forEach((label, index) => {
+      fireEvent.change(within(frameSection).getByLabelText(label), { target: { value: String(index + 20) } });
+    });
+    fireEvent.click(within(frameSection).getByRole("checkbox", { name: "Wrap" }));
+    fireEvent.change(within(frameSection).getByLabelText("Main-axis alignment"), { target: { value: "space-between" } });
+    fireEvent.change(within(frameSection).getByLabelText("Cross-axis alignment"), { target: { value: "stretch" } });
+    fireEvent.change(within(frameSection).getByLabelText("Width"), { target: { value: "hug" } });
+    fireEvent.change(within(frameSection).getByLabelText("Height"), { target: { value: "hug" } });
+    fireEvent.click(within(frameSection).getByRole("button", { name: "Remove frame" }));
+
+    expect(actions.patchSelected).toHaveBeenCalledWith({ layoutMode: "grid" });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ primaryAlign: "space-between" });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ counterAlign: "stretch" });
+    expect(actions.unframeSelected).toHaveBeenCalledOnce();
+  });
+
+  it("updates advanced typography, parent constraints, and vector editing", () => {
+    const nestedText = { ...textShape, parentId: "frame" };
+    const { actions } = renderInspector([nestedText], [nestedText.id]);
+    fireEvent.change(screen.getByLabelText("Line"), { target: { value: "1.5" } });
+    fireEvent.change(screen.getByLabelText("Track"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Text resizing"), { target: { value: "auto-height" } });
+    fireEvent.change(screen.getByLabelText("Paragraph"), { target: { value: "12" } });
+    fireEvent.change(screen.getByLabelText("Indent"), { target: { value: "16" } });
+    fireEvent.change(screen.getByLabelText("Case"), { target: { value: "upper" } });
+    fireEvent.change(screen.getByLabelText("List"), { target: { value: "bulleted" } });
+    fireEvent.change(screen.getByLabelText("Positioning"), { target: { value: "absolute" } });
+    fireEvent.change(screen.getByLabelText("Horizontal"), { target: { value: "left-right" } });
+    fireEvent.change(screen.getByLabelText("Vertical"), { target: { value: "top-bottom" } });
+    fireEvent.change(screen.getByLabelText("Grow"), { target: { value: "1" } });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ textAutoResize: "auto-height" });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ constraintHorizontal: "left-right" });
+
+    const vector = rectangle("vector", { type: "vector", vectorPoints: [{ id: "node", x: 0, y: 0 }], vectorClosed: false });
+    const vectorInspector = renderInspector([vector], [vector.id]);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Closed path" }));
+    expect(vectorInspector.actions.patchSelected).toHaveBeenCalledWith({ vectorClosed: true });
+  });
+
+  it("releases boolean groups and masks and routes every multi-selection combine command", () => {
+    const composite = rectangle("boolean", { type: "boolean", booleanOperation: "union", booleanChildren: [rectangle("source")] });
+    const first = renderInspector([composite], [composite.id]);
+    fireEvent.change(screen.getByLabelText("Operation"), { target: { value: "exclude" } });
+    fireEvent.click(screen.getByRole("button", { name: "Release boolean group" }));
+    expect(first.actions.flattenSelectedBoolean).toHaveBeenCalled();
+
+    const masked = rectangle("mask", { isMask: true });
+    const mask = renderInspector([masked], [masked.id]);
+    fireEvent.click(screen.getByRole("button", { name: "Release mask" }));
+    expect(mask.actions.releaseSelectedMask).toHaveBeenCalled();
+
+    const sections = [rectangle("one", { type: "section" }), rectangle("two", { type: "section", zIndex: 2 })];
+    const multi = renderInspector(sections, sections.map((item) => item.id));
+    ["Frame selection", "Create section", "Collect sections", "Union", "Subtract", "Intersect", "Exclude", "Use as mask"].forEach((name) => {
+      fireEvent.click(screen.getByRole("button", { name }));
+    });
+    expect(multi.actions.booleanSelected).toHaveBeenCalledTimes(4);
+    expect(multi.actions.collectSelectedSections).toHaveBeenCalled();
   });
 });

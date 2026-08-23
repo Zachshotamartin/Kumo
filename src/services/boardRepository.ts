@@ -18,6 +18,9 @@ export interface BoardSummary {
 const asBoardState = (board: BoardSummary): WhiteBoardState => ({
   id: board.id,
   roomId: board.roomId,
+  baseRoomId: board.roomId,
+  activeBranchId: null,
+  activeBranchName: null,
   role: board.role,
   shapes: [],
   title: board.title,
@@ -28,7 +31,7 @@ const asBoardState = (board: BoardSummary): WhiteBoardState => ({
   backGroundColor: "#252629",
   lastChangedBy: null,
   currentUsers: [],
-  schemaVersion: 3,
+  schemaVersion: 4,
   revision: 0,
   updatedAt: board.updatedAt,
 });

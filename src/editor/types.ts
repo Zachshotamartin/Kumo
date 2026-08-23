@@ -8,7 +8,9 @@ export type EditorTool =
   | "ellipse"
   | "text"
   | "image"
-  | "board";
+  | "board"
+  | "comment"
+  | "pen";
 
 export interface Point {
   x: number;
@@ -80,3 +82,11 @@ export interface PasteContext {
   /** Paste-here world coordinate; positions the copied bounds' top-left. */
   point?: Point;
 }
+
+export interface CommentAnchor {
+  x: number;
+  y: number;
+  shapeId: string;
+}
+
+export type EditorRightPanel = "properties" | "comments" | "history" | "assets" | "prototype" | "export" | "inspect" | "branches";

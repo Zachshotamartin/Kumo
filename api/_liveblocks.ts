@@ -12,7 +12,7 @@ export const liveblocksAdmin = (): Liveblocks => {
 export const emptyBoardDocument = (backgroundColor = "#252629"): PlainLsonObject => ({
   liveblocksType: "LiveObject",
   data: {
-    schemaVersion: 3,
+    schemaVersion: 4,
     backgroundColor,
     nodes: {
       liveblocksType: "LiveMap",
@@ -29,7 +29,7 @@ export const boardDocumentFromJson = (value: unknown): PlainLsonObject => {
   return {
     liveblocksType: "LiveObject",
     data: {
-      schemaVersion: 3,
+      schemaVersion: 4,
       backgroundColor: typeof source.backgroundColor === "string" ? source.backgroundColor : "#252629",
       nodes: {
         liveblocksType: "LiveMap",
@@ -46,4 +46,3 @@ export const boardDocumentFromJson = (value: unknown): PlainLsonObject => {
     },
   };
 };
-

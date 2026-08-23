@@ -15,6 +15,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@liveblocks/react", () => ({ useSyncStatus: () => "synchronized" }));
+vi.mock("@liveblocks/react/suspense", () => ({
+  useMyPresence: () => [{ spotlight: false }, vi.fn()],
+  useBroadcastEvent: () => vi.fn(),
+  useUnreadInboxNotificationsCount: () => ({ count: 0 }),
+}));
 vi.mock("../../editor/useEditorActions", () => ({
   useEditorActions: () => ({ commitBoardPatch: mocks.commitBoardPatch }),
 }));
@@ -28,6 +33,14 @@ vi.mock("./LayersPanel", () => ({ default: () => <div>Layers</div> }));
 vi.mock("./ShareDialog", () => ({ default: ({ onClose }: { onClose: () => void }) => (
   <div role="dialog">Sharing<button onClick={onClose}>Close share</button></div>
 ) }));
+vi.mock("../../comments/CommentsPanel", () => ({ CommentsPanel: () => <div>Comments panel</div> }));
+vi.mock("../../history/VersionHistoryPanel", () => ({ VersionHistoryPanel: () => <div>History panel</div> }));
+vi.mock("./DesignLibraryPanel", () => ({ default: () => <div>Assets panel</div> }));
+vi.mock("./PrototypePanel", () => ({ default: () => <div>Prototype panel</div> }));
+vi.mock("./ExportPanel", () => ({ default: () => <div>Export panel</div> }));
+vi.mock("./InspectPanel", () => ({ default: () => <div>Inspect panel</div> }));
+vi.mock("./BranchesPanel", () => ({ default: () => <div>Branches panel</div> }));
+vi.mock("./PresentationView", () => ({ default: () => <div>Presentation view</div> }));
 
 const renderWorkspace = (role: "owner" | "viewer" = "owner") => {
   const store = configureStore({
@@ -139,5 +152,25 @@ describe("EditorWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     expect(store.getState().editor.viewport.zoom).toBeCloseTo(1);
     expect(screen.getByRole("button", { name: "Reset zoom (100%)" })).toBeVisible();
+  });
+
+  it("loads each advanced workspace surface only when it is opened", async () => {
+    renderWorkspace();
+    for (const [button, panel] of [
+      ["Comments", "Comments panel"],
+      ["Assets", "Assets panel"],
+      ["Prototype", "Prototype panel"],
+      ["Export", "Export panel"],
+      ["Inspect", "Inspect panel"],
+      ["Branches", "Branches panel"],
+    ] as const) {
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      expect(await screen.findByText(panel)).toBeVisible();
+    }
+    fireEvent.click(screen.getByLabelText("Board menu"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Version history" }));
+    expect(await screen.findByText("History panel")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Present" }));
+    expect(await screen.findByText("Presentation view")).toBeVisible();
   });
 });

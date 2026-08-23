@@ -6,7 +6,14 @@ import {
   redoEditorHistory,
   undoEditorHistory,
 } from "../../editor/history";
-import { Bounds, EditorDocumentSnapshot, EditorHistory, Viewport } from "../../editor/types";
+import {
+  Bounds,
+  CommentAnchor,
+  EditorDocumentSnapshot,
+  EditorHistory,
+  EditorRightPanel,
+  Viewport,
+} from "../../editor/types";
 
 interface EditorState {
   viewport: Viewport;
@@ -22,6 +29,15 @@ interface EditorState {
   saveStatus: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
   localPreviewActive: boolean;
+  rightPanel: EditorRightPanel;
+  commentDraftAnchor: CommentAnchor | null;
+  selectedThreadId: string | null;
+  followingUserId: string | null;
+  showRulers: boolean;
+  measureMode: boolean;
+  presentationMode: boolean;
+  presentationFrameId: string | null;
+  currentPageId: string | null;
 }
 
 const initialState: EditorState = {
@@ -38,6 +54,15 @@ const initialState: EditorState = {
   saveStatus: "idle",
   saveError: null,
   localPreviewActive: false,
+  rightPanel: "properties",
+  commentDraftAnchor: null,
+  selectedThreadId: null,
+  followingUserId: null,
+  showRulers: true,
+  measureMode: false,
+  presentationMode: false,
+  presentationFrameId: null,
+  currentPageId: null,
 };
 
 const editorSlice = createSlice({
@@ -54,6 +79,13 @@ const editorSlice = createSlice({
       state.saveStatus = "idle";
       state.saveError = null;
       state.localPreviewActive = false;
+      state.rightPanel = "properties";
+      state.commentDraftAnchor = null;
+      state.selectedThreadId = null;
+      state.followingUserId = null;
+      state.measureMode = false;
+      state.presentationMode = false;
+      state.presentationFrameId = null;
     },
     commitEditorSnapshot: (
       state,
@@ -108,6 +140,38 @@ const editorSlice = createSlice({
       state.saveStatus = action.payload.status;
       state.saveError = action.payload.error ?? null;
     },
+    setRightPanel: (state, action: PayloadAction<EditorRightPanel>) => {
+      state.rightPanel = action.payload;
+      if (action.payload !== "comments") state.commentDraftAnchor = null;
+    },
+    setCommentDraftAnchor: (state, action: PayloadAction<CommentAnchor | null>) => {
+      state.commentDraftAnchor = action.payload;
+      if (action.payload) state.rightPanel = "comments";
+    },
+    setSelectedThreadId: (state, action: PayloadAction<string | null>) => {
+      state.selectedThreadId = action.payload;
+      if (action.payload) state.rightPanel = "comments";
+    },
+    setFollowingUserId: (state, action: PayloadAction<string | null>) => {
+      state.followingUserId = action.payload;
+    },
+    setShowRulers: (state, action: PayloadAction<boolean>) => {
+      state.showRulers = action.payload;
+    },
+    setMeasureMode: (state, action: PayloadAction<boolean>) => {
+      state.measureMode = action.payload;
+    },
+    setPresentationMode: (state, action: PayloadAction<boolean>) => {
+      state.presentationMode = action.payload;
+    },
+    setPresentationFrameId: (state, action: PayloadAction<string | null>) => {
+      state.presentationFrameId = action.payload;
+    },
+    setCurrentPageId: (state, action: PayloadAction<string | null>) => {
+      state.currentPageId = action.payload;
+      state.editingShapeId = null;
+      state.hoveredShapeId = null;
+    },
   },
 });
 
@@ -124,6 +188,15 @@ export const {
   setSnapToGrid,
   setGridSize,
   setSaveStatus,
+  setRightPanel,
+  setCommentDraftAnchor,
+  setSelectedThreadId,
+  setFollowingUserId,
+  setShowRulers,
+  setMeasureMode,
+  setPresentationMode,
+  setPresentationFrameId,
+  setCurrentPageId,
 } = editorSlice.actions;
 
 export default editorSlice.reducer;

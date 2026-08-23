@@ -42,9 +42,11 @@
     "validate:config": "node scripts/validate-config.mjs",
     "verify:local-api": "node scripts/verify-local-authenticated-api.mjs",
     "validate:local-env": "node scripts/validate-vercel-runtime-env.mjs .env.local --require-concrete --local-runtime",
-    "validate:vercel-env": "node scripts/validate-vercel-runtime-env.mjs"
+    "validate:vercel-env": "node scripts/validate-vercel-runtime-env.mjs",
+    "verify:deployment": "node --experimental-strip-types scripts/verify-deployment-smoke.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "9",
     "@playwright/test": "^1.62.1",
     "@testing-library/dom": "^10.4.1",

@@ -6,6 +6,7 @@ import {
   CaretDown,
   CaretRight,
   Circle,
+  Copy,
   Eye,
   EyeSlash,
   FrameCorners,
@@ -17,13 +18,16 @@ import {
   Rectangle,
   Stack,
   TextT,
+  Trash,
   type Icon,
 } from "@phosphor-icons/react";
 import type { Shape } from "../../classes/shape";
 import { moveShapesRelative, orderShapes, type RelativeOrder } from "../../editor/commands";
 import { buildLayerUnits, type LayerUnit } from "../../editor/layers";
 import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
-import { setSelectedShapes } from "../../features/selected/selectedSlice";
+import { clearSelectedShapes, setSelectedShapes } from "../../features/selected/selectedSlice";
+import { setCurrentPageId } from "../../features/editor/editorSlice";
+import { documentPages, shapesOnPage } from "../../editor/workspace";
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
@@ -85,11 +89,15 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [draggedIds, setDraggedIds] = useState<string[] | null>(null);
+  const draggedIdsRef = useRef<string[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ key: string; placement: RelativeOrder } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
-  const units = buildLayerUnits(board.shapes);
+  const currentPageId = useSelector((state: RootState) => state.editor.currentPageId);
+  const pages = documentPages(board.shapes);
+  const activePageId = currentPageId && pages.some((page) => page.id === currentPageId) ? currentPageId : pages[0]!.id;
+  const pageShapes = shapesOnPage(board.shapes, activePageId);
+  const units = buildLayerUnits(pageShapes);
 
   const selectUnit = (event: MouseEvent, ids: string[]) => {
     if (event.shiftKey) {
@@ -134,12 +142,13 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
     }
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", unit.key);
-    setDraggedIds(unit.ids);
+    draggedIdsRef.current = unit.ids;
     dispatch(setSelectedShapes(unit.ids));
   };
 
   const updateDropTarget = (event: DragEvent, unit: LayerUnit) => {
-    if (!draggedIds || unit.ids.some((id) => draggedIds.includes(id))) return;
+    const activeIds = draggedIdsRef.current;
+    if (!activeIds || unit.ids.some((id) => activeIds.includes(id))) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -151,18 +160,28 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
 
   const finishDrop = (event: DragEvent, unit: LayerUnit) => {
     event.preventDefault();
-    if (draggedIds && dropTarget?.key === unit.key) {
+    const activeIds = draggedIdsRef.current;
+    if (activeIds && !unit.ids.some((id) => activeIds.includes(id))) {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const placement: RelativeOrder = event.clientY < bounds.top + bounds.height / 2
+        ? "front"
+        : "back";
       actions.commitShapes(
         moveShapesRelative(
           board.shapes,
-          draggedIds,
+          activeIds,
           unit.members[0]!.id,
-          dropTarget.placement
+          placement
         )
       );
-      dispatch(setSelectedShapes(draggedIds));
+      dispatch(setSelectedShapes(activeIds));
     }
-    setDraggedIds(null);
+    draggedIdsRef.current = null;
+    setDropTarget(null);
+  };
+
+  const finishDrag = () => {
+    draggedIdsRef.current = null;
     setDropTarget(null);
   };
 
@@ -253,11 +272,11 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
   };
 
   const renderFrameChildren = (frameId: string, depth = 1): ReactNode => {
-    const childUnits = buildLayerUnits(board.shapes, frameId);
+    const childUnits = buildLayerUnits(pageShapes, frameId);
     return childUnits.map((unit) => {
       const isGroup = Boolean(unit.groupId);
       const shape = unit.members[0]!;
-      const isFrame = !isGroup && shape.type === "frame";
+      const isFrame = !isGroup && (shape.type === "frame" || shape.type === "section");
       const label = unitLabel(unit);
       const key = isGroup ? unit.key : `frame-child:${shape.id}`;
       const collapsedKey = isGroup ? unit.groupId! : `frame:${shape.id}`;
@@ -293,20 +312,38 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                 {collapsed ? <CaretRight aria-hidden="true" /> : <CaretDown aria-hidden="true" />}
               </button>
             ) : <span className={styles.layerIndent} aria-hidden="true" />}
-            <button
-              className={styles.layerMain}
-              type="button"
-              aria-label={label}
-              aria-pressed={selected}
-              draggable={actions.canEdit}
-              title="Drag to reorder"
-              onDragStart={(event) => startDrag(event, unit)}
-              onDragEnd={() => { setDraggedIds(null); setDropTarget(null); }}
-              onClick={(event) => selectUnit(event, selectionIds)}
-            >
-              <span className={styles.layerType} aria-hidden="true"><UnitIcon /></span>
-              <span className={styles.layerName}>{label}</span>
-            </button>
+            {renamingId === key ? (
+              <div className={styles.layerRename}>
+                <span className={styles.layerType} aria-hidden="true"><UnitIcon /></span>
+                <LayerNameInput
+                  label={`Rename ${label}`}
+                  value={draftName}
+                  onChange={setDraftName}
+                  onCommit={() => finishUnitRename(unit)}
+                  onCancel={() => setRenamingId(null)}
+                />
+              </div>
+            ) : (
+              <button
+                className={styles.layerMain}
+                type="button"
+                aria-label={label}
+                aria-pressed={selected}
+                draggable={actions.canEdit}
+                title="Drag to reorder"
+                onDragStart={(event) => startDrag(event, unit)}
+                onDragEnd={finishDrag}
+                onClick={(event) => selectUnit(event, selectionIds)}
+                onDoubleClick={() => {
+                  if (!actions.canEdit) return;
+                  setDraftName(isGroup ? shape.groupName ?? "Group" : shape.name ?? shape.type);
+                  setRenamingId(key);
+                }}
+              >
+                <span className={styles.layerType} aria-hidden="true"><UnitIcon /></span>
+                <span className={styles.layerName}>{label}</span>
+              </button>
+            )}
             <button
               type="button"
               className={styles.layerAction}
@@ -353,12 +390,52 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
 
   return (
     <aside className={styles.layersPanel} aria-label="Layers">
+      <section className={styles.pagesSection} aria-label="Pages">
+        <div className={styles.panelHeading}>
+          <span>Pages</span>
+          <button type="button" aria-label="Add page" disabled={!actions.canEdit} onClick={actions.addPage}><Plus aria-hidden="true" /></button>
+        </div>
+        <div className={styles.pageList}>
+          {pages.map((page) => (
+            <div className={`${styles.pageRow} ${page.id === activePageId ? styles.activePage : ""}`} key={page.id}>
+              {page.implicit ? (
+                <button
+                  type="button"
+                  aria-pressed={page.id === activePageId}
+                  onClick={() => { dispatch(setCurrentPageId(page.id)); dispatch(clearSelectedShapes()); }}
+                >
+                  {page.name}
+                </button>
+              ) : (
+                <input
+                  key={`${page.id}:${page.name}`}
+                  defaultValue={page.name}
+                  aria-label={`Rename ${page.name}`}
+                  onFocus={(event) => {
+                    dispatch(setCurrentPageId(page.id));
+                    dispatch(clearSelectedShapes());
+                    event.currentTarget.select();
+                  }}
+                  onBlur={(event) => actions.renameDocumentPage(page.id, event.currentTarget.value)}
+                  onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+                />
+              )}
+              {!page.implicit && actions.canEdit && (
+                <>
+                  <button type="button" aria-label={`Duplicate ${page.name}`} onClick={() => actions.duplicateDocumentPage(page.id)}><Copy aria-hidden="true" /></button>
+                  <button type="button" aria-label={`Delete ${page.name}`} disabled={pages.length <= 1} onClick={() => actions.deleteDocumentPage(page.id)}><Trash aria-hidden="true" /></button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
       <div className={styles.panelHeading}>
         <span>Layers</span>
-        <span className={styles.count}>{board.shapes.length}</span>
+        <span className={styles.count}>{pageShapes.length}</span>
       </div>
-      <div className={styles.layerList} role={board.shapes.length ? "list" : undefined} aria-label={board.shapes.length ? "Layer stack" : undefined}>
-        {board.shapes.length === 0 ? (
+      <div className={styles.layerList} role={pageShapes.length ? "list" : undefined} aria-label={pageShapes.length ? "Layer stack" : undefined}>
+        {pageShapes.length === 0 ? (
           <div className={styles.emptyPanel}>
             <span className={styles.emptyMark}><Plus aria-hidden="true" /></span>
             <p>Draw a shape to start this board.</p>
@@ -366,7 +443,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
           </div>
         ) : units.map((unit, unitIndex) => {
           const isGroup = Boolean(unit.groupId);
-          const isFrame = !isGroup && unit.members[0]?.type === "frame";
+          const isFrame = !isGroup && (unit.members[0]?.type === "frame" || unit.members[0]?.type === "section");
           const isContainer = isGroup || isFrame;
           const label = unitLabel(unit);
           const selected = unit.ids.every((id) => selectedIds.includes(id));
@@ -424,7 +501,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                     draggable={actions.canEdit}
                     title="Drag to reorder"
                     onDragStart={(event) => startDrag(event, unit)}
-                    onDragEnd={() => { setDraggedIds(null); setDropTarget(null); }}
+                    onDragEnd={finishDrag}
                     onClick={(event) => selectUnit(event, unit.ids)}
                     onDoubleClick={() => {
                       const shape = unit.members[0];

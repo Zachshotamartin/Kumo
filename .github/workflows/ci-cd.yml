@@ -47,7 +47,7 @@ jobs:
         run: yarn test:coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage
@@ -56,15 +56,15 @@ jobs:
       - name: Production build
         run: yarn build
 
-      - name: Install Playwright Chromium
-        run: yarn playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: yarn playwright install --with-deps chromium firefox webkit
 
       - name: Browser smoke tests
         run: yarn test:e2e
 
       - name: Upload browser report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report
@@ -118,6 +118,8 @@ jobs:
         run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_PREVIEW_DOMAIN" --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Smoke-test deployed preview
+        run: yarn verify:deployment "https://$VERCEL_PREVIEW_DOMAIN"
 
   production:
     name: Vercel production
@@ -147,4 +149,14 @@ jobs:
       - name: Build production artifacts
         run: yarn vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy production artifacts
-        run: yarn vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        id: deploy_production
+        shell: bash
+        run: |
+          deployment_url="$(yarn --silent vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})"
+          if [[ ! "$deployment_url" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "Vercel returned an invalid production URL" >&2
+            exit 1
+          fi
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+      - name: Smoke-test production deployment
+        run: yarn verify:deployment "${{ steps.deploy_production.outputs.url }}"

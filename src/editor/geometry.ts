@@ -68,6 +68,33 @@ export const normalizeShape = (shape: Shape): Shape => {
     groupId: shape.groupId ?? null,
     parentId: shape.parentId ?? null,
     clipContent: shape.type === "frame" ? shape.clipContent ?? true : shape.clipContent,
+    constraintHorizontal: shape.constraintHorizontal ?? "left",
+    constraintVertical: shape.constraintVertical ?? "top",
+    layoutMode: shape.type === "frame" ? shape.layoutMode ?? "none" : shape.layoutMode,
+    layoutWrap: shape.layoutWrap ?? false,
+    layoutGap: Math.max(0, shape.layoutGap ?? 12),
+    layoutCounterGap: Math.max(0, shape.layoutCounterGap ?? shape.layoutGap ?? 12),
+    paddingTop: Math.max(0, shape.paddingTop ?? 16),
+    paddingRight: Math.max(0, shape.paddingRight ?? 16),
+    paddingBottom: Math.max(0, shape.paddingBottom ?? 16),
+    paddingLeft: Math.max(0, shape.paddingLeft ?? 16),
+    primaryAlign: shape.primaryAlign ?? "start",
+    counterAlign: shape.counterAlign ?? "start",
+    horizontalSizing: shape.horizontalSizing ?? "fixed",
+    verticalSizing: shape.verticalSizing ?? "fixed",
+    layoutPositioning: shape.layoutPositioning ?? "auto",
+    layoutGrow: Math.max(0, shape.layoutGrow ?? 0),
+    layoutAlign: shape.layoutAlign ?? "inherit",
+    textAutoResize: shape.textAutoResize ?? "fixed",
+    paragraphSpacing: Math.max(0, shape.paragraphSpacing ?? 0),
+    textIndent: Math.max(0, shape.textIndent ?? 0),
+    textCase: shape.textCase ?? "original",
+    listStyle: shape.listStyle ?? "none",
+    fillType: shape.fillType ?? "solid",
+    gradientAngle: shape.gradientAngle ?? 90,
+    gradientStops: shape.gradientStops ?? [],
+    effects: shape.effects ?? [],
+    blendMode: shape.blendMode ?? "normal",
     locked: shape.locked ?? false,
     hidden: shape.hidden ?? false,
     ...(normalizedChildren ? { shapes: normalizedChildren } : {}),
@@ -408,12 +435,29 @@ export const moveShapesFromBaseline = (
       : delta.y,
   };
 
+  const translatePoint = <T extends { x: number; y: number }>(point: T): T => ({
+    ...point,
+    x: point.x + snappedDelta.x,
+    y: point.y + snappedDelta.y,
+  });
   const translateShape = (shape: Shape): Shape => ({
     ...shape,
     x1: shape.x1 + snappedDelta.x,
     x2: shape.x2 + snappedDelta.x,
     y1: shape.y1 + snappedDelta.y,
     y2: shape.y2 + snappedDelta.y,
+    ...(shape.vectorPoints
+      ? {
+          vectorPoints: shape.vectorPoints.map((point) => ({
+            ...translatePoint(point),
+            ...(point.handleIn ? { handleIn: translatePoint(point.handleIn) } : {}),
+            ...(point.handleOut ? { handleOut: translatePoint(point.handleOut) } : {}),
+          })),
+        }
+      : {}),
+    ...(shape.booleanChildren
+      ? { booleanChildren: shape.booleanChildren.map(translateShape) }
+      : {}),
     ...(shape.shapes
       ? { shapes: shape.shapes.map(translateShape) }
       : {}),
@@ -574,6 +618,20 @@ const applyResizeTransform = (
   if (reflectRotation && transform.scaleX < 0) rotation = 2 * reflectionAxis - rotation;
   if (reflectRotation && transform.scaleY < 0) rotation = 2 * reflectionAxis - rotation;
 
+  const mapPoint = <T extends { x: number; y: number }>(point: T): T => {
+    const local = frameCenter && Math.abs(frame!.rotation) >= EPSILON
+      ? rotatePoint(point, frameCenter, -frame!.rotation)
+      : point;
+    const mapped = {
+      x: transform.origin.x + (local.x - transform.origin.x) * transform.scaleX,
+      y: transform.origin.y + (local.y - transform.origin.y) * transform.scaleY,
+    };
+    const world = frameCenter && Math.abs(frame!.rotation) >= EPSILON
+      ? rotatePoint(mapped, frameCenter, frame!.rotation)
+      : mapped;
+    return { ...point, ...world };
+  };
+
   return normalizeShape({
     ...shape,
     x1: mappedCenter.x - width / 2,
@@ -583,6 +641,18 @@ const applyResizeTransform = (
     rotation: normalizeDegrees(rotation),
     flipX: transform.scaleX < 0 ? !shape.flipX : shape.flipX,
     flipY: transform.scaleY < 0 ? !shape.flipY : shape.flipY,
+    ...(shape.vectorPoints
+      ? {
+          vectorPoints: shape.vectorPoints.map((point) => ({
+            ...mapPoint(point),
+            ...(point.handleIn ? { handleIn: mapPoint(point.handleIn) } : {}),
+            ...(point.handleOut ? { handleOut: mapPoint(point.handleOut) } : {}),
+          })),
+        }
+      : {}),
+    ...(shape.booleanChildren
+      ? { booleanChildren: shape.booleanChildren.map((child) => applyResizeTransform(child, transform, reflectRotation, frame)) }
+      : {}),
     ...(shape.shapes
       ? {
           shapes: shape.shapes.map((child) =>
@@ -649,9 +719,26 @@ export const resizeShapesFromBaseline = (
       width: Math.max(1, bounds.width * scaleX),
       height: Math.max(1, bounds.height * scaleY),
     };
+    const mapPoint = <T extends { x: number; y: number }>(point: T): T => ({
+      ...point,
+      x: nextSelectionBounds.x + (point.x - originalSelectionBounds.x) * scaleX,
+      y: nextSelectionBounds.y + (point.y - originalSelectionBounds.y) * scaleY,
+    });
     return normalizeShape({
       ...shape,
       ...boundsToEdges(nextBounds),
+      ...(shape.vectorPoints
+        ? {
+            vectorPoints: shape.vectorPoints.map((point) => ({
+              ...mapPoint(point),
+              ...(point.handleIn ? { handleIn: mapPoint(point.handleIn) } : {}),
+              ...(point.handleOut ? { handleOut: mapPoint(point.handleOut) } : {}),
+            })),
+          }
+        : {}),
+      ...(shape.booleanChildren
+        ? { booleanChildren: shape.booleanChildren.map(resizeShape) }
+        : {}),
       ...(shape.shapes
         ? { shapes: shape.shapes.map(resizeShape) }
         : {}),

@@ -35,7 +35,7 @@ describe("server clients and document helpers", () => {
 
   it("creates normalized Liveblocks storage documents", () => {
     expect(emptyBoardDocument("#fff")).toMatchObject({
-      data: { schemaVersion: 3, backgroundColor: "#fff", nodes: { data: {} } },
+      data: { schemaVersion: 4, backgroundColor: "#fff", nodes: { data: {} } },
     });
     expect(boardDocumentFromJson({
       backgroundColor: "#000", nodes: { one: { id: "one", text: "hello" }, empty: null },

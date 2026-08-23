@@ -5,7 +5,7 @@ import actionsReducer from "../features/actions/actionsSlice";
 import authReducer from "../features/auth/authSlice";
 import editorReducer, { setLocalPreviewActive } from "../features/editor/editorSlice";
 import selectedReducer from "../features/selected/selectedSlice";
-import whiteBoardReducer, { replaceShapes } from "../features/whiteBoard/whiteBoardSlice";
+import whiteBoardReducer, { replaceShapes, setWhiteboardData } from "../features/whiteBoard/whiteBoardSlice";
 import type { Shape } from "../classes/shape";
 import CollaborationBridge from "./CollaborationBridge";
 
@@ -14,11 +14,15 @@ const collaboration = vi.hoisted(() => ({
   backgroundColor: "#252629",
   others: [] as Array<Record<string, unknown>>,
   resolveAssetUrl: vi.fn<(assetId: string) => Promise<string>>(),
+  eventListener: undefined as undefined | ((payload: { event: Liveblocks["RoomEvent"] }) => void),
 }));
 
 vi.mock("@liveblocks/react/suspense", () => ({
   useStorage: (selector: (root: typeof collaboration) => unknown) => selector(collaboration),
   useOthers: () => collaboration.others,
+}));
+vi.mock("@liveblocks/react", () => ({
+  useEventListener: (listener: (payload: { event: Liveblocks["RoomEvent"] }) => void) => { collaboration.eventListener = listener; },
 }));
 
 vi.mock("../services/assetRepository", () => ({
@@ -55,6 +59,7 @@ describe("CollaborationBridge", () => {
     collaboration.nodes = {};
     collaboration.others = [];
     collaboration.resolveAssetUrl.mockReset();
+    collaboration.eventListener = undefined;
   });
 
   it("reads the JSON projection returned for a LiveMap", async () => {
@@ -107,5 +112,13 @@ describe("CollaborationBridge", () => {
     await Promise.resolve();
     expect(store.getState().whiteBoard.shapes[0]!.assetId).toBe("asset-new");
     expect(store.getState().whiteBoard.shapes[0]!.backgroundImage).toBeUndefined();
+  });
+
+  it("remounts the room at the server revision after a document restore", () => {
+    const store = makeStore();
+    store.dispatch(setWhiteboardData({ revision: 4 }));
+    render(<Provider store={store}><CollaborationBridge /></Provider>);
+    act(() => collaboration.eventListener?.({ event: { type: "DOCUMENT_RESTORED", actorId: "other", revision: 1234 } }));
+    expect(store.getState().whiteBoard.revision).toBe(1234);
   });
 });

@@ -3,11 +3,13 @@ import {
   ArrowClockwise,
   ArrowCounterClockwise,
   Circle,
+  ChatCenteredText,
   CursorClick,
   FrameCorners,
   Hand,
   ImageSquare,
   LinkSimple,
+  PenNib,
   Rectangle,
   TextT,
   Trash,
@@ -29,9 +31,11 @@ const tools: Array<{ id: EditorTool; label: string; shortcut: string; Icon: Icon
   { id: "frame", label: "Frame", shortcut: "F", Icon: FrameCorners },
   { id: "rectangle", label: "Rectangle", shortcut: "R", Icon: Rectangle },
   { id: "ellipse", label: "Ellipse", shortcut: "O", Icon: Circle },
+  { id: "pen", label: "Pen", shortcut: "P", Icon: PenNib },
   { id: "text", label: "Text", shortcut: "T", Icon: TextT },
   { id: "image", label: "Image", shortcut: "I", Icon: ImageSquare },
   { id: "board", label: "Linked board", shortcut: "B", Icon: LinkSimple },
+  { id: "comment", label: "Comment", shortcut: "C", Icon: ChatCenteredText },
 ];
 
 export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
@@ -39,6 +43,7 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
   const selectedTool = useSelector((state: RootState) => state.selected.selectedTool);
   const board = useSelector((state: RootState) => state.whiteBoard);
   const viewport = useSelector((state: RootState) => state.editor.viewport);
+  const currentPageId = useSelector((state: RootState) => state.editor.currentPageId);
   const imageInput = useRef<HTMLInputElement>(null);
   const activeRef = useRef(true);
   const boardIdRef = useRef(board.id);
@@ -83,6 +88,7 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
         assetId: asset.id,
         backgroundImage: asset.url,
         backgroundColor: "transparent",
+        pageId: currentPageId,
       });
       actions.commitShapes([...board.shapes, shape]);
       dispatch(setSelectedShapes([shape.id]));

@@ -50,6 +50,16 @@ for (const required of ["sync_kumo_board_links", "security definer", "service_ro
   }
 }
 
+const creationAuditMigration = readFileSync(
+  "supabase/migrations/202608230006_atomic_creation_audits.sql",
+  "utf8",
+);
+for (const required of ["create_kumo_checkpoint", "create_kumo_branch_record", "version.checkpoint_created", "branch.created", "service_role"]) {
+  if (!creationAuditMigration.toLowerCase().includes(required.toLowerCase())) {
+    throw new Error(`Atomic creation migration is missing required statement: ${required}`);
+  }
+}
+
 const sourceFiles = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;

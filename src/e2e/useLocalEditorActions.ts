@@ -11,17 +11,34 @@ import {
   groupShapes,
   orderShapes,
   pasteShapes,
-  patchShapes,
   unframeShapes,
   ungroupShapes,
 } from "../editor/commands";
 import { moveShapesFromBaseline, normalizeShape, selectionBounds, shapeBounds } from "../editor/geometry";
+import { applyDocumentLayout } from "../editor/layout";
+import {
+  applySharedStyle,
+  bindVariable,
+  createComponent,
+  createSharedStyle,
+  createVariable,
+  createVariantSet,
+  detachInstance,
+  instantiateComponent,
+  patchInstanceAware,
+  resetInstance,
+  resolveVariables,
+  swapInstanceVariant,
+  synchronizeComponentInstances,
+} from "../editor/designSystem";
 import { commonParentId, rootSelectionIds } from "../editor/hierarchy";
 import type { EditorActions } from "../editor/useEditorActions";
-import { setClipboard } from "../features/editor/editorSlice";
+import { setClipboard, setCurrentPageId } from "../features/editor/editorSlice";
 import { setSelectedShapes } from "../features/selected/selectedSlice";
 import { replaceShapes, setWhiteboardData } from "../features/whiteBoard/whiteBoardSlice";
 import type { AppDispatch, RootState } from "../store";
+import { createBooleanOperation, createMask, flattenBooleanOperation, releaseMask } from "../editor/graphics";
+import { createPage, createSection, createSectionCollection, deletePage, duplicatePage, renamePage } from "../editor/workspace";
 
 const cloneShapes = (shapes: Shape[]) => JSON.parse(JSON.stringify(shapes)) as Shape[];
 
@@ -40,7 +57,7 @@ export const useLocalEditorActions = (): EditorActions => {
   const [redoStack, setRedoStack] = useState<Shape[][]>([]);
 
   const commitShapes = (nextShapes: Shape[], previousShapes = board.shapes) => {
-    const normalized = nextShapes.map(normalizeShape);
+    const normalized = applyDocumentLayout(resolveVariables(synchronizeComponentInstances(nextShapes.map(normalizeShape))));
     if (JSON.stringify(previousShapes) === JSON.stringify(normalized)) return;
     setUndoStack((history) => [...history, cloneShapes(previousShapes)]);
     setRedoStack([]);
@@ -50,7 +67,7 @@ export const useLocalEditorActions = (): EditorActions => {
   const previewShapes = (shapes: Shape[]) => dispatch(replaceShapes(shapes));
   const cancelPreview = (shapes: Shape[]) => dispatch(replaceShapes(shapes));
   const patchSelected = (patch: Partial<Shape>) =>
-    commitShapes(patchShapes(board.shapes, selectedIds, patch));
+    commitShapes(patchInstanceAware(board.shapes, selectedIds, patch));
   const removeSelected = () => {
     const next = deleteShapes(board.shapes, selectedIds);
     commitShapes(next);
@@ -117,6 +134,73 @@ export const useLocalEditorActions = (): EditorActions => {
     commitShapes,
     commitBoardPatch: (patch) => dispatch(setWhiteboardData(patch)),
     patchSelected,
+    createComponentSelected: (name) => {
+      const result = createComponent(board.shapes, selectedIds, name);
+      commitShapes(result.shapes);
+      if (result.componentId) dispatch(setSelectedShapes([result.componentId]));
+    },
+    createVariantSetSelected: () => commitShapes(createVariantSet(board.shapes, selectedIds).shapes),
+    addComponentInstance: (componentId, point) => {
+      const result = instantiateComponent(board.shapes, componentId, point);
+      commitShapes(result.shapes.map((shape) => shape.instanceRootId === result.instanceId ? { ...shape, pageId: editor.currentPageId } : shape));
+      if (result.instanceId) dispatch(setSelectedShapes([result.instanceId]));
+    },
+    detachSelectedInstance: () => {
+      const root = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.instanceRootId === shape.id);
+      if (root) commitShapes(detachInstance(board.shapes, root.id));
+    },
+    resetSelectedInstance: () => {
+      const root = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.instanceRootId === shape.id);
+      if (root) commitShapes(resetInstance(board.shapes, root.id));
+    },
+    swapSelectedVariant: (componentId) => {
+      const root = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.instanceRootId === shape.id);
+      if (root) commitShapes(swapInstanceVariant(board.shapes, root.id, componentId));
+    },
+    createStyleFromSelected: (kind, name) => {
+      const source = board.shapes.find((shape) => selectedIds.includes(shape.id));
+      if (source) commitShapes(createSharedStyle(board.shapes, source, kind, name).shapes);
+    },
+    applyStyleToSelected: (styleId) => commitShapes(applySharedStyle(board.shapes, selectedIds, styleId)),
+    createLibraryVariable: (kind, name, value) => commitShapes(createVariable(board.shapes, kind, name, value).shapes),
+    bindVariableToSelected: (property, variableId) => commitShapes(bindVariable(board.shapes, selectedIds, property, variableId)),
+    booleanSelected: (operation) => {
+      const result = createBooleanOperation(board.shapes, selectedIds, operation);
+      commitShapes(result.shapes);
+      if (result.booleanId) dispatch(setSelectedShapes([result.booleanId]));
+    },
+    flattenSelectedBoolean: () => {
+      const selected = board.shapes.find((shape) => selectedIds.includes(shape.id) && shape.type === "boolean");
+      if (selected) commitShapes(flattenBooleanOperation(board.shapes, selected.id));
+    },
+    maskSelected: () => commitShapes(createMask(board.shapes, selectedIds)),
+    releaseSelectedMask: () => {
+      const mask = board.shapes.find((shape) => selectedIds.includes(shape.id) && (shape.isMask || shape.maskId));
+      const id = mask?.isMask ? mask.id : mask?.maskId;
+      if (id) commitShapes(releaseMask(board.shapes, id));
+    },
+    addPage: () => {
+      const result = createPage(board.shapes);
+      commitShapes(result.shapes);
+      dispatch(setCurrentPageId(result.pageId));
+    },
+    renameDocumentPage: (pageId, name) => commitShapes(renamePage(board.shapes, pageId, name)),
+    duplicateDocumentPage: (pageId) => {
+      const result = duplicatePage(board.shapes, pageId);
+      commitShapes(result.shapes);
+      if (result.pageId) dispatch(setCurrentPageId(result.pageId));
+    },
+    deleteDocumentPage: (pageId) => {
+      const result = deletePage(board.shapes, pageId);
+      commitShapes(result.shapes);
+      dispatch(setCurrentPageId(result.nextPageId));
+    },
+    sectionSelected: () => {
+      const result = createSection(board.shapes, selectedIds, editor.currentPageId ?? "page:default");
+      commitShapes(result.shapes);
+      if (result.sectionId) dispatch(setSelectedShapes([result.sectionId]));
+    },
+    collectSelectedSections: () => commitShapes(createSectionCollection(board.shapes, selectedIds).shapes),
     removeSelected,
     copySelected,
     cutSelected,

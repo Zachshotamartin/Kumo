@@ -5,6 +5,8 @@ declare global {
     Presence: {
       cursor: { x: number; y: number } | null;
       selectionIds: string[];
+      viewport: { x: number; y: number; zoom: number };
+      spotlight: boolean;
     };
     Storage: {
       schemaVersion: number;
@@ -20,6 +22,18 @@ declare global {
         avatar: string;
       };
     };
+    ThreadMetadata: {
+      x: number;
+      y: number;
+      shapeId: string;
+    };
+    CommentMetadata: {
+      source: "canvas";
+    };
+    RoomEvent:
+      | { type: "SPOTLIGHT_START"; presenterId: string }
+      | { type: "SPOTLIGHT_STOP"; presenterId: string }
+      | { type: "DOCUMENT_RESTORED"; actorId: string; revision: number };
   }
 }
 

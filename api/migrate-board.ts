@@ -95,7 +95,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       visibility: isPublic ? "public" : "private",
       legacyRtdbId: boardId,
       document: {
-        schemaVersion: 3,
+        schemaVersion: 4,
         backgroundColor: typeof board.backgroundColor === "string"
           ? board.backgroundColor
           : typeof board.backGroundColor === "string"

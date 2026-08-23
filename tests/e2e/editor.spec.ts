@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 
 test.describe("editor regression workflows", () => {
   test.describe.configure({ mode: "serial" });
-  test.skip(({ isMobile }) => Boolean(isMobile), "Precise pointer workflows run in the desktop project.");
-
   test.beforeEach(async ({ page }) => {
     await page.goto("/e2e.html");
     await expect(page.getByTestId("editor-regression-lab")).toBeVisible();
@@ -15,7 +13,10 @@ test.describe("editor regression workflows", () => {
     const editor = page.getByRole("textbox", { name: "Edit text" });
     await expect(editor).toBeVisible();
     await expect(editor).toBeFocused();
-    await expect(editor).toHaveCSS("user-select", "text");
+    expect(await editor.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      return computed.userSelect || computed.getPropertyValue("-webkit-user-select");
+    })).toBe("text");
     await expect(editor).toHaveValue("Select part of this text");
 
     const editorBox = await editor.boundingBox();
@@ -277,25 +278,197 @@ test.describe("editor regression workflows", () => {
     const frame = page.locator('[data-shape-type="frame"]');
     const frameId = await frame.getAttribute("data-shape-id");
     const frameZ = Number(await frame.getAttribute("data-z-index"));
-
-    await page.mouse.move(canvasBox!.x + 520, canvasBox!.y + 160);
-    await page.mouse.down();
-    await page.keyboard.down("Control");
-    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 380, { steps: 8 });
-    await page.keyboard.up("Control");
-    await page.mouse.up();
     const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
+    let dragPointerId = 70;
+
+    const dragRectangleToFrame = async (keepCurrentParent = false) => {
+      const [rectangleBox, frameBox] = await Promise.all([
+        rectangle.boundingBox(),
+        frame.boundingBox(),
+      ]);
+      expect(rectangleBox).not.toBeNull();
+      expect(frameBox).not.toBeNull();
+      const pointerId = dragPointerId++;
+      const start = {
+        clientX: rectangleBox!.x + rectangleBox!.width / 2,
+        clientY: rectangleBox!.y + rectangleBox!.height / 2,
+      };
+      const end = {
+        clientX: frameBox!.x + frameBox!.width / 2,
+        clientY: frameBox!.y + frameBox!.height / 2,
+      };
+      await canvas.dispatchEvent("pointerdown", {
+        ...start,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
+      await canvas.dispatchEvent("pointermove", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
+      if (keepCurrentParent) await page.keyboard.down("Space");
+      await canvas.dispatchEvent("pointerup", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+      });
+      if (keepCurrentParent) await page.keyboard.up("Space");
+    };
+
+    await dragRectangleToFrame();
     await expect(rectangle).toHaveAttribute("data-parent-id", frameId!);
     expect(Number(await rectangle.getAttribute("data-z-index"))).toBeGreaterThan(frameZ);
 
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(rectangle).not.toHaveAttribute("data-parent-id", frameId!);
-    await page.mouse.move(canvasBox!.x + 520, canvasBox!.y + 160);
-    await page.mouse.down();
-    await page.mouse.move(canvasBox!.x + 120, canvasBox!.y + 380, { steps: 8 });
-    await page.keyboard.down("Space");
-    await page.mouse.up();
-    await page.keyboard.up("Space");
+    await dragRectangleToFrame(true);
     await expect(rectangle).not.toHaveAttribute("data-parent-id", frameId!);
+  });
+
+  test("preserves the implicit first page and supports page rename, duplicate, switch, and delete", async ({ page }) => {
+    await page.getByRole("button", { name: "Add page" }).click();
+    const firstPage = page.getByRole("textbox", { name: "Rename Page 1" });
+    const secondPage = page.getByRole("textbox", { name: "Rename Page 2" });
+    await expect(firstPage).toBeVisible();
+    await expect(secondPage).toBeVisible();
+    await expect(page.locator("[data-shape-id]")).toHaveCount(0);
+
+    await firstPage.focus();
+    await expect(page.locator("[data-shape-id]")).toHaveCount(2);
+    await firstPage.fill("Source concepts");
+    await firstPage.press("Enter");
+    await expect(page.getByRole("textbox", { name: "Rename Source concepts" })).toBeVisible();
+    await page.getByRole("button", { name: "Duplicate Source concepts" }).click();
+    await expect(page.getByRole("textbox", { name: "Rename Source concepts copy" })).toBeVisible();
+    await expect(page.locator("[data-shape-id]")).toHaveCount(2);
+    await page.getByRole("button", { name: "Delete Source concepts copy" }).click();
+    await expect(page.getByRole("textbox", { name: "Rename Source concepts copy" })).toHaveCount(0);
+  });
+
+  test("applies auto layout immediately and keeps frame children editable in the layer tree", async ({ page }) => {
+    await page.getByRole("button", { name: "Product note", exact: true }).click();
+    await page.getByRole("button", { name: "Ochre card", exact: true }).click({ modifiers: ["Shift"] });
+    await page.getByRole("button", { name: "Frame selection" }).click();
+    const frame = page.locator('[data-shape-type="frame"]');
+    const frameId = await frame.getAttribute("data-shape-id");
+    expect(frameId).toBeTruthy();
+    await page.getByLabel("Auto layout").selectOption("horizontal");
+    const text = page.locator('[data-shape-id="e2e-text"]');
+    const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');
+    await expect.poll(async () => {
+      const left = await text.boundingBox();
+      const right = await rectangle.boundingBox();
+      return left && right ? Math.abs(left.y - right.y) : 999;
+    }).toBeLessThan(2);
+    expect((await text.boundingBox())!.x).toBeLessThan((await rectangle.boundingBox())!.x);
+
+    await page.getByRole("button", { name: "Product note", exact: true }).dblclick();
+    const rename = page.getByRole("textbox", { name: "Rename Product note" });
+    await rename.fill("Auto-layout copy");
+    await rename.press("Enter");
+    await expect(page.getByRole("button", { name: "Auto-layout copy", exact: true })).toBeVisible();
+  });
+
+  test("draws editable vector paths and creates visible gradients and effects", async ({ page }) => {
+    const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+    const canvasBox = await canvas.boundingBox();
+    expect(canvasBox).not.toBeNull();
+    const pointerDrag = async (
+      target: typeof canvas,
+      start: { clientX: number; clientY: number },
+      end: { clientX: number; clientY: number },
+      pointerId: number
+    ) => {
+      await target.dispatchEvent("pointerdown", {
+        ...start,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
+      await canvas.dispatchEvent("pointermove", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+      });
+      await canvas.dispatchEvent("pointerup", {
+        ...end,
+        pointerId,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+      });
+    };
+    await page.getByRole("button", { name: "Pen tool (P)" }).click();
+    await pointerDrag(
+      canvas,
+      { clientX: canvasBox!.x + 120, clientY: canvasBox!.y + 320 },
+      { clientX: canvasBox!.x + 340, clientY: canvasBox!.y + 420 },
+      80
+    );
+    const vector = page.locator('[data-shape-type="vector"]');
+    await expect(vector).toHaveCount(1);
+    await expect(page.getByText("2 editable nodes.")).toBeVisible();
+    const vectorBeforeMove = await vector.boundingBox();
+    const nodes = page.locator("[data-vector-point-id]");
+    const nodeBeforeMove = await nodes.first().boundingBox();
+    expect(vectorBeforeMove).not.toBeNull();
+    expect(nodeBeforeMove).not.toBeNull();
+    await pointerDrag(
+      canvas,
+      {
+        clientX: vectorBeforeMove!.x + vectorBeforeMove!.width / 2,
+        clientY: vectorBeforeMove!.y + vectorBeforeMove!.height / 2,
+      },
+      {
+        clientX: vectorBeforeMove!.x + vectorBeforeMove!.width / 2 + 80,
+        clientY: vectorBeforeMove!.y + vectorBeforeMove!.height / 2 + 60,
+      },
+      81
+    );
+    const vectorAfterMove = await vector.boundingBox();
+    const nodeAfterMove = await nodes.first().boundingBox();
+    expect(vectorAfterMove!.x).toBeGreaterThan(vectorBeforeMove!.x + 70);
+    expect(nodeAfterMove!.x).toBeGreaterThan(nodeBeforeMove!.x + 70);
+
+    const resize = page.getByRole("button", { name: "Resize from bottom right" });
+    const resizeBox = await resize.boundingBox();
+    expect(resizeBox).not.toBeNull();
+    await pointerDrag(
+      resize,
+      {
+        clientX: resizeBox!.x + resizeBox!.width / 2,
+        clientY: resizeBox!.y + resizeBox!.height / 2,
+      },
+      {
+        clientX: resizeBox!.x + resizeBox!.width / 2 + 100,
+        clientY: resizeBox!.y + resizeBox!.height / 2 + 50,
+      },
+      82
+    );
+    await expect.poll(async () => (await vector.boundingBox())?.width ?? 0).toBeGreaterThan(vectorAfterMove!.width + 80);
+    await page.getByRole("checkbox", { name: "Closed path" }).check();
+
+    await page.getByRole("button", { name: "Ochre card", exact: true }).click();
+    await page.getByLabel("Fill type").selectOption("linear-gradient");
+    await expect(page.getByLabel("Gradient angle")).toBeVisible();
+    await expect(page.locator('[data-shape-id="e2e-rectangle"]')).toHaveCSS("background-image", /linear-gradient/);
+    await page.getByLabel("Add effect").selectOption("drop-shadow");
+    await expect(page.locator('[data-shape-id="e2e-rectangle"]')).toHaveCSS("filter", /drop-shadow/);
   });
 });

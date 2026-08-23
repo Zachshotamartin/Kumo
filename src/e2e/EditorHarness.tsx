@@ -100,7 +100,7 @@ const EditorHarness = () => {
         <div className={styles.panelSlot}><LayersPanelView actions={actions} /></div>
         <span />
         <section className={styles.canvasRegion} aria-label="Design editor">
-          <EditorCanvasView actions={actions} updateMyPresence={() => undefined} />
+          <EditorCanvasView actions={actions} updateMyPresence={() => undefined} showCommentPins={false} />
           <EditorToolbarView actions={actions} />
         </section>
         <span />

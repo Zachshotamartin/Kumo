@@ -20,6 +20,14 @@ const actions = vi.hoisted(() => ({
   commitShapes: vi.fn(),
   commitBoardPatch: vi.fn(),
   patchSelected: vi.fn(),
+  addPage: vi.fn(),
+  renameDocumentPage: vi.fn(),
+  duplicateDocumentPage: vi.fn(),
+  deleteDocumentPage: vi.fn(),
+  sectionSelected: vi.fn(),
+  collectSelectedSections: vi.fn(),
+  booleanSelected: vi.fn(),
+  maskSelected: vi.fn(),
   removeSelected: vi.fn(),
   copySelected: vi.fn(),
   cutSelected: vi.fn(),
@@ -202,7 +210,8 @@ describe("editor property panels", () => {
       setData: vi.fn(),
     };
     fireEvent.dragStart(source, { dataTransfer });
-    fireEvent.dragOver(target!, { clientY: 1, dataTransfer });
+    // Drop must use the synchronous drag payload rather than waiting for a
+    // React state render; WebKit can deliver drop immediately after dragstart.
     fireEvent.drop(target!, { clientY: 1, dataTransfer });
     const committed = actions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
     expect(committed.map((item) => item.id)).toEqual(["2", "1"]);
@@ -226,5 +235,42 @@ describe("editor property panels", () => {
     expect(screen.getByRole("button", { name: "Hide 1" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Lock 1" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Move 1 forward" })).toBeDisabled();
+  });
+
+  it("adds, selects, renames, duplicates, and deletes document pages", () => {
+    const first = shape("page-one", { type: "page-resource", name: "Page one", pageName: "Page one", pageOrder: 0, hidden: true, locked: true });
+    const second = shape("page-two", { type: "page-resource", name: "Page two", pageName: "Page two", pageOrder: 1, hidden: true, locked: true });
+    const content = shape("content", { pageId: first.id });
+    const store = renderPanel(<LayersPanel />, [first, second, content], []);
+    fireEvent.click(screen.getByRole("button", { name: "Add page" }));
+    const pageName = screen.getByRole("textbox", { name: "Rename Page two" });
+    fireEvent.focus(pageName);
+    expect(store.getState().editor.currentPageId).toBe(second.id);
+    fireEvent.change(pageName, { target: { value: "Flows" } });
+    fireEvent.blur(pageName);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate Page two" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Page two" }));
+    expect(actions.addPage).toHaveBeenCalled();
+    expect(actions.renameDocumentPage).toHaveBeenCalledWith(second.id, "Flows");
+    expect(actions.duplicateDocumentPage).toHaveBeenCalledWith(second.id);
+    expect(actions.deleteDocumentPage).toHaveBeenCalledWith(second.id);
+  });
+
+  it("renders and operates nested frame layers", () => {
+    const frame = shape("frame", { type: "frame", name: "Frame" });
+    const child = shape("child", { name: "Child", parentId: frame.id });
+    const store = renderPanel(<LayersPanel />, [frame, child], []);
+    fireEvent.click(screen.getByRole("button", { name: "Child" }));
+    expect(store.getState().selected.selectedShapes).toEqual([child.id]);
+    fireEvent.click(screen.getByRole("button", { name: "Hide Child" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lock Child" }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Child" }));
+    const rename = screen.getByRole("textbox", { name: "Rename Child" });
+    fireEvent.change(rename, { target: { value: "Nested layer" } });
+    fireEvent.keyDown(rename, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Frame" }));
+    expect(screen.queryByRole("button", { name: "Child" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand Frame" }));
+    expect(actions.commitShapes).toHaveBeenCalled();
   });
 });

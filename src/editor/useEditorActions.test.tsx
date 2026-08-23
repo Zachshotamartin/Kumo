@@ -133,4 +133,58 @@ describe("useEditorActions", () => {
     expect(store.getState().whiteBoard.shapes).toEqual(before);
     expect(mocks.update).not.toHaveBeenCalled();
   });
+
+  it("executes reusable assets, compositing, and document organization commands", () => {
+    const { result, store } = setup();
+
+    act(() => result.current.createComponentSelected("Pair"));
+    const component = store.getState().whiteBoard.shapes.find((shape) => shape.componentDefinition)!;
+    expect(component.componentName).toBe("Pair");
+    act(() => result.current.addComponentInstance(component.id, { x: 200, y: 100 }));
+    const instance = store.getState().whiteBoard.shapes.find((shape) => shape.instanceOf === component.id)!;
+    expect(instance).toBeDefined();
+    act(() => store.dispatch(setSelectedShapes([instance.id])));
+    act(() => result.current.resetSelectedInstance());
+    act(() => result.current.swapSelectedVariant(component.id));
+    act(() => result.current.detachSelectedInstance());
+    expect(store.getState().whiteBoard.shapes.find((shape) => shape.id === instance.id)?.instanceOf).toBeUndefined();
+
+    act(() => store.dispatch(setSelectedShapes([component.id])));
+    act(() => result.current.createVariantSetSelected());
+    act(() => result.current.createStyleFromSelected("fill-style", "Brand"));
+    const style = store.getState().whiteBoard.shapes.find((shape) => shape.resourceKind === "fill-style")!;
+    act(() => result.current.applyStyleToSelected(style.id));
+    act(() => result.current.createLibraryVariable("color-variable", "Accent", "#b87a2e"));
+    const variable = store.getState().whiteBoard.shapes.find((shape) => shape.resourceKind === "color-variable")!;
+    act(() => result.current.bindVariableToSelected("backgroundColor", variable.id));
+    expect(store.getState().whiteBoard.shapes.find((shape) => shape.id === component.id)?.backgroundColor).toBe("#b87a2e");
+
+    act(() => store.dispatch(setSelectedShapes(["a", "b"])));
+    act(() => result.current.booleanSelected("union"));
+    const boolean = store.getState().whiteBoard.shapes.find((shape) => shape.type === "boolean")!;
+    act(() => result.current.flattenSelectedBoolean());
+    expect(store.getState().whiteBoard.shapes.some((shape) => shape.id === boolean.id)).toBe(false);
+
+    const drawable = store.getState().whiteBoard.shapes.filter((shape) => shape.type === "rectangle").slice(0, 2);
+    act(() => store.dispatch(setSelectedShapes(drawable.map((shape) => shape.id))));
+    act(() => result.current.maskSelected());
+    act(() => result.current.releaseSelectedMask());
+
+    act(() => result.current.addPage());
+    const page = store.getState().whiteBoard.shapes.find((shape) => shape.type === "page-resource")!;
+    act(() => result.current.renameDocumentPage(page.id, "Flows"));
+    act(() => result.current.duplicateDocumentPage(page.id));
+    const pages = store.getState().whiteBoard.shapes.filter((shape) => shape.type === "page-resource");
+    expect(pages).toHaveLength(3);
+    act(() => result.current.deleteDocumentPage(pages[0]!.id));
+
+    const sectionCandidates = store.getState().whiteBoard.shapes.filter((shape) => shape.type === "rectangle").slice(0, 2);
+    act(() => store.dispatch(setSelectedShapes(sectionCandidates.map((shape) => shape.id))));
+    act(() => result.current.sectionSelected());
+    const section = store.getState().whiteBoard.shapes.find((shape) => shape.type === "section");
+    if (section) {
+      act(() => store.dispatch(setSelectedShapes([section.id])));
+      act(() => result.current.collectSelectedSections());
+    }
+  });
 });
