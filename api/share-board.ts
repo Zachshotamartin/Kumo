@@ -3,6 +3,7 @@ import { requireActor } from "./_auth.js";
 import { getBoardAccess } from "./_boards.js";
 import { linkedBoardSharePlan, membershipBoardIds } from "./_boardSharing.js";
 import { allowMethods, errorMessage, stringQuery } from "./_http.js";
+import { friendshipBetween } from "./_profiles.js";
 import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
 
 type BoardRole = "editor" | "viewer";
@@ -11,6 +12,7 @@ interface ShareRequest {
   boardId?: string;
   action?: "invite" | "remove";
   email?: string;
+  friendUid?: string;
   memberUid?: string;
   role?: BoardRole;
   includeLinkedBoards?: boolean;
@@ -46,22 +48,32 @@ export default async function handler(request: VercelRequest, response: VercelRe
     }
 
     if (body.action === "invite") {
-      const email = body.email?.trim().toLowerCase();
-      if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-        return response.status(400).json({ error: "Enter a valid email address." });
-      }
       const database = supabaseAdmin();
-      const { data: invited, error: invitedError } = await database
+      const friendUid = body.friendUid?.trim() ?? "";
+      const email = body.email?.trim().toLowerCase() ?? "";
+      if (!friendUid && (!email || !/^\S+@\S+\.\S+$/.test(email))) {
+        return response.status(400).json({ error: "Enter a valid email address or choose a friend." });
+      }
+      let relationship = friendUid ? await friendshipBetween(actor.uid, friendUid) : null;
+      if (friendUid && relationship?.status !== "accepted") {
+        return response.status(403).json({ error: "Only accepted friends can be shared with from the friends list." });
+      }
+      const profileQuery = database
         .from("profiles")
-        .select("firebase_uid, email")
-        .ilike("email", email)
-        .maybeSingle();
+        .select("firebase_uid, email, display_name, avatar_url");
+      const { data: invited, error: invitedError } = friendUid
+        ? await profileQuery.eq("firebase_uid", friendUid).maybeSingle()
+        : await profileQuery.ilike("email", email).maybeSingle();
       if (invitedError) throw invitedError;
       if (!invited) {
-        return response.status(400).json({ error: "No Kumo account uses that email." });
+        return response.status(400).json({ error: friendUid ? "Friend profile not found." : "No Kumo account uses that email." });
       }
       if (invited.firebase_uid === actor.uid) {
         return response.status(400).json({ error: "You already own this board." });
+      }
+      relationship ??= await friendshipBetween(actor.uid, invited.firebase_uid);
+      if (relationship?.status === "blocked") {
+        return response.status(403).json({ error: "This profile cannot be invited." });
       }
       const role: BoardRole = body.role === "viewer" ? "viewer" : "editor";
       const managedBoards = plan.boards.filter((board) => board.manageable);
@@ -86,6 +98,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.status(200).json({
         uid: invited.firebase_uid,
         email: invited.email,
+        name: invited.display_name,
+        avatar: invited.avatar_url,
         role,
         sharedBoards: selectedBoards,
         unavailableBoards,

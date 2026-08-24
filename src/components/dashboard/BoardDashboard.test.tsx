@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   duplicate: vi.fn(),
   signOut: vi.fn(),
+  friendships: vi.fn(),
 }));
 
 vi.mock("../../services/boardRepository", () => ({
@@ -23,6 +24,15 @@ vi.mock("../../services/boardRepository", () => ({
   getBoard: mocks.get,
   createBoard: mocks.create,
   duplicateBoard: mocks.duplicate,
+}));
+vi.mock("../../services/socialRepository", () => ({
+  listFriendships: mocks.friendships,
+}));
+vi.mock("../social/FriendsView", () => ({
+  FriendsView: ({ onOpenProfile }: { onOpenProfile: (username: string) => void }) => <div>Friends view <button onClick={() => onOpenProfile("alex")}>Open Alex</button></div>,
+}));
+vi.mock("../social/ProfileView", () => ({
+  ProfileView: ({ username }: { username?: string | null }) => <div>Profile view {username ?? "self"}</div>,
 }));
 vi.mock("firebase/auth", () => ({ signOut: mocks.signOut }));
 vi.mock("../../config/firebase", () => ({ auth: {} }));
@@ -72,6 +82,7 @@ describe("BoardDashboard", () => {
     mocks.duplicate.mockResolvedValue("copied");
     mocks.search.mockResolvedValue([summary("public", "other")]);
     mocks.signOut.mockResolvedValue(undefined);
+    mocks.friendships.mockResolvedValue({ friends: [], incoming: [], outgoing: [], blocked: [] });
   });
 
   it("opens an access-controlled direct board link after authentication", async () => {
@@ -85,7 +96,7 @@ describe("BoardDashboard", () => {
 
   it("loads owned/shared boards and opens or creates them", async () => {
     const store = renderDashboard();
-    expect(screen.getByRole("link", { name: "Kumo boards" })).toHaveTextContent("Kumo");
+    expect(screen.getByRole("button", { name: "Kumo boards" })).toHaveTextContent("Kumo");
     expect(await screen.findByText("My map")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open My map" }).querySelector("img"))
       .toHaveAttribute("src", "https://signed.example/mine.svg");
@@ -95,6 +106,20 @@ describe("BoardDashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "New board" }));
     await waitFor(() => expect(mocks.create).toHaveBeenCalledWith("Untitled board"));
     expect(store.getState().whiteBoard.id).toBe("created");
+  });
+
+  it("navigates between friends, public profiles, the current profile, and boards", async () => {
+    renderDashboard();
+    await screen.findByText("My map");
+    fireEvent.click(screen.getByRole("button", { name: "Friends" }));
+    expect(screen.getByText("Friends view")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open Alex" }));
+    expect(screen.getByText("Profile view alex")).toBeInTheDocument();
+    expect(new URL(window.location.href).searchParams.get("profile")).toBe("alex");
+    fireEvent.click(screen.getByRole("button", { name: "Open your profile" }));
+    expect(screen.getByText("Profile view self")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Boards" }));
+    expect(screen.getByRole("heading", { name: "My boards" })).toBeInTheDocument();
   });
 
   it("searches public boards, copies external results, and signs out", async () => {

@@ -43,13 +43,27 @@ export const boardSummary = (board: BoardRow, role?: BoardRole, thumbnailUrl?: s
   thumbnailUrl: thumbnailUrl ?? null,
 });
 
-const boardSummaries = async (boards: BoardRow[], roles: Map<string, BoardRole>) => {
+export const boardSummaries = async (boards: BoardRow[], roles: Map<string, BoardRole>) => {
   const thumbnailUrls = await boardThumbnailUrls(boards);
   return boards.map((board) => boardSummary(
     board,
     roles.get(board.id),
     board.thumbnail_asset_id ? thumbnailUrls.get(board.thumbnail_asset_id) ?? null : null
   ));
+};
+
+export const publicBoardsForOwner = async (ownerUid: string) => {
+  const { data, error } = await supabaseAdmin()
+    .from("boards")
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+    .eq("owner_id", ownerUid)
+    .eq("visibility", "public")
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(24);
+  if (error) throw error;
+  const boards = data as BoardRow[];
+  return boardSummaries(boards, new Map(boards.map((board) => [board.id, "viewer" as const])));
 };
 
 export const getBoardAccess = async (

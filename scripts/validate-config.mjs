@@ -76,6 +76,24 @@ for (const required of [
   }
 }
 
+const friendsProfilesMigration = readFileSync(
+  "supabase/migrations/202608240001_friends_profiles.sql",
+  "utf8",
+);
+for (const required of [
+  "friendship_status",
+  "friend_request_policy",
+  "primary key (user_low_id, user_high_id)",
+  "ensure_kumo_profile",
+  "mutate_kumo_friendship",
+  "security definer",
+  "service_role",
+]) {
+  if (!friendsProfilesMigration.toLowerCase().includes(required.toLowerCase())) {
+    throw new Error(`Friends and profiles migration is missing required statement: ${required}`);
+  }
+}
+
 const sourceFiles = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
@@ -107,6 +125,8 @@ const requiredDataPaths = [
   ["api/liveblocks-webhook.ts", 'from("document_snapshots")'],
   ["api/liveblocks-webhook.ts", "syncBoardLinks"],
   ["api/_boardLinks.ts", 'rpc("sync_kumo_board_links"'],
+  ["src/services/socialRepository.ts", "/api/friends"],
+  ["api/share-board.ts", "friendshipBetween"],
 ];
 for (const [file, marker] of requiredDataPaths) {
   if (!readFileSync(file, "utf8").includes(marker)) {

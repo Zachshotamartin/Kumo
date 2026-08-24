@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./config/firebase";
-import { login, logout, setAuthInitialized } from "./features/auth/authSlice";
+import { login, logout, setAuthenticatedProfile, setAuthInitialized } from "./features/auth/authSlice";
 import { ensureUserProfile } from "./services/userRepository";
 import { AppDispatch, RootState } from "./store";
 import KumoLogo from "./components/brand/KumoLogo";
@@ -52,9 +52,11 @@ function App() {
             email: firebaseUser.email ?? "",
           })
         );
-        void ensureUserProfile().catch((error: unknown) => {
-          console.error("Kumo could not initialize the authenticated profile.", error);
-        });
+        void ensureUserProfile()
+          .then((profile) => dispatch(setAuthenticatedProfile(profile)))
+          .catch((error: unknown) => {
+            console.error("Kumo could not initialize the authenticated profile.", error);
+          });
       },
       () => dispatch(setAuthInitialized())
     );

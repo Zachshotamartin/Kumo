@@ -45,7 +45,7 @@ import whiteBoardReducer, {
   updateVisibility,
 } from "./whiteBoard/whiteBoardSlice";
 import actionsReducer, { setGrid } from "./actions/actionsSlice";
-import authReducer, { login, logout, setAuthInitialized } from "./auth/authSlice";
+import authReducer, { login, logout, setAuthenticatedProfile, setAuthInitialized } from "./auth/authSlice";
 
 const shape = (id: string, assetId?: string, backgroundImage?: string): Shape => ({
   id,
@@ -132,7 +132,11 @@ describe("editor state invariants", () => {
   it("updates authentication and canvas preferences", () => {
     let auth = authReducer(undefined, setAuthInitialized());
     auth = authReducer(auth, login({ uid: "user", email: "user@example.com" }));
+    auth = authReducer(auth, setAuthenticatedProfile({ displayName: "User", username: "user", avatarUrl: "https://example.com/avatar.png" }));
     expect(auth.isAuthenticated).toBe(true);
+    expect(auth).toMatchObject({ displayName: "User", username: "user", avatarUrl: "https://example.com/avatar.png" });
+    auth = authReducer(auth, login({ uid: "other", email: "other@example.com" }));
+    expect(auth).toMatchObject({ displayName: null, username: null, avatarUrl: null });
     expect(authReducer(auth, logout()).isAuthenticated).toBe(false);
     expect(actionsReducer(undefined, setGrid(false)).grid).toBe(false);
   });

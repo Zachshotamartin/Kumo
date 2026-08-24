@@ -8,7 +8,10 @@ export const authenticatedFetch = async <T>(
   input: string,
   init: RequestInit = {}
 ): Promise<T> => {
-  const token = await auth.currentUser?.getIdToken();
+  const e2eToken = import.meta.env.VITE_E2E && /\/(social|share)-e2e\.html$/.test(window.location.pathname)
+    ? "kumo-e2e-token"
+    : null;
+  const token = e2eToken ?? await auth.currentUser?.getIdToken();
   if (!token) throw new Error("Authentication required.");
   const response = await fetch(input, {
     ...init,

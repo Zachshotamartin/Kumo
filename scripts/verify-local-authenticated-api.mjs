@@ -112,6 +112,42 @@ try {
     method: "POST",
     headers: collaboratorAuthorization,
   });
+  const username = `local-${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+  const updatedProfile = await jsonRequest(new URL("/api/profile", baseUrl), {
+    method: "PATCH",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({
+      displayName: "Local profile verification",
+      username,
+      bio: "Temporary authenticated API verification profile.",
+      discoverable: true,
+      friendRequestPolicy: "everyone",
+    }),
+  });
+  if (updatedProfile.profile?.username !== username || updatedProfile.profile?.displayName !== "Local profile verification") {
+    throw new Error("The profile API did not persist editable identity fields.");
+  }
+
+  await jsonRequest(new URL("/api/friends", baseUrl), {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ action: "request", targetUid: collaborator.firebaseUid }),
+  });
+  const incoming = await jsonRequest(new URL("/api/friends", baseUrl), {
+    headers: collaboratorAuthorization,
+  });
+  if (!incoming.incoming?.some((profile) => profile.id === owner.firebaseUid)) {
+    throw new Error("The friend request did not appear for the receiving profile.");
+  }
+  await jsonRequest(new URL("/api/friends", baseUrl), {
+    method: "POST",
+    headers: { ...collaboratorAuthorization, "content-type": "application/json" },
+    body: JSON.stringify({ action: "accept", targetUid: owner.firebaseUid }),
+  });
+  const accepted = await jsonRequest(new URL("/api/friends", baseUrl), { headers: authorization });
+  if (!accepted.friends?.some((profile) => profile.id === collaborator.firebaseUid)) {
+    throw new Error("The accepted friendship did not appear for both profiles.");
+  }
 
   const boards = await jsonRequest(new URL("/api/boards", baseUrl), {
     headers: authorization,
@@ -150,7 +186,7 @@ try {
     body: JSON.stringify({
       boardId: sourceBoard.id,
       action: "invite",
-      email: collaborator.email,
+      friendUid: collaborator.firebaseUid,
       role: "editor",
       includeLinkedBoards: true,
     }),
@@ -163,6 +199,18 @@ try {
   });
   if (collaboratorBoards.boards?.length !== 2) {
     throw new Error("The collaborator could not list both newly shared boards.");
+  }
+
+  await jsonRequest(new URL("/api/friends", baseUrl), {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ action: "remove", targetUid: collaborator.firebaseUid }),
+  });
+  const boardsAfterUnfriend = await jsonRequest(new URL("/api/boards", baseUrl), {
+    headers: collaboratorAuthorization,
+  });
+  if (boardsAfterUnfriend.boards?.length !== 2) {
+    throw new Error("Removing a friendship incorrectly revoked explicit board access.");
   }
 
   await jsonRequest(new URL("/api/share-board", baseUrl), {
@@ -196,7 +244,8 @@ try {
 
   console.log(
     `Authenticated local API verified: session 200, list boards 200 (${boards.boards.length}), `
-      + "linked share plan 200, two-board invite 200, two-board revoke 200, delete boards 204."
+      + "profile update 200, friend request/accept 200, friend-based two-board share 200, "
+      + "friendship-independent access verified, two-board revoke 200, delete boards 204."
   );
 } finally {
   const supabaseHeaders = {

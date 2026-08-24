@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUpRight,
-  Copy,
   Graph,
   MagnifyingGlass,
   Plus,
   SignOut,
+  UserCircle,
 } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
@@ -23,43 +22,19 @@ import {
   searchPublicBoards,
 } from "../../services/boardRepository";
 import { AppDispatch, RootState } from "../../store";
+import { listFriendships } from "../../services/socialRepository";
+import { FriendsView } from "../social/FriendsView";
+import { ProfileAvatar } from "../social/ProfileAvatar";
+import { ProfileView } from "../social/ProfileView";
+import { BoardCard } from "./BoardCard";
 import styles from "./BoardDashboard.module.css";
 
-const BoardCard = ({
-  board,
-  onOpen,
-  actionLabel = "Open",
-}: {
-  board: BoardSummary;
-  onOpen: () => void;
-  actionLabel?: string;
-}) => (
-  <article className={styles.boardCard}>
-    <button type="button" className={styles.boardPreview} onClick={onOpen} aria-label={`${actionLabel} ${board.title}`}>
-      {board.thumbnailUrl ? (
-        <img className={styles.previewImage} src={board.thumbnailUrl} alt="" />
-      ) : (
-        <span className={styles.previewPlaceholder} aria-hidden="true">
-          <Graph weight="duotone" />
-        </span>
-      )}
-    </button>
-    <div className={styles.boardMeta}>
-      <div>
-        <h3>{board.title}</h3>
-        <p>{board.visibility === "public" ? "Public board" : "Private board"}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`${actionLabel} ${board.title} from board details`}
-        title={actionLabel}
-      >
-        {actionLabel === "Copy" ? <Copy aria-hidden="true" /> : <ArrowUpRight aria-hidden="true" />}
-      </button>
-    </div>
-  </article>
-);
+type DashboardView = "boards" | "friends" | "profile";
+
+const routeFromLocation = () => {
+  const profile = new URL(window.location.href).searchParams.get("profile");
+  return { view: profile ? "profile" as const : "boards" as const, profile };
+};
 
 const BoardDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -70,6 +45,10 @@ const BoardDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialRoute] = useState(routeFromLocation);
+  const [view, setView] = useState<DashboardView>(initialRoute.view);
+  const [profileUsername, setProfileUsername] = useState<string | null>(initialRoute.profile);
+  const [incomingCount, setIncomingCount] = useState(0);
   const directLinkHandledRef = useRef(false);
 
   const openBoard = useCallback(async (boardId: string) => {
@@ -127,6 +106,42 @@ const BoardDashboard = () => {
     };
   }, [query]);
 
+  const refreshIncomingCount = useCallback(() => {
+    void listFriendships()
+      .then((overview) => setIncomingCount(overview.incoming.length))
+      .catch(() => setIncomingCount(0));
+  }, []);
+
+  useEffect(() => {
+    if (user.uid) refreshIncomingCount();
+  }, [refreshIncomingCount, user.uid]);
+
+  const showBoards = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("profile");
+    window.history.replaceState({}, "", url);
+    setProfileUsername(null);
+    setView("boards");
+  };
+
+  const showFriends = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("profile");
+    window.history.replaceState({}, "", url);
+    setProfileUsername(null);
+    setView("friends");
+  };
+
+  const showProfile = (username?: string | null) => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("board");
+    if (username) url.searchParams.set("profile", username);
+    else url.searchParams.delete("profile");
+    window.history.replaceState({}, "", url);
+    setProfileUsername(username ?? null);
+    setView("profile");
+  };
+
   const myBoards = boards.filter((board) => board.ownerId === user.uid);
   const sharedBoards = boards.filter((board) => board.ownerId !== user.uid);
   const publicResults = publicBoards;
@@ -164,33 +179,57 @@ const BoardDashboard = () => {
   return (
     <main className={styles.dashboard}>
       <header className={styles.header}>
-        <a className={styles.brand} href="#main-content" aria-label="Kumo boards">
+        <button type="button" className={styles.brand} aria-label="Kumo boards" onClick={showBoards}>
           <KumoLogo className={styles.brandLogo} decorative />
           <span className={styles.brandName}>Kumo</span>
-        </a>
-        <label className={styles.search}>
-          <span className="sr-only">Search public boards</span>
-          <MagnifyingGlass aria-hidden="true" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search public boards" />
-        </label>
+        </button>
+        <nav className={styles.primaryNav} aria-label="Workspace">
+          <button type="button" className={view === "boards" ? styles.navActive : undefined} aria-current={view === "boards" ? "page" : undefined} onClick={showBoards}>Boards</button>
+          <button type="button" className={view === "friends" ? styles.navActive : undefined} aria-current={view === "friends" ? "page" : undefined} onClick={showFriends}>
+            Friends
+            {incomingCount > 0 && <span className={styles.navBadge} aria-label={`${incomingCount} pending friend requests`}>{incomingCount}</span>}
+          </button>
+        </nav>
+        {view === "boards" ? (
+          <label className={styles.search}>
+            <span className="sr-only">Search public boards</span>
+            <MagnifyingGlass aria-hidden="true" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search public boards" />
+          </label>
+        ) : <span className={styles.headerSpacer} />}
         <div className={styles.account}>
-          <span>{user.email}</span>
-          <button type="button" onClick={handleLogout}><SignOut aria-hidden="true" /><span>Sign out</span></button>
+          <button type="button" className={styles.profileButton} onClick={() => showProfile()} aria-label="Open your profile">
+            <ProfileAvatar name={user.displayName || user.email || "Kumo user"} avatarUrl={user.avatarUrl} size={30} />
+            <span>{user.displayName || user.username || user.email}</span>
+            <UserCircle aria-hidden="true" />
+          </button>
+          <button type="button" className={styles.signOutButton} onClick={handleLogout} aria-label="Sign out"><SignOut aria-hidden="true" /><span>Sign out</span></button>
         </div>
       </header>
 
       <div className={styles.content}>
-        <section className={styles.hero}>
-          <div>
-            <p className={styles.eyebrow}><Graph aria-hidden="true" /> Your connected workspace</p>
-            <h1>Pick up where the idea moved.</h1>
-            <p>Open a board, follow a link, or give the next thought its own canvas.</p>
-          </div>
-          <button type="button" className={styles.createButton} onClick={handleCreate} disabled={creating}>
-            <Plus aria-hidden="true" weight="bold" />
-            {creating ? "Creating" : "New board"}
-          </button>
-        </section>
+        {view === "friends" ? (
+          <FriendsView onOpenProfile={showProfile} onIncomingCountChange={setIncomingCount} />
+        ) : view === "profile" ? (
+          <ProfileView
+            key={profileUsername ?? "self"}
+            username={profileUsername}
+            onOpenBoard={(board) => void openBoard(board.id)}
+            onIncomingCountChange={refreshIncomingCount}
+          />
+        ) : (
+          <>
+          <section className={styles.hero}>
+            <div>
+              <p className={styles.eyebrow}><Graph aria-hidden="true" /> Your connected workspace</p>
+              <h1>Pick up where the idea moved.</h1>
+              <p>Open a board, follow a link, or give the next thought its own canvas.</p>
+            </div>
+            <button type="button" className={styles.createButton} onClick={handleCreate} disabled={creating}>
+              <Plus aria-hidden="true" weight="bold" />
+              {creating ? "Creating" : "New board"}
+            </button>
+          </section>
 
         {error && <div className={styles.error} role="alert">{error}</div>}
 
@@ -236,6 +275,8 @@ const BoardDashboard = () => {
                 <div className={styles.boardGrid}>{sharedBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} />)}</div>
               </section>
             )}
+          </>
+          )}
           </>
         )}
       </div>

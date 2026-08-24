@@ -1563,6 +1563,113 @@
   margin-top: 22px;
 }
 
+.friendShare {
+  display: grid;
+  gap: 9px;
+  margin-top: 22px;
+  padding: 12px;
+  background: #28292c;
+  border: 1px solid #3c3e42;
+  border-radius: var(--kumo-radius-control);
+}
+
+.friendShareHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.friendShareHeading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #dcdad4;
+  font-size: 11px;
+}
+
+.friendShareHeading > span svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-strong);
+}
+
+.friendShareControls {
+  display: flex;
+  min-width: min(330px, 62%);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.friendShareHeading label {
+  display: grid;
+  width: min(190px, 100%);
+  height: 32px;
+  grid-template-columns: 25px minmax(0, 1fr);
+  align-items: center;
+  color: #77787c;
+  background: #202124;
+  border: 1px solid #414348;
+  border-radius: var(--kumo-radius-control);
+}
+
+.friendShareHeading label:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(184 122 46 / 0.12);
+}
+
+.friendShareHeading label svg { width: 14px; height: 14px; justify-self: center; }
+.friendShareHeading input { min-width: 0; color: #e5e4df; font: inherit; font-size: 10px; background: transparent; border: 0; outline: 0; }
+.friendShareControls select {
+  height: 32px;
+  padding: 0 7px;
+  color: #d4d2cc;
+  font: inherit;
+  font-size: 9px;
+  background: #202124;
+  border: 1px solid #414348;
+  border-radius: var(--kumo-radius-control);
+}
+
+.friendShareList { display: grid; gap: 4px; }
+
+.friendShareRow {
+  display: grid;
+  min-height: 42px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 4px;
+  border-top: 1px solid #36373b;
+}
+
+.friendShareRow > span { display: grid; min-width: 0; gap: 2px; }
+.friendShareRow strong,
+.friendShareRow small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friendShareRow strong { color: #dcdad4; font-size: 11px; }
+.friendShareRow small { color: #898a8e; font-size: 9px; }
+
+.friendShareRow button {
+  min-height: 30px;
+  padding: 0 9px;
+  color: #18191b;
+  font-size: 9px;
+  font-weight: 750;
+  background: var(--accent-strong);
+  border: 0;
+  border-radius: var(--kumo-radius-control);
+}
+
+.friendShareRow button:disabled { cursor: wait; opacity: 0.55; }
+
+.friendShareEmpty {
+  padding: 9px 4px 2px;
+  color: #85868a;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .inviteForm label {
   display: grid;
   gap: 6px;
@@ -1699,18 +1806,6 @@
   gap: 10px;
 }
 
-.memberAvatar {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  color: #17181a;
-  font-size: 11px;
-  font-weight: 800;
-  background: var(--accent-strong);
-  border-radius: 8px;
-}
-
 .memberIdentity {
   display: grid;
   gap: 2px;
@@ -1734,6 +1829,11 @@
 
 @media (max-width: 560px) {
   .inviteForm { grid-template-columns: 1fr; }
+  .friendShareHeading { align-items: stretch; flex-direction: column; }
+  .friendShareControls { width: 100%; min-width: 0; justify-content: flex-start; }
+  .friendShareHeading label { width: 100%; flex: 1; }
+  .friendShareRow { grid-template-columns: auto minmax(0, 1fr); }
+  .friendShareRow button { grid-column: 1 / -1; }
 }
 
 .dialogEyebrow {
