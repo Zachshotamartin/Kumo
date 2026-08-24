@@ -27,7 +27,7 @@ describe("Firebase Admin client", () => {
   });
 
   it("uses Kumo's public project ID fallback for normal token verification", async () => {
-    const { adminAuth } = await import("../../api/_firebaseAdmin");
+    const { adminAuth } = await import("../../server/api/_firebaseAdmin");
     expect(adminAuth()).toEqual({ app: { name: "admin" } });
     expect(mocks.initializeApp).toHaveBeenCalledWith(
       { projectId: "kumo-7d8e1" },
@@ -38,14 +38,14 @@ describe("Firebase Admin client", () => {
 
   it("keeps privileged auth and legacy database access behind service credentials", async () => {
     process.env.FIREBASE_ADMIN_PROJECT_ID = "project";
-    const incomplete = await import("../../api/_firebaseAdmin");
+    const incomplete = await import("../../server/api/_firebaseAdmin");
     expect(() => incomplete.privilegedAdminAuth()).toThrow("Firebase Admin environment variables are incomplete");
 
     process.env.FIREBASE_ADMIN_CLIENT_EMAIL = "server@example.com";
     process.env.FIREBASE_ADMIN_PRIVATE_KEY = "line-one\\nline-two";
     process.env.FIREBASE_ADMIN_DATABASE_URL = "https://example.firebaseio.com";
     vi.resetModules();
-    const { privilegedAdminAuth, adminDatabase } = await import("../../api/_firebaseAdmin");
+    const { privilegedAdminAuth, adminDatabase } = await import("../../server/api/_firebaseAdmin");
     expect(privilegedAdminAuth()).toEqual({ app: { name: "admin" } });
     expect(adminDatabase()).toEqual({ app: { name: "admin" } });
     expect(mocks.cert).toHaveBeenCalledWith(expect.objectContaining({ privateKey: "line-one\nline-two" }));

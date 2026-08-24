@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { getBoardAccess } from "./_boards.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
-import { cloneAssetsToBoard } from "./_assets.js";
+import { requireActor } from "../_auth.js";
+import { getBoardAccess } from "../_boards.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
+import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
+import { cloneAssetsToBoard } from "../_assets.js";
 
 const bucket = "board-assets";
 const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);

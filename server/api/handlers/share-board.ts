@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { getBoardAccess } from "./_boards.js";
-import { linkedBoardSharePlan, membershipBoardIds } from "./_boardSharing.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
-import { friendshipBetween } from "./_profiles.js";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
+import { requireActor } from "../_auth.js";
+import { getBoardAccess } from "../_boards.js";
+import { linkedBoardSharePlan, membershipBoardIds } from "../_boardSharing.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
+import { friendshipBetween } from "../_profiles.js";
+import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 
 type BoardRole = "editor" | "viewer";
 

@@ -20,14 +20,14 @@ vi.mock("@liveblocks/node", () => ({
   },
 }));
 
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_liveblocks", () => ({
   liveblocksAdmin: () => ({ getStorageDocument: mocks.getDocument }),
 }));
 
-vi.mock("../../api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
-vi.mock("../../api/_boardThumbnail", () => ({ updateBoardThumbnail: mocks.updateThumbnail }));
+vi.mock("../../server/api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
+vi.mock("../../server/api/_boardThumbnail", () => ({ updateBoardThumbnail: mocks.updateThumbnail }));
 
-vi.mock("../../api/_supabase", () => ({
+vi.mock("../../server/api/_supabase", () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       if (table === "boards") {

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import liveblocksAuthHandler from "../../api/liveblocks-auth";
-import sessionHandler from "../../api/session";
-import shareBoardHandler from "../../api/share-board";
+import liveblocksAuthHandler from "../../server/api/handlers/liveblocks-auth";
+import sessionHandler from "../../server/api/handlers/session";
+import shareBoardHandler from "../../server/api/handlers/share-board";
 
 const mocks = vi.hoisted(() => ({
   actor: { uid: "owner", email: "owner@example.com" },
@@ -21,18 +21,18 @@ const mocks = vi.hoisted(() => ({
   friendshipBetween: vi.fn(),
 }));
 
-vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../api/_supabase", () => ({
+vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
+vi.mock("../../server/api/_supabase", () => ({
   ensureActorProfile: mocks.ensureProfile,
   supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
-vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
-vi.mock("../../api/_boardSharing", () => ({
+vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
+vi.mock("../../server/api/_boardSharing", () => ({
   linkedBoardSharePlan: mocks.sharePlan,
   membershipBoardIds: mocks.membershipBoardIds,
 }));
-vi.mock("../../api/_profiles", () => ({ friendshipBetween: mocks.friendshipBetween }));
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_profiles", () => ({ friendshipBetween: mocks.friendshipBetween }));
+vi.mock("../../server/api/_liveblocks", () => ({
   liveblocksAdmin: () => ({
     prepareSession: () => ({ allow: mocks.allow, authorize: mocks.authorize }),
   }),

@@ -1,5 +1,5 @@
 import type { PlainLsonObject } from "@liveblocks/node";
-import { replaceStorageDocument, withDocumentLease } from "../../api/_documentMutation";
+import { replaceStorageDocument, withDocumentLease } from "../../server/api/_documentMutation";
 
 const document = (name: string) => ({ liveblocksType: "LiveObject", data: { name } }) as unknown as PlainLsonObject;
 

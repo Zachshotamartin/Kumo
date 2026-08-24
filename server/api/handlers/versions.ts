@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { getBoardAccess } from "./_boards.js";
-import { replaceStorageDocument, withDocumentLease } from "./_documentMutation.js";
-import { syncBoardLinks } from "./_boardLinks.js";
-import { boardDocumentFromJson, liveblocksAdmin } from "./_liveblocks.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
-import { supabaseAdmin } from "./_supabase.js";
+import { requireActor } from "../_auth.js";
+import { getBoardAccess } from "../_boards.js";
+import { replaceStorageDocument, withDocumentLease } from "../_documentMutation.js";
+import { syncBoardLinks } from "../_boardLinks.js";
+import { boardDocumentFromJson, liveblocksAdmin } from "../_liveblocks.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
+import { supabaseAdmin } from "../_supabase.js";
 
 const checksum = (document: unknown) => createHash("sha256")
   .update(JSON.stringify(document))

@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { syncBoardLinks } from "./_boardLinks.js";
-import { getBoardAccess } from "./_boards.js";
-import { replaceStorageDocument, withDocumentLease } from "./_documentMutation.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
-import { boardDocumentFromJson, liveblocksAdmin } from "./_liveblocks.js";
-import { supabaseAdmin } from "./_supabase.js";
+import { requireActor } from "../_auth.js";
+import { syncBoardLinks } from "../_boardLinks.js";
+import { getBoardAccess } from "../_boards.js";
+import { replaceStorageDocument, withDocumentLease } from "../_documentMutation.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
+import { boardDocumentFromJson, liveblocksAdmin } from "../_liveblocks.js";
+import { supabaseAdmin } from "../_supabase.js";
 
 const cleanName = (value: unknown) => typeof value === "string" ? value.trim().slice(0, 120) : "";
 const checksum = (document: unknown) => createHash("sha256").update(JSON.stringify(document)).digest("hex");

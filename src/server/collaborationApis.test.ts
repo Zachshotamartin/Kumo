@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import collaboratorsHandler from "../../api/collaborators";
-import versionsHandler from "../../api/versions";
+import collaboratorsHandler from "../../server/api/handlers/collaborators";
+import versionsHandler from "../../server/api/handlers/versions";
 
 const mocks = vi.hoisted(() => ({
   actor: { uid: "owner", email: "owner@example.com" },
@@ -15,11 +15,11 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 
-vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
-vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
-vi.mock("../../api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
+vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
+vi.mock("../../server/api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
+vi.mock("../../server/api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
+vi.mock("../../server/api/_liveblocks", () => ({
   boardDocumentFromJson: (document: unknown) => ({ normalized: document }),
   liveblocksAdmin: () => ({
     getStorageDocument: mocks.getDocument,

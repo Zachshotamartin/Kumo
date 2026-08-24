@@ -1,7 +1,7 @@
 import type { VercelRequest } from "@vercel/node";
-import { requireActor } from "../../api/_auth";
-import { boardDocumentFromJson, emptyBoardDocument, liveblocksAdmin } from "../../api/_liveblocks";
-import { ensureActorProfile, supabaseAdmin } from "../../api/_supabase";
+import { requireActor } from "../../server/api/_auth";
+import { boardDocumentFromJson, emptyBoardDocument, liveblocksAdmin } from "../../server/api/_liveblocks";
+import { ensureActorProfile, supabaseAdmin } from "../../server/api/_supabase";
 
 const mocks = vi.hoisted(() => ({
   verify: vi.fn(),
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("../../api/_firebaseAdmin", () => ({ adminAuth: () => ({ verifyIdToken: mocks.verify }) }));
+vi.mock("../../server/api/_firebaseAdmin", () => ({ adminAuth: () => ({ verifyIdToken: mocks.verify }) }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }));
 vi.mock("@liveblocks/node", () => ({ Liveblocks: mocks.Liveblocks }));
 

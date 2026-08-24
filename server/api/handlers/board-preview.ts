@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { serializeBoardThumbnail, updateBoardThumbnail } from "./_boardThumbnail.js";
-import { getBoardAccess } from "./_boards.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
-import { liveblocksAdmin } from "./_liveblocks.js";
+import { requireActor } from "../_auth.js";
+import { serializeBoardThumbnail, updateBoardThumbnail } from "../_boardThumbnail.js";
+import { getBoardAccess } from "../_boards.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
+import { liveblocksAdmin } from "../_liveblocks.js";
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!allowMethods(request, response, ["GET"])) return;

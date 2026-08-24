@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import friendsHandler from "../../api/friends";
-import profileHandler from "../../api/profile";
+import friendsHandler from "../../server/api/handlers/friends";
+import profileHandler from "../../server/api/handlers/profile";
 
 const mocks = vi.hoisted(() => ({
   actor: { uid: "actor", email: "actor@example.com" },
@@ -18,9 +18,9 @@ const mocks = vi.hoisted(() => ({
   searchRows: [] as Array<Record<string, unknown>>,
 }));
 
-vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../api/_boards", () => ({ publicBoardsForOwner: mocks.publicBoards }));
-vi.mock("../../api/_supabase", () => ({
+vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
+vi.mock("../../server/api/_boards", () => ({ publicBoardsForOwner: mocks.publicBoards }));
+vi.mock("../../server/api/_supabase", () => ({
   ensureActorProfile: mocks.ensureProfile,
   supabaseAdmin: () => ({
     rpc: mocks.rpc,
@@ -41,7 +41,7 @@ vi.mock("../../api/_supabase", () => ({
     },
   }),
 }));
-vi.mock("../../api/_profiles", () => ({
+vi.mock("../../server/api/_profiles", () => ({
   PROFILE_COLUMNS: "profile-columns",
   friendshipBetween: mocks.friendshipBetween,
   friendshipRowsForActor: mocks.friendshipRows,

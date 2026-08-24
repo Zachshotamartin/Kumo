@@ -9,6 +9,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/:path",
+      "destination": "/api/router?path=:path"
+    },
+    {
       "source": "/__/auth/:path*",
       "destination": "https://kumo-7d8e1.firebaseapp.com/__/auth/:path*"
     },

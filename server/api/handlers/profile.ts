@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { publicBoardsForOwner } from "./_boards.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
+import { requireActor } from "../_auth.js";
+import { publicBoardsForOwner } from "../_boards.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import {
   PROFILE_COLUMNS,
   friendshipBetween,
@@ -12,8 +12,8 @@ import {
   relationshipFor,
   type FriendRequestPolicy,
   type ProfileRow,
-} from "./_profiles.js";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
+} from "../_profiles.js";
+import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 
 const usernamePattern = /^[a-z0-9][a-z0-9._-]{2,29}$/;
 

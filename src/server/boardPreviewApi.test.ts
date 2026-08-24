@@ -8,17 +8,17 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 
-vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getBoardAccess }));
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
+vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getBoardAccess }));
+vi.mock("../../server/api/_liveblocks", () => ({
   liveblocksAdmin: () => ({ getStorageDocument: mocks.getDocument }),
 }));
-vi.mock("../../api/_boardThumbnail", () => ({
+vi.mock("../../server/api/_boardThumbnail", () => ({
   serializeBoardThumbnail: mocks.serialize,
   updateBoardThumbnail: mocks.update,
 }));
 
-import handler from "../../api/board-preview";
+import handler from "../../server/api/handlers/board-preview";
 
 const response = () => {
   const result = {
