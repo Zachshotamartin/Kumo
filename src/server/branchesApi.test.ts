@@ -180,4 +180,121 @@ describe("design branch API", () => {
     expect(merge.body).toMatchObject({ code: "BRANCH_CHANGES_REQUESTED", reviewers: ["reviewer"] });
     expect(mocks.deleteStorage).not.toHaveBeenCalled();
   });
+
+  it("reports added, removed, and changed shapes in a branch diff", async () => {
+    const branch = { id: "branch", board_id: "board", room_id: "branch:branch", status: "open" };
+    mocks.getDocument.mockImplementation(async (room: string) => room === "branch:branch"
+      ? {
+          nodes: {
+            same: { id: "same", type: "rectangle" },
+            changed: { id: "changed", type: "rectangle", name: "Updated" },
+            added: { id: "added", type: "ellipse" },
+          },
+        }
+      : {
+          nodes: {
+            same: { id: "same", type: "rectangle" },
+            changed: { id: "changed", type: "rectangle", name: "Original" },
+            removed: { id: "removed", name: "Removed label" },
+          },
+        });
+    mocks.from.mockImplementation((table: string) => table === "document_branches" ? {
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }),
+    } : {});
+
+    const reply = response();
+    await handler(request("POST", { action: "diff", boardId: "board", branchId: "branch" }), reply);
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body).toEqual({
+      diff: expect.arrayContaining([
+        { shapeId: "changed", status: "changed", name: "Updated" },
+        { shapeId: "added", status: "added", name: "ellipse" },
+        { shapeId: "removed", status: "removed", name: "Removed label" },
+      ]),
+    });
+    expect((reply.body as { diff: unknown[] }).diff).toHaveLength(3);
+  });
+
+  it("validates review, archive, and unknown branch actions", async () => {
+    let branch = { id: "branch", board_id: "board", room_id: "branch:branch", status: "open" };
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    mocks.from.mockImplementation((table: string) => table === "document_branches" ? {
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockImplementation(async () => ({ data: branch, error: null })) }) }) }),
+      update: () => ({ eq: updateEq }),
+    } : {});
+
+    const invalidReview = response();
+    await handler(request("POST", { action: "review", status: "pending", boardId: "board", branchId: "branch" }), invalidReview);
+    expect(invalidReview.statusCode).toBe(400);
+
+    const archived = response();
+    await handler(request("POST", { action: "archive", boardId: "board", branchId: "branch" }), archived);
+    expect(archived.statusCode).toBe(200);
+    expect(updateEq).toHaveBeenCalledWith("id", "branch");
+
+    branch = { ...branch, status: "archived" };
+    const alreadyArchived = response();
+    await handler(request("POST", { action: "archive", boardId: "board", branchId: "branch" }), alreadyArchived);
+    expect(alreadyArchived.statusCode).toBe(409);
+
+    const unknown = response();
+    await handler(request("POST", { action: "duplicate", boardId: "board", branchId: "branch" }), unknown);
+    expect(unknown.statusCode).toBe(400);
+  });
+
+  it("enforces board, access, branch, and method boundaries", async () => {
+    const missingBoard = response();
+    await handler(request("GET"), missingBoard);
+    expect(missingBoard.statusCode).toBe(400);
+
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const missingAccess = response();
+    await handler(request("GET", {}, { boardId: "board" }), missingAccess);
+    expect(missingAccess.statusCode).toBe(404);
+
+    mocks.getAccess.mockResolvedValueOnce({ board, role: "viewer" });
+    const readOnly = response();
+    await handler(request("POST", { action: "create", boardId: "board", name: "Nope" }), readOnly);
+    expect(readOnly.statusCode).toBe(403);
+
+    mocks.from.mockImplementation((table: string) => table === "document_branches" ? {
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }),
+    } : {});
+    const missingBranch = response();
+    await handler(request("POST", { action: "diff", boardId: "board", branchId: "missing" }), missingBranch);
+    expect(missingBranch.statusCode).toBe(404);
+
+    const method = response();
+    await handler(request("DELETE", { boardId: "board" }), method);
+    expect(method.statusCode).toBe(405);
+  });
+
+  it("allows a merge after requested changes become stale", async () => {
+    const current = { backgroundColor: "#000", nodes: {} };
+    const next = { backgroundColor: "#fff", nodes: { branch: { id: "branch" } } };
+    const branch = {
+      id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", status: "open",
+      base_checksum: createHash("sha256").update(JSON.stringify(current)).digest("hex"),
+    };
+    mocks.getDocument.mockImplementation(async (room: string) => room === "branch:branch" ? next : current);
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "document_branches") return {
+        select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }),
+      };
+      if (table === "branch_reviews") return {
+        select: () => ({ eq: vi.fn().mockResolvedValue({
+          data: [{ reviewer_id: "reviewer", status: "changes-requested", reviewed_checksum: "old-checksum" }], error: null,
+        }) }),
+      };
+      if (table === "document_snapshots") return {
+        insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "checkpoint" }, error: null }) }) }),
+      };
+      return {};
+    });
+
+    const reply = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), reply);
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body).toMatchObject({ merged: true });
+  });
 });

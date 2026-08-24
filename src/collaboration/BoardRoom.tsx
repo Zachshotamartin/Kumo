@@ -5,6 +5,7 @@ import { RootState } from "../store";
 import EditorWorkspace from "../components/editor/EditorWorkspace";
 import CollaborationBridge from "./CollaborationBridge";
 import KumoLogo from "../components/brand/KumoLogo";
+import { ConnectionTelemetryBridge } from "./ConnectionTelemetryBridge";
 
 const RoomLoading = () => (
   <div className="app-loading" role="status">
@@ -42,6 +43,7 @@ const BoardRoom = () => {
         {() => (
           <>
             <CollaborationBridge />
+            <ConnectionTelemetryBridge />
             <EditorWorkspace />
           </>
         )}

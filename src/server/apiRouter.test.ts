@@ -46,6 +46,7 @@ describe("consolidated Vercel API router", () => {
       "profile",
       "session",
       "share-board",
+      "telemetry",
       "versions",
     ]);
     expect(apiRouteName(["board-preview"])).toBe("board-preview");

@@ -166,6 +166,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.status(200).json({ merged: true, branchId, checkpointId: checkpoint.id, revision });
     });
   } catch (error) {
+    console.error("Branch API request failed", error);
     const message = errorMessage(error, "We couldn't update design branches.");
     const status = message === "Authentication required." ? 401
       : error instanceof Error && error.name === "DocumentConflict" ? 409

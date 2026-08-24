@@ -75,7 +75,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: quality
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment: preview
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -120,6 +120,10 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Smoke-test deployed preview
         run: yarn verify:deployment "https://$VERCEL_PREVIEW_DOMAIN"
+      - name: Install Chromium for authenticated full-stack verification
+        run: yarn playwright install --with-deps chromium
+      - name: Verify real Supabase and Liveblocks product workflows
+        run: yarn verify:full-stack "https://$VERCEL_PREVIEW_DOMAIN" .vercel/.env.preview.local
 
   production:
     name: Vercel production
