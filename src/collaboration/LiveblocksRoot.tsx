@@ -1,8 +1,10 @@
 import { LiveblocksProvider } from "@liveblocks/react";
 import type { PropsWithChildren } from "react";
 import { auth } from "../config/firebase";
+import { recordCollaborationAuthAttempt } from "./connectionTelemetry";
 
 const authorizeRoom = async (room?: string) => {
+  if (room) recordCollaborationAuthAttempt(room);
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error("Authentication required.");
   const response = await fetch("/api/liveblocks-auth", {

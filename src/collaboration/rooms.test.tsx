@@ -27,6 +27,7 @@ vi.mock("@liveblocks/react/suspense", () => ({
 }));
 vi.mock("../config/firebase", () => ({ auth: { currentUser: { getIdToken: mocks.token } } }));
 vi.mock("./CollaborationBridge", () => ({ default: () => <div>Bridge</div> }));
+vi.mock("./ConnectionTelemetryBridge", () => ({ ConnectionTelemetryBridge: () => <div>Telemetry</div> }));
 vi.mock("../components/editor/EditorWorkspace", () => ({ default: () => <div>Workspace</div> }));
 
 const store = () => configureStore({
@@ -55,6 +56,7 @@ describe("collaboration room providers", () => {
     appStore.dispatch(setWhiteboardData({ roomId: "board:one", id: "one" }));
     rerender(<Provider store={appStore}><BoardRoom /></Provider>);
     expect(screen.getByText("Bridge")).toBeInTheDocument();
+    expect(screen.getByText("Telemetry")).toBeInTheDocument();
     expect(screen.getByText("Workspace")).toBeInTheDocument();
   });
 

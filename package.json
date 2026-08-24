@@ -41,6 +41,7 @@
     "verify:vercel-account": "node scripts/verify-vercel-account.mjs",
     "validate:config": "node scripts/validate-config.mjs",
     "verify:local-api": "node scripts/verify-local-authenticated-api.mjs",
+    "verify:full-stack": "node scripts/verify-product-collaboration.mjs",
     "validate:local-env": "node scripts/validate-vercel-runtime-env.mjs .env.local --require-concrete --local-runtime",
     "validate:vercel-env": "node scripts/validate-vercel-runtime-env.mjs",
     "verify:deployment": "node --experimental-strip-types scripts/verify-deployment-smoke.mjs"

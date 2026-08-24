@@ -11,6 +11,7 @@ import profile from "./handlers/profile.js";
 import product from "./handlers/product.js";
 import session from "./handlers/session.js";
 import shareBoard from "./handlers/share-board.js";
+import telemetry from "./handlers/telemetry.js";
 import versions from "./handlers/versions.js";
 
 type ApiHandler = (request: VercelRequest, response: VercelResponse) => unknown;
@@ -28,6 +29,7 @@ export const apiHandlers: Readonly<Record<string, ApiHandler>> = {
   product,
   session,
   "share-board": shareBoard,
+  telemetry,
   versions,
 };
 
