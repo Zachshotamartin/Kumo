@@ -12,9 +12,13 @@ const mocks = vi.hoisted(() => ({
   commitBoardPatch: vi.fn(),
   deleteBoard: vi.fn(),
   signOut: vi.fn(),
+  connectionStatus: "connected" as "connected" | "connecting" | "initial" | "reconnecting" | "disconnected",
 }));
 
-vi.mock("@liveblocks/react", () => ({ useSyncStatus: () => "synchronized" }));
+vi.mock("@liveblocks/react", () => ({
+  useSyncStatus: () => "synchronized",
+  useStatus: () => mocks.connectionStatus,
+}));
 vi.mock("@liveblocks/react/suspense", () => ({
   useMyPresence: () => [{ spotlight: false }, vi.fn()],
   useBroadcastEvent: () => vi.fn(),
@@ -65,8 +69,19 @@ const renderWorkspace = (role: "owner" | "viewer" = "owner") => {
 describe("EditorWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.connectionStatus = "connected";
     mocks.deleteBoard.mockResolvedValue(undefined);
     mocks.signOut.mockResolvedValue(undefined);
+  });
+
+  it.each([
+    ["reconnecting", "Reconnecting"],
+    ["disconnected", "Offline"],
+  ] as const)("shows the %s collaboration connection state", (status, label) => {
+    mocks.connectionStatus = status;
+    renderWorkspace();
+    expect(screen.getByText(label)).toBeVisible();
+    expect(screen.getByLabelText("2 people on this board")).toBeVisible();
   });
 
   it("renames, changes visibility, opens sharing, and returns home", () => {

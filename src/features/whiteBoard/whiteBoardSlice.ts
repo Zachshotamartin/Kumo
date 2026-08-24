@@ -16,6 +16,13 @@ export interface WhiteBoardState {
   uid: string | null;
   sharedWith: string[];
   members: Record<string, "owner" | "editor" | "viewer">;
+  linkedBoards: Record<string, {
+    id: string;
+    title: string;
+    visibility: "private" | "public";
+    accessible: boolean;
+    role: "owner" | "editor" | "viewer" | null;
+  }>;
   backGroundColor: string;
   lastChangedBy: string | null;
   currentUsers: {
@@ -26,6 +33,9 @@ export interface WhiteBoardState {
     selectionIds?: string[];
     viewport?: { x: number; y: number; zoom: number };
     spotlight?: boolean;
+    activeShapeIds?: string[];
+    activity?: "moving" | "resizing" | "rotating" | "editing" | null;
+    cursorChat?: string;
   }[];
   schemaVersion: number;
   revision: number;
@@ -45,6 +55,7 @@ const initialState: WhiteBoardState = {
   uid: null,
   sharedWith: [],
   members: {},
+  linkedBoards: {},
   backGroundColor: "#313131",
   lastChangedBy: null,
   currentUsers: [],
@@ -74,6 +85,7 @@ const whiteBoardSlice = createSlice({
         uid,
         sharedWith,
         members,
+        linkedBoards,
         backGroundColor,
         currentUsers,
         lastChangedBy,
@@ -97,6 +109,7 @@ const whiteBoardSlice = createSlice({
       if (uid !== undefined) state.uid = uid;
       if (sharedWith !== undefined) state.sharedWith = sharedWith;
       if (members !== undefined) state.members = members;
+      if (linkedBoards !== undefined) state.linkedBoards = linkedBoards;
       if (backGroundColor !== undefined) state.backGroundColor = backGroundColor;
       if (lastChangedBy !== undefined) state.lastChangedBy = lastChangedBy;
       if (currentUsers !== undefined) state.currentUsers = currentUsers;

@@ -103,7 +103,8 @@
   color: #eda893;
 }
 
-.presenceStack button {
+.presenceStack button,
+.selfPresence {
   display: grid;
   width: 26px;
   height: 26px;
@@ -115,6 +116,12 @@
   background: #9caa92;
   border: 2px solid #17181a;
   border-radius: 8px;
+}
+
+.selfPresence {
+  margin-left: 0;
+  color: #f0e5d6;
+  background: #6f4d27;
 }
 
 .presenceStack button:hover,
@@ -1515,6 +1522,8 @@
 
 .shareDialog {
   width: min(560px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
 }
 
 .dialogHeader {
@@ -1589,6 +1598,72 @@
   border-radius: var(--kumo-radius-control);
 }
 
+.shareLinkRow,
+.shareLinkRow > span,
+.shareWarning,
+.linkedShareOption,
+.memberLoading {
+  display: flex;
+  align-items: center;
+}
+
+.shareLinkRow {
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 11px 12px;
+  background: #28292c;
+  border: 1px solid #3c3e42;
+  border-radius: var(--kumo-radius-control);
+}
+
+.shareLinkRow > span { min-width: 0; gap: 8px; }
+.shareLinkRow > span > svg { width: 17px; height: 17px; color: var(--accent-strong); }
+.shareLinkRow b { color: #dcdad4; font-size: 11px; }
+.shareLinkRow small { color: #7f8084; font-size: 10px; }
+.shareLinkRow button {
+  display: inline-flex;
+  min-height: 31px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  color: #d6d4ce;
+  background: #202124;
+  border: 1px solid #484a4f;
+  border-radius: var(--kumo-radius-control);
+}
+.shareLinkRow button svg { width: 14px; height: 14px; }
+
+.inviteForm .linkedShareOption {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 3px;
+  padding: 9px 10px;
+  background: rgb(184 122 46 / .08);
+  border-left: 2px solid var(--accent);
+}
+.linkedShareOption input { width: 15px; height: 15px; margin-top: 1px; accent-color: var(--accent); }
+.linkedShareOption > span { display: grid; gap: 2px; }
+.linkedShareOption strong { color: #d5d3cd; font-size: 11px; }
+.linkedShareOption small { color: #85868a; font-size: 9px; line-height: 1.45; }
+
+.shareWarning {
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 10px 11px;
+  color: #d6b184;
+  background: #342a20;
+  border: 1px solid #59432d;
+  border-radius: var(--kumo-radius-control);
+}
+.shareWarning > svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.shareWarning > span { display: grid; gap: 3px; }
+.shareWarning strong { color: #eed0aa; font-size: 11px; }
+.shareWarning small { color: #aa9680; font-size: 10px; line-height: 1.45; }
+
 .accessNote,
 .dialogError,
 .dialogMessage {
@@ -1619,7 +1694,7 @@
 .memberRow {
   display: grid;
   min-height: 50px;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
 }
@@ -1651,8 +1726,11 @@
 }
 
 .memberIdentity small { color: #86878b; font-size: 10px; }
+.memberRole { color: #929398; font-size: 10px; white-space: nowrap; }
 .memberRow button { min-height: 32px; color: #e69b87; background: transparent; border: 0; border-radius: var(--kumo-radius-control); }
 .memberRow button:hover, .memberRow button:focus-visible { background: #3b2824; outline: none; }
+.memberLoading { min-height: 52px; gap: 8px; color: #77787c; font-size: 10px; }
+.memberLoading svg { width: 15px; height: 15px; }
 
 @media (max-width: 560px) {
   .inviteForm { grid-template-columns: 1fr; }

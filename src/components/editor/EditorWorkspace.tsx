@@ -21,7 +21,7 @@ import {
   Trash,
   X,
 } from "@phosphor-icons/react";
-import { useSyncStatus } from "@liveblocks/react";
+import { useStatus, useSyncStatus } from "@liveblocks/react";
 import {
   useBroadcastEvent,
   useMyPresence,
@@ -74,6 +74,7 @@ const emptyBoard = {
   uid: null,
   sharedWith: [],
   members: {},
+  linkedBoards: {},
   backGroundColor: "#252629",
   lastChangedBy: null,
   currentUsers: [],
@@ -105,6 +106,7 @@ const EditorWorkspace = () => {
   const editor = useSelector((state: RootState) => state.editor);
   const actions = useEditorActions();
   const syncStatus = useSyncStatus({ smooth: true });
+  const connectionStatus = useStatus();
   const [myPresence, updateMyPresence] = useMyPresence();
   const broadcastEvent = useBroadcastEvent();
   const { count: unreadCommentCount } = useUnreadInboxNotificationsCount();
@@ -178,6 +180,9 @@ const EditorWorkspace = () => {
   };
 
   const goHome = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("board");
+    window.history.replaceState({}, "", url);
     dispatch(clearSelectedShapes());
     dispatch(setWhiteboardData(emptyBoard));
   };
@@ -259,10 +264,16 @@ const EditorWorkspace = () => {
         <div className={styles.topbarEnd}>
           <CommandPalette />
           <span
-            className={`${styles.saveStatus} ${editor.saveStatus === "error" ? styles.saveError : ""}`}
+            className={`${styles.saveStatus} ${editor.saveStatus === "error" || connectionStatus === "disconnected" ? styles.saveError : ""}`}
             role="status"
           >
-            {syncStatus === "synchronizing" || editor.saveStatus === "saving"
+            {connectionStatus === "reconnecting"
+              ? "Reconnecting"
+              : connectionStatus === "disconnected"
+              ? "Offline"
+              : connectionStatus === "connecting" || connectionStatus === "initial"
+              ? "Connecting"
+              : syncStatus === "synchronizing" || editor.saveStatus === "saving"
               ? "Saving"
               : editor.saveStatus === "error"
               ? "Save failed"
@@ -270,7 +281,8 @@ const EditorWorkspace = () => {
               ? "Saved"
               : "Ready"}
           </span>
-          <div className={styles.presenceStack} aria-label={`${board.currentUsers.length} people on this board`}>
+          <div className={styles.presenceStack} aria-label={`${board.currentUsers.length + 1} people on this board`}>
+            <span className={styles.selfPresence} title="You are here">{(user.email ?? "Y").slice(0, 1).toUpperCase()}</span>
             {board.currentUsers.slice(0, 3).map((presence) => (
               <button
                 type="button"

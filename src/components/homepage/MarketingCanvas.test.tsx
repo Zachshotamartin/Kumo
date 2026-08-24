@@ -152,4 +152,41 @@ describe("MarketingCanvas", () => {
       .map((path) => path.getAttribute("d")))
       .toEqual(["M 0 200 L 200 0", "M 0 0 L 200 200"]);
   });
+
+  it("selects, highlights, moves, nudges, and removes drawn model shapes", () => {
+    const { container } = render(
+      <MarketingCanvas logoContext="idle" logoStatus="Ready when the idea is." />
+    );
+    const canvas = container.firstElementChild as HTMLDivElement;
+    const surface = screen.getByRole("button", { name: /Kumo sketch canvas/i });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => rect(),
+    });
+    Object.defineProperty(surface, "getBoundingClientRect", {
+      configurable: true,
+      value: () => rect(),
+    });
+    addPointerCapture(surface);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rectangle (R)" }));
+    fireEvent.pointerDown(surface, { pointerId: 31, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(surface, { pointerId: 31, clientX: 300, clientY: 250 });
+    fireEvent.pointerUp(surface, { pointerId: 31, clientX: 300, clientY: 250 });
+    fireEvent.click(screen.getByRole("button", { name: "Select (V)" }));
+
+    const rectangle = screen.getByRole("button", { name: /Rectangle\. Drag to move/i });
+    addPointerCapture(rectangle);
+    fireEvent.pointerDown(rectangle, { pointerId: 32, button: 0, clientX: 100, clientY: 100 });
+    expect(rectangle.querySelector("[data-selection-highlight='true']")).toBeInTheDocument();
+    fireEvent.pointerMove(rectangle, { pointerId: 32, clientX: 200, clientY: 150 });
+    fireEvent.pointerUp(rectangle, { pointerId: 32, clientX: 200, clientY: 150 });
+    expect(rectangle).toHaveStyle({ left: "20%", top: "15%" });
+
+    fireEvent.keyDown(rectangle, { key: "ArrowRight" });
+    expect(Number.parseFloat(rectangle.style.left)).toBeCloseTo(20.2);
+    fireEvent.keyDown(rectangle, { key: "Delete" });
+    expect(screen.queryByRole("button", { name: /Rectangle\. Drag to move/i }))
+      .not.toBeInTheDocument();
+  });
 });

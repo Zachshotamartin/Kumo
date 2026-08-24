@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { Shape } from "../../classes/shape";
 import actionsReducer from "../../features/actions/actionsSlice";
-import authReducer from "../../features/auth/authSlice";
+import authReducer, { login } from "../../features/auth/authSlice";
 import editorReducer from "../../features/editor/editorSlice";
 import selectedReducer, { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
@@ -104,6 +104,7 @@ const renderCanvas = (input: Shape | Shape[]) => {
     role: "owner",
     shapes,
   }));
+  store.dispatch(login({ uid: "local-user", email: "local@example.com" }));
   store.dispatch(setSelectedShapes([shapes[0]!.id]));
   render(
     <Provider store={store}>
@@ -187,6 +188,81 @@ describe("EditorCanvas transform interactions", () => {
     expect(presence.update).toHaveBeenLastCalledWith({ cursor: { x: 30, y: 40 } });
   });
 
+  it("opens ephemeral cursor chat with slash and publishes text through presence", () => {
+    renderCanvas(rectangle());
+    fireEvent.keyDown(window, { key: "/" });
+    const chat = screen.getByRole("textbox", { name: "Cursor chat" });
+    fireEvent.change(chat, { target: { value: "Move this left?" } });
+    expect(presence.update).toHaveBeenLastCalledWith({ cursorChat: "Move this left?" });
+    fireEvent.keyDown(chat, { key: "Enter" });
+    expect(presence.update).toHaveBeenLastCalledWith({ cursorChat: "" });
+    fireEvent.keyDown(chat, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Cursor chat" })).not.toBeInTheDocument();
+  });
+
+  it("blocks a second transform while another collaborator owns the same shape", () => {
+    const { canvas, store } = renderCanvas(rectangle());
+    act(() => {
+      store.dispatch(setWhiteboardData({
+        currentUsers: [{
+          uid: "remote", label: "Ada", cursorX: 20, cursorY: 20,
+          activeShapeIds: ["shape-1"], activity: "moving", cursorChat: "",
+        }],
+      }));
+    });
+    fireEvent.pointerDown(canvas, { pointerId: 22, button: 0, clientX: 10, clientY: 10 });
+    expect(screen.getByRole("status")).toHaveTextContent("Ada is moving this selection");
+    fireEvent.pointerMove(canvas, { pointerId: 22, clientX: 80, clientY: 80 });
+    fireEvent.pointerUp(canvas, { pointerId: 22, clientX: 80, clientY: 80 });
+    expect(editorActions.commitShapes).not.toHaveBeenCalled();
+  });
+
+  it("blocks destructive and geometry keyboard commands during a remote edit", () => {
+    const { store } = renderCanvas(rectangle());
+    act(() => {
+      store.dispatch(setWhiteboardData({
+        currentUsers: [{
+          uid: "remote", label: "Ada", cursorX: 20, cursorY: 20,
+          activeShapeIds: ["shape-1"], activity: "resizing", cursorChat: "",
+        }],
+      }));
+    });
+
+    fireEvent.keyDown(window, { key: "Delete" });
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "x", metaKey: true });
+    fireEvent.keyDown(window, { key: "g", metaKey: true });
+    fireEvent.keyDown(window, { key: "]" });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Ada is resizing this selection");
+    expect(editorActions.removeSelected).not.toHaveBeenCalled();
+    expect(editorActions.nudgeSelected).not.toHaveBeenCalled();
+    expect(editorActions.cutSelected).not.toHaveBeenCalled();
+    expect(editorActions.groupSelected).not.toHaveBeenCalled();
+    expect(editorActions.orderSelected).not.toHaveBeenCalled();
+  });
+
+  it("deterministically yields a simultaneous transform to the same winning collaborator", () => {
+    const { canvas, store } = renderCanvas(rectangle());
+    fireEvent.pointerDown(canvas, { pointerId: 24, button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(canvas, { pointerId: 24, clientX: 40, clientY: 40 });
+    expect(editorActions.previewShapes).toHaveBeenCalled();
+
+    act(() => {
+      store.dispatch(setWhiteboardData({
+        currentUsers: [{
+          uid: "a-remote-user", label: "Ada", cursorX: 20, cursorY: 20,
+          activeShapeIds: ["shape-1"], activity: "moving", cursorChat: "",
+        }],
+      }));
+    });
+
+    expect(editorActions.cancelPreview).toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Ada took control");
+    fireEvent.pointerUp(canvas, { pointerId: 24, clientX: 40, clientY: 40 });
+    expect(editorActions.commitShapes).not.toHaveBeenCalled();
+  });
+
   it("cancels browser pinch zoom and applies a strong, symmetric canvas zoom", () => {
     const { canvas, store } = renderCanvas(rectangle());
     const event = new WheelEvent("wheel", {
@@ -263,6 +339,22 @@ describe("EditorCanvas transform interactions", () => {
     expect(store.getState().whiteBoard.id).toBe("board-b");
   });
 
+  it("renders and blocks a linked board whose destination is private", () => {
+    const linked = { ...rectangle(), id: "link", type: "board", boardId: "private", title: "Private roadmap" };
+    const { canvas, store } = renderCanvas(linked);
+    act(() => {
+      store.dispatch(setWhiteboardData({
+        linkedBoards: {
+          private: { id: "private", title: "Private roadmap", visibility: "private", accessible: false, role: null },
+        },
+      }));
+    });
+    expect(screen.getByText("Access required")).toBeInTheDocument();
+    fireEvent.doubleClick(canvas, { clientX: 10, clientY: 10 });
+    expect(screen.getByRole("alert")).toHaveTextContent("owner needs to share");
+    expect(getBoard).not.toHaveBeenCalled();
+  });
+
   it("supports native text ranges and commits the exact edited value", () => {
     const { canvas } = renderCanvas(textShape());
     fireEvent.doubleClick(canvas, { clientX: 10, clientY: 10 });
@@ -279,6 +371,28 @@ describe("EditorCanvas transform interactions", () => {
       [expect.objectContaining({ id: "text-1", text: "Select a section of this text" })],
       [expect.objectContaining({ id: "text-1", text: "Select part of this text" })]
     );
+  });
+
+  it("grows auto-height text live while preserving its wrapping width", () => {
+    const autoHeightText: Shape = {
+      ...textShape(),
+      x2: 100,
+      y2: 24,
+      width: 100,
+      height: 24,
+      textAutoResize: "auto-height",
+    };
+    const { canvas } = renderCanvas(autoHeightText);
+    fireEvent.doubleClick(canvas, { clientX: 10, clientY: 10 });
+    const editor = screen.getByRole("textbox", { name: "Edit text" });
+    fireEvent.change(editor, {
+      target: { value: "This paragraph is long enough to wrap over several lines without scrolling." },
+    });
+
+    const preview = editorActions.previewShapes.mock.calls.at(-1)?.[0] as Shape[];
+    expect(preview[0]!.width).toBe(100);
+    expect(preview[0]!.height).toBeGreaterThan(24);
+    expect(editor).toHaveAttribute("wrap", "soft");
   });
 
   it("enters text editing from the keyboard", () => {
@@ -323,9 +437,30 @@ describe("EditorCanvas transform interactions", () => {
 
     const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
     const created = committed.find((shape) => shape.type === "text");
-    expect(created).toMatchObject({ width: 180, height: 40, text: "Type something" });
+    expect(created).toMatchObject({
+      width: 180,
+      height: 40,
+      text: "Type something",
+      textAutoResize: "auto-width",
+    });
     expect(store.getState().editor.editingShapeId).toBe(created?.id);
     expect(store.getState().selected.selectedTool).toBe("pointer");
+  });
+
+  it("creates dragged text as fixed-width, auto-height area text", () => {
+    const { canvas, store } = renderCanvas(rectangle());
+    act(() => { store.dispatch(setSelectedTool("text")); });
+    fireEvent.pointerDown(canvas, { pointerId: 13, button: 0, clientX: 240, clientY: 180 });
+    fireEvent.pointerMove(canvas, { pointerId: 13, clientX: 440, clientY: 280 });
+    fireEvent.pointerUp(canvas, { pointerId: 13, clientX: 440, clientY: 280 });
+
+    const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    const created = committed.find((shape) => shape.type === "text");
+    expect(created).toMatchObject({
+      width: 200,
+      textAutoResize: "auto-height",
+    });
+    expect(created!.height).toBeLessThan(100);
   });
 
   it("selects a frame first, deep-selects its child, and traverses hierarchy with Enter", () => {
@@ -406,7 +541,7 @@ describe("EditorCanvas transform interactions", () => {
 
     const committed = editorActions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
     const created = committed.find((shape) => shape.type === "frame")!;
-    expect(created).toBeDefined();
+    expect(created).toMatchObject({ backgroundColor: "#ffffff" });
     expect(committed.find((shape) => shape.id === existing.id)).toMatchObject({
       parentId: created.id,
       x1: 20,

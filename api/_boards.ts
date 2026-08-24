@@ -24,6 +24,14 @@ export interface BoardAccess {
   role: BoardRole;
 }
 
+export interface LinkedBoardAccessSummary {
+  id: string;
+  title: string;
+  visibility: BoardVisibility;
+  accessible: boolean;
+  role: BoardRole | null;
+}
+
 export const boardSummary = (board: BoardRow, role?: BoardRole, thumbnailUrl?: string | null) => ({
   id: board.id,
   title: board.title,
@@ -69,6 +77,51 @@ export const getBoardAccess = async (
   if (member) return { board, role: member.role as BoardRole };
   if (board.visibility === "public") return { board, role: "viewer" };
   return null;
+};
+
+export const linkedBoardsForActor = async (
+  sourceBoardId: string,
+  actorUid: string
+): Promise<Record<string, LinkedBoardAccessSummary>> => {
+  const database = supabaseAdmin();
+  const { data: links, error: linkError } = await database
+    .from("board_links")
+    .select("target_board_id")
+    .eq("source_board_id", sourceBoardId);
+  if (linkError) throw linkError;
+  const targetIds = [...new Set((links ?? []).map((link) => link.target_board_id as string))];
+  if (!targetIds.length) return {};
+
+  const [{ data: boards, error: boardError }, { data: memberships, error: memberError }] = await Promise.all([
+    database
+      .from("boards")
+      .select("id, title, visibility")
+      .in("id", targetIds)
+      .is("deleted_at", null),
+    database
+      .from("board_members")
+      .select("board_id, role")
+      .eq("user_id", actorUid)
+      .in("board_id", targetIds),
+  ]);
+  if (boardError) throw boardError;
+  if (memberError) throw memberError;
+  const roles = new Map((memberships ?? []).map((member) => [
+    member.board_id as string,
+    member.role as BoardRole,
+  ]));
+  return Object.fromEntries((boards ?? []).map((board) => {
+    const role = roles.get(board.id as string) ?? null;
+    const visibility = board.visibility as BoardVisibility;
+    const accessible = Boolean(role) || visibility === "public";
+    return [board.id, {
+      id: board.id as string,
+      title: accessible ? board.title as string : "Private board",
+      visibility,
+      accessible,
+      role: role ?? (visibility === "public" ? "viewer" : null),
+    } satisfies LinkedBoardAccessSummary];
+  }));
 };
 
 export const listBoardsForUser = async (actorUid: string) => {

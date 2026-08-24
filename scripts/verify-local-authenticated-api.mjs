@@ -51,38 +51,67 @@ const jsonRequest = async (url, init) => {
       ? body.error.message
       : typeof body?.error === "string"
         ? body.error
+        : typeof body?.message === "string"
+          ? body.message
         : `HTTP ${response.status}`;
     throw new Error(`${url}: ${message}`);
   }
   return body;
 };
 
-let idToken;
-let firebaseUid;
-let boardId;
-let roomId;
+const accounts = [];
+const createdBoards = [];
 
-try {
+const createFirebaseAccount = async (label) => {
+  const email = `kumo-local-${label}-${randomUUID()}@example.com`;
   const account = await jsonRequest(identityUrl("signUp"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      email: `kumo-local-e2e-${randomUUID()}@example.com`,
+      email,
       password: `Kumo-${randomUUID()}-A1!`,
       returnSecureToken: true,
     }),
   });
-  idToken = account.idToken;
-  firebaseUid = account.localId;
+  const result = { email, idToken: account.idToken, firebaseUid: account.localId };
+  accounts.push(result);
+  return result;
+};
 
-  const authorization = { authorization: `Bearer ${idToken}` };
+const authorizationFor = (account) => ({ authorization: `Bearer ${account.idToken}` });
+
+const createBoard = async (authorization, title) => {
+  const created = await jsonRequest(new URL("/api/boards", baseUrl), {
+    method: "POST",
+    headers: {
+      ...authorization,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ title }),
+  });
+  if (!created.board?.id || !created.board?.roomId || created.board?.role !== "owner") {
+    throw new Error("The boards API did not return the newly created owned board.");
+  }
+  createdBoards.push({ id: created.board.id, roomId: created.board.roomId });
+  return created.board;
+};
+
+try {
+  const owner = await createFirebaseAccount("owner");
+  const collaborator = await createFirebaseAccount("collaborator");
+  const authorization = authorizationFor(owner);
+  const collaboratorAuthorization = authorizationFor(collaborator);
   const session = await jsonRequest(new URL("/api/session", baseUrl), {
     method: "POST",
     headers: authorization,
   });
-  if (session.profile?.uid !== firebaseUid) {
+  if (session.profile?.uid !== owner.firebaseUid) {
     throw new Error("The session API returned the wrong authenticated profile.");
   }
+  await jsonRequest(new URL("/api/session", baseUrl), {
+    method: "POST",
+    headers: collaboratorAuthorization,
+  });
 
   const boards = await jsonRequest(new URL("/api/boards", baseUrl), {
     headers: authorization,
@@ -91,55 +120,103 @@ try {
     throw new Error("The boards API did not return a board list.");
   }
 
-  const created = await jsonRequest(new URL("/api/boards", baseUrl), {
+  const sourceBoard = await createBoard(authorization, "Local linked-share source");
+  const targetBoard = await createBoard(authorization, "Local linked-share target");
+  await jsonRequest(new URL("/rest/v1/board_links", supabaseUrl), {
     method: "POST",
     headers: {
-      ...authorization,
+      apikey: supabaseServiceRoleKey,
+      authorization: `Bearer ${supabaseServiceRoleKey}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ title: "Local board creation verification" }),
+    body: JSON.stringify({
+      source_board_id: sourceBoard.id,
+      target_board_id: targetBoard.id,
+      shape_id: "local-linked-share-test",
+    }),
   });
-  boardId = created.board?.id;
-  roomId = created.board?.roomId;
-  if (!boardId || !roomId || created.board?.role !== "owner") {
-    throw new Error("The boards API did not return the newly created owned board.");
+
+  const sharePlan = await jsonRequest(
+    new URL(`/api/share-board?boardId=${encodeURIComponent(sourceBoard.id)}`, baseUrl),
+    { headers: authorization }
+  );
+  if (sharePlan.plan?.boards?.length !== 2) {
+    throw new Error("The linked-board share plan did not include both owned boards.");
   }
 
-  const deleteResponse = await fetch(new URL("/api/boards", baseUrl), {
-    method: "DELETE",
-    headers: {
-      ...authorization,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ boardId }),
+  const shared = await jsonRequest(new URL("/api/share-board", baseUrl), {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({
+      boardId: sourceBoard.id,
+      action: "invite",
+      email: collaborator.email,
+      role: "editor",
+      includeLinkedBoards: true,
+    }),
   });
-  if (deleteResponse.status !== 204) {
-    const body = await deleteResponse.json().catch(() => ({}));
-    throw new Error(`${new URL("/api/boards", baseUrl)}: ${body?.error || `HTTP ${deleteResponse.status}`}`);
+  if (shared.sharedBoards?.length !== 2 || shared.unavailableBoards?.length !== 0) {
+    throw new Error("The linked-board invite did not grant the complete owned graph.");
+  }
+  const collaboratorBoards = await jsonRequest(new URL("/api/boards", baseUrl), {
+    headers: collaboratorAuthorization,
+  });
+  if (collaboratorBoards.boards?.length !== 2) {
+    throw new Error("The collaborator could not list both newly shared boards.");
+  }
+
+  await jsonRequest(new URL("/api/share-board", baseUrl), {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({
+      boardId: sourceBoard.id,
+      action: "remove",
+      memberUid: collaborator.firebaseUid,
+      includeLinkedBoards: true,
+    }),
+  });
+  const boardsAfterRevoke = await jsonRequest(new URL("/api/boards", baseUrl), {
+    headers: collaboratorAuthorization,
+  });
+  if (boardsAfterRevoke.boards?.length !== 0) {
+    throw new Error("Linked-board revoke left stale collaborator access.");
+  }
+
+  for (const board of [...createdBoards].reverse()) {
+    const deleteResponse = await fetch(new URL("/api/boards", baseUrl), {
+      method: "DELETE",
+      headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify({ boardId: board.id }),
+    });
+    if (deleteResponse.status !== 204) {
+      const body = await deleteResponse.json().catch(() => ({}));
+      throw new Error(`${new URL("/api/boards", baseUrl)}: ${body?.error || `HTTP ${deleteResponse.status}`}`);
+    }
   }
 
   console.log(
-    `Authenticated local API verified: session 200, list boards 200 (${boards.boards.length}), create board 201, delete board 204.`
+    `Authenticated local API verified: session 200, list boards 200 (${boards.boards.length}), `
+      + "linked share plan 200, two-board invite 200, two-board revoke 200, delete boards 204."
   );
 } finally {
   const supabaseHeaders = {
     apikey: supabaseServiceRoleKey,
     authorization: `Bearer ${supabaseServiceRoleKey}`,
   };
-  if (roomId) {
+  for (const { roomId } of createdBoards) {
     await liveblocks.deleteRoom(roomId).catch(() => undefined);
   }
-  if (firebaseUid) {
+  for (const { firebaseUid } of accounts) {
     const auditUrl = new URL("/rest/v1/audit_events", supabaseUrl);
     auditUrl.searchParams.set("actor_id", `eq.${firebaseUid}`);
     await fetch(auditUrl, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
   }
-  if (boardId) {
+  for (const { id } of createdBoards) {
     const boardUrl = new URL("/rest/v1/boards", supabaseUrl);
-    boardUrl.searchParams.set("id", `eq.${boardId}`);
+    boardUrl.searchParams.set("id", `eq.${id}`);
     await fetch(boardUrl, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
   }
-  if (firebaseUid) {
+  for (const { firebaseUid } of accounts) {
     const cleanupUrl = new URL("/rest/v1/profiles", supabaseUrl);
     cleanupUrl.searchParams.set("firebase_uid", `eq.${firebaseUid}`);
     await fetch(cleanupUrl, {
@@ -147,7 +224,7 @@ try {
       headers: supabaseHeaders,
     }).catch(() => undefined);
   }
-  if (idToken) {
+  for (const { idToken } of accounts) {
     await fetch(identityUrl("delete"), {
       method: "POST",
       headers: { "content-type": "application/json" },

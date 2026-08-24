@@ -42,6 +42,7 @@ const summary = (id: string, ownerId = "user") => ({
 const board = (id: string) => ({
   shapes: [], id, roomId: `board:${id}`, role: "owner" as const, type: "private",
   title: "Opened", uid: "user", sharedWith: [], members: { user: "owner" as const },
+  linkedBoards: {},
   backGroundColor: "#252629", lastChangedBy: null, currentUsers: [], schemaVersion: 3,
   revision: 0, updatedAt: 1,
 });
@@ -64,12 +65,20 @@ const renderDashboard = () => {
 describe("BoardDashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/");
     mocks.list.mockResolvedValue([summary("mine"), summary("shared", "other")]);
     mocks.get.mockImplementation(async (id: string) => board(id));
     mocks.create.mockResolvedValue("created");
     mocks.duplicate.mockResolvedValue("copied");
     mocks.search.mockResolvedValue([summary("public", "other")]);
     mocks.signOut.mockResolvedValue(undefined);
+  });
+
+  it("opens an access-controlled direct board link after authentication", async () => {
+    window.history.replaceState({}, "", "/?board=shared-link");
+    const store = renderDashboard();
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("shared-link"));
+    expect(store.getState().whiteBoard.id).toBe("shared-link");
   });
 
   afterEach(() => vi.useRealTimers());

@@ -82,6 +82,40 @@ describe("CollaborationBridge", () => {
     });
   });
 
+  it("projects remote activity and cursor chat into the board presence model", async () => {
+    collaboration.others = [{
+      id: "ada",
+      info: { name: "Ada", email: "ada@example.com", avatar: "" },
+      presence: {
+        cursor: { x: 24, y: 36 },
+        selectionIds: ["shape"],
+        viewport: { x: 10, y: 20, zoom: 1.25 },
+        spotlight: false,
+        activeShapeIds: ["shape"],
+        activity: "moving",
+        cursorChat: "I’m aligning this",
+      },
+    }];
+    const store = makeStore();
+
+    render(<Provider store={store}><CollaborationBridge /></Provider>);
+
+    await waitFor(() => {
+      expect(store.getState().whiteBoard.currentUsers).toEqual([{
+        uid: "ada",
+        label: "Ada",
+        cursorX: 24,
+        cursorY: 36,
+        selectionIds: ["shape"],
+        viewport: { x: 10, y: 20, zoom: 1.25 },
+        spotlight: false,
+        activeShapeIds: ["shape"],
+        activity: "moving",
+        cursorChat: "I’m aligning this",
+      }]);
+    });
+  });
+
   it("does not overwrite an active local preview and catches up afterward", async () => {
     collaboration.nodes.shape = shape("remote") as unknown as Record<string, unknown>;
     const store = makeStore();

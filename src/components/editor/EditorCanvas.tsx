@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Cursor, X } from "@phosphor-icons/react";
+import { Cursor, LockSimple, X } from "@phosphor-icons/react";
 import { useUpdateMyPresence } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape, ShapeFunctions } from "../../classes/shape";
@@ -26,7 +26,12 @@ import {
   ZOOM_STEP_FACTOR,
   zoomAtPoint,
 } from "../../editor/geometry";
-import { constrainFrameChildren, displayTextLines } from "../../editor/layout";
+import {
+  applyDocumentLayout,
+  constrainFrameChildren,
+  displayTextLines,
+  fitTextShape,
+} from "../../editor/layout";
 import { measureShapes } from "../../editor/measurement";
 import {
   updateVectorPoint,
@@ -76,6 +81,18 @@ import { shapeAppearanceStyle } from "../../editor/shapeAppearance";
 import { SelectionHighlight } from "./SelectionHighlight";
 
 type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan" | "vector-point";
+
+const CONTEXT_ACTIONS_REQUIRING_IDLE_SELECTION = new Set([
+  "Group",
+  "Ungroup",
+  "Frame selection",
+  "Remove frame",
+  "Bring to front",
+  "Bring forward",
+  "Send backward",
+  "Send to back",
+  "Delete",
+]);
 
 interface Interaction {
   mode: InteractionMode;
@@ -152,6 +169,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const spacePressedRef = useRef(false);
   const cursorFrameRef = useRef<number | null>(null);
   const latestCursorRef = useRef<Point | null>(null);
+  const cursorChatInputRef = useRef<HTMLInputElement>(null);
   const navigationRequestRef = useRef(0);
   const touchPointersRef = useRef(new Map<number, Point>());
   const pinchRef = useRef<{
@@ -164,6 +182,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const [navigationError, setNavigationError] = useState<string | null>(null);
   const [resizeDirection, setResizeDirection] = useState({ x: 1, y: 1 });
   const [smartGuides, setSmartGuides] = useState<SmartGuide[]>([]);
+  const [cursorChatMode, setCursorChatMode] = useState(false);
+  const [cursorChat, setCursorChat] = useState("");
+  const [cursorChatAnchor, setCursorChatAnchor] = useState<Point>({ x: 40, y: 40 });
+  const [collaborationNotice, setCollaborationNotice] = useState<string | null>(null);
 
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
@@ -203,6 +225,58 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     if (!hovered || hovered.id === selectedShapes[0]?.id || hovered.type === "guide") return [];
     return measureShapes(selectedShapes[0]!, hovered).filter((measurement) => measurement.value > 0);
   }, [canvasShapes, editor.hoveredShapeId, editor.measureMode, selectedShapes]);
+
+  const remoteActivityFor = useCallback((shapeIds: string[]) => board.currentUsers.find((presence) =>
+    presence.uid !== user.uid && presence.activeShapeIds?.some((id) => shapeIds.includes(id))
+  ), [board.currentUsers, user.uid]);
+
+  const claimShapeActivity = useCallback((
+    shapeIds: string[],
+    activity: NonNullable<Liveblocks["Presence"]["activity"]>
+  ) => {
+    const activeCollaborator = remoteActivityFor(shapeIds);
+    if (activeCollaborator) {
+      setCollaborationNotice(
+        `${activeCollaborator.label ?? "A collaborator"} is ${activeCollaborator.activity ?? "editing"} this selection.`
+      );
+      return false;
+    }
+    setCollaborationNotice(null);
+    updateMyPresence({ activeShapeIds: shapeIds, activity });
+    return true;
+  }, [remoteActivityFor, updateMyPresence]);
+
+  const releaseShapeActivity = useCallback(() => {
+    updateMyPresence({ activeShapeIds: [], activity: null });
+  }, [updateMyPresence]);
+
+  const blockIfRemotelyActive = useCallback((shapeIds: string[]) => {
+    const activeCollaborator = remoteActivityFor(shapeIds);
+    if (!activeCollaborator) return false;
+    setCollaborationNotice(
+      `${activeCollaborator.label ?? "A collaborator"} is ${activeCollaborator.activity ?? "editing"} this selection.`
+    );
+    return true;
+  }, [remoteActivityFor]);
+
+  const exitCursorChat = useCallback(() => {
+    setCursorChatMode(false);
+    setCursorChat("");
+    updateMyPresence({ cursorChat: "" });
+  }, [updateMyPresence]);
+
+  const updateCursorChat = useCallback((value: string) => {
+    const next = value.slice(0, 180);
+    setCursorChat(next);
+    updateMyPresence({ cursorChat: next });
+  }, [updateMyPresence]);
+
+  useEffect(() => {
+    if (!cursorChatMode) return;
+    cursorChatInputRef.current?.focus();
+    const timeout = window.setTimeout(exitCursorChat, 5000);
+    return () => window.clearTimeout(timeout);
+  }, [cursorChat, cursorChatMode, exitCursorChat]);
 
   useEffect(() => {
     if (!board.id) return;
@@ -269,7 +343,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     if (cursorFrameRef.current !== null) {
       window.cancelAnimationFrame(cursorFrameRef.current);
     }
-  }, []);
+    updateMyPresence({ activeShapeIds: [], activity: null, cursorChat: "" });
+  }, [updateMyPresence]);
 
   const pointerWorld = useCallback(
     (event: Pick<React.PointerEvent<HTMLDivElement>, "clientX" | "clientY">): Point => {
@@ -317,6 +392,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button === 2) return;
     setContextMenu(null);
+    if (cursorChatMode) {
+      exitCursorChat();
+      return;
+    }
     const startWorld = pointerWorld(event);
     const startScreen = pointerScreen(event);
     const baseline = cloneShapes(board.shapes);
@@ -341,6 +420,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
 
     capturePointer(event.currentTarget, event.pointerId);
     if (vectorPointId && vectorShapeId && actions.canEdit) {
+      if (!claimShapeActivity([vectorShapeId], "editing")) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        return;
+      }
       interactionRef.current = {
         mode: "vector-point",
         pointerId: event.pointerId,
@@ -376,6 +459,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     }
 
     if (wantsRotate && selectedFrame) {
+      if (!claimShapeActivity(selectedIds, "rotating")) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        return;
+      }
       interactionRef.current = {
         mode: "rotate",
         pointerId: event.pointerId,
@@ -391,6 +478,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     }
 
     if (handle && selectedFrame) {
+      if (!claimShapeActivity(selectedIds, "resizing")) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        return;
+      }
       setResizeDirection({ x: 1, y: 1 });
       interactionRef.current = {
         mode: "resize",
@@ -458,6 +549,11 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
           dispatch(setSelectedShapes(nextSelection));
           actions.previewShapes(moveBaseline);
         }
+        if (!claimShapeActivity(nextSelection, "moving")) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          if (commitBaseline) actions.cancelPreview(commitBaseline);
+          return;
+        }
         interactionRef.current = {
           mode: "move",
           pointerId: event.pointerId,
@@ -493,6 +589,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const world = pointerWorld(event);
     latestCursorRef.current = world;
+    if (cursorChatMode) setCursorChatAnchor(world);
     if (cursorFrameRef.current === null) {
       cursorFrameRef.current = window.requestAnimationFrame(() => {
         cursorFrameRef.current = null;
@@ -722,10 +819,15 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
               })[0]!
             : normalizeShape({
                 ...current,
+                ...(current.type === "text" ? { textAutoResize: "auto-width" as const } : {}),
                 x2: current.x1 + defaults.width,
                 y2: current.y1 + defaults.height,
               });
           interaction.preview = [...interaction.baseline, replacement];
+        } else if (current.type === "text") {
+          interaction.preview = interaction.preview.map((shape) => shape.id === current.id
+            ? fitTextShape({ ...shape, textAutoResize: "auto-height" })
+            : shape);
         }
       }
       shouldCommit = true;
@@ -756,9 +858,14 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     if (shouldCommit) {
       actions.commitShapes(interaction.preview, interaction.commitBaseline ?? interaction.baseline);
     }
+    if (["move", "resize", "rotate", "vector-point"].includes(interaction.mode)) {
+      releaseShapeActivity();
+    }
     if (interaction.mode === "draw" && interaction.shapeId) {
       const created = interaction.preview.find((shape) => shape.id === interaction.shapeId);
-      if (created?.type === "text") dispatch(setEditingShapeId(created.id));
+      if (created?.type === "text" && claimShapeActivity([created.id], "editing")) {
+        dispatch(setEditingShapeId(created.id));
+      }
     }
   };
 
@@ -768,6 +875,9 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       actions.cancelPreview(interaction.commitBaseline ?? interaction.baseline);
       if (interaction.mode === "rotate" && interaction.selectionFrame) {
         dispatch(setSelectionRotation(interaction.selectionFrame.rotation));
+      }
+      if (["move", "resize", "rotate", "vector-point"].includes(interaction.mode)) {
+        releaseShapeActivity();
       }
     }
     interactionRef.current = null;
@@ -856,6 +966,23 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     finishInteractionRef.current = finishInteraction;
     cancelInteractionRef.current = cancelInteraction;
   });
+
+  useEffect(() => {
+    const interaction = interactionRef.current;
+    if (!interaction || !["move", "resize", "rotate", "vector-point"].includes(interaction.mode)) return;
+    const contender = board.currentUsers
+      .filter((presence) => presence.activeShapeIds?.some((id) => interaction.selectedIds.includes(id)))
+      .sort((left, right) => left.uid.localeCompare(right.uid))[0];
+    if (!contender) return;
+    // Presence can cross in flight when two people begin on the same frame.
+    // A stable user-id ordering gives both clients the same winner instead of
+    // allowing two divergent previews to commit over one another.
+    if (user.uid && user.uid.localeCompare(contender.uid) < 0) return;
+    cancelInteractionRef.current();
+    setCollaborationNotice(
+      `${contender.label ?? "A collaborator"} took control of this selection first.`
+    );
+  }, [board.currentUsers, user.uid]);
 
   useEffect(() => {
     const finishOutsideCanvas = (event: PointerEvent) => {
@@ -948,6 +1075,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       }
       if (command && event.key.toLowerCase() === "x") {
         event.preventDefault();
+        if (blockIfRemotelyActive(selectedIds)) return;
         actions.cutSelected();
         return;
       }
@@ -982,6 +1110,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       }
       if (command && event.key.toLowerCase() === "g") {
         event.preventDefault();
+        if (blockIfRemotelyActive(selectedIds)) return;
         if (event.altKey) actions.frameSelected();
         else if (event.shiftKey) actions.ungroupSelected();
         else actions.groupSelected();
@@ -1019,13 +1148,30 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
         );
         return;
       }
+      if (!command && event.key === "/") {
+        event.preventDefault();
+        cancelInteraction();
+        dispatch(clearSelectedShapes());
+        dispatch(setSelectedTool("pointer"));
+        setCursorChatAnchor(latestCursorRef.current ?? {
+          x: editor.viewport.x + 80 / editor.viewport.zoom,
+          y: editor.viewport.y + 80 / editor.viewport.zoom,
+        });
+        setCursorChatMode(true);
+        setCursorChat("");
+        updateMyPresence({ cursorChat: "" });
+        return;
+      }
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
+        if (blockIfRemotelyActive(selectedIds)) return;
         actions.removeSelected();
         return;
       }
       if (event.key === "Escape") {
         cancelInteraction();
+        if (cursorChatMode) exitCursorChat();
+        if (editor.editingShapeId) releaseShapeActivity();
         dispatch(setEditingShapeId(null));
         dispatch(clearSelectedShapes());
         dispatch(setSelectedTool("pointer"));
@@ -1050,12 +1196,15 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
         }
         if (selectedShape?.type === "text" && !isEffectivelyLocked(canvasShapes, selectedShape)) {
           event.preventDefault();
-          dispatch(setEditingShapeId(selectedShape.id));
+          if (claimShapeActivity([selectedShape.id], "editing")) {
+            dispatch(setEditingShapeId(selectedShape.id));
+          }
           return;
         }
       }
       if (event.key.startsWith("Arrow") && selectedIds.length > 0) {
         event.preventDefault();
+        if (blockIfRemotelyActive(selectedIds)) return;
         const distance = event.shiftKey ? 10 : 1;
         actions.nudgeSelected(
           event.key === "ArrowLeft" ? -distance : event.key === "ArrowRight" ? distance : 0,
@@ -1076,9 +1225,16 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
         c: "comment",
       };
       const tool = toolByKey[event.key.toLowerCase()];
-      if (tool && !command) dispatch(setSelectedTool(tool));
-      if (event.key === "]") actions.orderSelected(event.metaKey || event.ctrlKey ? "front" : "forward");
-      if (event.key === "[") actions.orderSelected(event.metaKey || event.ctrlKey ? "back" : "backward");
+      if (tool && !command) {
+        if (cursorChatMode) exitCursorChat();
+        dispatch(setSelectedTool(tool));
+      }
+      if (event.key === "]" && !blockIfRemotelyActive(selectedIds)) {
+        actions.orderSelected(event.metaKey || event.ctrlKey ? "front" : "forward");
+      }
+      if (event.key === "[" && !blockIfRemotelyActive(selectedIds)) {
+        actions.orderSelected(event.metaKey || event.ctrlKey ? "back" : "backward");
+      }
     };
     const handleKeyUp = (event: KeyboardEvent) => {
       if (event.code === "Space") spacePressedRef.current = false;
@@ -1092,24 +1248,27 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     };
     // cancelInteraction reads only refs and the current action facade.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actions, board.shapes, dispatch, editor.viewport, fitToContent, selectHitTarget, selectedIds]);
+  }, [actions, blockIfRemotelyActive, board.shapes, claimShapeActivity, cursorChatMode, dispatch, editor.editingShapeId, editor.viewport, exitCursorChat, fitToContent, releaseShapeActivity, selectHitTarget, selectedIds, updateMyPresence]);
 
   const handleTextChange = (shapeId: string, text: string) => {
     if (!textBaselineRef.current) textBaselineRef.current = cloneShapes(board.shapes);
     actions.previewShapes(
-      board.shapes.map((shape) => (shape.id === shapeId ? { ...shape, text } : shape))
+      applyDocumentLayout(board.shapes.map((shape) => (shape.id === shapeId
+        ? { ...shape, text }
+        : shape)))
     );
   };
 
   const commitText = (shapeId: string, text: string) => {
     if (textBaselineRef.current) {
       const nextShapes = board.shapes.map((shape) =>
-        shape.id === shapeId ? { ...shape, text } : shape
+        shape.id === shapeId ? fitTextShape({ ...shape, text }) : shape
       );
       actions.commitShapes(nextShapes, textBaselineRef.current);
       textBaselineRef.current = null;
     }
     dispatch(setEditingShapeId(null));
+    releaseShapeActivity();
   };
 
   const screenFrame = selectedFrame
@@ -1180,11 +1339,19 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       onDoubleClick={(event) => {
         const hit = hitTest(canvasShapes, pointerWorld(event));
         if (hit?.type === "board" && hit.boardId) {
+          const linkedAccess = board.linkedBoards[hit.boardId];
+          if (linkedAccess && !linkedAccess.accessible) {
+            setNavigationError(`“${linkedAccess.title}” is private. Its owner needs to share that destination with you.`);
+            return;
+          }
           const requestId = ++navigationRequestRef.current;
           setNavigationError(null);
           void getBoard(hit.boardId)
             .then((nextBoard) => {
               if (requestId !== navigationRequestRef.current) return;
+              const url = new URL(window.location.href);
+              url.searchParams.set("board", hit.boardId!);
+              window.history.replaceState({}, "", url);
               dispatch(clearSelectedShapes());
               dispatch(setWhiteboardData(nextBoard));
             })
@@ -1199,7 +1366,9 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
         }
         if (hit) dispatch(setSelectedShapes(selectHitTarget(hit, true)));
         if (hit?.type === "text") {
-          if (!isEffectivelyLocked(canvasShapes, hit)) dispatch(setEditingShapeId(hit.id));
+          if (!isEffectivelyLocked(canvasShapes, hit) && claimShapeActivity([hit.id], "editing")) {
+            dispatch(setEditingShapeId(hit.id));
+          }
         }
       }}
     >
@@ -1222,6 +1391,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
               : undefined;
             const position = worldToScreen({ x: bounds.x, y: bounds.y }, editor.viewport);
             const isEditing = editor.editingShapeId === shape.id && shape.type === "text";
+            const linkedAccess = shape.type === "board" && shape.boardId
+              ? board.linkedBoards[shape.boardId]
+              : undefined;
+            const remoteActivity = remoteActivityFor([shape.id]);
             const commonStyle: React.CSSProperties = {
               left: position.x,
               top: position.y,
@@ -1238,7 +1411,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
             return (
               <div
                 key={shape.id}
-                className={`${styles.shape} ${selectedIds.includes(shape.id) ? styles.selectedShape : ""} ${editor.hoveredShapeId === shape.id && !selectedIds.includes(shape.id) ? styles.hoveredShape : ""}`}
+                className={`${styles.shape} ${selectedIds.includes(shape.id) ? styles.selectedShape : ""} ${editor.hoveredShapeId === shape.id && !selectedIds.includes(shape.id) ? styles.hoveredShape : ""} ${remoteActivity ? styles.remoteActiveShape : ""}`}
                 style={commonStyle}
                 data-shape-id={shape.id}
                 data-group-id={shape.groupId ?? undefined}
@@ -1249,6 +1422,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                 data-flip-x={shape.flipX ? "true" : "false"}
                 data-flip-y={shape.flipY ? "true" : "false"}
               >
+                {remoteActivity && <span className={styles.remoteActivityBadge}>{remoteActivity.label ?? "Collaborator"} · {remoteActivity.activity ?? "editing"}</span>}
                 {(shape.type === "frame" || shape.type === "section") && (
                   <span className={styles.frameLabel}>{shape.name ?? "Frame"}</span>
                 )}
@@ -1256,6 +1430,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                 {shape.type === "text" &&
                   (isEditing ? (
                     <TextEditor
+                      autoResize={shape.textAutoResize ?? "fixed"}
                       verticalAlign={(shape.alignItems as React.CSSProperties["alignItems"]) ?? "flex-start"}
                       style={{
                         fontFamily: shape.fontFamily ?? "Arial",
@@ -1276,11 +1451,13 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                       onDoubleClick={(event) => {
                         event.stopPropagation();
                         if (isEffectivelyLocked(canvasShapes, shape)) return;
+                        if (!claimShapeActivity([shape.id], "editing")) return;
                         dispatch(setSelectedShapes([shape.id]));
                         dispatch(setEditingShapeId(shape.id));
                       }}
                       style={{
                         alignItems: shape.alignItems ?? "flex-start",
+                        overflow: "visible",
                         fontFamily: shape.fontFamily ?? "Arial",
                         fontSize: `${(shape.fontSize ?? 18) * editor.viewport.zoom}px`,
                         fontWeight: shape.fontWeight ?? "normal",
@@ -1293,6 +1470,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                         style={{
                           textAlign: (shape.textAlign as React.CSSProperties["textAlign"]) ?? "left",
                           paddingInlineStart: `${(shape.textIndent ?? 0) * editor.viewport.zoom}px`,
+                          whiteSpace: shape.textAutoResize === "auto-width" ? "pre" : "pre-wrap",
+                          overflowWrap: shape.textAutoResize === "auto-width" ? "normal" : "anywhere",
                         }}
                       >
                         {displayTextLines(shape).map((line, index) => (
@@ -1308,7 +1487,14 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                     </div>
                   ))}
                 {shape.type === "calendar" && <span className={styles.placeholderGlyph}>31</span>}
-                {shape.type === "board" && <span className={styles.boardLabel}>{shape.title ?? "Open board"}</span>}
+                {shape.type === "board" && (
+                  <span className={`${styles.boardLabel} ${linkedAccess && !linkedAccess.accessible ? styles.lockedBoardLabel : ""}`}>
+                    <b>{shape.title ?? "Open board"}</b>
+                    {linkedAccess && !linkedAccess.accessible
+                      ? <small><LockSimple aria-hidden="true" />Access required</small>
+                      : <small>Open connected board</small>}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -1470,10 +1656,40 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
               style={{ left: point.x, top: point.y }}
             >
               <span className={styles.cursorArrow}><Cursor aria-hidden="true" weight="fill" /></span>
-              <span className={styles.cursorLabel}>{presence.label ?? "Collaborator"}</span>
+              <span className={styles.cursorIdentity}>
+                <span className={styles.cursorLabel}>{presence.label ?? "Collaborator"}</span>
+                {presence.cursorChat && <span className={styles.cursorChatBubble}>{presence.cursorChat}</span>}
+              </span>
             </div>
           );
         })}
+
+      {cursorChatMode && (() => {
+        const point = worldToScreen(cursorChatAnchor, editor.viewport);
+        return (
+          <input
+            ref={cursorChatInputRef}
+            className={styles.localCursorChat}
+            style={{ left: point.x, top: point.y }}
+            aria-label="Cursor chat"
+            value={cursorChat}
+            placeholder="Type to everyone"
+            maxLength={180}
+            onPointerDown={(event) => event.stopPropagation()}
+            onChange={(event) => updateCursorChat(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                exitCursorChat();
+              }
+              if (event.key === "Enter") {
+                event.preventDefault();
+                updateCursorChat("");
+              }
+            }}
+          />
+        );
+      })()}
 
       {showCommentPins && <CommentPins />}
 
@@ -1505,6 +1721,13 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
               role="menuitem"
               key={label}
               onClick={() => {
+                if (
+                  CONTEXT_ACTIONS_REQUIRING_IDLE_SELECTION.has(label)
+                  && blockIfRemotelyActive(selectedIds)
+                ) {
+                  setContextMenu(null);
+                  return;
+                }
                 action();
                 setContextMenu(null);
               }}
@@ -1518,6 +1741,12 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
         <div className={styles.navigationError} role="alert">
           <span>{navigationError}</span>
           <button type="button" aria-label="Dismiss navigation error" onClick={() => setNavigationError(null)}><X aria-hidden="true" /></button>
+        </div>
+      )}
+      {collaborationNotice && (
+        <div className={styles.collaborationNotice} role="status">
+          <span>{collaborationNotice}</span>
+          <button type="button" aria-label="Dismiss collaboration notice" onClick={() => setCollaborationNotice(null)}><X aria-hidden="true" /></button>
         </div>
       )}
     </div>

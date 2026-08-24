@@ -41,4 +41,15 @@ describe("production database migrations", () => {
     expect(source).toContain("grant execute on function public.create_kumo_checkpoint");
     expect(source).toContain("grant execute on function public.create_kumo_branch_record");
   });
+
+  it("shares only an owner-validated set of linked boards in one transaction", () => {
+    const source = migration("202608230007_linked_board_sharing.sql");
+    expect(source).toContain("share_kumo_board_set");
+    expect(source).toContain("remove_kumo_board_member_set");
+    expect(source).toContain("board.owner_id = p_actor_id");
+    expect(source).toContain("Actor cannot manage every requested board");
+    expect(source).toContain("on conflict (board_id, user_id)");
+    expect(source).toContain("linkedShare");
+    expect(source).toContain("to service_role");
+  });
 });

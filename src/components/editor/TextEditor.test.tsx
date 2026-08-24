@@ -16,6 +16,7 @@ describe("TextEditor", () => {
         value="Original copy"
         style={{ fontSize: 18 }}
         verticalAlign="center"
+        autoResize="auto-height"
         onChange={onChange}
         onBlur={onBlur}
       />
@@ -23,7 +24,6 @@ describe("TextEditor", () => {
     const editor = screen.getByRole("textbox", { name: "Edit text" });
     const select = vi.spyOn(editor as HTMLTextAreaElement, "select");
     Object.defineProperty(editor, "scrollHeight", { configurable: true, value: 64 });
-    Object.defineProperty(editor.parentElement, "clientHeight", { configurable: true, value: 48 });
 
     frame?.(0);
     expect(editor).toHaveFocus();
@@ -31,12 +31,29 @@ describe("TextEditor", () => {
     fireEvent.change(editor, { target: { value: "Edited copy" } });
     expect(onChange).toHaveBeenCalledWith("Edited copy");
     expect(editor).toHaveValue("Edited copy");
-    expect(editor).toHaveStyle({ height: "48px" });
+    expect(editor).toHaveStyle({ height: "64px" });
+    expect(editor).toHaveAttribute("wrap", "soft");
     fireEvent.blur(editor);
     expect(onBlur).toHaveBeenCalledWith("Edited copy");
 
     unmount();
     expect(cancel).toHaveBeenCalledWith(7);
+  });
+
+  it("keeps auto-width text on explicit lines without an internal scrollbar", () => {
+    render(
+      <TextEditor
+        value="A long point-text line"
+        style={{}}
+        verticalAlign="flex-start"
+        autoResize="auto-width"
+        onChange={vi.fn()}
+        onBlur={vi.fn()}
+      />
+    );
+    const editor = screen.getByRole("textbox", { name: "Edit text" });
+    expect(editor).toHaveAttribute("wrap", "off");
+    expect(editor).toHaveAttribute("data-auto-resize", "auto-width");
   });
 
   it("keeps pointer and click gestures inside the text editor", () => {

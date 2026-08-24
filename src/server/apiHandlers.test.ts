@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getAccess: vi.fn(),
   list: vi.fn(),
   search: vi.fn(),
+  linkedBoards: vi.fn(),
   provision: vi.fn(),
   cloneAssets: vi.fn(),
   syncLinks: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("../../api/_boards", () => ({
   getBoardAccess: mocks.getAccess,
   listBoardsForUser: mocks.list,
   searchPublicBoards: mocks.search,
+  linkedBoardsForActor: mocks.linkedBoards,
   provisionBoard: mocks.provision,
   boardSummary: (board: Record<string, unknown>, role: string) => ({ id: board.id, role }),
 }));
@@ -79,6 +81,7 @@ describe("boards API", () => {
     mocks.getAccess.mockResolvedValue({ board: boardRow, role: "owner" });
     mocks.list.mockResolvedValue([{ id: "mine" }]);
     mocks.search.mockResolvedValue([{ id: "public" }]);
+    mocks.linkedBoards.mockResolvedValue({ target: { id: "target", title: "Target", visibility: "private", accessible: false, role: null } });
     mocks.provision.mockResolvedValue(boardRow);
     mocks.getDocument.mockResolvedValue({ nodes: {} });
     mocks.cloneAssets.mockResolvedValue(new Map([["asset", "copy"]]));
@@ -96,7 +99,7 @@ describe("boards API", () => {
     const detail = response();
     await boardsHandler(request("GET", {}, { id: "board" }), detail);
     expect(detail.statusCode).toBe(200);
-    expect(detail.body).toMatchObject({ board: { id: "board", members: { actor: "owner" } } });
+    expect(detail.body).toMatchObject({ board: { id: "board", members: { actor: "owner" }, linkedBoards: { target: { accessible: false } } } });
 
     const list = response();
     await boardsHandler(request("GET"), list);

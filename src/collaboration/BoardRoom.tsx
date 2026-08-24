@@ -28,6 +28,9 @@ const BoardRoom = () => {
         selectionIds: [],
         viewport: { x: 0, y: 0, zoom: 1 },
         spotlight: false,
+        activeShapeIds: [],
+        activity: null,
+        cursorChat: "",
       }}
       initialStorage={{
         schemaVersion: 4,

@@ -7,6 +7,9 @@ declare global {
       selectionIds: string[];
       viewport: { x: number; y: number; zoom: number };
       spotlight: boolean;
+      activeShapeIds: string[];
+      activity: "moving" | "resizing" | "rotating" | "editing" | null;
+      cursorChat: string;
     };
     Storage: {
       schemaVersion: number;

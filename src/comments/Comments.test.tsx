@@ -21,6 +21,7 @@ const liveblocks = vi.hoisted(() => ({
   editComment: vi.fn(),
   deleteComment: vi.fn(),
   deleteThread: vi.fn(),
+  editThreadMetadata: vi.fn(),
 }));
 
 vi.mock("@liveblocks/react/suspense", () => ({
@@ -35,6 +36,7 @@ vi.mock("@liveblocks/react/suspense", () => ({
   useEditComment: () => liveblocks.editComment,
   useDeleteComment: () => liveblocks.deleteComment,
   useDeleteThread: () => liveblocks.deleteThread,
+  useEditThreadMetadata: () => liveblocks.editThreadMetadata,
 }));
 
 vi.mock("../services/collaboratorRepository", () => ({
@@ -131,6 +133,29 @@ describe("live comments", () => {
     liveblocks.threads = [thread];
     view.rerender(<Provider store={store}><CommentPins /></Provider>);
     expect(await screen.findByRole("button", { name: "Open comment 1" })).toBeInTheDocument();
+  });
+
+  it("moves a comment pin and persists its new canvas anchor", async () => {
+    const store = makeStore();
+    render(<Provider store={store}><CommentPins /></Provider>);
+    const layer = screen.getByLabelText("Canvas comments");
+    vi.spyOn(layer, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 500, bottom: 500, width: 500, height: 500,
+      toJSON: () => ({}),
+    });
+    const pin = screen.getByRole("button", { name: "Open comment 1" });
+    Object.assign(pin, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: vi.fn(() => true),
+      releasePointerCapture: vi.fn(),
+    });
+    fireEvent.pointerDown(pin, { pointerId: 4, button: 0, clientX: 20, clientY: 30 });
+    fireEvent.pointerMove(pin, { pointerId: 4, clientX: 90, clientY: 110 });
+    fireEvent.pointerUp(pin, { pointerId: 4, clientX: 90, clientY: 110 });
+    expect(liveblocks.editThreadMetadata).toHaveBeenCalledWith({
+      threadId: "thread-1",
+      metadata: { x: 90, y: 110, shapeId: "" },
+    });
   });
 
   it("suggests collaborators and inserts a real mention token", async () => {

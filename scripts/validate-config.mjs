@@ -60,6 +60,22 @@ for (const required of ["create_kumo_checkpoint", "create_kumo_branch_record", "
   }
 }
 
+const linkedBoardSharingMigration = readFileSync(
+  "supabase/migrations/202608230007_linked_board_sharing.sql",
+  "utf8",
+);
+for (const required of [
+  "share_kumo_board_set",
+  "remove_kumo_board_member_set",
+  "Actor cannot manage every requested board",
+  "security definer",
+  "service_role",
+]) {
+  if (!linkedBoardSharingMigration.toLowerCase().includes(required.toLowerCase())) {
+    throw new Error(`Linked-board sharing migration is missing required statement: ${required}`);
+  }
+}
+
 const sourceFiles = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;

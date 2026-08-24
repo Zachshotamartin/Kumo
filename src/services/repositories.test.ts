@@ -29,6 +29,7 @@ const board = {
   role: "owner" as const,
   updatedAt: 10,
   members: { owner: "owner" as const, editor: "editor" as const },
+  linkedBoards: { target: { id: "target", title: "Private", visibility: "private" as const, accessible: false, role: null } },
 };
 
 describe("board repositories", () => {
@@ -50,6 +51,7 @@ describe("board repositories", () => {
       id: "board",
       sharedWith: ["editor"],
       backGroundColor: "#252629",
+      linkedBoards: { target: expect.objectContaining({ accessible: false }) },
     });
   });
 

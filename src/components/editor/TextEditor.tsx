@@ -14,9 +14,17 @@ interface TextEditorProps {
   verticalAlign: CSSProperties["alignItems"];
   onChange: (value: string) => void;
   onBlur: (value: string) => void;
+  autoResize?: "auto-width" | "auto-height" | "fixed";
 }
 
-export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: TextEditorProps) => {
+export const TextEditor = ({
+  value,
+  style,
+  verticalAlign,
+  onChange,
+  onBlur,
+  autoResize = "fixed",
+}: TextEditorProps) => {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(value);
 
@@ -24,10 +32,7 @@ export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: Te
     const textarea = ref.current;
     if (!textarea) return;
     textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(
-      textarea.scrollHeight,
-      textarea.parentElement?.clientHeight ?? textarea.scrollHeight
-    )}px`;
+    textarea.style.height = `${textarea.scrollHeight}px`;
   }, []);
 
   useEffect(() => {
@@ -50,7 +55,8 @@ export const TextEditor = ({ value, style, verticalAlign, onChange, onBlur }: Te
         style={style}
         value={draft}
         rows={1}
-        wrap="soft"
+        wrap={autoResize === "auto-width" ? "off" : "soft"}
+        data-auto-resize={autoResize}
         spellCheck
         aria-label="Edit text"
         onPointerDown={(event) => event.stopPropagation()}

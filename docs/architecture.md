@@ -26,11 +26,15 @@ Postgres and Liveblocks never own the same field. Postgres owns board metadata a
 
 Kumo is not modeled as a flat collection of Figma-style files. A `board` shape can target another accessible board, and users enter that destination by double-clicking the shape. The target ID and display title travel with the collaborative shape so navigation updates in realtime. The webhook projects those links into `board_links`, making the workspace graph queryable without making Postgres a second canvas authority. Broken or unauthorized targets fail closed at the normal board API boundary.
 
+The owner-facing share dialog previews the reachable graph and defaults to sharing every destination the current owner can manage. Another owner's private destination is redacted and called out as requiring that owner's action; traversal stops there instead of exposing its downstream graph. Traversal is cycle-safe and bounded to eight levels and 100 boards. A truncated graph cannot be partially shared or revoked as a set. The browser never supplies the membership board IDs: the API derives them and Postgres validates ownership of the complete set inside one transaction.
+
 ## Collaboration model
 
 Each board has one Liveblocks room named `board:{boardId}`. The storage root contains a schema version, background color, and a `LiveMap` of shape IDs to `LiveObject` properties. A committed gesture sends one property-level mutation at pointer-up; pointer movement remains a local preview. Concurrent edits to different properties or shapes therefore survive without replacing the full board.
 
-Presence contains only ephemeral cursor and selection data. Owner/editor members receive storage write access. Viewers receive storage read and presence write access. Every Liveblocks authorization request rechecks current Postgres membership.
+Presence contains ephemeral cursor, selection, viewport, cursor-chat, and active-manipulation claims. A second client is blocked from beginning a transform on a claimed object. If two claims cross in flight, every client applies the same stable user-ID tie-break and the loser cancels its preview before commit. The property-level CRDT mutation remains the recovery boundary for a network partition. Owner/editor members receive storage write access. Viewers receive storage read, presence write, and comment access. Every Liveblocks authorization request rechecks current Postgres membership.
+
+Comment threads store their anchor in Liveblocks metadata. An anchor can use world coordinates or coordinates relative to a shape. Dragging a pin performs only a local preview and writes metadata once on release, so layer-linked comments continue to follow the layer. Cursor chat is deliberately presence-only and expires after five seconds; it does not create a durable comment or chat log.
 
 The storage webhook updates board activity and records at most one durable Postgres snapshot per five-minute window. Liveblocks remains the live document authority; snapshots support recovery and audit workflows.
 

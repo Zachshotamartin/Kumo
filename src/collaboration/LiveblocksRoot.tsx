@@ -19,7 +19,7 @@ const authorizeRoom = async (room?: string) => {
 };
 
 export const LiveblocksRoot = ({ children }: PropsWithChildren) => (
-  <LiveblocksProvider authEndpoint={authorizeRoom} preventUnsavedChanges>
+  <LiveblocksProvider authEndpoint={authorizeRoom} preventUnsavedChanges throttle={16}>
     {children}
   </LiveblocksProvider>
 );

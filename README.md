@@ -6,7 +6,7 @@ The interactive logo runtime is self-hosted at `public/embed/kumo-logo.js`, buil
 
 ## What works
 
-- Rectangle, ellipse, text, and image layers
+- Rectangle, ellipse, image, and Figma-style auto-width/auto-height text layers without nested editor scrolling
 - Pen/vector layers, boolean groups, masks, gradients, shadows, blur, and blend modes
 - Multi-select, marquee selection, grouping, framing, sections, duplication, locking, hiding, and z-ordering
 - Move, resize, rotate, align, distribute, snap-to-grid, pan, and cursor-anchored zoom
@@ -16,9 +16,9 @@ The interactive logo runtime is self-hosted at `public/embed/kumo-logo.js`, buil
 - Interactive prototypes with presentation mode, transitions, board links, and URLs
 - Board-scoped undo/redo with correct history branching
 - Copy, cut, paste, keyboard shortcuts, context menus, layers, and inspector controls
-- Anchored live comments, mentions, replies, reactions, resolution, presence, following, and spotlight
+- Canvas- or layer-anchored movable live comments, mentions, replies, reactions, resolution, presence, following, and spotlight
 - Named checkpoints, visual version previews, recovery-point restores, and isolated design branches
-- Owner/editor/viewer roles, secure email invites, presence, and remote cursors
+- Owner/editor/viewer roles, access-aware board links, transactional connected-board sharing, soft same-object ownership, remote cursors, and ephemeral `/` cursor chat
 - Private/public boards, public-board discovery, board copying, and legacy-board migration
 - Responsive authentication, dashboard, and editor layouts
 
@@ -66,10 +66,11 @@ yarn test:e2e
 | Zoom / fit / 100% | `Cmd/Ctrl +/-` / `Cmd/Ctrl+0` / `Cmd/Ctrl+1` |
 | Resize proportionally / from center | `Shift` / `Alt` while resizing |
 | Search objects and commands | `Cmd/Ctrl+K` or `Cmd/Ctrl+P` |
+| Ephemeral cursor chat | `/`, then `Enter` to clear or `Esc` to exit |
 
 ## Data migrations
 
-Supabase owns board metadata, membership, assets, links, audit events, version snapshots, and design-branch records. Liveblocks owns the current collaborative document, presence, and comment threads. Apply the checked-in migrations in filename order before deploying API code that depends on them. Migrations are idempotent and `document_branches.board_id` intentionally matches the text primary key used by `boards.id`.
+Supabase owns board metadata, membership, assets, links, audit events, version snapshots, and design-branch records. Liveblocks owns the current collaborative document, presence, and comment threads. Apply the checked-in migrations in filename order before deploying API code that depends on them. Migrations are idempotent and `document_branches.board_id` intentionally matches the text primary key used by `boards.id`. Connected-board membership changes use the owner-validating `share_kumo_board_set` and `remove_kumo_board_member_set` transactions; the API derives the graph rather than accepting board IDs from the browser.
 
 ## Deployment
 
