@@ -42,6 +42,7 @@ describe("consolidated Vercel API router", () => {
       "friends",
       "liveblocks-auth",
       "migrate-board",
+      "product",
       "profile",
       "session",
       "share-board",

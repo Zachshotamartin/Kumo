@@ -5,27 +5,30 @@ import { boundsToEdges, normalizeShape, shapeBounds } from "./geometry";
 import type { Point } from "./types";
 
 export type SharedStyleKind = "fill-style" | "text-style" | "effect-style";
-export type VariableKind = "color-variable" | "number-variable" | "string-variable";
+export type VariableKind = "color-variable" | "number-variable" | "string-variable" | "boolean-variable" | "timing-variable" | "easing-variable";
 
 const SYNC_FIELDS: Array<keyof Shape> = [
   "type", "name", "width", "height", "rotation", "flipX", "flipY", "clipContent",
   "borderRadius", "borderWidth", "borderStyle", "borderColor", "backgroundColor",
   "backgroundImage", "assetId", "color", "opacity", "text", "fontSize", "fontFamily",
   "fontWeight", "textAlign", "alignItems", "textDecoration", "lineHeight", "letterSpacing",
+  "textRuns", "fontAxes", "openTypeFeatures", "componentProperties", "instanceProperties",
   "textAutoResize", "paragraphSpacing", "textIndent", "textCase", "listStyle", "layoutMode",
   "layoutWrap", "layoutGap", "layoutCounterGap", "paddingTop", "paddingRight", "paddingBottom",
   "paddingLeft", "primaryAlign", "counterAlign", "horizontalSizing", "verticalSizing",
   "constraintHorizontal", "constraintVertical", "layoutPositioning", "layoutGrow", "layoutAlign",
   "fillStyleId", "textStyleId", "effectStyleId", "variableBindings",
-  "vectorPoints", "vectorClosed", "booleanOperation", "booleanChildren", "maskId", "isMask",
+  "vectorPoints", "vectorPaths", "vectorClosed", "strokeCap", "strokeJoin", "strokeAlign", "strokeDash", "booleanOperation", "booleanChildren", "maskId", "isMask",
   "fillType", "gradientAngle", "gradientStops", "effects", "blendMode",
+  "imageFit", "imageCrop", "imageFilters", "mediaType", "altText", "semanticRole", "focusOrder",
+  "devStatus", "devAnnotation", "codeComponentUrl",
   "prototypeStart", "prototypeOverflow", "prototypeInteractions",
 ];
 
 const resourceNode = (
   kind: SharedStyleKind | VariableKind,
   name: string,
-  value: Record<string, string | number>,
+  value: Record<string, string | number | boolean>,
   zIndex: number
 ): Shape => normalizeShape({
   id: createShapeId(),
@@ -336,7 +339,7 @@ export const createVariable = (
   shapes: Shape[],
   kind: VariableKind,
   name: string,
-  value: string | number
+  value: string | number | boolean
 ): { shapes: Shape[]; variableId: string } => {
   const node = resourceNode(kind, name, { value }, Math.max(0, ...shapes.map((shape) => shape.zIndex)) + 1);
   return { shapes: [...shapes, node], variableId: node.id };

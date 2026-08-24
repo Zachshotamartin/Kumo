@@ -24,7 +24,23 @@ export const vectorPathData = (
   }
   return closed ? `${path} Z` : path;
 };
+export const vectorNetworkPathData = (
+  points: NonNullable<Shape["vectorPoints"]>,
+  paths: NonNullable<Shape["vectorPaths"]>,
+  origin = { x: 0, y: 0 }
+): string => {
+  const byId = new Map(points.map((point) => [point.id, point]));
+  return paths
+    .map((path) => vectorPathData(
+      path.pointIds.map((id) => byId.get(id)).filter((point): point is NonNullable<Shape["vectorPoints"]>[number] => Boolean(point)),
+      origin,
+      path.closed
+    ))
+    .filter(Boolean)
+    .join(" ");
+};
 export const shapePathData = (shape: Shape, origin = { x: 0, y: 0 }): string => {
+  if (shape.vectorPoints?.length && shape.vectorPaths?.length) return vectorNetworkPathData(shape.vectorPoints, shape.vectorPaths, origin);
   if (shape.vectorPoints?.length) return vectorPathData(shape.vectorPoints, origin, shape.vectorClosed);
   const bounds = shapeBounds(shape);
   const x = bounds.x - origin.x;
@@ -57,6 +73,7 @@ export const createVectorShape = (start: { x: number; y: number }, end: { x: num
     { id: createShapeId(), x: start.x, y: start.y },
     { id: createShapeId(), x: end.x, y: end.y },
   ],
+  vectorPaths: [],
   vectorClosed: false,
 });
 
@@ -85,9 +102,15 @@ export const updateVectorPoint = (
 });
 
 export const appendVectorPoint = (shapes: Shape[], shapeId: string, point: { x: number; y: number }): Shape[] =>
-  shapes.map((shape) => shape.id === shapeId && shape.vectorPoints
-    ? updateVectorPoint([{ ...shape, vectorPoints: [...shape.vectorPoints, { id: createShapeId(), ...point }] }], shapeId, "missing", point)[0]!
-    : shape);
+  shapes.map((shape) => {
+    if (shape.id !== shapeId || !shape.vectorPoints) return shape;
+    const id = createShapeId();
+    const vectorPoints = [...shape.vectorPoints, { id, ...point }];
+    const vectorPaths = shape.vectorPaths?.length
+      ? shape.vectorPaths.map((path, index) => index === shape.vectorPaths!.length - 1 ? { ...path, pointIds: [...path.pointIds, id] } : path)
+      : shape.vectorPaths;
+    return updateVectorPoint([{ ...shape, vectorPoints, vectorPaths }], shapeId, "missing", point)[0]!;
+  });
 
 export const createBooleanOperation = (
   shapes: Shape[],

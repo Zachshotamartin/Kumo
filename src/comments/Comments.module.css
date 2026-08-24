@@ -42,6 +42,15 @@
   border-color: transparent;
 }
 .filters button[aria-pressed="true"] { color: #f4f2ed; background: #2b2c2f; border-color: #404146; }
+.commentSearch { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--kumo-line); }
+.commentSearch label { display: flex; min-width: 0; align-items: center; gap: 5px; padding: 0 7px; background: var(--kumo-surface-input); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
+.commentSearch svg { width: 14px; height: 14px; color: var(--kumo-text-subtle); }
+.commentSearch input,
+.commentSearch select,
+.threadMetadata input,
+.threadMetadata select { min-width: 0; height: var(--kumo-control-compact); color: var(--kumo-text-secondary); font: inherit; font-size: var(--kumo-text-2xs); background: var(--kumo-surface-input); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
+.commentSearch input { width: 100%; background: transparent; border: 0; outline: 0; }
+.commentSearch select { padding: 0 5px; }
 
 .threadList { flex: 1; overflow: auto; padding: 9px; }
 .threadList > div { margin-bottom: 9px; }
@@ -71,6 +80,10 @@
 .threadActions button:hover,
 .replyButton:hover { color: #e6aa5e; }
 .threadActions svg { width: 14px; height: 14px; }
+.threadMetadata { display: grid; grid-template-columns: 1.2fr .85fr 1fr; gap: 5px; padding: 7px 9px; border-bottom: 1px solid #343539; }
+.threadMetadata label { display: grid; gap: 3px; color: var(--kumo-text-subtle); font-size: var(--kumo-text-2xs); }
+.threadMetadata input,
+.threadMetadata select { width: 100%; padding: 0 5px; }
 
 .commentItem { padding: 10px; border-bottom: 1px solid #303135; }
 .commentItem header { gap: 8px; }
@@ -125,6 +138,22 @@
 .composerActions button { min-height: var(--kumo-control-compact); padding: 0 9px; color: var(--kumo-text-secondary); font-size: var(--kumo-text-2xs); background: transparent; border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
 .composerActions .primaryAction { color: #17181a; font-weight: 700; background: #b87a2e; border-color: #b87a2e; }
 .composerActions .primaryAction:disabled { opacity: .4; }
+.fileInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); }
+.composerActions .attachAction { display: grid; width: var(--kumo-control-compact); padding: 0; place-items: center; }
+.attachAction svg { width: 14px; height: 14px; }
+.pendingAttachments,
+.attachments { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 6px; }
+.pendingAttachments > span { display: flex; max-width: 100%; align-items: center; gap: 5px; padding: 4px 6px; color: var(--kumo-text-secondary); font-size: var(--kumo-text-2xs); background: var(--kumo-surface-raised); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
+.pendingAttachments button { display: grid; padding: 0; color: inherit; background: none; border: 0; place-items: center; }
+.pendingAttachments svg { width: 12px; height: 12px; }
+.composerError,
+.attachmentError { margin: 5px 0 0; color: #ef8b82; font-size: var(--kumo-text-2xs); }
+.attachments { padding: 6px 0 0 33px; }
+.attachment { display: flex; min-width: 0; max-width: 100%; align-items: center; gap: 6px; padding: 5px; color: var(--kumo-text-secondary); text-decoration: none; background: var(--kumo-surface-input); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
+.attachment:hover { border-color: var(--kumo-accent); }
+.attachment img { width: 34px; height: 34px; object-fit: cover; border-radius: 3px; }
+.attachment > span { display: grid; min-width: 0; max-width: 170px; overflow: hidden; font-size: var(--kumo-text-2xs); text-overflow: ellipsis; white-space: nowrap; }
+.attachment small { color: var(--kumo-text-subtle); }
 
 .mentionMenu {
   position: absolute;

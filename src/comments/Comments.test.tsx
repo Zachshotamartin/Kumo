@@ -22,6 +22,7 @@ const liveblocks = vi.hoisted(() => ({
   deleteComment: vi.fn(),
   deleteThread: vi.fn(),
   editThreadMetadata: vi.fn(),
+  uploadAttachment: vi.fn(),
 }));
 
 vi.mock("@liveblocks/react/suspense", () => ({
@@ -37,6 +38,8 @@ vi.mock("@liveblocks/react/suspense", () => ({
   useDeleteComment: () => liveblocks.deleteComment,
   useDeleteThread: () => liveblocks.deleteThread,
   useEditThreadMetadata: () => liveblocks.editThreadMetadata,
+  useRoom: () => ({ uploadAttachment: liveblocks.uploadAttachment }),
+  useAttachmentUrl: () => ({ isLoading: false, url: "https://files.example/attachment" }),
 }));
 
 vi.mock("../services/collaboratorRepository", () => ({
@@ -94,6 +97,7 @@ describe("live comments", () => {
     vi.clearAllMocks();
     liveblocks.threads = [thread];
     liveblocks.createThread.mockReturnValue(thread);
+    liveblocks.uploadAttachment.mockImplementation(async (attachment: { id: string; name: string; size: number; mimeType: string }) => ({ type: "attachment", id: attachment.id, name: attachment.name, size: attachment.size, mimeType: attachment.mimeType }));
   });
 
   it("renders, focuses, resolves, reacts to, and replies to a thread", async () => {
@@ -168,5 +172,39 @@ describe("live comments", () => {
     expect(await screen.findByRole("option", { name: /Owner/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: /Owner/ }));
     await waitFor(() => expect(input).toHaveValue("Ask @owner@example.com "));
+  });
+
+  it("assigns, prioritizes, dates, searches, and filters feedback", async () => {
+    const store = makeStore();
+    store.dispatch(setRightPanel("comments"));
+    render(<Provider store={store}><CommentsPanel /></Provider>);
+    await screen.findByText("Review this");
+    fireEvent.change(screen.getByLabelText("Comment assignee"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Comment priority"), { target: { value: "high" } });
+    fireEvent.change(screen.getByLabelText("Comment due date"), { target: { value: "2026-08-30" } });
+    expect(liveblocks.editThreadMetadata).toHaveBeenCalledWith({ threadId: "thread-1", metadata: { assigneeId: "owner" } });
+    expect(liveblocks.editThreadMetadata).toHaveBeenCalledWith({ threadId: "thread-1", metadata: { priority: "high" } });
+    expect(liveblocks.editThreadMetadata).toHaveBeenCalledWith({ threadId: "thread-1", metadata: { dueAt: "2026-08-30" } });
+    fireEvent.change(screen.getByLabelText("Search comments"), { target: { value: "missing" } });
+    expect(screen.queryByText("Review this")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search comments"), { target: { value: "review" } });
+    expect(screen.getByText("Review this")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Filter comments by assignee"), { target: { value: "unassigned" } });
+    expect(screen.getByText("Review this")).toBeInTheDocument();
+  });
+
+  it("uploads attachments before creating a canvas thread", async () => {
+    liveblocks.threads = [];
+    const store = makeStore();
+    store.dispatch(setCommentDraftAnchor({ x: 1, y: 2, shapeId: "" }));
+    render(<Provider store={store}><CommentPins /></Provider>);
+    fireEvent.change(screen.getByLabelText("Attach files", { selector: "input" }), { target: { files: [new File(["design"], "review.txt", { type: "text/plain" })] } });
+    expect(screen.getByText("review.txt")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "See attachment" } });
+    fireEvent.click(screen.getByRole("button", { name: "Post" }));
+    await waitFor(() => expect(liveblocks.uploadAttachment).toHaveBeenCalled());
+    await waitFor(() => expect(liveblocks.createThread).toHaveBeenCalledWith(expect.objectContaining({
+      attachments: [expect.objectContaining({ name: "review.txt", mimeType: "text/plain" })],
+    })));
   });
 });

@@ -19,6 +19,7 @@ import { setGridSize, setShowRulers, setSnapToGrid } from "../../features/editor
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 import { BoardSummary, listBoards } from "../../services/boardRepository";
+import { applyTextRun, branchVectorPath, splitVectorPath, validateVectorNetwork } from "../../platform/productCapabilities";
 
 interface NumberFieldProps {
   label: string;
@@ -30,6 +31,7 @@ interface NumberFieldProps {
 }
 
 const formatNumber = (number: number) => String(Math.round(number * 100) / 100);
+const OPEN_TYPE_FEATURES = [["liga", "Ligatures"], ["kern", "Kerning"], ["calt", "Contextual alternates"]] as const;
 
 const NumberField = ({ label, value, min, max, step = 1, onCommit }: NumberFieldProps) => {
   const clamp = (number: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, number));
@@ -122,6 +124,8 @@ const ColorField = ({ label, value, onCommit }: { label: string; value: string; 
 const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActions }) => {
   const bounds = shapeBounds(shape);
   const currentBoardId = useSelector((state: RootState) => state.whiteBoard.id);
+  const boardShapes = useSelector((state: RootState) => state.whiteBoard.shapes);
+  const textSelection = useSelector((state: RootState) => state.editor.textSelection);
   const [boardChoices, setBoardChoices] = useState<BoardSummary[]>([]);
   const [boardLoadError, setBoardLoadError] = useState<string | null>(null);
 
@@ -135,6 +139,12 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
       .catch(() => active && setBoardLoadError("Board destinations could not be loaded."));
     return () => { active = false; };
   }, [currentBoardId, shape.type]);
+  const patchTextSelection = (style: Parameters<typeof applyTextRun>[3]) => {
+    if (!textSelection || textSelection.shapeId !== shape.id || textSelection.start === textSelection.end) return;
+    actions.commitShapes(boardShapes.map((candidate) => candidate.id === shape.id
+      ? applyTextRun(candidate, textSelection.start, textSelection.end, style)
+      : candidate));
+  };
   return (
     <>
       <section className={styles.inspectorSection}>
@@ -247,6 +257,23 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
         <section className={styles.inspectorSection}>
           <h2>Vector path</h2>
           <label className={styles.toggleRow}><span>Closed path</span><input type="checkbox" checked={shape.vectorClosed ?? false} onChange={(event) => actions.patchSelected({ vectorClosed: event.target.checked })} /></label>
+          <div className={styles.fieldGrid}>
+            <label className={styles.field}><span>Cap</span><select value={shape.strokeCap ?? "none"} onChange={(event) => actions.patchSelected({ strokeCap: event.target.value as Shape["strokeCap"] })}><option value="none">Butt</option><option value="round">Round</option><option value="square">Square</option><option value="arrow">Arrow</option></select></label>
+            <label className={styles.field}><span>Join</span><select value={shape.strokeJoin ?? "miter"} onChange={(event) => actions.patchSelected({ strokeJoin: event.target.value as Shape["strokeJoin"] })}><option value="miter">Miter</option><option value="round">Round</option><option value="bevel">Bevel</option></select></label>
+            <label className={styles.field}><span>Align</span><select value={shape.strokeAlign ?? "center"} onChange={(event) => actions.patchSelected({ strokeAlign: event.target.value as Shape["strokeAlign"] })}><option value="inside">Inside</option><option value="center">Center</option><option value="outside">Outside</option></select></label>
+          </div>
+          <label className={styles.fullField}><span>Dash pattern</span><input aria-label="Stroke dash pattern" value={(shape.strokeDash ?? []).join(", ")} placeholder="8, 4" onChange={(event) => actions.patchSelected({ strokeDash: event.currentTarget.value.split(/[ ,]+/).map(Number).filter((value) => Number.isFinite(value) && value > 0) })} /></label>
+          {!shape.vectorPaths?.length && Boolean(shape.vectorPoints?.length) && <button type="button" onClick={() => actions.patchSelected({ vectorPaths: [{ id: createShapeId(), pointIds: shape.vectorPoints!.map((point) => point.id), closed: Boolean(shape.vectorClosed) }] })}>Convert to vector network</button>}
+          {shape.vectorPaths?.length ? <button type="button" disabled={shape.vectorPaths[0]!.pointIds.length < 3} onClick={() => {
+            const path = shape.vectorPaths![0]!;
+            actions.commitShapes(boardShapes.map((candidate) => candidate.id === shape.id ? splitVectorPath(candidate, path.id, path.pointIds[Math.floor(path.pointIds.length / 2)]!) : candidate));
+          }}>Split path at midpoint</button> : null}
+          {shape.vectorPaths?.[0]?.pointIds[0] && <button type="button" onClick={() => {
+            const origin = shape.vectorPoints?.find((point) => point.id === shape.vectorPaths![0]!.pointIds[0]);
+            if (!origin) return;
+            actions.commitShapes(boardShapes.map((candidate) => candidate.id === shape.id ? branchVectorPath(candidate, origin.id, { x: origin.x + 60, y: origin.y + 40 }) : candidate));
+          }}>Add vector branch</button>}
+          {validateVectorNetwork(shape).map((issue) => <p className={styles.fieldError} key={`${issue.pathId}:${issue.type}`}>{issue.detail}</p>)}
           <p className={styles.fieldHint}>{shape.vectorPoints?.length ?? 0} editable nodes. Drag the canvas nodes with the pointer tool.</p>
         </section>
       )}
@@ -258,9 +285,33 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
         </section>
       )}
       {(shape.isMask || shape.maskId) && <section className={styles.inspectorSection}><h2>Mask</h2><button type="button" onClick={actions.releaseSelectedMask}>Release mask</button></section>}
+      {shape.type === "image" && <section className={styles.inspectorSection}>
+        <h2>Image</h2>
+        <label className={styles.fullField}><span>Fit</span><select value={shape.imageFit ?? "fill"} onChange={(event) => actions.patchSelected({ imageFit: event.target.value as Shape["imageFit"] })}><option value="fill">Fill</option><option value="fit">Fit</option><option value="crop">Crop</option><option value="tile">Tile</option></select></label>
+        <div className={styles.fieldGrid}>
+          <NumberField label="Brightness" min={0} max={3} step={0.1} value={shape.imageFilters?.brightness ?? 1} onCommit={(brightness) => actions.patchSelected({ imageFilters: { brightness, contrast: shape.imageFilters?.contrast ?? 1, saturation: shape.imageFilters?.saturation ?? 1, blur: shape.imageFilters?.blur ?? 0 } })} />
+          <NumberField label="Contrast" min={0} max={3} step={0.1} value={shape.imageFilters?.contrast ?? 1} onCommit={(contrast) => actions.patchSelected({ imageFilters: { brightness: shape.imageFilters?.brightness ?? 1, contrast, saturation: shape.imageFilters?.saturation ?? 1, blur: shape.imageFilters?.blur ?? 0 } })} />
+          <NumberField label="Saturation" min={0} max={3} step={0.1} value={shape.imageFilters?.saturation ?? 1} onCommit={(saturation) => actions.patchSelected({ imageFilters: { brightness: shape.imageFilters?.brightness ?? 1, contrast: shape.imageFilters?.contrast ?? 1, saturation, blur: shape.imageFilters?.blur ?? 0 } })} />
+          <NumberField label="Blur" min={0} max={40} value={shape.imageFilters?.blur ?? 0} onCommit={(blur) => actions.patchSelected({ imageFilters: { brightness: shape.imageFilters?.brightness ?? 1, contrast: shape.imageFilters?.contrast ?? 1, saturation: shape.imageFilters?.saturation ?? 1, blur } })} />
+        </div>
+        {shape.imageFit === "crop" && <div className={styles.fieldGrid}>
+          <NumberField label="Crop X %" min={0} max={100} value={(shape.imageCrop?.x ?? 0) * 100} onCommit={(x) => actions.patchSelected({ imageCrop: { x: x / 100, y: shape.imageCrop?.y ?? 0, width: shape.imageCrop?.width ?? 1, height: shape.imageCrop?.height ?? 1 } })} />
+          <NumberField label="Crop Y %" min={0} max={100} value={(shape.imageCrop?.y ?? 0) * 100} onCommit={(y) => actions.patchSelected({ imageCrop: { x: shape.imageCrop?.x ?? 0, y: y / 100, width: shape.imageCrop?.width ?? 1, height: shape.imageCrop?.height ?? 1 } })} />
+          <NumberField label="Crop width %" min={5} max={100} value={(shape.imageCrop?.width ?? 1) * 100} onCommit={(width) => actions.patchSelected({ imageCrop: { x: shape.imageCrop?.x ?? 0, y: shape.imageCrop?.y ?? 0, width: width / 100, height: shape.imageCrop?.height ?? 1 } })} />
+          <NumberField label="Crop height %" min={5} max={100} value={(shape.imageCrop?.height ?? 1) * 100} onCommit={(height) => actions.patchSelected({ imageCrop: { x: shape.imageCrop?.x ?? 0, y: shape.imageCrop?.y ?? 0, width: shape.imageCrop?.width ?? 1, height: height / 100 } })} />
+        </div>}
+      </section>}
       {shape.type === "text" && (
         <section className={styles.inspectorSection}>
           <h2>Typography</h2>
+          {textSelection?.shapeId === shape.id && textSelection.start !== textSelection.end && <div className={styles.selectionTypography}>
+            <span className={styles.controlLabel}>Selected characters</span>
+            <div className={styles.buttonGrid}>
+              <button type="button" onClick={() => patchTextSelection({ fontWeight: "bold" })}>Bold</button>
+              <button type="button" onClick={() => patchTextSelection({ textDecoration: "underline" })}>Underline</button>
+            </div>
+            <ColorField label="Selection color" value={shape.color ?? "#ffffff"} onCommit={(color) => patchTextSelection({ color })} />
+          </div>}
           <div className={styles.fieldGrid}>
             <NumberField label="Size" min={6} value={shape.fontSize ?? 18} onCommit={(fontSize) => actions.patchSelected({ fontSize })} />
             <NumberField label="Line" min={0.5} step={0.1} value={shape.lineHeight ?? 1.2} onCommit={(lineHeight) => actions.patchSelected({ lineHeight })} />
@@ -295,6 +346,13 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
               <option value="fixed">Fixed size</option>
             </select>
           </label>
+          <div className={styles.fieldGrid}>
+            <NumberField label="Variable weight" min={1} max={1000} value={shape.fontAxes?.wght ?? (Number(shape.fontWeight) || 400)} onCommit={(wght) => actions.patchSelected({ fontAxes: { ...(shape.fontAxes ?? {}), wght } })} />
+            <NumberField label="Variable width" min={50} max={200} value={shape.fontAxes?.wdth ?? 100} onCommit={(wdth) => actions.patchSelected({ fontAxes: { ...(shape.fontAxes ?? {}), wdth } })} />
+            <NumberField label="Optical size" min={6} max={144} value={shape.fontAxes?.opsz ?? shape.fontSize ?? 18} onCommit={(opsz) => actions.patchSelected({ fontAxes: { ...(shape.fontAxes ?? {}), opsz } })} />
+            <NumberField label="Slant" min={-15} max={15} value={shape.fontAxes?.slnt ?? 0} onCommit={(slnt) => actions.patchSelected({ fontAxes: { ...(shape.fontAxes ?? {}), slnt } })} />
+          </div>
+          <div className={styles.buttonGrid} role="group" aria-label="OpenType features">{OPEN_TYPE_FEATURES.map(([tag, label]) => <button type="button" key={tag} aria-pressed={shape.openTypeFeatures?.[tag] !== false} onClick={() => actions.patchSelected({ openTypeFeatures: { ...(shape.openTypeFeatures ?? {}), [tag]: shape.openTypeFeatures?.[tag] === false } })}>{label}</button>)}</div>
           <div className={styles.fieldGrid}>
             <NumberField label="Paragraph" min={0} value={shape.paragraphSpacing ?? 0} onCommit={(paragraphSpacing) => actions.patchSelected({ paragraphSpacing })} />
             <NumberField label="Indent" min={0} value={shape.textIndent ?? 0} onCommit={(textIndent) => actions.patchSelected({ textIndent })} />
@@ -457,6 +515,18 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
           <button type="button" onClick={actions.unframeSelected}>Remove frame</button>
         </section>
       )}
+      <section className={styles.inspectorSection}>
+        <h2>Accessibility</h2>
+        <label className={styles.fullField}><span>Semantic role</span><select value={shape.semanticRole ?? "none"} onChange={(event) => actions.patchSelected({ semanticRole: event.target.value as Shape["semanticRole"] })}><option value="none">None</option><option value="button">Button</option><option value="heading">Heading</option><option value="image">Image</option><option value="link">Link</option><option value="input">Input</option><option value="navigation">Navigation</option></select></label>
+        {(shape.type === "image" || shape.semanticRole === "image") && <label className={styles.fullField}><span>Alternative text</span><textarea value={shape.altText ?? ""} onChange={(event) => actions.patchSelected({ altText: event.target.value })} /></label>}
+        <NumberField label="Focus order" min={1} value={shape.focusOrder ?? 1} onCommit={(focusOrder) => actions.patchSelected({ focusOrder })} />
+      </section>
+      <section className={styles.inspectorSection}>
+        <h2>Developer handoff</h2>
+        <label className={styles.fullField}><span>Status</span><select value={shape.devStatus ?? "designing"} onChange={(event) => actions.patchSelected({ devStatus: event.target.value as Shape["devStatus"] })}><option value="designing">Designing</option><option value="ready">Ready for development</option><option value="completed">Completed</option></select></label>
+        <label className={styles.fullField}><span>Annotation</span><textarea value={shape.devAnnotation ?? ""} onChange={(event) => actions.patchSelected({ devAnnotation: event.target.value })} /></label>
+        <label className={styles.fullField}><span>Code component URL</span><input type="url" value={shape.codeComponentUrl ?? ""} onChange={(event) => actions.patchSelected({ codeComponentUrl: event.target.value })} /></label>
+      </section>
       {shape.parentId && (
         <section className={styles.inspectorSection}>
           <h2>Layout in frame</h2>

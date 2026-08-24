@@ -29,6 +29,9 @@ declare global {
       x: number;
       y: number;
       shapeId: string;
+      assigneeId?: string;
+      dueAt?: string;
+      priority?: "low" | "normal" | "high";
     };
     CommentMetadata: {
       source: "canvas";

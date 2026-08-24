@@ -21,9 +21,9 @@ const mocks = vi.hoisted(() => ({
     canEdit: true, commitShapes: vi.fn(), createComponentSelected: vi.fn(), createVariantSetSelected: vi.fn(),
     addComponentInstance: vi.fn(), resetSelectedInstance: vi.fn(), detachSelectedInstance: vi.fn(), swapSelectedVariant: vi.fn(),
     createStyleFromSelected: vi.fn(), applyStyleToSelected: vi.fn(), createLibraryVariable: vi.fn(), bindVariableToSelected: vi.fn(),
-    groupSelected: vi.fn(), frameSelected: vi.fn(),
+    groupSelected: vi.fn(), frameSelected: vi.fn(), patchSelected: vi.fn(),
   },
-  download: vi.fn(), png: vi.fn(), svgAssets: vi.fn(), pdf: vi.fn(), listBranches: vi.fn(), createBranch: vi.fn(), mergeBranch: vi.fn(), archiveBranch: vi.fn(),
+  download: vi.fn(), png: vi.fn(), svgAssets: vi.fn(), pdf: vi.fn(), listBranches: vi.fn(), createBranch: vi.fn(), mergeBranch: vi.fn(), archiveBranch: vi.fn(), diffBranch: vi.fn(), reviewBranch: vi.fn(),
   getBoard: vi.fn(), clipboard: vi.fn(),
 }));
 
@@ -35,6 +35,7 @@ vi.mock("../../editor/export", async (importOriginal) => {
 vi.mock("../../services/branchRepository", () => ({
   listDesignBranches: mocks.listBranches, createDesignBranch: mocks.createBranch,
   mergeDesignBranch: mocks.mergeBranch, archiveDesignBranch: mocks.archiveBranch,
+  diffDesignBranch: mocks.diffBranch, reviewDesignBranch: mocks.reviewBranch,
 }));
 vi.mock("../../services/boardRepository", () => ({ getBoard: mocks.getBoard }));
 
@@ -82,6 +83,8 @@ describe("new editor capability panels", () => {
     mocks.createBranch.mockResolvedValue({ id: "new", board_id: "board", name: "Exploration", room_id: "branch:new", status: "open" });
     mocks.mergeBranch.mockResolvedValue({ merged: true, checkpointId: "checkpoint", revision: 42 });
     mocks.archiveBranch.mockResolvedValue({ archived: true });
+    mocks.diffBranch.mockResolvedValue({ diff: [{ shapeId: "child", status: "changed", name: "Continue" }] });
+    mocks.reviewBranch.mockResolvedValue({ reviewed: true, status: "approved" });
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: mocks.clipboard.mockResolvedValue(undefined) } });
   });
 
@@ -102,6 +105,63 @@ describe("new editor capability panels", () => {
     expect(mocks.actions.applyStyleToSelected).toHaveBeenCalledWith(fill.id);
   });
 
+  it("edits modes, aliases, and typed component properties from the assets panel", () => {
+    const definition = shape("definition", "frame", {
+      componentDefinition: true,
+      componentName: "Card",
+      componentProperties: {
+        label: { type: "text", label: "Label", defaultValue: "Hello", targetNodeId: "definition-label" },
+        visible: { type: "boolean", label: "Show content", defaultValue: true, targetNodeId: "definition-label" },
+        nested: { type: "instance-swap", label: "Nested component", defaultValue: component.id, targetNodeId: "definition-nested", preferredValues: [component.id, variant.id] },
+        slot: { type: "slot", label: "Slot content", defaultValue: "Body", targetNodeId: "definition-label" },
+      },
+    });
+    const definitionLabel = shape("definition-label", "text", { parentId: definition.id, text: "Hello" });
+    const definitionNested = shape("definition-nested", "frame", { parentId: definition.id, instanceOf: component.id });
+    const cardInstance = shape("card-instance", "frame", { instanceOf: definition.id, instanceRootId: "card-instance" });
+    const instanceLabel = shape("instance-label", "text", { instanceRootId: cardInstance.id, componentNodeId: definitionLabel.id, text: "Hello" });
+    const instanceNested = shape("instance-nested", "frame", { instanceRootId: cardInstance.id, componentNodeId: definitionNested.id, instanceOf: component.id });
+    const collection = shape("theme", "resource", { resourceKind: "variable-collection", resourceName: "Theme", resourceValue: { light: "Light", dark: "Dark" }, hidden: true });
+    const accent = shape("accent", "resource", { resourceKind: "color-variable", resourceName: "Accent", resourceValue: { value: "#b87a2e" }, variableCollectionId: collection.id, variableModeValues: { light: "#ffffff", dark: "#17181a" }, hidden: true });
+    const secondary = shape("secondary", "resource", { resourceKind: "color-variable", resourceName: "Secondary", resourceValue: { value: "#555555" }, variableCollectionId: collection.id, variableModeValues: { light: "#eeeeee", dark: "#222222" }, hidden: true });
+    const store = makeStore("");
+    store.dispatch(setWhiteboardData({ shapes: [component, variant, definition, definitionLabel, definitionNested, cardInstance, instanceLabel, instanceNested, collection, accent, secondary] }));
+    store.dispatch(setSelectedShapes([cardInstance.id]));
+    render(<Provider store={store}><DesignLibraryPanel /></Provider>);
+
+    fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Updated" } });
+    fireEvent.click(screen.getByLabelText("Show content"));
+    fireEvent.change(screen.getByLabelText("Nested component"), { target: { value: variant.id } });
+    fireEvent.change(screen.getByLabelText("Slot content"), { target: { value: "New body" } });
+    fireEvent.change(screen.getByLabelText("Active mode"), { target: { value: "dark" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add themed color" }));
+    fireEvent.change(screen.getAllByLabelText("Alias")[0]!, { target: { value: secondary.id } });
+    fireEvent.change(screen.getByLabelText("Accent Light value"), { target: { value: "#fefefe" } });
+
+    expect(mocks.actions.patchSelected).toHaveBeenCalledWith({ activeVariableModes: { theme: "dark" } });
+    expect(mocks.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: instanceLabel.id, text: "Updated" })]));
+    expect(mocks.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "accent", variableAliasId: "secondary" })]));
+  });
+
+  it("exposes text, visibility, nested instances, and slots as component properties", () => {
+    const definition = shape("definition", "frame", { componentDefinition: true, componentName: "Card" });
+    const label = shape("definition-label", "text", { parentId: definition.id, text: "Hello" });
+    const nested = shape("definition-nested", "frame", { parentId: definition.id, instanceOf: component.id });
+    const store = makeStore("");
+    store.dispatch(setWhiteboardData({ shapes: [component, variant, definition, label, nested] }));
+    store.dispatch(setSelectedShapes([definition.id]));
+    render(<Provider store={store}><DesignLibraryPanel /></Provider>);
+    fireEvent.click(screen.getByRole("button", { name: "Expose text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expose visibility" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expose instance swap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expose slot" }));
+    expect(mocks.actions.commitShapes).toHaveBeenCalledTimes(4);
+    expect(mocks.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({
+      id: definition.id,
+      componentProperties: expect.objectContaining({ "slot-content": expect.objectContaining({ type: "slot" }) }),
+    })]));
+  });
+
   it("authors interactions, starting points, and opens presentation", () => {
     const store = renderWithStore(<PrototypePanel />, frame.id);
     fireEvent.click(screen.getByRole("checkbox", { name: "Flow starting point" }));
@@ -109,6 +169,15 @@ describe("new editor capability panels", () => {
     fireEvent.click(screen.getByRole("button", { name: /Present prototype/ }));
     expect(mocks.actions.commitShapes).toHaveBeenCalledTimes(2);
     expect(store.getState().editor.presentationMode).toBe(true);
+  });
+
+  it("authors keyboard-triggered conditional prototype actions", () => {
+    renderWithStore(<PrototypePanel />, child.id);
+    fireEvent.change(screen.getByLabelText("Trigger"), { target: { value: "key-down" } });
+    fireEvent.change(screen.getByLabelText("Prototype trigger key"), { target: { value: "Space" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add interaction/ }));
+    const committed = mocks.actions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    expect(committed.find((candidate) => candidate.id === child.id)?.prototypeInteractions?.at(-1)).toMatchObject({ trigger: "key-down", key: "Space" });
   });
 
   it("searches layers and commands with the keyboard", () => {
@@ -190,6 +259,11 @@ describe("new editor capability panels", () => {
     await waitFor(() => expect(mocks.mergeBranch).toHaveBeenCalled());
     fireEvent.click(screen.getAllByRole("button", { name: "Archive Exploration" })[0]!);
     await waitFor(() => expect(mocks.archiveBranch).toHaveBeenCalled());
+    fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0]!);
+    expect(await screen.findByText("changed · Continue")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Review note"), { target: { value: "Ready" } });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(mocks.reviewBranch).toHaveBeenCalledWith("board", "branch", "approved", "Ready"));
   });
 
   it("navigates and closes a presented prototype", () => {
@@ -224,6 +298,27 @@ describe("new editor capability panels", () => {
     expect(screen.getByText(frame.name!)).toBeVisible();
     fireEvent.pointerDown(dragButton, { clientX: 10, clientY: 10 });
     fireEvent.pointerUp(dragButton, { clientX: 30, clientY: 30 });
+    expect(screen.getByText(target.name!)).toBeVisible();
+  });
+
+  it("runs mouse-enter, mouse-leave, and keyboard prototype triggers", () => {
+    const interactive = shape("multi-trigger", "rectangle", {
+      name: "Trigger surface", parentId: frame.id,
+      prototypeInteractions: [
+        { id: "enter", trigger: "mouse-enter", action: "set-variable", variableId: "state", variableValue: "entered" },
+        { id: "leave", trigger: "mouse-leave", action: "set-variable", variableId: "state", variableValue: "left" },
+        { id: "key", trigger: "key-down", key: "Enter", action: "navigate", destinationId: target.id },
+      ],
+    });
+    const state = shape("state", "resource", { hidden: true, resourceKind: "string-variable", resourceValue: { value: "idle" } });
+    const store = makeStore("");
+    store.dispatch(setWhiteboardData({ shapes: [frame, target, interactive, state] }));
+    store.dispatch(setPresentationFrameId(frame.id));
+    render(<Provider store={store}><PresentationView /></Provider>);
+    const surface = screen.getByRole("button", { name: "Trigger surface" });
+    fireEvent.mouseEnter(surface);
+    fireEvent.mouseLeave(surface);
+    fireEvent.keyDown(window, { key: "Enter" });
     expect(screen.getByText(target.name!)).toBeVisible();
   });
 

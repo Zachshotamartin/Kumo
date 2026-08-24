@@ -89,4 +89,4 @@ export interface CommentAnchor {
   shapeId: string;
 }
 
-export type EditorRightPanel = "properties" | "comments" | "history" | "assets" | "prototype" | "export" | "inspect" | "branches";
+export type EditorRightPanel = "properties" | "comments" | "history" | "assets" | "prototype" | "export" | "inspect" | "branches" | "platform";

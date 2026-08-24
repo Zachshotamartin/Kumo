@@ -68,6 +68,20 @@ export interface Shape {
   lineHeight?: number;
   letterSpacing?: number;
   textAutoResize?: "auto-width" | "auto-height" | "fixed";
+  /** Character-level typography. Runs use UTF-16 offsets so they map to textarea selections. */
+  textRuns?: Array<{
+    id: string;
+    start: number;
+    end: number;
+    fontFamily?: string;
+    fontSize?: number;
+    fontWeight?: string;
+    color?: string;
+    textDecoration?: string;
+    link?: string;
+  }>;
+  fontAxes?: Record<string, number>;
+  openTypeFeatures?: Record<string, boolean>;
   paragraphSpacing?: number;
   textIndent?: number;
   textCase?: "original" | "upper" | "lower" | "title";
@@ -79,6 +93,15 @@ export interface Shape {
   componentName?: string;
   componentSetId?: string;
   variantProperties?: Record<string, string>;
+  componentProperties?: Record<string, {
+    type: "text" | "boolean" | "instance-swap" | "variant" | "slot";
+    label: string;
+    defaultValue: string | boolean;
+    targetNodeId?: string;
+    targetField?: string;
+    preferredValues?: string[];
+  }>;
+  instanceProperties?: Record<string, string | boolean>;
   instanceOf?: string;
   instanceRootId?: string;
   componentNodeId?: string;
@@ -87,21 +110,39 @@ export interface Shape {
   textStyleId?: string;
   effectStyleId?: string;
   variableBindings?: Record<string, string>;
-  resourceKind?: "fill-style" | "text-style" | "effect-style" | "color-variable" | "number-variable" | "string-variable";
+  resourceKind?: "fill-style" | "text-style" | "effect-style" | "color-variable" | "number-variable" | "string-variable" | "boolean-variable" | "timing-variable" | "easing-variable" | "variable-collection";
   resourceName?: string;
-  resourceValue?: Record<string, string | number>;
+  resourceValue?: Record<string, string | number | boolean>;
+  variableCollectionId?: string;
+  variableGroup?: string;
+  variableAliasId?: string;
+  variableModeValues?: Record<string, string | number | boolean>;
+  activeVariableModes?: Record<string, string>;
+  /** Published-library origin used to review and safely update imported assets. */
+  libraryId?: string;
+  libraryVersion?: number;
+  librarySourceId?: string;
   prototypeStart?: boolean;
   prototypeOverflow?: "clip" | "scroll";
   prototypeInteractions?: Array<{
     id: string;
-    trigger: "click" | "hover" | "drag" | "after-delay";
-    action: "navigate" | "back" | "open-board" | "open-url" | "change-to";
+    trigger: "click" | "hover" | "drag" | "after-delay" | "mouse-enter" | "mouse-leave" | "key-down";
+    action: "navigate" | "back" | "open-board" | "open-url" | "change-to" | "open-overlay" | "close-overlay" | "scroll-to" | "set-variable";
     destinationId?: string;
     boardId?: string;
     url?: string;
     delay?: number;
-    transition?: "instant" | "dissolve" | "slide-left" | "slide-right";
+    key?: string;
+    transition?: "instant" | "dissolve" | "slide-left" | "slide-right" | "smart-animate";
     duration?: number;
+    preserveScroll?: boolean;
+    variableId?: string;
+    variableValue?: string | number | boolean;
+    condition?: {
+      variableId: string;
+      operator: "equals" | "not-equals" | "greater" | "less" | "truthy";
+      value?: string | number | boolean;
+    };
   }>;
   /** Vector and compositing data. Vector points are stored in board/world coordinates. */
   vectorPoints?: Array<{
@@ -112,6 +153,12 @@ export interface Shape {
     handleOut?: { x: number; y: number };
   }>;
   vectorClosed?: boolean;
+  /** A vector network can contain multiple branching paths over shared points. */
+  vectorPaths?: Array<{ id: string; pointIds: string[]; closed: boolean }>;
+  strokeCap?: "none" | "round" | "square" | "arrow";
+  strokeJoin?: "miter" | "round" | "bevel";
+  strokeAlign?: "inside" | "center" | "outside";
+  strokeDash?: number[];
   booleanOperation?: "union" | "subtract" | "intersect" | "exclude";
   booleanChildren?: Shape[];
   maskId?: string;
@@ -130,6 +177,16 @@ export interface Shape {
     visible: boolean;
   }>;
   blendMode?: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "difference";
+  imageFit?: "fill" | "fit" | "crop" | "tile";
+  imageCrop?: { x: number; y: number; width: number; height: number };
+  imageFilters?: { brightness: number; contrast: number; saturation: number; blur: number };
+  mediaType?: "image" | "gif" | "video";
+  altText?: string;
+  semanticRole?: "none" | "button" | "heading" | "image" | "link" | "input" | "navigation";
+  focusOrder?: number;
+  devStatus?: "designing" | "ready" | "completed";
+  devAnnotation?: string;
+  codeComponentUrl?: string;
   /** Document organization. Page and collection records are hidden workspace nodes. */
   pageId?: string | null;
   pageName?: string;

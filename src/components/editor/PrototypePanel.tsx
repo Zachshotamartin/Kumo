@@ -6,6 +6,7 @@ import { useEditorActions } from "../../editor/useEditorActions";
 import { setPresentationFrameId, setPresentationMode, setRightPanel } from "../../features/editor/editorSlice";
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
+import type { Shape } from "../../classes/shape";
 
 const PrototypePanel = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -14,10 +15,16 @@ const PrototypePanel = () => {
   const actions = useEditorActions();
   const selected = board.shapes.find((shape) => selectedIds.includes(shape.id));
   const frames = prototypeFrames(board.shapes);
-  const [trigger, setTrigger] = useState<"click" | "hover" | "drag" | "after-delay">("click");
-  const [action, setAction] = useState<"navigate" | "back" | "open-board" | "open-url" | "change-to">("navigate");
+  const [trigger, setTrigger] = useState<NonNullable<Shape["prototypeInteractions"]>[number]["trigger"]>("click");
+  const [action, setAction] = useState<NonNullable<Shape["prototypeInteractions"]>[number]["action"]>("navigate");
   const [destinationId, setDestinationId] = useState(frames[0]?.id ?? "");
   const [url, setUrl] = useState("https://");
+  const [transition, setTransition] = useState<"instant" | "dissolve" | "slide-left" | "slide-right" | "smart-animate">("dissolve");
+  const [variableId, setVariableId] = useState("");
+  const [variableValue, setVariableValue] = useState("");
+  const [triggerKey, setTriggerKey] = useState("Enter");
+  const [conditionEnabled, setConditionEnabled] = useState(false);
+  const variables = board.shapes.filter((shape) => shape.type === "resource" && shape.resourceKind?.endsWith("variable") && shape.resourceKind !== "variable-collection");
 
   const add = () => {
     if (!selected) return;
@@ -25,11 +32,14 @@ const PrototypePanel = () => {
     actions.commitShapes(addPrototypeInteraction(board.shapes, selected.id, {
       trigger,
       action,
-      ...(action === "navigate" || action === "change-to" ? { destinationId } : {}),
+      ...(["navigate", "change-to", "open-overlay", "scroll-to"].includes(action) ? { destinationId } : {}),
       ...(action === "open-board" ? { boardId: target?.boardId ?? destinationId } : {}),
       ...(action === "open-url" ? { url } : {}),
       ...(trigger === "after-delay" ? { delay: 0.8 } : {}),
-      transition: action === "navigate" ? "dissolve" : "instant",
+      ...(trigger === "key-down" ? { key: triggerKey } : {}),
+      ...(action === "set-variable" ? { variableId, variableValue } : {}),
+      ...(conditionEnabled && variableId ? { condition: { variableId, operator: "equals" as const, value: variableValue } } : {}),
+      transition,
       duration: 0.25,
     }));
   };
@@ -80,8 +90,12 @@ const PrototypePanel = () => {
                   <option value="hover">While hovering</option>
                   <option value="drag">On drag</option>
                   <option value="after-delay">After delay</option>
+                  <option value="mouse-enter">Mouse enters</option>
+                  <option value="mouse-leave">Mouse leaves</option>
+                  <option value="key-down">Key down</option>
                 </select>
               </label>
+              {trigger === "key-down" && <label className={styles.fullField}><span>Key</span><input aria-label="Prototype trigger key" value={triggerKey} placeholder="Enter" onChange={(event) => setTriggerKey(event.target.value)} /></label>}
               <label className={styles.fullField}>
                 <span>Action</span>
                 <select value={action} onChange={(event) => setAction(event.target.value as typeof action)}>
@@ -90,13 +104,17 @@ const PrototypePanel = () => {
                   <option value="open-board">Open linked board</option>
                   <option value="open-url">Open URL</option>
                   <option value="change-to">Change to variant</option>
+                  <option value="open-overlay">Open overlay</option>
+                  <option value="close-overlay">Close overlay</option>
+                  <option value="scroll-to">Scroll to layer</option>
+                  <option value="set-variable">Set variable</option>
                 </select>
               </label>
-              {(action === "navigate" || action === "change-to") && (
+              {(["navigate", "change-to", "open-overlay", "scroll-to"].includes(action)) && (
                 <label className={styles.fullField}>
                   <span>Destination</span>
                   <select value={destinationId} onChange={(event) => setDestinationId(event.target.value)}>
-                    {(action === "navigate" ? frames : board.shapes.filter((shape) => shape.componentDefinition)).map((shape) => <option key={shape.id} value={shape.id}>{shape.name ?? shape.id}</option>)}
+                    {(action === "navigate" || action === "open-overlay" ? frames : action === "change-to" ? board.shapes.filter((shape) => shape.componentDefinition) : board.shapes.filter((shape) => shape.type !== "resource" && shape.type !== "guide")).map((shape) => <option key={shape.id} value={shape.id}>{shape.name ?? shape.id}</option>)}
                   </select>
                 </label>
               )}
@@ -109,6 +127,10 @@ const PrototypePanel = () => {
                 </label>
               )}
               {action === "open-url" && <label className={styles.fullField}><span>URL</span><input value={url} onChange={(event) => setUrl(event.target.value)} /></label>}
+              {(action === "set-variable" || conditionEnabled) && <label className={styles.fullField}><span>Variable</span><select value={variableId} onChange={(event) => setVariableId(event.target.value)}><option value="">Choose variable</option>{variables.map((variable) => <option key={variable.id} value={variable.id}>{variable.resourceName}</option>)}</select></label>}
+              {(action === "set-variable" || conditionEnabled) && <label className={styles.fullField}><span>Value</span><input value={variableValue} onChange={(event) => setVariableValue(event.target.value)} /></label>}
+              <label className={styles.fullField}><span>Transition</span><select value={transition} onChange={(event) => setTransition(event.target.value as typeof transition)}><option value="instant">Instant</option><option value="dissolve">Dissolve</option><option value="slide-left">Slide left</option><option value="slide-right">Slide right</option><option value="smart-animate">Smart animate</option></select></label>
+              <label className={styles.toggleRow}><span>Run only when condition matches</span><input type="checkbox" checked={conditionEnabled} onChange={(event) => setConditionEnabled(event.target.checked)} /></label>
               <button type="button" onClick={add}><Plus aria-hidden="true" /> Add interaction</button>
             </div>
           )}

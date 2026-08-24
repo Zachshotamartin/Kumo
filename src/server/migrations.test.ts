@@ -64,4 +64,22 @@ describe("production database migrations", () => {
     expect(source).toContain("grant execute on function public.mutate_kumo_friendship");
     expect(source).toContain("to service_role");
   });
+
+  it("adds product workspaces, libraries, governed sharing, templates, reviews, and notifications with compatible keys", () => {
+    const source = migration("202608240002_product_completeness.sql");
+    for (const table of ["workspaces", "workspace_members", "workspace_folders", "board_organization", "account_notifications", "design_libraries", "design_library_versions", "design_library_subscriptions", "board_access_requests", "board_share_links", "board_templates", "branch_reviews"]) {
+      expect(source).toContain(`create table if not exists public.${table}`);
+      expect(source).toContain(`alter table public.${table} enable row level security`);
+    }
+    expect(source).not.toMatch(/(?:source_)?board_id uuid[^\n]*references public\.boards/);
+    expect(source).toContain("board_id text not null references public.boards(id)");
+    expect(source).toContain("token_hash text not null unique");
+    expect(source).toContain("last_used_at timestamptz");
+  });
+
+  it("ties branch review decisions to the exact reviewed document", () => {
+    const source = migration("202608240003_branch_review_gating.sql");
+    expect(source).toContain("add column if not exists reviewed_checksum text");
+    expect(source).toContain("branch_reviews_blocking_idx");
+  });
 });

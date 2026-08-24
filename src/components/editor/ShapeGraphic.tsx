@@ -2,6 +2,7 @@ import type { Shape } from "../../classes/shape";
 import { shapeBounds } from "../../editor/geometry";
 import {
   shapePathData,
+  vectorNetworkPathData,
   vectorPathData,
 } from "../../editor/graphics";
 import styles from "./ShapeGraphic.module.css";
@@ -54,10 +55,13 @@ export const ShapeVectorGraphic = ({ shape }: { shape: Shape }) => {
   return (
     <svg className={styles.vectorGraphic} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
       <path
-        d={vectorPathData(shape.vectorPoints ?? [], bounds, shape.vectorClosed)}
+        d={shape.vectorPaths?.length ? vectorNetworkPathData(shape.vectorPoints ?? [], shape.vectorPaths, bounds) : vectorPathData(shape.vectorPoints ?? [], bounds, shape.vectorClosed)}
         fill={shape.vectorClosed ? shape.backgroundColor ?? "transparent" : "none"}
         stroke={shape.borderColor ?? "#fff"}
         strokeWidth={shape.borderWidth ?? 1}
+        strokeLinecap={shape.strokeCap === "round" ? "round" : shape.strokeCap === "square" ? "square" : "butt"}
+        strokeLinejoin={shape.strokeJoin ?? "miter"}
+        strokeDasharray={shape.strokeDash?.join(" ")}
         vectorEffect="non-scaling-stroke"
       />
     </svg>

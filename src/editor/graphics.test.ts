@@ -11,6 +11,7 @@ import {
   shapePathData,
   updateVectorPoint,
   vectorPathData,
+  vectorNetworkPathData,
 } from "./graphics";
 
 const shape = (id: string, x: number, patch: Partial<Shape> = {}): Shape => ({
@@ -40,6 +41,17 @@ describe("vector and compositing graphics", () => {
     const appended = appendVectorPoint([created, shape("other", 0)], created.id, { x: 50, y: 60 });
     expect(appended[0]?.vectorPoints).toHaveLength(3);
     expect(appended[0]).toMatchObject({ x2: 50, y2: 60 });
+  });
+
+  it("renders branching vector networks and appends to the active path", () => {
+    const points = [{ id: "a", x: 0, y: 0 }, { id: "b", x: 20, y: 20 }, { id: "c", x: 40, y: 0 }];
+    const paths = [{ id: "main", pointIds: ["a", "b"], closed: false }, { id: "branch", pointIds: ["b", "c"], closed: false }];
+    expect(vectorNetworkPathData(points, paths)).toBe("M 0 0 L 20 20 M 20 20 L 40 0");
+    expect(vectorNetworkPathData(points, [{ id: "missing", pointIds: ["missing"], closed: false }])).toBe("");
+    const vector = shape("network", 0, { type: "vector", vectorPoints: points, vectorPaths: paths });
+    expect(shapePathData(vector)).toContain("M 20 20 L 40 0");
+    const appended = appendVectorPoint([vector], vector.id, { x: 60, y: 20 })[0]!;
+    expect(appended.vectorPaths?.[1]?.pointIds).toHaveLength(3);
   });
 
   it("creates nondestructive boolean geometry and can flatten it", () => {

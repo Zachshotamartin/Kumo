@@ -21,6 +21,28 @@ import {
   type BoardVersion,
   type BoardVersionDetail,
 } from "./versionRepository";
+import {
+  applyLibrary,
+  createFolder,
+  createShareLink,
+  createTemplate,
+  instantiateTemplate,
+  loadAccessRequests,
+  loadLibraries,
+  loadLibraryDiff,
+  loadNotifications,
+  loadProductGraph,
+  loadShareLinks,
+  loadTemplates,
+  loadWorkspaceOverview,
+  markNotificationRead,
+  organizeBoard,
+  publishLibrary,
+  redeemShareLink,
+  requestBoardAccess,
+  resolveAccessRequest,
+  revokeShareLink,
+} from "./productRepository";
 
 vi.mock("./apiClient", () => ({ authenticatedFetch: vi.fn() }));
 
@@ -90,5 +112,47 @@ describe("collaboration platform repositories", () => {
     expect(authenticatedFetch).toHaveBeenNthCalledWith(1, "/api/versions?boardId=board%20%2F%20one&branchId=branch%20%2F%20one");
     expect(authenticatedFetch).toHaveBeenNthCalledWith(2, "/api/versions?boardId=board%20%2F%20one&versionId=version%20%2F%20one&branchId=branch%20%2F%20one");
     expect(authenticatedFetch).toHaveBeenNthCalledWith(3, "/api/versions", expect.objectContaining({ body: JSON.stringify({ action: "checkpoint", boardId: "board", name: "Review", description: "Ready", branchId: "branch / one" }) }));
+  });
+
+  it("covers the product graph, workspace, inbox, libraries, templates, access, and governed sharing API", async () => {
+    const graph = { sourceId: "board", nodes: [], edges: [], incoming: [] };
+    const workspace = { workspace: { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Workspace", owner_id: "user" } }, folders: [], organization: [] };
+    const responses: unknown[] = [
+      { graph }, workspace, { notifications: [] }, { updated: true },
+      { libraries: [], subscriptions: [] }, { libraryId: "library", version: 1, assetCount: 2 },
+      { version: 2, diff: [] }, { applied: true, version: 2, diff: [] },
+      { templates: [] }, { template: { id: "template" } }, { boardId: "new-board" },
+      { folder: { id: "folder" } }, { organization: { board_id: "board" } },
+      { request: { id: "request", status: "pending" } }, { link: { id: "link" }, token: "secret" },
+      { boardId: "board", role: "viewer" }, { links: [] }, { revoked: true },
+      { requests: [] }, { resolved: true, status: "approved" },
+    ];
+    responses.forEach((value) => vi.mocked(authenticatedFetch).mockResolvedValueOnce(value));
+
+    await expect(loadProductGraph("board / one")).resolves.toEqual(graph);
+    await expect(loadWorkspaceOverview()).resolves.toEqual(workspace);
+    await expect(loadNotifications()).resolves.toEqual([]);
+    await markNotificationRead("notice");
+    await loadLibraries("board");
+    await publishLibrary("board", { name: "Library", description: "Design", visibility: "public", versionDescription: "Initial" });
+    await loadLibraryDiff("board", "library");
+    await applyLibrary("board", "library");
+    await loadTemplates();
+    await createTemplate("board", "Template", "Description", "private");
+    await instantiateTemplate("template", "Copy");
+    await createFolder("Folder", null);
+    await organizeBoard("favorite-board", "board", { favorite: true });
+    await requestBoardAccess("board", "viewer", "Please");
+    await createShareLink("board", { role: "viewer", allowedDomain: "example.com" });
+    await redeemShareLink("secret");
+    await loadShareLinks("board");
+    await revokeShareLink("link");
+    await loadAccessRequests("board");
+    await resolveAccessRequest("request", "approved");
+
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(1, "/api/product?scope=graph&boardId=board%20%2F%20one");
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(4, "/api/product", expect.objectContaining({ body: JSON.stringify({ action: "mark-notification", id: "notice" }) }));
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(15, "/api/product", expect.objectContaining({ body: JSON.stringify({ action: "create-share-link", boardId: "board", role: "viewer", allowedDomain: "example.com" }) }));
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(17, "/api/product?scope=share-links&boardId=board");
   });
 });
