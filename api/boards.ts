@@ -3,6 +3,7 @@ import { requireActor } from "./_auth.js";
 import {
   boardSummary,
   getBoardAccess,
+  linkedBoardsForActor,
   listBoardsForUser,
   provisionBoard,
   searchPublicBoards,
@@ -40,8 +41,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const members = Object.fromEntries(
           (memberRows ?? []).map((member) => [member.user_id, member.role])
         );
+        const linkedBoards = await linkedBoardsForActor(boardId, actor.uid);
         return response.status(200).json({
-          board: { ...boardSummary(access.board, access.role), members },
+          board: { ...boardSummary(access.board, access.role), members, linkedBoards },
         });
       }
       if (scope === "public") {

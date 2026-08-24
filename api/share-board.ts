@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "./_auth.js";
 import { getBoardAccess } from "./_boards.js";
-import { allowMethods, errorMessage } from "./_http.js";
+import { linkedBoardSharePlan, membershipBoardIds } from "./_boardSharing.js";
+import { allowMethods, errorMessage, stringQuery } from "./_http.js";
 import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
 
 type BoardRole = "editor" | "viewer";
@@ -12,23 +13,36 @@ interface ShareRequest {
   email?: string;
   memberUid?: string;
   role?: BoardRole;
+  includeLinkedBoards?: boolean;
 }
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (!allowMethods(request, response, ["POST"])) return;
+  if (!allowMethods(request, response, ["GET", "POST"])) return;
 
   try {
     const actor = await requireActor(request);
     await ensureActorProfile(actor);
-    const body = (request.body ?? {}) as ShareRequest;
-    if (!body.boardId || !body.action) {
-      return response.status(400).json({ error: "Board and action are required." });
-    }
+    const boardId = request.method === "GET"
+      ? stringQuery(request.query.boardId)
+      : ((request.body ?? {}) as ShareRequest).boardId ?? "";
+    if (!boardId) return response.status(400).json({ error: "Board is required." });
 
-    const access = await getBoardAccess(body.boardId, actor.uid);
+    const access = await getBoardAccess(boardId, actor.uid);
     if (!access) return response.status(404).json({ error: "Board not found." });
     if (access.role !== "owner") {
       return response.status(403).json({ error: "Only the board owner can manage access." });
+    }
+    const plan = await linkedBoardSharePlan(boardId, actor.uid);
+    if (request.method === "GET") return response.status(200).json({ plan });
+
+    const body = (request.body ?? {}) as ShareRequest;
+    if (!body.action) {
+      return response.status(400).json({ error: "Board and action are required." });
+    }
+    if (plan.truncated && body.includeLinkedBoards !== false) {
+      return response.status(409).json({
+        error: "This connected-board graph is larger than Kumo's safe sharing limit. Share this board directly or reduce the link graph first.",
+      });
     }
 
     if (body.action === "invite") {
@@ -50,39 +64,49 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return response.status(400).json({ error: "You already own this board." });
       }
       const role: BoardRole = body.role === "viewer" ? "viewer" : "editor";
-      const { error } = await database.from("board_members").upsert({
-        board_id: body.boardId,
-        user_id: invited.firebase_uid,
-        role,
-      }, { onConflict: "board_id,user_id" });
-      if (error) throw error;
-      await database.from("audit_events").insert({
-        board_id: body.boardId,
-        actor_id: actor.uid,
-        event_type: "board.member_invited",
-        payload: { memberId: invited.firebase_uid, role },
+      const managedBoards = plan.boards.filter((board) => board.manageable);
+      const selectedBoards = body.includeLinkedBoards === false
+        ? managedBoards.filter((board) => board.id === boardId)
+        : managedBoards;
+      const selectedIds = selectedBoards.map((board) => board.id);
+      const { error } = await database.rpc("share_kumo_board_set", {
+        p_board_ids: selectedIds,
+        p_actor_id: actor.uid,
+        p_user_id: invited.firebase_uid,
+        p_role: role,
       });
-      return response.status(200).json({ uid: invited.firebase_uid, email: invited.email, role });
+      if (error) throw error;
+      const existingAccess = await membershipBoardIds(
+        invited.firebase_uid,
+        plan.boards.map((board) => board.id)
+      );
+      const unavailableBoards = plan.boards.filter((board) =>
+        !board.manageable && board.visibility === "private" && !existingAccess.has(board.id)
+      );
+      return response.status(200).json({
+        uid: invited.firebase_uid,
+        email: invited.email,
+        role,
+        sharedBoards: selectedBoards,
+        unavailableBoards,
+      });
     }
 
     if (!body.memberUid || body.memberUid === actor.uid) {
       return response.status(400).json({ error: "Select a collaborator to remove." });
     }
     const database = supabaseAdmin();
-    const { error } = await database
-      .from("board_members")
-      .delete()
-      .eq("board_id", body.boardId)
-      .eq("user_id", body.memberUid)
-      .neq("role", "owner");
-    if (error) throw error;
-    await database.from("audit_events").insert({
-      board_id: body.boardId,
-      actor_id: actor.uid,
-      event_type: "board.member_removed",
-      payload: { memberId: body.memberUid },
+    const managedBoards = plan.boards.filter((board) => board.manageable);
+    const selectedBoards = body.includeLinkedBoards === false
+      ? managedBoards.filter((board) => board.id === boardId)
+      : managedBoards;
+    const { error } = await database.rpc("remove_kumo_board_member_set", {
+      p_board_ids: selectedBoards.map((board) => board.id),
+      p_actor_id: actor.uid,
+      p_user_id: body.memberUid,
     });
-    return response.status(200).json({ uid: body.memberUid });
+    if (error) throw error;
+    return response.status(200).json({ uid: body.memberUid, removedBoards: selectedBoards });
   } catch (error) {
     const message = errorMessage(error, "We couldn't update board access.");
     return response.status(message === "Authentication required." ? 401 : 400).json({ error: message });

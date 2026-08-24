@@ -14,7 +14,7 @@ test("landing mini canvas draws below editable modeled copy and resets cleanly",
   await expect.poll(async () => ({
     drawings: Number(await drawingLayer.evaluate((element) => getComputedStyle(element).zIndex)),
     objects: Number(await objectLayer.evaluate((element) => getComputedStyle(element).zIndex)),
-  })).toEqual({ drawings: 1, objects: 3 });
+  })).toEqual({ drawings: 2, objects: 3 });
 
   await page.getByRole("button", { name: "Rectangle (R)" }).click();
   const surfaceBox = await surface.boundingBox();
@@ -47,6 +47,15 @@ test("landing mini canvas draws below editable modeled copy and resets cleanly",
   expect(slopes[1]).toBeGreaterThan(0);
 
   await page.getByRole("button", { name: "Select (V)" }).click();
+  const drawnRectangle = page.getByRole("button", { name: /Rectangle\. Drag to move/i });
+  const drawnBefore = await drawnRectangle.boundingBox();
+  expect(drawnBefore).not.toBeNull();
+  await drawnRectangle.click();
+  await expect(drawnRectangle.locator("[data-selection-highlight='true']")).toBeVisible();
+  await drawnRectangle.press("ArrowRight");
+  await expect.poll(async () => (await drawnRectangle.boundingBox())?.x ?? 0)
+    .toBeGreaterThan(drawnBefore!.x);
+
   const initialX = Number(await headlineObject.getAttribute("data-shape-x"));
   const headlineBox = await headlineObject.boundingBox();
   expect(headlineBox).not.toBeNull();

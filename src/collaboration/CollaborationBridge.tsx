@@ -70,6 +70,9 @@ const CollaborationBridge = () => {
       selectionIds: other.presence.selectionIds,
       viewport: other.presence.viewport,
       spotlight: other.presence.spotlight,
+      activeShapeIds: other.presence.activeShapeIds,
+      activity: other.presence.activity,
+      cursorChat: other.presence.cursorChat,
     }))));
   }, [dispatch, others]);
 

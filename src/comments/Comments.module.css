@@ -184,8 +184,10 @@
   border-radius: 9px 9px 9px 2px;
   box-shadow: 0 4px 12px rgb(0 0 0 / .34);
   pointer-events: auto;
+  cursor: grab;
   transform: translate(-3px, -27px);
 }
+.commentPin:active { cursor: grabbing; }
 .commentPin svg { width: 14px; height: 14px; }
 .commentPin span { position: absolute; right: -5px; bottom: -5px; display: grid; min-width: 15px; height: 15px; place-items: center; color: #f5f2eb; font-size: 8px; font-weight: 800; background: #333438; border: 1px solid #777873; border-radius: 5px; }
 .resolvedPin { opacity: .5; filter: saturate(.35); }

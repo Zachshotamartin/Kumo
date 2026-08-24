@@ -6,7 +6,13 @@ import {
   mergeDesignBranch,
   type DesignBranch,
 } from "./branchRepository";
-import { listBoardCollaborators, type BoardCollaborator } from "./collaboratorRepository";
+import {
+  getBoardSharePlan,
+  inviteBoardCollaborator,
+  listBoardCollaborators,
+  removeBoardCollaborator,
+  type BoardCollaborator,
+} from "./collaboratorRepository";
 import {
   createBoardCheckpoint,
   getBoardVersion,
@@ -26,6 +32,25 @@ describe("collaboration platform repositories", () => {
     vi.mocked(authenticatedFetch).mockResolvedValue({ collaborators: [collaborator] });
     await expect(listBoardCollaborators("board / one")).resolves.toEqual([collaborator]);
     expect(authenticatedFetch).toHaveBeenCalledWith("/api/collaborators?boardId=board%20%2F%20one");
+  });
+
+  it("loads a linked-board share plan and sends explicit propagation choices", async () => {
+    const plan = { boards: [], truncated: false };
+    const result = { uid: "user", email: "a@example.com", role: "viewer", sharedBoards: [], unavailableBoards: [] };
+    vi.mocked(authenticatedFetch)
+      .mockResolvedValueOnce({ plan })
+      .mockResolvedValueOnce(result)
+      .mockResolvedValueOnce(undefined);
+    await expect(getBoardSharePlan("board / one")).resolves.toEqual(plan);
+    await expect(inviteBoardCollaborator("board", "a@example.com", "viewer", true)).resolves.toEqual(result);
+    await expect(removeBoardCollaborator("board", "user", false)).resolves.toBeUndefined();
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(1, "/api/share-board?boardId=board%20%2F%20one");
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(2, "/api/share-board", expect.objectContaining({
+      body: JSON.stringify({ boardId: "board", action: "invite", email: "a@example.com", role: "viewer", includeLinkedBoards: true }),
+    }));
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(3, "/api/share-board", expect.objectContaining({
+      body: JSON.stringify({ boardId: "board", action: "remove", memberUid: "user", includeLinkedBoards: false }),
+    }));
   });
 
   it("lists, creates, merges, and archives isolated design branches", async () => {

@@ -66,6 +66,46 @@ test.describe("editor regression workflows", () => {
     await expect(page.getByRole("button", { name: "Text tool (T)" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  test("wraps dragged text at a fixed width and grows vertically without an editor scrollbar", async ({ page }) => {
+    const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+    const canvasBox = await canvas.boundingBox();
+    expect(canvasBox).not.toBeNull();
+    await page.getByRole("button", { name: "Text tool (T)" }).click();
+    await page.mouse.move(canvasBox!.x + 70, canvasBox!.y + 300);
+    await page.mouse.down();
+    await page.mouse.move(canvasBox!.x + 250, canvasBox!.y + 350, { steps: 5 });
+    await page.mouse.up();
+
+    const created = page.locator('[data-shape-type="text"]').last();
+    const before = await created.boundingBox();
+    expect(before).not.toBeNull();
+    const editor = page.getByRole("textbox", { name: "Edit text" });
+    await editor.fill(
+      "A Kumo area text box wraps this sentence to its chosen width and expands down the canvas as more words are added."
+    );
+    await expect.poll(async () => (await created.boundingBox())?.height ?? 0)
+      .toBeGreaterThan(before!.height * 2);
+    await expect.poll(async () => (await created.boundingBox())?.width ?? 0)
+      .toBeCloseTo(before!.width, 0);
+    expect(await editor.evaluate((element: HTMLTextAreaElement) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }))).toMatchObject({ overflowY: "hidden" });
+  });
+
+  test("opens ephemeral cursor chat with slash and exits without creating a comment", async ({ page }) => {
+    await page.keyboard.press("/");
+    const cursorChat = page.getByRole("textbox", { name: "Cursor chat" });
+    await expect(cursorChat).toBeFocused();
+    await cursorChat.fill("Can you check this alignment?");
+    await expect(cursorChat).toHaveValue("Can you check this alignment?");
+    await cursorChat.press("Enter");
+    await expect(cursorChat).toHaveValue("");
+    await cursorChat.press("Escape");
+    await expect(cursorChat).toHaveCount(0);
+  });
+
   test("applies inspector geometry and colors immediately while the input stays focused", async ({ page }) => {
     await page.getByRole("button", { name: "Ochre card", exact: true }).click();
     const rectangle = page.locator('[data-shape-id="e2e-rectangle"]');

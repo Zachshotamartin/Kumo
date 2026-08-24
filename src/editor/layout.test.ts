@@ -61,4 +61,20 @@ describe("responsive frame layout", () => {
     expect(estimatedTextBounds(text)).toEqual({ width: 49, height: 68 });
     expect(applyDocumentLayout([text])[0]).toMatchObject({ width: 49, height: 68 });
   });
+
+  it("keeps auto-height text width fixed while growing for wrapped content", () => {
+    const text = shape("text", 0, 0, 100, 20, {
+      type: "text",
+      text: "A sentence that wraps across several visual lines.",
+      fontSize: 20,
+      lineHeight: 1.2,
+      textAutoResize: "auto-height",
+    });
+
+    const fitted = applyDocumentLayout([text])[0]!;
+    expect(fitted.width).toBe(100);
+    expect(fitted.height).toBeGreaterThan(20);
+    expect(fitted.x2).toBe(100);
+    expect(fitted.y2).toBe(fitted.height);
+  });
 });

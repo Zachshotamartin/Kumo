@@ -65,6 +65,25 @@
   box-shadow: 0 0 0 1px rgb(184 122 46 / 0.7);
 }
 
+.remoteActiveShape {
+  box-shadow: 0 0 0 2px #79c2ff;
+}
+
+.remoteActivityBadge {
+  position: absolute;
+  left: 0;
+  top: -24px;
+  z-index: 4;
+  padding: 3px 6px;
+  color: #101114;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  background: #79c2ff;
+  border-radius: 3px;
+}
+
 .textContent {
   display: flex;
   width: 100%;
@@ -91,6 +110,12 @@
   place-items: center;
   font-weight: 700;
 }
+
+.boardLabel { align-content: center; gap: 4px; text-align: center; }
+.boardLabel b { font-size: inherit; }
+.boardLabel small { color: currentColor; font-size: 9px; font-weight: 500; opacity: .62; }
+.boardLabel small svg { width: 11px; height: 11px; margin: 0 3px -2px 0; }
+.lockedBoardLabel { color: #d9a775; }
 
 .resizeHandle {
   position: absolute;
@@ -314,7 +339,6 @@
 .cursorArrow svg { width: 18px; height: 18px; }
 
 .cursorLabel {
-  margin: 10px 0 0 2px;
   padding: 3px 6px;
   color: #101114;
   font-size: 11px;
@@ -322,6 +346,42 @@
   background: #79c2ff;
   border-radius: 3px;
 }
+
+.cursorIdentity {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  margin: 10px 0 0 2px;
+}
+
+.cursorChatBubble,
+.localCursorChat {
+  color: #e9e8e3;
+  background: #24262a;
+  border: 1px solid #55585e;
+  border-radius: 3px 8px 8px 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .3);
+}
+
+.cursorChatBubble {
+  max-width: 240px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.localCursorChat {
+  position: absolute;
+  z-index: 12500;
+  width: min(240px, calc(100% - 32px));
+  height: 34px;
+  padding: 0 9px;
+  outline: none;
+  transform: translate(14px, 14px);
+}
+
+.localCursorChat:focus { border-color: var(--kumo-accent); }
 
 .contextMenu {
   position: fixed;
@@ -351,6 +411,34 @@
   border: 1px solid #a94a37;
   border-radius: 7px;
 }
+
+.collaborationNotice {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  z-index: 14010;
+  display: flex;
+  max-width: 360px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #dceeff;
+  font-size: 12px;
+  background: #24425b;
+  border: 1px solid #46759a;
+  border-radius: 7px;
+}
+
+.collaborationNotice button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.collaborationNotice button svg { width: 16px; height: 16px; }
 
 .navigationError button {
   display: grid;

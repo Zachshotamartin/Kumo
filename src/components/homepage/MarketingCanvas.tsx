@@ -14,7 +14,7 @@ import {
   type PointerEvent,
 } from "react";
 import type { Shape } from "../../classes/shape";
-import { shapeBounds } from "../../editor/geometry";
+import { moveShapesFromBaseline, shapeBounds } from "../../editor/geometry";
 import { createDraftShape, draftAtPoint } from "../../editor/shapeCreation";
 import {
   EDITOR_TOOL_DEFINITIONS,
@@ -55,6 +55,14 @@ type TextDragGesture = {
   canvasRect: DOMRect;
   startClient: Point;
   latestClient: Point;
+};
+
+type DrawingDragGesture = {
+  pointerId: number;
+  shapeId: string;
+  canvasRect: DOMRect;
+  baseline: Shape[];
+  startClient: Point;
 };
 
 const DRAW_THRESHOLD = 5;
@@ -118,6 +126,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
   const previewLineRef = useRef<SVGLineElement>(null);
   const drawGestureRef = useRef<DrawGesture | null>(null);
   const textDragRef = useRef<TextDragGesture | null>(null);
+  const drawingDragRef = useRef<DrawingDragGesture | null>(null);
   const [activeTool, setActiveTool] = useState<MarketingTool>("pointer");
   const [drawings, setDrawings] = useState<Shape[]>([]);
   const [textShapes, setTextShapes] = useState<Shape[]>(() =>
@@ -125,10 +134,12 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
   );
   const [statusOverride, setStatusOverride] = useState<string | null>(null);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   const selectTool = (tool: MarketingTool) => {
     if (tool !== "pointer") setEditingTextId(null);
+    if (tool !== "pointer") setSelectedDrawingId(null);
     setActiveTool(tool);
   };
 
@@ -189,7 +200,12 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
   };
 
   const beginDrawing = (event: PointerEvent<HTMLDivElement>) => {
-    if (activeTool === "pointer" || event.button !== 0) return;
+    if (event.button !== 0) return;
+    if (activeTool === "pointer") {
+      setSelectedDrawingId(null);
+      setSelectedTextId(null);
+      return;
+    }
     const rect = event.currentTarget.getBoundingClientRect();
     const start = pointInCanvas(event.clientX, event.clientY, rect);
     drawGestureRef.current = {
@@ -201,6 +217,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
       square: event.shiftKey,
     };
     setSelectedTextId(null);
+    setSelectedDrawingId(null);
     updatePreview(activeTool, start, start, event.shiftKey);
     event.currentTarget.setPointerCapture?.(event.pointerId);
     event.preventDefault();
@@ -278,6 +295,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
     const canvasRect = canvasRef.current?.getBoundingClientRect();
     if (!canvasRect) return;
     setSelectedTextId(shape.id);
+    setSelectedDrawingId(null);
     textDragRef.current = {
       pointerId: event.pointerId,
       shapeId: shape.id,
@@ -356,31 +374,94 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
     return true;
   };
 
+  const beginDrawingDrag = (event: PointerEvent<HTMLDivElement>, shapeId: string) => {
+    if (activeTool !== "pointer" || event.button !== 0) return;
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (!canvasRect) return;
+    event.stopPropagation();
+    event.preventDefault();
+    setEditingTextId(null);
+    setSelectedTextId(null);
+    setSelectedDrawingId(shapeId);
+    drawingDragRef.current = {
+      pointerId: event.pointerId,
+      shapeId,
+      canvasRect,
+      baseline: drawings,
+      startClient: { x: event.clientX, y: event.clientY },
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const continueDrawingDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const gesture = drawingDragRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const delta = {
+      x: ((event.clientX - gesture.startClient.x) / Math.max(gesture.canvasRect.width, 1))
+        * MARKETING_CANVAS_WIDTH,
+      y: ((event.clientY - gesture.startClient.y) / Math.max(gesture.canvasRect.height, 1))
+        * MARKETING_CANVAS_HEIGHT,
+    };
+    setDrawings(moveShapesFromBaseline(gesture.baseline, [gesture.shapeId], delta));
+  };
+
+  const finishDrawingDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const gesture = drawingDragRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    drawingDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+  };
+
+  const handleDrawingKeyDown = (event: KeyboardEvent<HTMLDivElement>, shapeId: string) => {
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      setDrawings((current) => current.filter((shape) => shape.id !== shapeId));
+      setSelectedDrawingId(null);
+      return;
+    }
+    const step = event.shiftKey ? 10 : 2;
+    const deltas: Record<string, Point> = {
+      ArrowLeft: { x: -step, y: 0 },
+      ArrowRight: { x: step, y: 0 },
+      ArrowUp: { x: 0, y: -step },
+      ArrowDown: { x: 0, y: step },
+    };
+    const delta = deltas[event.key];
+    if (!delta) return;
+    event.preventDefault();
+    setDrawings((current) => moveShapesFromBaseline(current, [shapeId], delta));
+  };
+
   const resetCanvas = () => {
     drawGestureRef.current = null;
     textDragRef.current = null;
+    drawingDragRef.current = null;
     clearPreview();
     setDrawings([]);
     setTextShapes(createMarketingTextShapes(logoStatus));
     setStatusOverride(null);
     setSelectedTextId(null);
+    setSelectedDrawingId(null);
     setEditingTextId(null);
     setActiveTool("pointer");
   };
 
   return (
     <div ref={canvasRef} className={styles.marketingCanvas} data-context={logoContext}>
-      <div className={styles.drawingLayer} aria-hidden="true" data-layer="drawings">
+      <div className={styles.drawingLayer} data-layer="drawings" data-tool={activeTool}>
         {drawings
           .slice()
           .sort((left, right) => left.zIndex - right.zIndex)
           .map((shape) => {
             const bounds = shapeBounds(shape);
             const appearance = shapeAppearanceStyle(shape, 1);
+            const selected = selectedDrawingId === shape.id;
             return (
               <div
                 key={shape.id}
-                className={styles.drawnShape}
+                className={`${styles.drawnShape} ${selected ? styles.selectedDrawing : ""}`}
                 data-shape-id={shape.id}
                 data-shape-type={shape.type}
                 data-z-index={shape.zIndex}
@@ -391,7 +472,24 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
                   height: `${(Math.max(1, bounds.height) / MARKETING_CANVAS_HEIGHT) * 100}%`,
                   ...appearance,
                 }}
+                role="button"
+                tabIndex={activeTool === "pointer" ? 0 : -1}
+                aria-pressed={selected}
+                aria-label={`${shape.name ?? shape.type}. Drag to move. Press Delete to remove.`}
+                onFocus={() => {
+                  if (activeTool === "pointer") {
+                    setSelectedTextId(null);
+                    setSelectedDrawingId(shape.id);
+                  }
+                }}
+                onPointerDown={(event) => beginDrawingDrag(event, shape.id)}
+                onPointerMove={continueDrawingDrag}
+                onPointerUp={finishDrawingDrag}
+                onPointerCancel={finishDrawingDrag}
+                onLostPointerCapture={finishDrawingDrag}
+                onKeyDown={(event) => handleDrawingKeyDown(event, shape.id)}
               >
+                {selected && <SelectionHighlight decorative style={{ inset: -4 }} />}
                 {shape.type === "vector" && <ShapeVectorGraphic shape={shape} />}
               </div>
             );
@@ -485,6 +583,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
               {shape.id === "marketing-eyebrow" && <Graph aria-hidden="true" />}
               {editing ? (
                 <TextEditor
+                  autoResize={shape.textAutoResize ?? "fixed"}
                   value={shape.text ?? ""}
                   verticalAlign="flex-start"
                   style={{
@@ -549,7 +648,10 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
             aria-label="Undo drawing"
             title="Undo drawing"
             disabled={drawings.length === 0}
-            onClick={() => setDrawings((current) => current.slice(0, -1))}
+            onClick={() => {
+              setDrawings((current) => current.slice(0, -1));
+              setSelectedDrawingId(null);
+            }}
           >
             <ArrowCounterClockwise aria-hidden="true" />
           </button>
@@ -558,7 +660,10 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
             aria-label="Clear drawings"
             title="Clear drawings"
             disabled={drawings.length === 0}
-            onClick={() => setDrawings([])}
+            onClick={() => {
+              setDrawings([]);
+              setSelectedDrawingId(null);
+            }}
           >
             <Trash aria-hidden="true" />
           </button>

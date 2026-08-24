@@ -15,14 +15,21 @@ const mocks = vi.hoisted(() => ({
   allow: vi.fn(),
   authorize: vi.fn(),
   from: vi.fn(),
+  rpc: vi.fn(),
+  sharePlan: vi.fn(),
+  membershipBoardIds: vi.fn(),
 }));
 
 vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
 vi.mock("../../api/_supabase", () => ({
   ensureActorProfile: mocks.ensureProfile,
-  supabaseAdmin: () => ({ from: mocks.from }),
+  supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
 vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
+vi.mock("../../api/_boardSharing", () => ({
+  linkedBoardSharePlan: mocks.sharePlan,
+  membershipBoardIds: mocks.membershipBoardIds,
+}));
 vi.mock("../../api/_liveblocks", () => ({
   liveblocksAdmin: () => ({
     prepareSession: () => ({ allow: mocks.allow, authorize: mocks.authorize }),
@@ -61,6 +68,15 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     mocks.getAccess.mockResolvedValue({ board, role: "owner" });
     mocks.invitedProfile = { firebase_uid: "member", email: "member@example.com" };
     mocks.authorize.mockResolvedValue({ status: 200, body: "authorized" });
+    mocks.rpc.mockResolvedValue({ error: null });
+    mocks.sharePlan.mockResolvedValue({
+      truncated: false,
+      boards: [
+        { id: "board", title: "Board", visibility: "private", depth: 0, ownerId: "owner", manageable: true },
+        { id: "linked", title: "Linked", visibility: "private", depth: 1, ownerId: "owner", manageable: true },
+      ],
+    });
+    mocks.membershipBoardIds.mockResolvedValue(new Set(["board", "linked"]));
     mocks.from.mockImplementation((table: string) => {
       if (table === "profiles") {
         return {
@@ -94,11 +110,51 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     await shareBoardHandler(request({
       boardId: "board", action: "invite", email: " MEMBER@example.com ", role: "viewer",
     }), invited);
-    expect(invited.body).toEqual({ uid: "member", email: "member@example.com", role: "viewer" });
+    expect(invited.body).toEqual(expect.objectContaining({
+      uid: "member", email: "member@example.com", role: "viewer",
+      sharedBoards: expect.arrayContaining([expect.objectContaining({ id: "board" }), expect.objectContaining({ id: "linked" })]),
+      unavailableBoards: [],
+    }));
+    expect(mocks.rpc).toHaveBeenCalledWith("share_kumo_board_set", expect.objectContaining({
+      p_board_ids: ["board", "linked"], p_user_id: "member", p_role: "viewer",
+    }));
 
     const removed = response();
     await shareBoardHandler(request({ boardId: "board", action: "remove", memberUid: "member" }), removed);
-    expect(removed.body).toEqual({ uid: "member" });
+    expect(removed.body).toEqual(expect.objectContaining({ uid: "member", removedBoards: expect.any(Array) }));
+    expect(mocks.rpc).toHaveBeenCalledWith("remove_kumo_board_member_set", expect.objectContaining({
+      p_board_ids: ["board", "linked"], p_user_id: "member",
+    }));
+  });
+
+  it("previews the linked-board graph and reports destinations another owner must share", async () => {
+    const external = { id: "external", title: "External", visibility: "private", depth: 1, ownerId: "other", manageable: false };
+    mocks.sharePlan.mockResolvedValueOnce({
+      truncated: false,
+      boards: [
+        { id: "board", title: "Board", visibility: "private", depth: 0, ownerId: "owner", manageable: true },
+        external,
+      ],
+    });
+    const preview = response();
+    await shareBoardHandler({
+      method: "GET", body: {}, query: { boardId: "board" }, headers: { authorization: "Bearer token" },
+    } as unknown as VercelRequest, preview);
+    expect(preview.body).toEqual({ plan: expect.objectContaining({ boards: expect.arrayContaining([external]) }) });
+
+    mocks.sharePlan.mockResolvedValueOnce({
+      truncated: false,
+      boards: [
+        { id: "board", title: "Board", visibility: "private", depth: 0, ownerId: "owner", manageable: true },
+        external,
+      ],
+    });
+    mocks.membershipBoardIds.mockResolvedValueOnce(new Set(["board"]));
+    const invited = response();
+    await shareBoardHandler(request({
+      boardId: "board", action: "invite", email: "member@example.com", includeLinkedBoards: true,
+    }), invited);
+    expect(invited.body).toEqual(expect.objectContaining({ unavailableBoards: [external] }));
   });
 
   it("validates sharing input and ownership", async () => {
@@ -116,6 +172,31 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     const missing = response();
     await shareBoardHandler(request({ boardId: "board", action: "invite", email: "none@example.com" }), missing);
     expect(missing.body).toEqual({ error: "No Kumo account uses that email." });
+  });
+
+  it("refuses a partial connected-board share when the bounded graph is truncated", async () => {
+    mocks.sharePlan.mockResolvedValue({
+      truncated: true,
+      boards: [
+        { id: "board", title: "Board", visibility: "private", depth: 0, ownerId: "owner", manageable: true },
+      ],
+    });
+    const linked = response();
+    await shareBoardHandler(request({
+      boardId: "board", action: "invite", email: "member@example.com", includeLinkedBoards: true,
+    }), linked);
+    expect(linked.statusCode).toBe(409);
+    expect(linked.body).toEqual({ error: expect.stringContaining("safe sharing limit") });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    const direct = response();
+    await shareBoardHandler(request({
+      boardId: "board", action: "invite", email: "member@example.com", includeLinkedBoards: false,
+    }), direct);
+    expect(direct.statusCode).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("share_kumo_board_set", expect.objectContaining({
+      p_board_ids: ["board"],
+    }));
   });
 
   it("initializes the authenticated Supabase profile", async () => {

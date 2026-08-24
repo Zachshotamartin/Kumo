@@ -34,16 +34,29 @@ export const displayTextLines = (shape: Shape): string[] => transformedText(shap
       : line);
 
 /** A stable browser-independent approximation used only for text auto-sizing. */
-export const estimatedTextBounds = (shape: Shape): Pick<Bounds, "width" | "height"> => {
+export const estimatedTextBounds = (
+  shape: Shape,
+  wrapWidth?: number
+): Pick<Bounds, "width" | "height"> => {
   const fontSize = Math.max(1, shape.fontSize ?? 18);
   const lineHeight = Math.max(0.5, shape.lineHeight ?? 1.2);
   const letterSpacing = shape.letterSpacing ?? 0;
   const lines = transformedText(shape).split("\n");
   const longest = Math.max(1, ...lines.map((line) => line.length));
-  const width = Math.max(fontSize, longest * (fontSize * 0.56 + letterSpacing) + (shape.textIndent ?? 0));
+  const approximateCharacterWidth = Math.max(1, fontSize * 0.56 + letterSpacing);
+  const indent = Math.max(0, shape.textIndent ?? 0);
+  const width = Math.max(fontSize, longest * approximateCharacterWidth + indent);
+  const charactersPerLine = wrapWidth === undefined
+    ? Infinity
+    : Math.max(1, Math.floor((Math.max(1, wrapWidth) - indent) / approximateCharacterWidth));
+  const visualLineCount = lines.reduce(
+    (count, line) => count + Math.max(1, Math.ceil(line.length / charactersPerLine)),
+    0
+  );
   const height = Math.max(
     fontSize * lineHeight,
-    lines.length * fontSize * lineHeight + Math.max(0, lines.length - 1) * (shape.paragraphSpacing ?? 0)
+    visualLineCount * fontSize * lineHeight
+      + Math.max(0, lines.length - 1) * (shape.paragraphSpacing ?? 0)
   );
   return { width: Math.ceil(width), height: Math.ceil(height) };
 };
@@ -51,7 +64,10 @@ export const estimatedTextBounds = (shape: Shape): Pick<Bounds, "width" | "heigh
 export const fitTextShape = (shape: Shape): Shape => {
   if (shape.type !== "text" || (shape.textAutoResize ?? "fixed") === "fixed") return shape;
   const bounds = shapeBounds(shape);
-  const estimate = estimatedTextBounds(shape);
+  const estimate = estimatedTextBounds(
+    shape,
+    shape.textAutoResize === "auto-height" ? bounds.width : undefined
+  );
   return withBounds(shape, {
     ...bounds,
     width: shape.textAutoResize === "auto-width" ? estimate.width : bounds.width,

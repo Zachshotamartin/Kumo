@@ -14,6 +14,7 @@ export interface BoardSummary {
   updatedAt: number | null;
   thumbnailUrl?: string | null;
   members?: Record<string, BoardRole>;
+  linkedBoards?: WhiteBoardState["linkedBoards"];
 }
 
 const asBoardState = (board: BoardSummary): WhiteBoardState => ({
@@ -29,6 +30,7 @@ const asBoardState = (board: BoardSummary): WhiteBoardState => ({
   type: board.visibility,
   sharedWith: Object.keys(board.members ?? {}).filter((uid) => uid !== board.ownerId),
   members: board.members ?? { [board.ownerId]: "owner" },
+  linkedBoards: board.linkedBoards ?? {},
   backGroundColor: "#252629",
   lastChangedBy: null,
   currentUsers: [],

@@ -22,15 +22,18 @@ This document records the initial audit themes and how the rebuild addressed the
 - Shape-level database diffs, serialized local writes, collaboration-aware merge behavior, atomic indexes, and ephemeral presence.
 - Bounded, board-scoped history with undo, redo, and correct branch invalidation.
 - Authenticated Vercel Functions for user lookup/sharing and safe legacy-board migration.
+- Server-derived, cycle-safe linked-board sharing with transactional multi-board membership changes and private-destination redaction.
 - Versioned board schema, per-user and public indexes, role validation, and least-privilege Firebase rules.
 - Firebase session restoration, lazy route-level UI loading, and explicit loading/error/empty states.
 - Vite migration and removal of unreachable legacy subsystems and stale implementation notes.
 - Responsive, keyboard-operable auth, dashboard, toolbar, layers, canvas, inspector, menus, and dialogs.
+- Movable layer-linked comments, ephemeral cursor chat, same-object collaboration claims, and deterministic crossed-claim resolution.
+- Auto-width and wrapping auto-height text modes that grow their canvas bounds rather than scrolling inside a fixed textarea.
 - One GitHub Actions pipeline for validation, tests, browser smoke coverage, and trusted Vercel preview/production deployments, with Firebase rules released separately.
 
 ## Intentional boundaries
 
-- Kumo is not a complete Figma replacement: vector pen networks, boolean paths, constraints/auto-layout, component variants, comments, offline CRDTs, and durable version snapshots are separate product projects.
-- Collaboration resolves edits to different shapes independently. Simultaneous edits to the same shape remain last-writer-wins.
-- Undo history is local to the current browser session; durable historical versions require a version-snapshot service.
-- Image layers currently use the existing placeholder asset. A production upload workflow should add Storage upload validation, progress, quotas, and image processing.
+- Kumo is not a complete Figma replacement: advanced vector-network editing, variable-font controls, full component-property parity, plugin APIs, dev-mode measurement parity, and offline-first editing remain separate product projects.
+- Active manipulation claims are intentionally soft presence locks. They resolve normal and crossed online claims deterministically; a true network partition falls back to Liveblocks property-level conflict resolution when clients reconnect.
+- Cursor chat is intentionally ephemeral. Decisions that need history belong in a comment thread.
+- Connected-board sharing is bounded to eight link levels and 100 boards. Kumo refuses a partial set when that bound is exceeded so access cannot silently diverge.

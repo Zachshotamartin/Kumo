@@ -8,11 +8,10 @@
 .textEditor {
   width: 100%;
   min-height: 1em;
-  max-height: 100%;
   margin: 0;
   padding: 0;
   resize: none;
-  overflow: auto;
+  overflow: hidden;
   color: inherit;
   background: transparent;
   border: 0;
@@ -23,4 +22,9 @@
   user-select: text;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.textEditor[data-auto-resize="auto-width"] {
+  white-space: pre;
+  overflow-wrap: normal;
 }

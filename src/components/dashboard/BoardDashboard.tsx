@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Copy,
@@ -70,6 +70,21 @@ const BoardDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const directLinkHandledRef = useRef(false);
+
+  const openBoard = useCallback(async (boardId: string) => {
+    setError(null);
+    try {
+      const board = await getBoard(boardId);
+      const url = new URL(window.location.href);
+      url.searchParams.set("board", boardId);
+      window.history.replaceState({}, "", url);
+      dispatch(clearSelectedShapes());
+      dispatch(setWhiteboardData(board));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn't open this board.");
+    }
+  }, [dispatch]);
 
   useEffect(() => {
     if (!user.uid) return;
@@ -89,6 +104,15 @@ const BoardDashboard = () => {
   }, [user.uid]);
 
   useEffect(() => {
+    if (!user.uid || directLinkHandledRef.current) return;
+    directLinkHandledRef.current = true;
+    const boardId = new URL(window.location.href).searchParams.get("board");
+    if (!boardId) return;
+    const timeout = window.setTimeout(() => void openBoard(boardId), 0);
+    return () => window.clearTimeout(timeout);
+  }, [openBoard, user.uid]);
+
+  useEffect(() => {
     const normalized = query.trim();
     if (!normalized) return;
     let active = true;
@@ -106,17 +130,6 @@ const BoardDashboard = () => {
   const myBoards = boards.filter((board) => board.ownerId === user.uid);
   const sharedBoards = boards.filter((board) => board.ownerId !== user.uid);
   const publicResults = publicBoards;
-
-  const openBoard = async (boardId: string) => {
-    setError(null);
-    try {
-      const board = await getBoard(boardId);
-      dispatch(clearSelectedShapes());
-      dispatch(setWhiteboardData(board));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "We couldn't open this board.");
-    }
-  };
 
   const handleCreate = async () => {
     if (!user.uid || creating) return;
