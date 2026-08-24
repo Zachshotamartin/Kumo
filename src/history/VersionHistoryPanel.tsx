@@ -14,6 +14,7 @@ import {
   restoreBoardVersion,
 } from "../services/versionRepository";
 import type { AppDispatch, RootState } from "../store";
+import ui from "../components/ui/Ui.module.css";
 import styles from "./VersionHistory.module.css";
 
 const formatVersionTime = (value: string) => new Intl.DateTimeFormat(undefined, {
@@ -148,20 +149,20 @@ export const VersionHistoryPanel = () => {
   };
 
   return (
-    <aside className={styles.panel} aria-label="Version history">
-      <header className={styles.header}>
-        <span><ClockCounterClockwise aria-hidden="true" /> Version history</span>
-        <button type="button" aria-label="Close version history" onClick={() => dispatch(setRightPanel("properties"))}><X aria-hidden="true" /></button>
+    <aside className={`${ui.panel} ${styles.panel}`} aria-label="Version history">
+      <header className={`${ui.panelHeader} ${styles.header}`}>
+        <span className={ui.panelTitle}><ClockCounterClockwise aria-hidden="true" /> Version history</span>
+        <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${ui.iconButton}`} aria-label="Close version history" onClick={() => dispatch(setRightPanel("properties"))}><X aria-hidden="true" /></button>
       </header>
       <SnapshotPreview version={selectedId ? detail : null} />
       {canEdit && (
         <section className={styles.checkpointForm}>
-          <label><span>Name</span><input value={name} maxLength={120} placeholder="Ready for review" onChange={(event) => setName(event.target.value)} /></label>
-          <label><span>Description</span><textarea value={description} maxLength={500} placeholder="What changed?" onChange={(event) => setDescription(event.target.value)} /></label>
-          <button type="button" disabled={!name.trim() || saving} onClick={createCheckpoint}><FloppyDisk aria-hidden="true" /> {saving ? "Saving" : "Save checkpoint"}</button>
+          <label className={ui.field}><span className={ui.fieldLabel}>Name</span><input className={ui.control} value={name} maxLength={120} placeholder="Ready for review" onChange={(event) => setName(event.target.value)} /></label>
+          <label className={ui.field}><span className={ui.fieldLabel}>Description</span><textarea className={ui.control} value={description} maxLength={500} placeholder="What changed?" onChange={(event) => setDescription(event.target.value)} /></label>
+          <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${ui.buttonCompact}`} disabled={!name.trim() || saving} onClick={createCheckpoint}><FloppyDisk aria-hidden="true" /> {saving ? "Saving" : "Save checkpoint"}</button>
         </section>
       )}
-      {error && <p className={styles.error} role="alert">{error}</p>}
+      {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.error}`} role="alert">{error}</p>}
       <div className={styles.list}>
         {versions.map((version) => (
           <button type="button" key={version.id} aria-pressed={selectedId === version.id} onClick={() => setSelectedId(version.id)}>
@@ -177,10 +178,10 @@ export const VersionHistoryPanel = () => {
           {confirmRestore ? (
             <>
               <span>The current board is saved first.</span>
-              <button type="button" onClick={() => setConfirmRestore(false)}>Cancel</button>
-              <button type="button" className={styles.restoreConfirm} disabled={restoring} onClick={restore}>{restoring ? "Restoring" : "Confirm"}</button>
+              <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => setConfirmRestore(false)}>Cancel</button>
+              <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${ui.buttonCompact} ${styles.restoreConfirm}`} disabled={restoring} onClick={restore}>{restoring ? "Restoring" : "Confirm"}</button>
             </>
-          ) : <button type="button" onClick={() => setConfirmRestore(true)}>Restore this version</button>}
+          ) : <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => setConfirmRestore(true)}>Restore this version</button>}
         </div>
       )}
     </aside>

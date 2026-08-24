@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, GoogleLogo } from "@phosphor-icons/react";
 import styles from "./homePage.module.css";
+import ui from "../ui/Ui.module.css";
 import { auth, firebaseApiKey, provider } from "../../config/firebase";
 import {
   signInWithEmailAndPassword,
@@ -154,7 +155,7 @@ const HomePage = () => {
             <label htmlFor="email">Email</label>
             <input
               id="email"
-              className={styles.input}
+              className={`${ui.control} ${styles.input}`}
               type="email"
               placeholder="you@example.com"
               value={email}
@@ -166,7 +167,7 @@ const HomePage = () => {
             <label htmlFor="password">Password</label>
             <input
               id="password"
-              className={styles.input}
+              className={`${ui.control} ${styles.input}`}
               type="password"
               placeholder="At least 6 characters"
               value={password}
@@ -177,14 +178,14 @@ const HomePage = () => {
           </div>
         </div>
         <div className={styles.loginFormColumn}>
-          <button className={styles.submit} type="submit" disabled={submitting}>
+          <button className={`${ui.button} ${ui.buttonPrimary} ${styles.submit}`} type="submit" disabled={submitting}>
             <span>{submitting ? "Please wait" : mode === "signin" ? "Sign in" : "Create account"}</span>
             {!submitting && <ArrowRight aria-hidden="true" />}
           </button>
-          {mode === "signin" && <button className={styles.resetButton} type="button" onClick={handleResetPassword} disabled={submitting}>Forgot password?</button>}
+          {mode === "signin" && <button className={`${ui.buttonLink} ${styles.resetButton}`} type="button" onClick={handleResetPassword} disabled={submitting}>Forgot password?</button>}
           <div className={styles.divider}><span>or</span></div>
           <button
-            className={styles.googleButton}
+            className={`${ui.button} ${styles.googleButton}`}
             type="button"
             onClick={handleGoogleLogin}
             disabled={submitting}
@@ -193,8 +194,8 @@ const HomePage = () => {
             <span>Continue with Google</span>
           </button>
         </div>
-        {error && <p className={styles.error} role="alert">{error}</p>}
-        {message && <p className={styles.message} role="status">{message}</p>}
+        {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.feedback}`} role="alert">{error}</p>}
+        {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.feedback}`} role="status">{message}</p>}
       </form>
     </main>
   );

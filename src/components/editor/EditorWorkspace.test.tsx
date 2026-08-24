@@ -119,6 +119,7 @@ describe("EditorWorkspace", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Delete failed");
     fireEvent.click(screen.getByLabelText("Dismiss error"));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByLabelText("Board menu"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     await waitFor(() => expect(mocks.signOut).toHaveBeenCalled());
     expect(store.getState().auth.isAuthenticated).toBe(false);
@@ -130,6 +131,20 @@ describe("EditorWorkspace", () => {
     fireEvent.click(screen.getByLabelText("Board menu"));
     expect(screen.getByRole("menuitem", { name: "Make public" })).toBeDisabled();
     expect(screen.getByRole("menuitem", { name: "Delete board" })).toBeDisabled();
+  });
+
+  it("dismisses the board menu on outside interaction and Escape", () => {
+    renderWorkspace();
+    const toggle = screen.getByLabelText("Board menu");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("menu")).toBeVisible();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(toggle).toHaveFocus();
   });
 
   it("collapses, restores, and resizes both editor sidebars", () => {

@@ -17,6 +17,7 @@ import {
   type SocialProfile,
 } from "../../services/socialRepository";
 import { ProfileAvatar } from "./ProfileAvatar";
+import ui from "../ui/Ui.module.css";
 import styles from "./Social.module.css";
 
 const emptyOverview: FriendsOverview = { friends: [], incoming: [], outgoing: [], blocked: [] };
@@ -50,7 +51,7 @@ const Person = ({
           : [["request", "Add friend", UserPlus, "primary"]] as const;
 
   return (
-    <article className={styles.person}>
+    <article className={`${ui.surface} ${styles.person}`}>
       <ProfileAvatar name={person.displayName} avatarUrl={person.avatarUrl} />
       <button type="button" className={styles.personIdentity} onClick={onOpen}>
         <strong>{person.displayName}</strong>
@@ -58,14 +59,14 @@ const Person = ({
         {person.bio && <small>{person.bio}</small>}
       </button>
       <div className={styles.actions}>
-        <button type="button" className={styles.iconButton} onClick={onOpen} aria-label={`Open ${person.displayName}'s profile`} title="Open profile">
+        <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${ui.iconButton}`} onClick={onOpen} aria-label={`Open ${person.displayName}'s profile`} title="Open profile">
           <ArrowUpRight aria-hidden="true" />
         </button>
         {actions.map(([action, label, Icon, tone]) => (
           <button
             type="button"
             key={action}
-            className={tone === "primary" ? styles.buttonPrimary : tone === "danger" ? styles.buttonDanger : styles.button}
+            className={`${ui.button} ${ui.buttonCompact} ${tone === "primary" ? ui.buttonPrimary : tone === "danger" ? ui.buttonDanger : ""}`}
             disabled={busy}
             onClick={() => onAction(action)}
           >
@@ -95,7 +96,7 @@ const PeopleSection = ({
   onAction: (person: SocialProfile, action: FriendshipAction) => void;
 }) => (
   <section className={styles.section} aria-labelledby={`friends-${title.toLowerCase().replace(/\s+/g, "-")}`}>
-    <div className={styles.sectionHeading}>
+    <div className={ui.sectionHeading}>
       <h2 id={`friends-${title.toLowerCase().replace(/\s+/g, "-")}`}>{title}</h2>
       <span>{people.length}</span>
     </div>
@@ -112,7 +113,7 @@ const PeopleSection = ({
         ))}
       </div>
     ) : emptyTitle ? (
-      <div className={styles.empty}><strong>{emptyTitle}</strong><span>{emptyCopy}</span></div>
+      <div className={ui.emptyState}><strong>{emptyTitle}</strong><span>{emptyCopy}</span></div>
     ) : null}
   </section>
 );
@@ -213,14 +214,14 @@ export const FriendsView = ({
           <h1>People in your orbit.</h1>
           <p>Find collaborators once, then share the next board without asking for their email again.</p>
         </div>
-        <label className={styles.search}>
+        <label className={`${ui.searchControl} ${styles.search}`}>
           <span className="sr-only">Search profiles</span>
           <MagnifyingGlass aria-hidden="true" />
           <input value={query} onChange={(event) => changeQuery(event.target.value)} placeholder="Search names or usernames" />
         </label>
       </header>
 
-      {error && <div className={styles.error} role="alert">{error}</div>}
+      {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert">{error}</div>}
       {loading ? <div className={styles.skeleton} aria-label="Loading friends" /> : query.trim().length >= 2 ? (
         searching ? <div className={styles.skeleton} aria-label="Searching profiles" /> : (
           <PeopleSection

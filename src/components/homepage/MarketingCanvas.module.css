@@ -222,7 +222,7 @@
 .toolbarLabel {
   padding: 0 7px 0 6px;
   color: #8f8e89;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -307,7 +307,7 @@
     left: auto !important;
     width: 150px !important;
     min-height: 28px !important;
-    font-size: 10px !important;
+    font-size: var(--kumo-text-2xs) !important;
     text-align: center !important;
   }
 
@@ -316,7 +316,7 @@
     left: 24px !important;
     width: 230px !important;
     min-height: 26px !important;
-    font-size: 10px !important;
+    font-size: var(--kumo-text-2xs) !important;
   }
 
   .textObject[data-shape-id="marketing-headline"] {

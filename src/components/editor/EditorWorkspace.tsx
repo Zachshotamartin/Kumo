@@ -51,6 +51,7 @@ import styles from "./EditorWorkspace.module.css";
 import KumoLogo from "../brand/KumoLogo";
 import ShareDialog from "./ShareDialog";
 import CommandPalette from "./CommandPalette";
+import ui from "../ui/Ui.module.css";
 
 const CommentsPanel = lazy(() => import("../../comments/CommentsPanel").then((module) => ({ default: module.CommentsPanel })));
 const VersionHistoryPanel = lazy(() => import("../../history/VersionHistoryPanel").then((module) => ({ default: module.VersionHistoryPanel })));
@@ -112,6 +113,8 @@ const EditorWorkspace = () => {
   const { count: unreadCommentCount } = useUnreadInboxNotificationsCount();
   const canvasRegionRef = useRef<HTMLElement>(null);
   const panelResizeRef = useRef<PanelResize | null>(null);
+  const boardMenuRef = useRef<HTMLDivElement>(null);
+  const boardMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState(board.title ?? "Untitled board");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -152,6 +155,24 @@ const EditorWorkspace = () => {
       window.removeEventListener("pointercancel", finishPanelResize);
     };
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!boardMenuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const closeWithKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+      boardMenuButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeWithKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeWithKeyboard);
+    };
+  }, [menuOpen]);
 
   const beginPanelResize = (
     side: PanelSide,
@@ -361,25 +382,27 @@ const EditorWorkspace = () => {
             <GitBranch aria-hidden="true" />
             <span>Branches</span>
           </button>
-          <button type="button" className={styles.shareButton} onClick={() => setShareOpen(true)}>
+          <button type="button" className={`${styles.secondaryTopbarButton} ${styles.primaryTopbarButton}`} onClick={() => setShareOpen(true)}>
             <ShareNetwork aria-hidden="true" />
             <span>Share</span>
           </button>
-          <button type="button" className={styles.menuButton} aria-label="Board menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><DotsThree aria-hidden="true" weight="bold" /></button>
-          {menuOpen && (
-            <div className={styles.boardMenu} role="menu">
-              <button type="button" role="menuitem" onClick={() => actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" })} disabled={board.role !== "owner"}>
-                <Globe aria-hidden="true" /> <span>Make {board.type === "public" ? "private" : "public"}</span>
-              </button>
-              <button type="button" role="menuitem" onClick={() => { dispatch(setRightPanel("history")); setMenuOpen(false); }}>
-                <ClockCounterClockwise aria-hidden="true" /> <span>Version history</span>
-              </button>
-              <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)} disabled={board.role !== "owner"}>
-                <Trash aria-hidden="true" /> <span>Delete board</span>
-              </button>
-              <button type="button" role="menuitem" onClick={handleLogout}><SignOut aria-hidden="true" /> <span>Sign out</span></button>
-            </div>
-          )}
+          <div className={styles.boardMenuAnchor} ref={boardMenuRef}>
+            <button ref={boardMenuButtonRef} type="button" className={styles.menuButton} aria-label="Board menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><DotsThree aria-hidden="true" weight="bold" /></button>
+            {menuOpen && (
+              <div className={styles.boardMenu} role="menu">
+                <button type="button" role="menuitem" onClick={() => { actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" }); setMenuOpen(false); }} disabled={board.role !== "owner"}>
+                  <Globe aria-hidden="true" /> <span>Make {board.type === "public" ? "private" : "public"}</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => { dispatch(setRightPanel("history")); setMenuOpen(false); }}>
+                  <ClockCounterClockwise aria-hidden="true" /> <span>Version history</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setConfirmDelete(true); setMenuOpen(false); }} disabled={board.role !== "owner"}>
+                  <Trash aria-hidden="true" /> <span>Delete board</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); void handleLogout(); }}><SignOut aria-hidden="true" /> <span>Sign out</span></button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -492,21 +515,21 @@ const EditorWorkspace = () => {
       )}
 
       {(error || editor.saveError) && (
-        <div className={styles.errorToast} role="alert">
+        <div className={`${ui.notice} ${ui.noticeError} ${styles.errorToast}`} role="alert">
           <span>{error ?? editor.saveError}</span>
           <button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X aria-hidden="true" /></button>
         </div>
       )}
 
       {confirmDelete && (
-        <div className={styles.dialogBackdrop}>
+        <div className={styles.dialogBackdrop} onPointerDown={(event) => event.target === event.currentTarget && setConfirmDelete(false)}>
           <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="delete-board-title">
             <span className={styles.dialogEyebrow}>Permanent action</span>
             <h2 id="delete-board-title">Delete “{board.title}”?</h2>
             <p>This removes the board for every collaborator. This action cannot be undone.</p>
             <div className={styles.dialogActions}>
-              <button type="button" onClick={() => setConfirmDelete(false)}>Cancel</button>
-              <button type="button" className={styles.destructive} onClick={handleDelete}>Delete board</button>
+              <button type="button" className={ui.button} onClick={() => setConfirmDelete(false)}>Cancel</button>
+              <button type="button" className={`${ui.button} ${ui.buttonDanger} ${styles.destructive}`} onClick={handleDelete}>Delete board</button>
             </div>
           </div>
         </div>

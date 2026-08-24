@@ -1,5 +1,5 @@
 import { WhiteBoardState } from "../features/whiteBoard/whiteBoardSlice";
-import { authenticatedFetch } from "./apiClient";
+import { authenticatedFetch, authenticatedRequest } from "./apiClient";
 
 export type BoardVisibility = "private" | "public";
 export type BoardRole = "owner" | "editor" | "viewer";
@@ -42,6 +42,15 @@ const asBoardState = (board: BoardSummary): WhiteBoardState => ({
 export const listBoards = async (): Promise<BoardSummary[]> => {
   const result = await authenticatedFetch<{ boards: BoardSummary[] }>("/api/boards");
   return result.boards;
+};
+
+export const loadBoardPreview = async (boardId: string): Promise<string> => {
+  const response = await authenticatedRequest(
+    `/api/board-preview?id=${encodeURIComponent(boardId)}`,
+    { headers: { Accept: "image/svg+xml" } }
+  );
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
 };
 
 export const searchPublicBoards = async (query: string): Promise<BoardSummary[]> => {

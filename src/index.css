@@ -1,18 +1,74 @@
 :root {
-  --kumo-canvas: #252629;
+  /* Surfaces */
+  --kumo-background: #1a1b1d;
+  --kumo-chrome: #17181a;
   --kumo-ink: #e8e6df;
-  --kumo-muted: #9c9b95;
+  --kumo-text-secondary: #c8c7c1;
+  --kumo-muted: #a0a19c;
+  --kumo-text-subtle: #858681;
+  --kumo-text-disabled: #686965;
+  --kumo-canvas: #252629;
   --kumo-surface: #1d1e20;
+  --kumo-surface-subtle: #202124;
   --kumo-surface-raised: #292a2d;
+  --kumo-surface-hover: #303135;
+  --kumo-surface-active: #343539;
+  --kumo-line-subtle: #303135;
   --kumo-line: #3a3b3f;
+  --kumo-line-strong: #4a4b50;
+
+  /* Brand and feedback */
   --kumo-accent: #b87a2e;
-  --kumo-accent-hover: #ca8d42;
+  --kumo-accent-hover: #d29a55;
+  --kumo-accent-ink: #18191b;
+  --kumo-accent-soft: rgb(184 122 46 / 0.14);
   --kumo-danger: #d9785f;
+  --kumo-danger-ink: #f0b4a5;
+  --kumo-danger-surface: #39241f;
   --kumo-success: #83ae95;
+  --kumo-success-ink: #c2dfce;
+  --kumo-success-surface: #203129;
+  --kumo-warning-ink: #d6b184;
+  --kumo-warning-surface: #342a20;
+
+  /* Typography */
   --kumo-radius-control: 7px;
   --kumo-radius-panel: 12px;
   --kumo-font: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
   --kumo-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --kumo-text-2xs: 0.6875rem;
+  --kumo-text-xs: 0.75rem;
+  --kumo-text-sm: 0.8125rem;
+  --kumo-text-md: 0.875rem;
+  --kumo-text-lg: 1rem;
+  --kumo-text-xl: 1.125rem;
+  --kumo-text-2xl: 1.375rem;
+  --kumo-leading-tight: 1.15;
+  --kumo-leading-normal: 1.45;
+  --kumo-leading-relaxed: 1.6;
+  --kumo-weight-medium: 550;
+  --kumo-weight-semibold: 650;
+  --kumo-weight-bold: 750;
+  --kumo-tracking-label: 0.08em;
+
+  /* Geometry, motion, and elevation */
+  --kumo-radius-xs: 4px;
+  --kumo-radius-sm: 6px;
+  --kumo-control-compact: 32px;
+  --kumo-control-default: 40px;
+  --kumo-control-comfortable: 46px;
+  --kumo-motion-fast: 140ms;
+  --kumo-motion-standard: 200ms;
+  --kumo-ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --kumo-focus-ring: 0 0 0 3px var(--kumo-accent-soft);
+  --kumo-shadow-panel: 0 18px 44px rgb(6 7 8 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.035);
+  --kumo-shadow-floating: 0 18px 46px rgb(6 7 8 / 0.44);
+  --kumo-z-header: 20;
+  --kumo-z-toolbar: 30;
+  --kumo-z-popover: 40;
+  --kumo-z-dialog: 50;
+  --kumo-z-toast: 60;
+  --kumo-z-skip-link: 70;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -40,6 +96,8 @@ body {
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
+input::placeholder,
+textarea::placeholder { color: var(--kumo-text-subtle); }
 ::selection { color: #18191b; background: #c99048; }
 
 :focus-visible {

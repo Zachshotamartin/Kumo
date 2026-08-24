@@ -22,6 +22,14 @@ export const installSocialApiFixture = async (page: Page) => {
       body: JSON.stringify(body),
     });
 
+    if (url.pathname === "/api/board-preview") {
+      return route.fulfill({
+        status: 200,
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 400"><rect width="620" height="400" fill="#252629"/><rect x="90" y="74" width="230" height="156" rx="10" fill="#b87a2e"/><text x="115" y="145" fill="#17181a" font-size="28">Product map</text><circle cx="446" cy="252" r="62" fill="#e8e6df"/></svg>',
+      });
+    }
+
     if (url.pathname === "/api/boards") {
       return json({ boards: [{
         id: "board", title: "Product map", ownerId: "e2e-user", visibility: "private",

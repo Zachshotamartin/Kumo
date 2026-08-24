@@ -7,6 +7,7 @@ test("profiles, friend discovery, requests, and editing work as one dashboard fl
   await page.goto("/social-e2e.html");
   await expect(page.getByRole("heading", { name: "My boards" })).toBeVisible();
   await expect(page.getByText("Product map")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Product map" }).locator("img")).toBeVisible();
 
   await page.getByRole("button", { name: "Friends" }).click();
   await expect(page.getByRole("heading", { name: "People in your orbit." })).toBeVisible();

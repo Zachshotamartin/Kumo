@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   duplicate: vi.fn(),
   signOut: vi.fn(),
   friendships: vi.fn(),
+  preview: vi.fn(),
 }));
 
 vi.mock("../../services/boardRepository", () => ({
@@ -24,6 +25,7 @@ vi.mock("../../services/boardRepository", () => ({
   getBoard: mocks.get,
   createBoard: mocks.create,
   duplicateBoard: mocks.duplicate,
+  loadBoardPreview: mocks.preview,
 }));
 vi.mock("../../services/socialRepository", () => ({
   listFriendships: mocks.friendships,
@@ -83,6 +85,7 @@ describe("BoardDashboard", () => {
     mocks.search.mockResolvedValue([summary("public", "other")]);
     mocks.signOut.mockResolvedValue(undefined);
     mocks.friendships.mockResolvedValue({ friends: [], incoming: [], outgoing: [], blocked: [] });
+    mocks.preview.mockResolvedValue("blob:generated-preview");
   });
 
   it("opens an access-controlled direct board link after authentication", async () => {
@@ -100,6 +103,9 @@ describe("BoardDashboard", () => {
     expect(await screen.findByText("My map")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open My map" }).querySelector("img"))
       .toHaveAttribute("src", "https://signed.example/mine.svg");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open Shared map" }).querySelector("img"))
+      .toHaveAttribute("src", "blob:generated-preview"));
+    expect(mocks.preview).toHaveBeenCalledWith("shared");
     expect(screen.getByText("Shared with me")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open My map" }));
     await waitFor(() => expect(store.getState().whiteBoard.id).toBe("mine"));
