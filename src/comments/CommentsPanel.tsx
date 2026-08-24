@@ -6,6 +6,7 @@ import { setRightPanel, setSelectedThreadId, setViewport } from "../features/edi
 import type { AppDispatch, RootState } from "../store";
 import { useBoardCollaborators } from "./useBoardCollaborators";
 import { CommentThread } from "./CommentThread";
+import ui from "../components/ui/Ui.module.css";
 import styles from "./Comments.module.css";
 
 type ThreadFilter = "open" | "resolved" | "all";
@@ -45,23 +46,23 @@ export const CommentsPanel = () => {
   };
 
   return (
-    <aside className={styles.panel} aria-label="Comments">
-      <header className={styles.panelHeader}>
-        <span><ChatCenteredText aria-hidden="true" /> Comments</span>
-        <button type="button" aria-label="Close comments" onClick={() => dispatch(setRightPanel("properties"))}><X aria-hidden="true" /></button>
+    <aside className={`${ui.panel} ${styles.panel}`} aria-label="Comments">
+      <header className={`${ui.panelHeader} ${styles.panelHeader}`}>
+        <span className={ui.panelTitle}><ChatCenteredText aria-hidden="true" /> Comments</span>
+        <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${ui.iconButton}`} aria-label="Close comments" onClick={() => dispatch(setRightPanel("properties"))}><X aria-hidden="true" /></button>
       </header>
       <div className={styles.filters} role="group" aria-label="Filter comments">
         <Funnel aria-hidden="true" />
         {(["open", "resolved", "all"] as const).map((value) => (
-          <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>
+          <button className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>
             {value[0]!.toUpperCase() + value.slice(1)}
           </button>
         ))}
       </div>
-      {error && <p className={styles.panelError} role="alert">{error}</p>}
+      {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.panelError}`} role="alert">{error}</p>}
       <div className={styles.threadList}>
         {visibleThreads.length === 0 ? (
-          <div className={styles.emptyComments}>
+          <div className={`${ui.emptyState} ${styles.emptyComments}`}>
             <CheckCircle aria-hidden="true" />
             <strong>{filter === "open" ? "No open feedback" : "No comments here"}</strong>
             <span>Select the comment tool and click the canvas to start a thread.</span>

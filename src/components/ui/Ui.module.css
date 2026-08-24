@@ -1,0 +1,257 @@
+.button {
+  display: inline-flex;
+  min-height: var(--kumo-control-default);
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--kumo-text-secondary);
+  font: inherit;
+  font-size: var(--kumo-text-sm);
+  font-weight: var(--kumo-weight-bold);
+  white-space: nowrap;
+  background: var(--kumo-surface-hover);
+  border: 1px solid var(--kumo-line-strong);
+  border-radius: var(--kumo-radius-control);
+  transition:
+    color var(--kumo-motion-fast) var(--kumo-ease),
+    background-color var(--kumo-motion-fast) var(--kumo-ease),
+    border-color var(--kumo-motion-fast) var(--kumo-ease),
+    box-shadow var(--kumo-motion-fast) var(--kumo-ease),
+    transform var(--kumo-motion-fast) var(--kumo-ease);
+}
+
+.button:hover:not(:disabled),
+.button:focus-visible {
+  color: var(--kumo-ink);
+  background: var(--kumo-surface-active);
+  border-color: #606166;
+  box-shadow: var(--kumo-focus-ring);
+  outline: 0;
+}
+
+.button:active:not(:disabled) { transform: translateY(1px); }
+.button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.buttonPrimary {
+  color: var(--kumo-accent-ink);
+  background: var(--kumo-accent-hover);
+  border-color: var(--kumo-accent-hover);
+}
+
+.buttonPrimary:hover:not(:disabled),
+.buttonPrimary:focus-visible {
+  color: var(--kumo-accent-ink);
+  background: #dda563;
+  border-color: #dda563;
+}
+
+.buttonDanger {
+  color: var(--kumo-danger-ink);
+  background: transparent;
+  border-color: #6e403b;
+}
+
+.buttonDanger:hover:not(:disabled),
+.buttonDanger:focus-visible {
+  color: #ffd8cf;
+  background: var(--kumo-danger-surface);
+  border-color: var(--kumo-danger);
+}
+
+.buttonGhost {
+  color: var(--kumo-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.buttonCompact {
+  min-height: var(--kumo-control-compact);
+  padding: 0 10px;
+  font-size: var(--kumo-text-xs);
+}
+
+.iconButton {
+  width: var(--kumo-control-compact);
+  min-width: var(--kumo-control-compact);
+  min-height: var(--kumo-control-compact);
+  padding: 0;
+}
+
+.buttonLink {
+  display: inline-flex;
+  min-height: var(--kumo-control-compact);
+  align-items: center;
+  padding: 0;
+  color: var(--kumo-accent-hover);
+  font: inherit;
+  font-size: var(--kumo-text-xs);
+  font-weight: var(--kumo-weight-semibold);
+  background: transparent;
+  border: 0;
+}
+
+.buttonLink:hover:not(:disabled),
+.buttonLink:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.buttonLink:disabled { color: var(--kumo-text-disabled); cursor: not-allowed; }
+
+.control {
+  width: 100%;
+  min-height: var(--kumo-control-default);
+  padding: 0 12px;
+  color: var(--kumo-ink);
+  font: inherit;
+  font-size: var(--kumo-text-sm);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-control);
+  outline: 0;
+  transition:
+    background-color var(--kumo-motion-fast) var(--kumo-ease),
+    border-color var(--kumo-motion-fast) var(--kumo-ease),
+    box-shadow var(--kumo-motion-fast) var(--kumo-ease);
+}
+
+.control:not(textarea) { height: var(--kumo-control-default); }
+
+.control:hover { border-color: var(--kumo-line-strong); }
+.control:focus { background: #242529; border-color: var(--kumo-accent); box-shadow: var(--kumo-focus-ring); }
+.control:disabled { color: var(--kumo-text-disabled); cursor: not-allowed; opacity: 0.7; }
+
+textarea.control {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  line-height: var(--kumo-leading-normal);
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.fieldLabel {
+  color: var(--kumo-text-secondary);
+  font-size: var(--kumo-text-xs);
+  font-weight: var(--kumo-weight-bold);
+}
+
+.fieldHelp {
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-2xs);
+  line-height: var(--kumo-leading-normal);
+}
+
+.searchControl {
+  display: grid;
+  min-height: var(--kumo-control-default);
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  padding: 0 10px;
+  color: var(--kumo-muted);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-control);
+  transition:
+    background-color var(--kumo-motion-fast) var(--kumo-ease),
+    border-color var(--kumo-motion-fast) var(--kumo-ease),
+    box-shadow var(--kumo-motion-fast) var(--kumo-ease);
+}
+
+.searchControl:focus-within { background: #242529; border-color: var(--kumo-accent); box-shadow: var(--kumo-focus-ring); }
+.searchControl input { width: 100%; min-width: 0; height: 100%; color: var(--kumo-ink); font: inherit; font-size: var(--kumo-text-sm); background: transparent; border: 0; outline: 0; }
+
+.sectionHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.sectionHeading h2 {
+  margin: 0;
+  color: var(--kumo-ink);
+  font-size: var(--kumo-text-lg);
+  line-height: var(--kumo-leading-tight);
+  letter-spacing: -0.02em;
+}
+
+.sectionCount {
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionHeading > span {
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.surface {
+  background: rgb(37 38 41 / 0.76);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-panel);
+}
+
+.emptyState {
+  display: grid;
+  min-height: 156px;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 28px;
+  color: var(--kumo-muted);
+  text-align: center;
+  background: rgb(37 38 41 / 0.55);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-panel);
+}
+
+.emptyState strong,
+.emptyState p { margin: 0; color: var(--kumo-text-secondary); font-size: var(--kumo-text-sm); font-weight: var(--kumo-weight-bold); }
+.emptyState span { font-size: var(--kumo-text-xs); line-height: var(--kumo-leading-normal); }
+
+.notice {
+  margin: 0;
+  padding: 11px 13px;
+  color: var(--kumo-text-secondary);
+  font-size: var(--kumo-text-xs);
+  line-height: var(--kumo-leading-normal);
+  background: var(--kumo-surface-subtle);
+  border-left: 3px solid var(--kumo-line-strong);
+}
+
+.noticeError { color: var(--kumo-danger-ink); background: var(--kumo-danger-surface); border-color: var(--kumo-danger); }
+.noticeSuccess { color: var(--kumo-success-ink); background: var(--kumo-success-surface); border-color: var(--kumo-success); }
+.noticeWarning { color: var(--kumo-warning-ink); background: var(--kumo-warning-surface); border-color: #8a653c; }
+
+.panel {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  color: var(--kumo-ink);
+  background: var(--kumo-surface);
+}
+
+.panelHeader {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid var(--kumo-line);
+}
+
+.panelTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--kumo-text-sm);
+  font-weight: var(--kumo-weight-bold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .control,
+  .searchControl { transition: none; }
+}

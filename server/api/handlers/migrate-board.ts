@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { getBoardAccess, provisionBoard } from "./_boards.js";
-import { adminDatabase, privilegedAdminAuth } from "./_firebaseAdmin.js";
-import { allowMethods } from "./_http.js";
-import { liveblocksAdmin } from "./_liveblocks.js";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
+import { requireActor } from "../_auth.js";
+import { getBoardAccess, provisionBoard } from "../_boards.js";
+import { adminDatabase, privilegedAdminAuth } from "../_firebaseAdmin.js";
+import { allowMethods } from "../_http.js";
+import { liveblocksAdmin } from "../_liveblocks.js";
+import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 
 type BoardRole = "owner" | "editor" | "viewer";
 

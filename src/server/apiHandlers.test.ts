@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import assetsHandler from "../../api/assets";
-import boardsHandler from "../../api/boards";
+import assetsHandler from "../../server/api/handlers/assets";
+import boardsHandler from "../../server/api/handlers/boards";
 
 const mocks = vi.hoisted(() => ({
   actor: { uid: "actor", email: "actor@example.com" },
@@ -20,12 +20,12 @@ const mocks = vi.hoisted(() => ({
   database: { from: vi.fn(), rpc: vi.fn(), storage: { from: vi.fn() } },
 }));
 
-vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../api/_supabase", () => ({
+vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
+vi.mock("../../server/api/_supabase", () => ({
   ensureActorProfile: mocks.ensureProfile,
   supabaseAdmin: () => mocks.database,
 }));
-vi.mock("../../api/_boards", () => ({
+vi.mock("../../server/api/_boards", () => ({
   getBoardAccess: mocks.getAccess,
   listBoardsForUser: mocks.list,
   searchPublicBoards: mocks.search,
@@ -33,13 +33,13 @@ vi.mock("../../api/_boards", () => ({
   provisionBoard: mocks.provision,
   boardSummary: (board: Record<string, unknown>, role: string) => ({ id: board.id, role }),
 }));
-vi.mock("../../api/_assets", () => ({
+vi.mock("../../server/api/_assets", () => ({
   cloneAssetsToBoard: mocks.cloneAssets,
   documentAssetIds: () => ["asset"],
   rewriteDocumentAssetIds: (document: unknown) => ({ document, rewritten: true }),
 }));
-vi.mock("../../api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
+vi.mock("../../server/api/_liveblocks", () => ({
   boardDocumentFromJson: (value: unknown) => value,
   liveblocksAdmin: () => ({
     getStorageDocument: mocks.getDocument,

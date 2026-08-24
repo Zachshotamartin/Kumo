@@ -15,7 +15,7 @@
 
 .topbar {
   position: relative;
-  z-index: 15000;
+  z-index: var(--kumo-z-header);
   display: flex;
   height: 52px;
   align-items: center;
@@ -95,7 +95,7 @@
 
 .saveStatus {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -111,7 +111,7 @@
   margin-left: -5px;
   place-items: center;
   color: #17181a;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 800;
   background: #9caa92;
   border: 2px solid #17181a;
@@ -139,7 +139,7 @@
   gap: 6px;
   padding: 0 9px;
   color: #c4c2bc;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 650;
   background: transparent;
   border: 1px solid #393a3e;
@@ -164,7 +164,7 @@
   place-items: center;
   padding: 0 3px;
   color: #17181a;
-  font-size: 8px;
+  font-size: var(--kumo-text-2xs);
   background: #d79a4d;
   border-radius: 5px;
 }
@@ -173,13 +173,13 @@
   position: fixed;
   top: 64px;
   left: 50%;
-  z-index: 17000;
+  z-index: var(--kumo-z-toast);
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 8px 10px 8px 13px;
   color: #e6e4de;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   background: #28292c;
   border: 1px solid #4a4b50;
   border-radius: 7px;
@@ -191,27 +191,22 @@
   min-height: 26px;
   padding: 0 8px;
   color: #17181a;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 700;
   background: #d79a4d;
   border: 0;
   border-radius: 5px;
 }
 
-.shareButton {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  gap: 7px;
-  padding: 0 13px;
-  color: #17181a;
-  font-weight: 700;
+.primaryTopbarButton {
+  color: var(--kumo-accent-ink);
   background: var(--accent);
-  border: 0;
-  border-radius: var(--kumo-radius-control);
+  border-color: var(--accent);
 }
 
-.shareButton svg { width: 16px; height: 16px; }
+.primaryTopbarButton svg { width: 15px; height: 15px; }
+
+.boardMenuAnchor { position: relative; }
 
 .menuButton {
   width: 36px;
@@ -232,9 +227,11 @@
   outline: none;
 }
 
-.shareButton:hover,
-.shareButton:focus-visible {
+.primaryTopbarButton:hover,
+.primaryTopbarButton:focus-visible {
+  color: var(--kumo-accent-ink);
   background: var(--accent-strong);
+  border-color: var(--accent-strong);
   outline: 2px solid rgb(184 122 46 / 0.28);
   outline-offset: 2px;
 }
@@ -250,6 +247,7 @@
   border: 1px solid #3e3f43;
   border-radius: 9px;
   box-shadow: 0 18px 44px rgb(4 5 6 / 0.44);
+  z-index: var(--kumo-z-popover);
 }
 
 .boardMenu button {
@@ -259,6 +257,8 @@
   gap: 9px;
   padding: 0 9px;
   color: var(--ink);
+  font-size: var(--kumo-text-xs);
+  font-weight: var(--kumo-weight-semibold);
   text-align: left;
   background: transparent;
   border: 0;
@@ -361,11 +361,35 @@
   justify-content: space-between;
   padding: 0 14px;
   color: #d8d6d0;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   font-weight: 700;
   letter-spacing: 0.03em;
   border-bottom: 1px solid var(--line);
 }
+
+.panelHeading > button {
+  display: grid;
+  width: var(--kumo-control-compact);
+  min-width: var(--kumo-control-compact);
+  height: var(--kumo-control-compact);
+  place-items: center;
+  padding: 0;
+  color: var(--kumo-muted);
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  border-radius: var(--kumo-radius-control);
+}
+
+.panelHeading > button:hover:not(:disabled),
+.panelHeading > button:focus-visible {
+  color: var(--kumo-ink);
+  background: var(--kumo-surface-hover);
+  outline: 0;
+}
+
+.panelHeading > button:disabled { opacity: 0.45; }
+.panelHeading > button svg { display: block; width: 16px; height: 16px; }
 
 .count {
   color: #77787d;
@@ -477,7 +501,7 @@
 
 .layerName {
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -485,7 +509,7 @@
 .groupCount {
   margin-left: auto;
   color: #72736f;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -546,12 +570,12 @@
   max-width: 150px;
   margin: 10px 0 5px;
   color: #bebdb8;
-  font-size: 13px;
+  font-size: var(--kumo-text-sm);
   line-height: 1.45;
 }
 
 .emptyPanel small {
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .emptyMark {
@@ -579,7 +603,7 @@
   place-items: center;
   padding: 0;
   color: #aeadab;
-  font-size: 16px;
+  font-size: var(--kumo-text-lg);
   line-height: 1;
   background: #202125;
   border: 1px solid #3b3d41;
@@ -627,7 +651,7 @@
   place-items: center;
   padding: 0;
   color: #c5c4be;
-  font-size: 16px;
+  font-size: var(--kumo-text-lg);
   background: transparent;
   border: 0;
   border-radius: var(--kumo-radius-control);
@@ -672,7 +696,7 @@
   max-width: min(320px, 80vw);
   padding: 8px 10px;
   color: #f2bcae;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   line-height: 1.4;
   background: #422720;
   border: 1px solid #8d4f40;
@@ -694,7 +718,7 @@
 
 .zoomControl .zoomValue {
   width: 55px;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -706,11 +730,74 @@
 .inspectorSection h2 {
   margin: 0 0 12px;
   color: #a4a4a0;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+.inspectorSection > button,
+.assetActions > button,
+.assetRow button,
+.interactionRow button,
+.activeBranchCard button,
+.branchRow button,
+.codeBlock button,
+.exportGrid button {
+  display: inline-flex;
+  min-height: var(--kumo-control-compact);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--kumo-text-secondary);
+  font: inherit;
+  font-size: var(--kumo-text-2xs);
+  font-weight: var(--kumo-weight-semibold);
+  background: var(--kumo-surface-raised);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-control);
+}
+
+.inspectorSection > button:hover:not(:disabled),
+.assetActions > button:hover:not(:disabled),
+.assetRow button:hover:not(:disabled),
+.interactionRow button:hover:not(:disabled),
+.activeBranchCard button:hover:not(:disabled),
+.branchRow button:hover:not(:disabled),
+.codeBlock button:hover:not(:disabled),
+.exportGrid button:hover:not(:disabled),
+.inspectorSection > button:focus-visible,
+.assetActions > button:focus-visible,
+.assetRow button:focus-visible,
+.interactionRow button:focus-visible,
+.activeBranchCard button:focus-visible,
+.branchRow button:focus-visible,
+.codeBlock button:focus-visible,
+.exportGrid button:focus-visible {
+  color: var(--kumo-ink);
+  background: var(--kumo-surface-active);
+  border-color: var(--kumo-line-strong);
+  outline: 0;
+}
+
+.inspectorSection > button:disabled,
+.assetActions > button:disabled,
+.assetRow button:disabled,
+.interactionRow button:disabled,
+.activeBranchCard button:disabled,
+.branchRow button:disabled,
+.codeBlock button:disabled,
+.exportGrid button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+.inspectorSection > button + button { margin-top: 7px; }
+.inspectorSection > button svg,
+.assetActions svg,
+.assetRow button svg,
+.interactionRow button svg,
+.activeBranchCard button svg,
+.branchRow button svg,
+.codeBlock button svg { display: block; width: 15px; height: 15px; }
 
 .inspectorStack {
   display: grid;
@@ -736,7 +823,7 @@
   align-items: center;
   gap: 7px;
   color: #8f9094;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .field {
@@ -762,6 +849,7 @@
 }
 
 .field input,
+.fullField input,
 .fullField select,
 .colorControl input[type="text"] {
   min-width: 0;
@@ -785,16 +873,18 @@
   margin-top: 8px;
 }
 
+.fullField input,
 .fullField select {
   padding: 0 8px;
   background: #252629;
+  border: 1px solid transparent;
   border-radius: var(--kumo-radius-control);
 }
 
 .fieldHint,
 .fieldError {
   margin: 8px 0 0;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
   line-height: 1.45;
 }
 
@@ -838,7 +928,7 @@
   border: 0;
   border-radius: 4px;
   outline: 0;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
   text-align: left;
   text-overflow: ellipsis;
 }
@@ -873,7 +963,7 @@
   background: #252629;
   border: 1px solid #3b3d41;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .assetRow > span {
@@ -922,12 +1012,12 @@
 
 .interactionRow {
   display: grid;
-  grid-template-columns: 16px 1fr 24px;
+  grid-template-columns: 16px 1fr 32px;
   align-items: center;
   gap: 7px;
   padding: 8px 0;
   border-bottom: 1px solid #393b3f;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .interactionRow > span {
@@ -940,6 +1030,14 @@
   color: #f1eee8;
   font-weight: 650;
   text-transform: capitalize;
+}
+
+.interactionRow button,
+.assetRow > button,
+.codeBlock button {
+  width: var(--kumo-control-compact);
+  min-width: var(--kumo-control-compact);
+  padding: 0;
 }
 
 .interactionForm {
@@ -984,7 +1082,7 @@
   margin: 0;
   padding: 10px 12px;
   color: #ffe6df;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   background: #44241e;
   border: 1px solid #754135;
 }
@@ -1015,7 +1113,7 @@
   background: #252629;
   border: 1px solid #3c3e42;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .visuallyHidden {
@@ -1040,7 +1138,7 @@
   background: #292a2d;
   border: 1px solid #414348;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .commandButton kbd {
@@ -1089,7 +1187,7 @@
   background: transparent;
   border: 0;
   outline: 0;
-  font-size: 15px;
+  font-size: var(--kumo-text-md);
 }
 
 .commandResults {
@@ -1132,7 +1230,7 @@
   padding: 8px 13px;
   color: #777a7f;
   border-top: 1px solid #414348;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .codeBlock {
@@ -1144,13 +1242,13 @@
 
 .codeBlock > header {
   display: flex;
-  min-height: 30px;
+  min-height: var(--kumo-control-compact);
   align-items: center;
   justify-content: space-between;
   padding: 0 6px 0 9px;
   color: #929499;
   border-bottom: 1px solid #35373b;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
   text-transform: uppercase;
 }
 
@@ -1160,7 +1258,7 @@
   padding: 10px;
   overflow: auto;
   color: #d8d3ca;
-  font: 10px/1.55 "SFMono-Regular", Consolas, monospace;
+  font: var(--kumo-text-2xs)/1.55 var(--kumo-mono);
   white-space: pre-wrap;
 }
 
@@ -1180,13 +1278,13 @@
 
 .inspectGrid dt {
   color: #7f8287;
-  font-size: 8px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .inspectGrid dd {
   margin: 2px 0 0;
   color: #e6e2da;
-  font: 10px "SFMono-Regular", Consolas, monospace;
+  font: var(--kumo-text-2xs) var(--kumo-mono);
 }
 
 .tokenRow {
@@ -1199,7 +1297,7 @@
   color: #c8c9cc;
   background: transparent;
   border: 0;
-  font: 10px "SFMono-Regular", Consolas, monospace;
+  font: var(--kumo-text-2xs) var(--kumo-mono);
   text-align: left;
 }
 
@@ -1215,7 +1313,7 @@
   color: #aaa9a6;
   background: #252629;
   border-radius: 4px;
-  font: 9px/1.45 "SFMono-Regular", Consolas, monospace;
+  font: var(--kumo-text-2xs)/1.45 var(--kumo-mono);
 }
 
 .branchBadge {
@@ -1230,7 +1328,7 @@
   background: #3a3029;
   border: 1px solid #654d39;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1243,7 +1341,7 @@
   background: #322d29;
   border: 1px solid #5b4939;
   border-radius: 7px;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .activeBranchCard strong {
@@ -1251,7 +1349,7 @@
   align-items: center;
   gap: 6px;
   color: #f0d2a8;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .branchList {
@@ -1283,14 +1381,14 @@
 .branchRow strong {
   overflow: hidden;
   color: #dedbd5;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .branchRow small {
   color: #7f8287;
-  font-size: 8px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .branchRow > div:last-child {
@@ -1314,7 +1412,7 @@
   padding: 0 9px;
   background: #222326;
   border-bottom: 1px solid #383a3e;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
 }
 
 .presentationOverlay > header > span:nth-of-type(2) {
@@ -1322,7 +1420,7 @@
   align-items: center;
   gap: 5px;
   color: #8f9297;
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .presentationStage {
@@ -1406,7 +1504,7 @@
   display: block;
   margin-top: 12px;
   color: #8f9094;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .overlineIcon {
@@ -1435,7 +1533,7 @@
 
 .buttonGrid button {
   border-radius: var(--kumo-radius-control);
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
 }
 
 .buttonGrid .dangerButton {
@@ -1448,7 +1546,7 @@
   align-items: center;
   justify-content: space-between;
   color: #c8c7c2;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
 }
 
 .toggleRow input {
@@ -1463,7 +1561,7 @@
   margin: 14px;
   padding: 12px;
   color: #9b9c9f;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   line-height: 1.5;
   background: #242529;
   border-left: 2px solid var(--accent);
@@ -1477,16 +1575,12 @@
   position: fixed;
   right: 18px;
   bottom: 70px;
-  z-index: 30000;
+  z-index: var(--kumo-z-toast);
   display: flex;
   max-width: 380px;
   align-items: center;
   gap: 14px;
-  padding: 11px 12px;
-  color: #ffe6df;
-  font-size: 12px;
-  background: #44241e;
-  border: 1px solid #754135;
+  margin: 0;
   border-radius: var(--kumo-radius-control);
 }
 
@@ -1502,7 +1596,7 @@
 
 .dialogBackdrop {
   position: fixed;
-  z-index: 40000;
+  z-index: var(--kumo-z-dialog);
   display: grid;
   inset: 0;
   place-items: center;
@@ -1514,8 +1608,9 @@
 .dialog {
   width: min(440px, 100%);
   padding: 26px;
-  background: #202124;
-  border: 1px solid #414246;
+  color: var(--kumo-ink);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line-strong);
   border-radius: var(--kumo-radius-panel);
   box-shadow: 0 28px 70px rgb(0 0 0 / 0.48);
 }
@@ -1534,26 +1629,10 @@
 }
 
 .closeButton {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  padding: 0;
-  color: #a8a8a3;
-  font-size: 22px;
-  background: transparent;
-  border: 0;
-  border-radius: var(--kumo-radius-control);
+  flex: 0 0 auto;
 }
 
 .closeButton svg { width: 19px; height: 19px; }
-
-.closeButton:hover,
-.closeButton:focus-visible {
-  color: #fffefa;
-  background: #303236;
-  outline: none;
-}
 
 .inviteForm {
   display: grid;
@@ -1584,8 +1663,8 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #dcdad4;
-  font-size: 11px;
+  color: var(--kumo-text-secondary);
+  font-size: var(--kumo-text-xs);
 }
 
 .friendShareHeading > span svg {
@@ -1620,13 +1699,13 @@
 }
 
 .friendShareHeading label svg { width: 14px; height: 14px; justify-self: center; }
-.friendShareHeading input { min-width: 0; color: #e5e4df; font: inherit; font-size: 10px; background: transparent; border: 0; outline: 0; }
+.friendShareHeading input { min-width: 0; color: var(--kumo-ink); font: inherit; font-size: var(--kumo-text-xs); background: transparent; border: 0; outline: 0; }
 .friendShareControls select {
   height: 32px;
   padding: 0 7px;
   color: #d4d2cc;
   font: inherit;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
   background: #202124;
   border: 1px solid #414348;
   border-radius: var(--kumo-radius-control);
@@ -1647,62 +1726,29 @@
 .friendShareRow > span { display: grid; min-width: 0; gap: 2px; }
 .friendShareRow strong,
 .friendShareRow small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.friendShareRow strong { color: #dcdad4; font-size: 11px; }
-.friendShareRow small { color: #898a8e; font-size: 9px; }
+.friendShareRow strong { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); }
+.friendShareRow small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 
 .friendShareRow button {
-  min-height: 30px;
-  padding: 0 9px;
-  color: #18191b;
-  font-size: 9px;
-  font-weight: 750;
-  background: var(--accent-strong);
-  border: 0;
-  border-radius: var(--kumo-radius-control);
+  justify-self: end;
 }
 
 .friendShareRow button:disabled { cursor: wait; opacity: 0.55; }
 
 .friendShareEmpty {
   padding: 9px 4px 2px;
-  color: #85868a;
-  font-size: 10px;
-  line-height: 1.45;
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-2xs);
+  line-height: var(--kumo-leading-normal);
 }
 
 .inviteForm label {
-  display: grid;
-  gap: 6px;
-  color: #999a9d;
-  font-size: 11px;
+  min-width: 0;
 }
 
 .inviteForm input,
 .inviteForm select {
   width: 100%;
-  height: 40px;
-  padding: 0 10px;
-  color: #e5e4df;
-  background: #2a2b2f;
-  border: 1px solid #414348;
-  border-radius: var(--kumo-radius-control);
-  outline: none;
-}
-
-.inviteForm input:focus,
-.inviteForm select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgb(184 122 46 / 0.14);
-}
-
-.inviteForm > button {
-  height: 40px;
-  padding: 0 13px;
-  color: #191a1c;
-  font-weight: 700;
-  background: var(--accent);
-  border: 0;
-  border-radius: var(--kumo-radius-control);
 }
 
 .shareLinkRow,
@@ -1726,18 +1772,10 @@
 
 .shareLinkRow > span { min-width: 0; gap: 8px; }
 .shareLinkRow > span > svg { width: 17px; height: 17px; color: var(--accent-strong); }
-.shareLinkRow b { color: #dcdad4; font-size: 11px; }
-.shareLinkRow small { color: #7f8084; font-size: 10px; }
+.shareLinkRow b { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); }
+.shareLinkRow small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 .shareLinkRow button {
-  display: inline-flex;
-  min-height: 31px;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  color: #d6d4ce;
-  background: #202124;
-  border: 1px solid #484a4f;
-  border-radius: var(--kumo-radius-control);
+  flex: 0 0 auto;
 }
 .shareLinkRow button svg { width: 14px; height: 14px; }
 
@@ -1753,8 +1791,8 @@
 }
 .linkedShareOption input { width: 15px; height: 15px; margin-top: 1px; accent-color: var(--accent); }
 .linkedShareOption > span { display: grid; gap: 2px; }
-.linkedShareOption strong { color: #d5d3cd; font-size: 11px; }
-.linkedShareOption small { color: #85868a; font-size: 9px; line-height: 1.45; }
+.linkedShareOption strong { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); }
+.linkedShareOption small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); line-height: var(--kumo-leading-normal); }
 
 .shareWarning {
   align-items: flex-start;
@@ -1768,17 +1806,13 @@
 }
 .shareWarning > svg { width: 17px; height: 17px; flex: 0 0 auto; }
 .shareWarning > span { display: grid; gap: 3px; }
-.shareWarning strong { color: #eed0aa; font-size: 11px; }
-.shareWarning small { color: #aa9680; font-size: 10px; line-height: 1.45; }
+.shareWarning strong { color: #eed0aa; font-size: var(--kumo-text-xs); }
+.shareWarning small { color: var(--kumo-warning-ink); font-size: var(--kumo-text-2xs); line-height: var(--kumo-leading-normal); }
 
 .accessNote,
 .dialogError,
 .dialogMessage {
   margin: 18px 0 0;
-  padding: 10px 12px;
-  font-size: 12px;
-  line-height: 1.45;
-  border-left: 2px solid;
 }
 
 .accessNote { color: #b1b0ab; background: #28292d; border-color: #5d5e63; }
@@ -1792,8 +1826,8 @@
 
 .memberList h3 {
   margin: 18px 0 8px;
-  color: #aaa9a4;
-  font-size: 11px;
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-2xs);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -1815,16 +1849,16 @@
 .memberIdentity strong {
   overflow: hidden;
   color: #e1e0db;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.memberIdentity small { color: #86878b; font-size: 10px; }
-.memberRole { color: #929398; font-size: 10px; white-space: nowrap; }
+.memberIdentity small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
+.memberRole { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); white-space: nowrap; }
 .memberRow button { min-height: 32px; color: #e69b87; background: transparent; border: 0; border-radius: var(--kumo-radius-control); }
 .memberRow button:hover, .memberRow button:focus-visible { background: #3b2824; outline: none; }
-.memberLoading { min-height: 52px; gap: 8px; color: #77787c; font-size: 10px; }
+.memberLoading { min-height: 52px; gap: 8px; color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 .memberLoading svg { width: 15px; height: 15px; }
 
 @media (max-width: 560px) {
@@ -1838,7 +1872,7 @@
 
 .dialogEyebrow {
   color: var(--accent-strong);
-  font-size: 10px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1846,7 +1880,7 @@
 
 .dialog h2 {
   margin: 9px 0;
-  font-size: 22px;
+  font-size: var(--kumo-text-2xl);
   letter-spacing: -0.03em;
 }
 
@@ -1863,18 +1897,8 @@
   margin-top: 22px;
 }
 
-.dialogActions button {
-  min-height: 38px;
-  padding: 0 14px;
-  color: #deddd8;
-  background: #2e3034;
-  border: 0;
-  border-radius: var(--kumo-radius-control);
-}
-
 .dialogActions .destructive {
-  color: #fff7f4;
-  background: #b84b34;
+  color: var(--kumo-danger-ink);
 }
 
 @media (max-width: 760px) {

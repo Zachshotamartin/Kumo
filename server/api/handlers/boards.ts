@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
+import { requireActor } from "../_auth.js";
 import {
   boardSummary,
   getBoardAccess,
@@ -7,16 +7,16 @@ import {
   listBoardsForUser,
   provisionBoard,
   searchPublicBoards,
-} from "./_boards.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
-import { boardDocumentFromJson, liveblocksAdmin } from "./_liveblocks.js";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
+} from "../_boards.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
+import { boardDocumentFromJson, liveblocksAdmin } from "../_liveblocks.js";
+import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 import {
   cloneAssetsToBoard,
   documentAssetIds,
   rewriteDocumentAssetIds,
-} from "./_assets.js";
-import { syncBoardLinks } from "./_boardLinks.js";
+} from "../_assets.js";
+import { syncBoardLinks } from "../_boardLinks.js";
 
 const cleanTitle = (value: unknown): string =>
   (typeof value === "string" ? value.trim() : "").slice(0, 120) || "Untitled board";

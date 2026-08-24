@@ -1,17 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createHash } from "node:crypto";
-import handler from "../../api/branches";
+import handler from "../../server/api/handlers/branches";
 
 const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(), getAccess: vi.fn(), from: vi.fn(), getDocument: vi.fn(),
   createRoom: vi.fn(), deleteRoom: vi.fn(), initialize: vi.fn(), deleteStorage: vi.fn(), broadcast: vi.fn(), syncLinks: vi.fn(), rpc: vi.fn(),
 }));
 
-vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
-vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
-vi.mock("../../api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
+vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
+vi.mock("../../server/api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
+vi.mock("../../server/api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
+vi.mock("../../server/api/_liveblocks", () => ({
   boardDocumentFromJson: (document: unknown) => ({ normalized: document }),
   liveblocksAdmin: () => ({
     getStorageDocument: mocks.getDocument, createRoom: mocks.createRoom, deleteRoom: mocks.deleteRoom,

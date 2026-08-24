@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { WebhookHandler } from "@liveblocks/node";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { allowMethods } from "./_http.js";
-import { liveblocksAdmin } from "./_liveblocks.js";
-import { supabaseAdmin } from "./_supabase.js";
-import { syncBoardLinks } from "./_boardLinks.js";
-import { updateBoardThumbnail } from "./_boardThumbnail.js";
+import { allowMethods } from "../server/api/_http.js";
+import { liveblocksAdmin } from "../server/api/_liveblocks.js";
+import { supabaseAdmin } from "../server/api/_supabase.js";
+import { syncBoardLinks } from "../server/api/_boardLinks.js";
+import { updateBoardThumbnail } from "../server/api/_boardThumbnail.js";
 
 export const config = { api: { bodyParser: false } };
 

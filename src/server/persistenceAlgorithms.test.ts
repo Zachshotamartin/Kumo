@@ -1,19 +1,19 @@
-import { boardLinkRows } from "../../api/_boardLinks";
+import { boardLinkRows } from "../../server/api/_boardLinks";
 import {
   cloneAssetsToBoard,
   documentAssetIds,
   rewriteDocumentAssetIds,
-} from "../../api/_assets";
-import { getBoardAccess } from "../../api/_boards";
-import { supabaseAdmin } from "../../api/_supabase";
+} from "../../server/api/_assets";
+import { getBoardAccess } from "../../server/api/_boards";
+import { supabaseAdmin } from "../../server/api/_supabase";
 import {
   collectShapeAssetIds,
   rewriteShapeAssetIds,
 } from "../services/assetRepository";
 import type { Shape } from "../classes/shape";
 
-vi.mock("../../api/_supabase", () => ({ supabaseAdmin: vi.fn() }));
-vi.mock("../../api/_boards", () => ({ getBoardAccess: vi.fn() }));
+vi.mock("../../server/api/_supabase", () => ({ supabaseAdmin: vi.fn() }));
+vi.mock("../../server/api/_boards", () => ({ getBoardAccess: vi.fn() }));
 vi.mock("../services/apiClient", () => ({ authenticatedFetch: vi.fn() }));
 
 const shape = (id: string, assetId?: string, children?: Shape[]): Shape => ({

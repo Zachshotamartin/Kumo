@@ -28,6 +28,7 @@ import { ProfileAvatar } from "../social/ProfileAvatar";
 import { ProfileView } from "../social/ProfileView";
 import { BoardCard } from "./BoardCard";
 import styles from "./BoardDashboard.module.css";
+import ui from "../ui/Ui.module.css";
 
 type DashboardView = "boards" | "friends" | "profile";
 
@@ -184,26 +185,26 @@ const BoardDashboard = () => {
           <span className={styles.brandName}>Kumo</span>
         </button>
         <nav className={styles.primaryNav} aria-label="Workspace">
-          <button type="button" className={view === "boards" ? styles.navActive : undefined} aria-current={view === "boards" ? "page" : undefined} onClick={showBoards}>Boards</button>
-          <button type="button" className={view === "friends" ? styles.navActive : undefined} aria-current={view === "friends" ? "page" : undefined} onClick={showFriends}>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "boards" ? styles.navActive : ""}`} aria-current={view === "boards" ? "page" : undefined} onClick={showBoards}>Boards</button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "friends" ? styles.navActive : ""}`} aria-current={view === "friends" ? "page" : undefined} onClick={showFriends}>
             Friends
             {incomingCount > 0 && <span className={styles.navBadge} aria-label={`${incomingCount} pending friend requests`}>{incomingCount}</span>}
           </button>
         </nav>
         {view === "boards" ? (
-          <label className={styles.search}>
+          <label className={`${ui.searchControl} ${styles.search}`}>
             <span className="sr-only">Search public boards</span>
             <MagnifyingGlass aria-hidden="true" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search public boards" />
           </label>
         ) : <span className={styles.headerSpacer} />}
         <div className={styles.account}>
-          <button type="button" className={styles.profileButton} onClick={() => showProfile()} aria-label="Open your profile">
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${styles.profileButton}`} onClick={() => showProfile()} aria-label="Open your profile">
             <ProfileAvatar name={user.displayName || user.email || "Kumo user"} avatarUrl={user.avatarUrl} size={30} />
             <span>{user.displayName || user.username || user.email}</span>
             <UserCircle aria-hidden="true" />
           </button>
-          <button type="button" className={styles.signOutButton} onClick={handleLogout} aria-label="Sign out"><SignOut aria-hidden="true" /><span>Sign out</span></button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${styles.signOutButton}`} onClick={handleLogout} aria-label="Sign out"><SignOut aria-hidden="true" /><span>Sign out</span></button>
         </div>
       </header>
 
@@ -225,17 +226,17 @@ const BoardDashboard = () => {
               <h1>Pick up where the idea moved.</h1>
               <p>Open a board, follow a link, or give the next thought its own canvas.</p>
             </div>
-            <button type="button" className={styles.createButton} onClick={handleCreate} disabled={creating}>
+            <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${styles.createButton}`} onClick={handleCreate} disabled={creating}>
               <Plus aria-hidden="true" weight="bold" />
               {creating ? "Creating" : "New board"}
             </button>
           </section>
 
-        {error && <div className={styles.error} role="alert">{error}</div>}
+        {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert">{error}</div>}
 
         {query.trim() ? (
           <section className={styles.boardSection}>
-            <div className={styles.sectionHeading}>
+            <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}>
               <h2>Public results</h2>
               <span>{publicResults.length}</span>
             </div>
@@ -246,13 +247,13 @@ const BoardDashboard = () => {
                 ))}
               </div>
             ) : (
-              <div className={styles.emptyState}><p>No public boards match “{query}”.</p><span>Try a shorter title or create your own.</span></div>
+              <div className={`${ui.emptyState} ${styles.emptyState}`}><p>No public boards match “{query}”.</p><span>Try a shorter title or create your own.</span></div>
             )}
           </section>
         ) : (
           <>
             <section className={styles.boardSection}>
-              <div className={styles.sectionHeading}>
+              <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}>
                 <h2>My boards</h2>
                 <span>{myBoards.length}</span>
               </div>
@@ -261,17 +262,17 @@ const BoardDashboard = () => {
               ) : myBoards.length > 0 ? (
                 <div className={styles.boardGrid}>{myBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} />)}</div>
               ) : (
-                <div className={styles.emptyState}>
+                <div className={`${ui.emptyState} ${styles.emptyState}`}>
                   <KumoLogo className={styles.emptyLogo} context="attention" decorative />
                   <p>Start one board. Link the next.</p>
                   <span>Your first board is a clean, private canvas.</span>
-                  <button type="button" onClick={handleCreate}><Plus aria-hidden="true" /> Create a board</button>
+                  <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${ui.buttonCompact}`} onClick={handleCreate}><Plus aria-hidden="true" /> Create a board</button>
                 </div>
               )}
             </section>
             {sharedBoards.length > 0 && (
               <section className={styles.boardSection}>
-                <div className={styles.sectionHeading}><h2>Shared with me</h2><span>{sharedBoards.length}</span></div>
+                <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h2>Shared with me</h2><span>{sharedBoards.length}</span></div>
                 <div className={styles.boardGrid}>{sharedBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} />)}</div>
               </section>
             )}

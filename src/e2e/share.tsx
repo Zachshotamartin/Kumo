@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import { configureStore } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
@@ -33,10 +33,17 @@ store.dispatch(setWhiteboardData({
   members: { "e2e-user": "owner" },
 }));
 
+export const ShareHarness = () => {
+  const [open, setOpen] = useState(true);
+  return open
+    ? <ShareDialog onClose={() => setOpen(false)} />
+    : <button type="button" onClick={() => setOpen(true)}>Reopen sharing</button>;
+};
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Provider store={store}>
-      <ShareDialog onClose={() => undefined} />
+      <ShareHarness />
     </Provider>
   </React.StrictMode>
 );

@@ -1,9 +1,9 @@
 const mocks = vi.hoisted(() => ({ from: vi.fn() }));
 
-vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from }) }));
+vi.mock("../../server/api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from }) }));
 
-import { linkedBoardSharePlan, membershipBoardIds } from "../../api/_boardSharing";
-import { linkedBoardsForActor } from "../../api/_boards";
+import { linkedBoardSharePlan, membershipBoardIds } from "../../server/api/_boardSharing";
+import { linkedBoardsForActor } from "../../server/api/_boards";
 
 describe("linked board access algorithms", () => {
   beforeEach(() => vi.clearAllMocks());

@@ -8,11 +8,11 @@ import {
   otherUserId,
   profileSummary,
   relationshipFor,
-} from "../../api/_profiles";
+} from "../../server/api/_profiles";
 
 const mocks = vi.hoisted(() => ({ from: vi.fn() }));
 
-vi.mock("../../api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from }) }));
+vi.mock("../../server/api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from }) }));
 
 const profile = {
   firebase_uid: "alex",

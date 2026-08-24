@@ -14,6 +14,7 @@ import {
 import { listFriendships, type SocialProfile } from "../../services/socialRepository";
 import { AppDispatch, RootState } from "../../store";
 import { ProfileAvatar } from "../social/ProfileAvatar";
+import ui from "../ui/Ui.module.css";
 import styles from "./EditorWorkspace.module.css";
 
 interface ShareDialogProps {
@@ -186,19 +187,19 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   };
 
   return (
-    <div className={styles.dialogBackdrop}>
+    <div className={styles.dialogBackdrop} onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
       <div className={`${styles.dialog} ${styles.shareDialog}`} role="dialog" aria-modal="true" aria-labelledby="share-title">
         <div className={styles.dialogHeader}>
           <div>
             <span className={styles.dialogEyebrow}>Board access</span>
             <h2 id="share-title">Share “{board.title}”</h2>
           </div>
-          <button type="button" className={styles.closeButton} aria-label="Close sharing dialog" onClick={onClose}><X aria-hidden="true" /></button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.iconButton} ${styles.closeButton}`} aria-label="Close sharing dialog" onClick={onClose}><X aria-hidden="true" /></button>
         </div>
 
         <div className={styles.shareLinkRow}>
           <span><Link aria-hidden="true" /><b>Direct board link</b><small>Only people with access can open it.</small></span>
-          <button type="button" onClick={copyLink}>{copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied ? "Copied" : "Copy link"}</button>
+          <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={copyLink}>{copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied ? "Copied" : "Copy link"}</button>
         </div>
 
         {isOwner ? (
@@ -224,7 +225,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
                   <div className={styles.friendShareRow} key={friend.id}>
                     <ProfileAvatar name={friend.displayName} avatarUrl={friend.avatarUrl} size={30} />
                     <span><strong>{friend.displayName}</strong><small>@{friend.username}</small></span>
-                    <button type="button" disabled={Boolean(invitingFriendUid)} onClick={() => void inviteFriend(friend)}>
+                    <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${ui.buttonCompact}`} disabled={Boolean(invitingFriendUid)} onClick={() => void inviteFriend(friend)}>
                       {invitingFriendUid === friend.id ? "Sharing" : `Share as ${role === "editor" ? "editor" : "viewer"}`}
                     </button>
                   </div>
@@ -235,18 +236,18 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
             )}
           </section>
           <form className={styles.inviteForm} onSubmit={invite}>
-            <label>
-              <span>Email</span>
-              <input ref={inputRef} type="email" value={email} placeholder="collaborator@example.com" required onChange={(event) => setEmail(event.target.value)} />
+            <label className={ui.field}>
+              <span className={ui.fieldLabel}>Email</span>
+              <input className={ui.control} ref={inputRef} type="email" value={email} placeholder="collaborator@example.com" required onChange={(event) => setEmail(event.target.value)} />
             </label>
-            <label>
-              <span>Role</span>
-              <select value={role} onChange={(event) => setRole(event.target.value as "editor" | "viewer")}>
+            <label className={ui.field}>
+              <span className={ui.fieldLabel}>Role</span>
+              <select className={ui.control} aria-label="Role" value={role} onChange={(event) => setRole(event.target.value as "editor" | "viewer")}>
                 <option value="editor">Can edit</option>
                 <option value="viewer">Can view</option>
               </select>
             </label>
-            <button type="submit" disabled={submitting}>{submitting ? "Sharing" : "Share"}</button>
+            <button type="submit" className={`${ui.button} ${ui.buttonPrimary}`} disabled={submitting}>{submitting ? "Sharing" : "Share"}</button>
             {linkedBoards.length > 0 && (
               <label className={styles.linkedShareOption} aria-label="Share linked boards">
                 <input type="checkbox" checked={shareConnectedBoards} disabled={plan?.truncated} onChange={(event) => setIncludeLinkedBoards(event.target.checked)} />
@@ -259,7 +260,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
           </form>
           </>
         ) : (
-          <p className={styles.accessNote}>Only the board owner can invite or remove collaborators.</p>
+          <p className={`${ui.notice} ${styles.accessNote}`}>Only the board owner can invite or remove collaborators.</p>
         )}
 
         {externalPrivateBoards.length > 0 && (
@@ -268,9 +269,9 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
             <span><strong>{externalPrivateBoards.length} private linked {externalPrivateBoards.length === 1 ? "board has" : "boards have"} another owner.</strong><small>Those owners must share {externalPrivateBoards.map((candidate) => candidate.title).join(", ")} separately.</small></span>
           </div>
         )}
-        {plan?.truncated && <p className={styles.dialogError} role="alert">The linked-board graph exceeded the safe sharing limit. Kumo will only allow direct-board sharing until the graph is smaller.</p>}
-        {error && <p className={styles.dialogError} role="alert">{error}</p>}
-        {message && <p className={styles.dialogMessage} role="status">{message}</p>}
+        {plan?.truncated && <p className={`${ui.notice} ${ui.noticeError} ${styles.dialogError}`} role="alert">The linked-board graph exceeded the safe sharing limit. Kumo will only allow direct-board sharing until the graph is smaller.</p>}
+        {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.dialogError}`} role="alert">{error}</p>}
+        {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.dialogMessage}`} role="status">{message}</p>}
 
         <div className={styles.memberList}>
           <h3>People with access</h3>

@@ -4,10 +4,10 @@ interface ApiErrorBody {
   error?: string;
 }
 
-export const authenticatedFetch = async <T>(
+export const authenticatedRequest = async (
   input: string,
   init: RequestInit = {}
-): Promise<T> => {
+): Promise<Response> => {
   const e2eToken = import.meta.env.VITE_E2E && /\/(social|share)-e2e\.html$/.test(window.location.pathname)
     ? "kumo-e2e-token"
     : null;
@@ -25,6 +25,14 @@ export const authenticatedFetch = async <T>(
     const body = await response.json().catch(() => null) as ApiErrorBody | null;
     throw new Error(body?.error ?? `Request failed with status ${response.status}.`);
   }
+  return response;
+};
+
+export const authenticatedFetch = async <T>(
+  input: string,
+  init: RequestInit = {}
+): Promise<T> => {
+  const response = await authenticatedRequest(input, init);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 };

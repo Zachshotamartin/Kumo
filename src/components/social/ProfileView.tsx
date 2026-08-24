@@ -20,6 +20,7 @@ import {
   type UserProfile,
 } from "../../services/socialRepository";
 import { BoardCard } from "../dashboard/BoardCard";
+import ui from "../ui/Ui.module.css";
 import { ProfileAvatar } from "./ProfileAvatar";
 import styles from "./Social.module.css";
 
@@ -149,16 +150,16 @@ export const ProfileView = ({
   };
 
   if (loading) return <div className={styles.skeleton} aria-label="Loading profile" />;
-  if (!profile) return <div className={styles.error} role="alert">{error ?? "Profile not found."}</div>;
+  if (!profile) return <div className={`${ui.notice} ${ui.noticeError}`} role="alert">{error ?? "Profile not found."}</div>;
   const primary = relationshipAction(profile);
   const PrimaryIcon = primary?.icon;
 
   return (
     <div className={styles.page}>
-      {error && <div className={styles.error} role="alert">{error}</div>}
-      {message && <div className={styles.empty} role="status"><strong>{message}</strong></div>}
+      {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert">{error}</div>}
+      {message && <div className={`${ui.notice} ${ui.noticeSuccess}`} role="status">{message}</div>}
       <div className={styles.profileGrid}>
-        <section className={styles.profileCard} aria-labelledby="profile-name">
+        <section className={`${ui.surface} ${styles.profileCard}`} aria-labelledby="profile-name">
           <ProfileAvatar className={styles.profileAvatar} name={profile.displayName} avatarUrl={profile.avatarUrl} size={88} />
           <h1 className={styles.profileName} id="profile-name">{profile.displayName}</h1>
           <span className={styles.handle}>@{profile.username}</span>
@@ -168,16 +169,16 @@ export const ProfileView = ({
             <span><strong>{profile.publicBoardCount}</strong><small>Public boards</small></span>
           </div>
           <div className={styles.profileActions}>
-            <button type="button" className={styles.button} onClick={copyProfileLink}>
+            <button type="button" className={ui.button} onClick={copyProfileLink}>
               {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied ? "Copied" : "Copy profile link"}
             </button>
             {!profile.editable && primary && PrimaryIcon && (
-              <button type="button" className={styles.buttonPrimary} disabled={busy} onClick={() => changeRelationship(primary.action)}>
+              <button type="button" className={`${ui.button} ${ui.buttonPrimary}`} disabled={busy} onClick={() => changeRelationship(primary.action)}>
                 <PrimaryIcon aria-hidden="true" />{busy ? "Working" : primary.label}
               </button>
             )}
             {!profile.editable && profile.relationship !== "blocked" && (
-              <button type="button" className={styles.buttonDanger} disabled={busy} onClick={() => changeRelationship("block")}>
+              <button type="button" className={`${ui.button} ${ui.buttonDanger}`} disabled={busy} onClick={() => changeRelationship("block")}>
                 <Prohibit aria-hidden="true" />Block
               </button>
             )}
@@ -185,50 +186,50 @@ export const ProfileView = ({
         </section>
 
         {profile.editable ? (
-          <section className={styles.editorCard} aria-labelledby="profile-edit-title">
+          <section className={`${ui.surface} ${styles.editorCard}`} aria-labelledby="profile-edit-title">
             <h2 id="profile-edit-title">Profile settings</h2>
             <form className={styles.form} onSubmit={save}>
-              <label className={styles.field}>
-                <span>Display name</span>
-                <input aria-label="Display name" required maxLength={60} value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} />
-                <small>The name collaborators see on boards and comments.</small>
+              <label className={`${ui.field} ${styles.field}`}>
+                <span className={ui.fieldLabel}>Display name</span>
+                <input className={ui.control} aria-label="Display name" required maxLength={60} value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} />
+                <small className={ui.fieldHelp}>The name collaborators see on boards and comments.</small>
               </label>
-              <label className={styles.field}>
-                <span>Username</span>
-                <input aria-label="Username" required minLength={3} maxLength={30} pattern="[a-z0-9][a-z0-9._-]{2,29}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} />
-                <small>Used in profile links. Lowercase letters, numbers, periods, underscores, or hyphens.</small>
+              <label className={`${ui.field} ${styles.field}`}>
+                <span className={ui.fieldLabel}>Username</span>
+                <input className={ui.control} aria-label="Username" required minLength={3} maxLength={30} pattern="[a-z0-9][a-z0-9._-]{2,29}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} />
+                <small className={ui.fieldHelp}>Used in profile links. Lowercase letters, numbers, periods, underscores, or hyphens.</small>
               </label>
-              <label className={`${styles.field} ${styles.fieldWide}`}>
-                <span>Biography</span>
-                <textarea aria-label="Biography" maxLength={280} value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} />
-                <small>{form.bio.length}/280 characters</small>
+              <label className={`${ui.field} ${styles.field} ${styles.fieldWide}`}>
+                <span className={ui.fieldLabel}>Biography</span>
+                <textarea className={ui.control} aria-label="Biography" maxLength={280} value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} />
+                <small className={ui.fieldHelp}>{form.bio.length}/280 characters</small>
               </label>
-              <label className={`${styles.field} ${styles.fieldWide}`}>
-                <span>Avatar URL</span>
-                <input aria-label="Avatar URL" type="url" placeholder="https://" value={form.avatarUrl} onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} />
-                <small>Use a secure HTTPS image URL. Leave blank for your initials.</small>
+              <label className={`${ui.field} ${styles.field} ${styles.fieldWide}`}>
+                <span className={ui.fieldLabel}>Avatar URL</span>
+                <input className={ui.control} aria-label="Avatar URL" type="url" placeholder="https://" value={form.avatarUrl} onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} />
+                <small className={ui.fieldHelp}>Use a secure HTTPS image URL. Leave blank for your initials.</small>
               </label>
-              <label className={styles.field}>
-                <span>Friend requests</span>
-                <select aria-label="Friend requests" value={form.friendRequestPolicy} onChange={(event) => setForm({ ...form, friendRequestPolicy: event.target.value as FriendRequestPolicy })}>
+              <label className={`${ui.field} ${styles.field}`}>
+                <span className={ui.fieldLabel}>Friend requests</span>
+                <select className={ui.control} aria-label="Friend requests" value={form.friendRequestPolicy} onChange={(event) => setForm({ ...form, friendRequestPolicy: event.target.value as FriendRequestPolicy })}>
                   <option value="everyone">Everyone</option>
                   <option value="friends_of_friends">Friends of friends</option>
                   <option value="none">Nobody</option>
                 </select>
-                <small>Controls who can start a new friendship.</small>
+                <small className={ui.fieldHelp}>Controls who can start a new friendship.</small>
               </label>
               <label className={styles.toggle}>
                 <input aria-label="Show me in profile search" type="checkbox" checked={form.discoverable} onChange={(event) => setForm({ ...form, discoverable: event.target.checked })} />
                 <span><strong>Show me in profile search</strong><small>Your direct profile link keeps working when search is off.</small></span>
               </label>
               <div className={styles.formFooter}>
-                <small>Your email stays private until you share a board with someone.</small>
-                <button type="submit" className={styles.buttonPrimary} disabled={saving}>{saving ? "Saving" : "Save profile"}</button>
+                <small className={ui.fieldHelp}>Your email stays private until you share a board with someone.</small>
+                <button type="submit" className={`${ui.button} ${ui.buttonPrimary}`} disabled={saving}>{saving ? "Saving" : "Save profile"}</button>
               </div>
             </form>
           </section>
         ) : (
-          <section className={styles.editorCard} aria-labelledby="relationship-title">
+          <section className={`${ui.surface} ${styles.editorCard}`} aria-labelledby="relationship-title">
             <h2 id="relationship-title">Working relationship</h2>
             <p className={styles.profileBio}>
               {profile.relationship === "friend"
@@ -246,13 +247,13 @@ export const ProfileView = ({
       </div>
 
       <section className={styles.boardSection} aria-labelledby="profile-boards-title">
-        <div className={styles.sectionHeading}><h2 id="profile-boards-title">Public boards</h2><span>{profile.publicBoards.length}</span></div>
+        <div className={ui.sectionHeading}><h2 id="profile-boards-title">Public boards</h2><span>{profile.publicBoards.length}</span></div>
         {profile.publicBoards.length ? (
           <div className={styles.boardGrid}>
             {profile.publicBoards.map((board) => <BoardCard key={board.id} board={board} actionLabel="View" onOpen={() => onOpenBoard(board)} />)}
           </div>
         ) : (
-          <div className={styles.empty}><strong>No public boards</strong><span>{profile.editable ? "Set a board to public to show it here." : "This person has not published a board."}</span></div>
+          <div className={ui.emptyState}><strong>No public boards</strong><span>{profile.editable ? "Set a board to public to show it here." : "This person has not published a board."}</span></div>
         )}
       </section>
     </div>

@@ -50,7 +50,7 @@
   max-width: 220px;
   overflow: hidden;
   color: #aeb0b4;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 600;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -76,7 +76,7 @@
   z-index: 4;
   padding: 3px 6px;
   color: #101114;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 750;
   line-height: 1;
   white-space: nowrap;
@@ -113,7 +113,7 @@
 
 .boardLabel { align-content: center; gap: 4px; text-align: center; }
 .boardLabel b { font-size: inherit; }
-.boardLabel small { color: currentColor; font-size: 9px; font-weight: 500; opacity: .62; }
+.boardLabel small { color: currentColor; font-size: var(--kumo-text-2xs); font-weight: 500; opacity: .62; }
 .boardLabel small svg { width: 11px; height: 11px; margin: 0 3px -2px 0; }
 .lockedBoardLabel { color: #d9a775; }
 
@@ -194,7 +194,7 @@
   background: rgb(31 32 34 / 0.94);
   border-color: #424448;
   border-style: solid;
-  font: 500 8px/1 "SFMono-Regular", Consolas, monospace;
+  font: 500 var(--kumo-text-2xs)/1 var(--kumo-mono);
   font-variant-numeric: tabular-nums;
   pointer-events: auto;
 }
@@ -209,6 +209,8 @@
 .ruler b {
   position: absolute;
   font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -229,8 +231,8 @@
 }
 
 .horizontalRuler b {
-  top: -10px;
-  left: 0;
+  top: -9px;
+  left: -1px;
   transform: translateX(-50%);
 }
 
@@ -251,11 +253,11 @@
 }
 
 .verticalRuler b {
-  top: 50%;
-  right: 7px;
-  text-orientation: mixed;
-  transform: translateY(-50%);
-  writing-mode: vertical-rl;
+  top: -1px;
+  left: 0;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transform-origin: center;
+  writing-mode: horizontal-tb;
 }
 
 .rulerCorner {
@@ -308,7 +310,7 @@
   color: #fff;
   background: #d62f51;
   border-radius: 3px;
-  font-size: 9px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 650;
   line-height: 1;
   transform: translate(-50%, -50%);
@@ -341,7 +343,7 @@
 .cursorLabel {
   padding: 3px 6px;
   color: #101114;
-  font-size: 11px;
+  font-size: var(--kumo-text-2xs);
   font-weight: 700;
   background: #79c2ff;
   border-radius: 3px;
@@ -366,7 +368,7 @@
 .cursorChatBubble {
   max-width: 240px;
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -406,7 +408,7 @@
   gap: 10px;
   padding: 10px 12px;
   color: #ffd9cf;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   background: #702f24;
   border: 1px solid #a94a37;
   border-radius: 7px;
@@ -423,7 +425,7 @@
   gap: 10px;
   padding: 10px 12px;
   color: #dceeff;
-  font-size: 12px;
+  font-size: var(--kumo-text-xs);
   background: #24425b;
   border: 1px solid #46759a;
   border-radius: 7px;
@@ -445,7 +447,7 @@
   place-items: center;
   padding: 0;
   color: inherit;
-  font-size: 18px;
+  font-size: var(--kumo-text-xl);
   background: transparent;
   border: 0;
 }

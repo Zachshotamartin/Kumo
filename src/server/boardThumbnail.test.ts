@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   updateBoard: vi.fn(),
 }));
 
-vi.mock("../../api/_supabase", () => ({
+vi.mock("../../server/api/_supabase", () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       if (table === "assets") {
@@ -49,7 +49,7 @@ import {
   thumbnailBounds,
   thumbnailDocument,
   updateBoardThumbnail,
-} from "../../api/_boardThumbnail";
+} from "../../server/api/_boardThumbnail";
 
 const document = {
   backgroundColor: "#202124",

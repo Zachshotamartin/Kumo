@@ -6,12 +6,25 @@ for (const file of ["database.rules.json", "firebase.json", "vercel.json", "verc
   jsonFiles.set(file, JSON.parse(readFileSync(file, "utf8")));
 }
 
-const authRewrite = jsonFiles.get("vercel.json")?.rewrites?.[0];
-if (
-  authRewrite?.source !== "/__/auth/:path*" ||
-  authRewrite?.destination !== "https://kumo-7d8e1.firebaseapp.com/__/auth/:path*"
-) {
-  throw new Error("vercel.json must proxy the same-origin Firebase authentication helper first.");
+const vercelRewrites = jsonFiles.get("vercel.json")?.rewrites ?? [];
+const spaRewriteIndex = vercelRewrites.findIndex((rewrite) => rewrite.source === "/(.*)");
+const authRewriteIndex = vercelRewrites.findIndex((rewrite) =>
+  rewrite.source === "/__/auth/:path*" &&
+  rewrite.destination === "https://kumo-7d8e1.firebaseapp.com/__/auth/:path*"
+);
+const apiRewriteIndex = vercelRewrites.findIndex((rewrite) =>
+  rewrite.source === "/api/:path" && rewrite.destination === "/api/router?path=:path"
+);
+if (spaRewriteIndex < 0 || authRewriteIndex < 0 || authRewriteIndex > spaRewriteIndex) {
+  throw new Error("vercel.json must proxy the same-origin Firebase authentication helper before the SPA fallback.");
+}
+if (apiRewriteIndex < 0 || apiRewriteIndex > spaRewriteIndex) {
+  throw new Error("vercel.json must route consolidated API requests before the SPA fallback.");
+}
+if (!jsonFiles.get("vercel.dev.json")?.rewrites?.some((rewrite) =>
+  rewrite.source === "/api/:path" && rewrite.destination === "/api/router?path=:path"
+)) {
+  throw new Error("vercel.dev.json must route consolidated local API requests.");
 }
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
@@ -124,9 +137,9 @@ const requiredDataPaths = [
   ["src/collaboration/LiveblocksRoot.tsx", "/api/liveblocks-auth"],
   ["api/liveblocks-webhook.ts", 'from("document_snapshots")'],
   ["api/liveblocks-webhook.ts", "syncBoardLinks"],
-  ["api/_boardLinks.ts", 'rpc("sync_kumo_board_links"'],
+  ["server/api/_boardLinks.ts", 'rpc("sync_kumo_board_links"'],
   ["src/services/socialRepository.ts", "/api/friends"],
-  ["api/share-board.ts", "friendshipBetween"],
+  ["server/api/handlers/share-board.ts", "friendshipBetween"],
 ];
 for (const [file, marker] of requiredDataPaths) {
   if (!readFileSync(file, "utf8").includes(marker)) {

@@ -1,8 +1,8 @@
 import { Buffer } from "node:buffer";
-import type { Shape } from "../src/classes/shape.js";
-import { serializeSvg } from "../src/editor/export.js";
-import { normalizeShape, selectionBounds } from "../src/editor/geometry.js";
-import type { Bounds } from "../src/editor/types.js";
+import type { Shape } from "../../src/classes/shape.js";
+import { serializeSvg } from "../../src/editor/export.js";
+import { normalizeShape, selectionBounds } from "../../src/editor/geometry.js";
+import type { Bounds } from "../../src/editor/types.js";
 import { supabaseAdmin } from "./_supabase.js";
 
 const THUMBNAIL_ASPECT_RATIO = 1.55;

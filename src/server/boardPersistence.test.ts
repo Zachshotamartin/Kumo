@@ -4,7 +4,7 @@ import {
   listBoardsForUser,
   provisionBoard,
   searchPublicBoards,
-} from "../../api/_boards";
+} from "../../server/api/_boards";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -15,10 +15,10 @@ const mocks = vi.hoisted(() => ({
   updateBoardThumbnail: vi.fn(),
 }));
 
-vi.mock("../../api/_supabase", () => ({
+vi.mock("../../server/api/_supabase", () => ({
   supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_liveblocks", () => ({
   liveblocksAdmin: () => ({
     createRoom: mocks.createRoom,
     initializeStorageDocument: mocks.initializeStorageDocument,
@@ -27,7 +27,7 @@ vi.mock("../../api/_liveblocks", () => ({
   emptyBoardDocument: () => ({ empty: true }),
   boardDocumentFromJson: (value: unknown) => ({ converted: value }),
 }));
-vi.mock("../../api/_boardThumbnail", () => ({
+vi.mock("../../server/api/_boardThumbnail", () => ({
   boardThumbnailUrls: () => Promise.resolve(new Map()),
   updateBoardThumbnail: mocks.updateBoardThumbnail,
 }));

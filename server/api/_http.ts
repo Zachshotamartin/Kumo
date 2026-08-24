@@ -21,4 +21,3 @@ export const stringQuery = (value: string | string[] | undefined): string =>
 
 export const errorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback;
-

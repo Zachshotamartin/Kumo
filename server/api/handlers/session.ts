@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { allowMethods, errorMessage } from "./_http.js";
-import { ensureActorProfile } from "./_supabase.js";
+import { requireActor } from "../_auth.js";
+import { allowMethods, errorMessage } from "../_http.js";
+import { ensureActorProfile } from "../_supabase.js";
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!allowMethods(request, response, ["POST"])) return;

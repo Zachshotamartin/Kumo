@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireActor } from "./_auth.js";
-import { allowMethods, errorMessage, stringQuery } from "./_http.js";
+import { requireActor } from "../_auth.js";
+import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import {
   PROFILE_COLUMNS,
   friendshipBetween,
@@ -10,8 +10,8 @@ import {
   profileSummary,
   relationshipFor,
   type ProfileRow,
-} from "./_profiles.js";
-import { ensureActorProfile, supabaseAdmin } from "./_supabase.js";
+} from "../_profiles.js";
+import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 
 const actions = new Set(["request", "accept", "decline", "cancel", "remove", "block", "unblock"]);
 const expectedMutationErrors = [

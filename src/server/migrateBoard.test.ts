@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import migrateBoardHandler from "../../api/migrate-board";
+import migrateBoardHandler from "../../server/api/handlers/migrate-board";
 
 const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(),
@@ -13,16 +13,16 @@ const mocks = vi.hoisted(() => ({
   deleteRoom: vi.fn(),
 }));
 
-vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../api/_boards", () => ({
+vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
+vi.mock("../../server/api/_boards", () => ({
   getBoardAccess: mocks.getAccess,
   provisionBoard: mocks.provision,
 }));
-vi.mock("../../api/_firebaseAdmin", () => ({
+vi.mock("../../server/api/_firebaseAdmin", () => ({
   privilegedAdminAuth: () => ({ getUser: mocks.getUser }),
   adminDatabase: () => ({ ref: () => ({ get: async () => mocks.snapshot }) }),
 }));
-vi.mock("../../api/_supabase", () => ({
+vi.mock("../../server/api/_supabase", () => ({
   ensureActorProfile: mocks.ensureProfile,
   supabaseAdmin: () => ({
     from: (table: string) => table === "board_members"
@@ -30,7 +30,7 @@ vi.mock("../../api/_supabase", () => ({
       : { delete: () => ({ eq: mocks.deleteBoard }) },
   }),
 }));
-vi.mock("../../api/_liveblocks", () => ({
+vi.mock("../../server/api/_liveblocks", () => ({
   liveblocksAdmin: () => ({ deleteRoom: mocks.deleteRoom }),
 }));
 
