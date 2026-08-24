@@ -54,6 +54,8 @@ import {
   rewriteShapeAssetIds,
 } from "../services/assetRepository";
 import { AppDispatch, RootState } from "../store";
+import { queueBoardMutation } from "../collaboration/offlineRecovery";
+import { resolveVariableModes } from "../platform/productCapabilities";
 import { applyShapeMutation } from "../collaboration/mutations";
 import {
   createBooleanOperation,
@@ -117,7 +119,9 @@ export const useEditorActions = () => {
         dispatch(setLocalPreviewActive(false));
         return;
       }
-      const normalized = applyDocumentLayout(resolveVariables(synchronizeComponentInstances(nextShapes.map(normalizeShape))));
+      const synchronized = synchronizeComponentInstances(nextShapes.map(normalizeShape));
+      const activeModes = Object.assign({}, ...synchronized.map((shape) => shape.activeVariableModes ?? {}));
+      const normalized = applyDocumentLayout(resolveVariableModes(resolveVariables(synchronized), activeModes));
       if (JSON.stringify(previousShapes) === JSON.stringify(normalized)) {
         dispatch(setLocalPreviewActive(false));
         return;
@@ -157,6 +161,13 @@ export const useEditorActions = () => {
         void updateBoardSettings(board.id, settings)
           .then(() => dispatch(setSaveStatus({ status: "saved" })))
           .catch((error) => {
+            if (typeof navigator !== "undefined" && !navigator.onLine) {
+              queueBoardMutation({
+                id: crypto.randomUUID(), boardId: board.id!, createdAt: Date.now(), kind: "settings", payload: settings,
+              });
+              dispatch(setSaveStatus({ status: "saving", error: null }));
+              return;
+            }
             dispatch(setWhiteboardData(previous));
             dispatch(setSaveStatus({
               status: "error",

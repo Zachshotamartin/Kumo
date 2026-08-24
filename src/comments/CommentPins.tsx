@@ -146,11 +146,12 @@ export const CommentPins = () => {
               collaborators={collaborators}
               focusOnMount
               onCancel={() => dispatch(setCommentDraftAnchor(null))}
-              onSubmit={(value) => {
+              onSubmit={(value, attachments) => {
                 const thread = createThread({
                   body: createCommentBody(value, collaborators),
                   metadata: editor.commentDraftAnchor!,
                   commentMetadata: { source: "canvas" },
+                  attachments,
                 });
                 dispatch(setSelectedThreadId(thread.id));
                 dispatch(setCommentDraftAnchor(null));

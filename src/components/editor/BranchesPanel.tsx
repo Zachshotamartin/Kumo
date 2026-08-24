@@ -7,8 +7,11 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import {
   archiveDesignBranch,
   createDesignBranch,
+  diffDesignBranch,
   listDesignBranches,
   mergeDesignBranch,
+  reviewDesignBranch,
+  type BranchDiffItem,
   type DesignBranch,
 } from "../../services/branchRepository";
 import type { AppDispatch, RootState } from "../../store";
@@ -22,6 +25,9 @@ const BranchesPanel = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmMerge, setConfirmMerge] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  const [diff, setDiff] = useState<BranchDiffItem[]>([]);
+  const [reviewNote, setReviewNote] = useState("");
 
   const load = useCallback(async () => {
     if (!board.id) return;
@@ -90,7 +96,7 @@ const BranchesPanel = () => {
           <div className={styles.branchList}>
             {branches.map((branch) => (
               <div className={styles.branchRow} key={branch.id}>
-                <div><GitBranch aria-hidden="true" /><span><strong>{branch.name}</strong><small>{branch.status} · {new Date(branch.updated_at).toLocaleDateString()}</small></span></div>
+                <div><GitBranch aria-hidden="true" /><span><strong>{branch.name}</strong><small>{branch.status} · {new Date(branch.updated_at).toLocaleDateString()}</small>{(branch.branch_reviews ?? []).map((review) => <small key={review.reviewer_id}>{review.status === "changes-requested" ? "Changes requested" : review.status === "approved" ? "Approved" : "Review requested"}{review.note ? ` · ${review.note}` : ""}</small>)}</span></div>
                 {branch.status === "open" && (
                   <div>
                     <button type="button" disabled={board.activeBranchId === branch.id} onClick={() => enter(branch)}>Open</button>
@@ -105,8 +111,19 @@ const BranchesPanel = () => {
                       if (!board.id) return;
                       void archiveDesignBranch(board.id, branch.id).then(load).catch((caught) => setError(caught instanceof Error ? caught.message : "Archive failed."));
                     }}><Archive aria-hidden="true" /></button>
+                    <button type="button" onClick={() => {
+                      if (!board.id) return;
+                      setReviewing(branch.id);
+                      void diffDesignBranch(board.id, branch.id).then((result) => setDiff(result.diff)).catch((caught) => setError(caught instanceof Error ? caught.message : "Diff failed."));
+                    }}>Review</button>
                   </div>
                 )}
+                {reviewing === branch.id && <div className={styles.branchReview}>
+                  <strong>{diff.length} document changes</strong>
+                  {diff.map((item) => <span key={item.shapeId}>{item.status} · {item.name}</span>)}
+                  <label className={styles.fullField}><span>Review note</span><textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} /></label>
+                  <div className={styles.buttonGrid}><button type="button" onClick={() => { if (!board.id) return; void reviewDesignBranch(board.id, branch.id, "approved", reviewNote).then(() => { setReviewing(null); setError(null); }); }}>Approve</button><button type="button" onClick={() => { if (!board.id) return; void reviewDesignBranch(board.id, branch.id, "changes-requested", reviewNote).then(() => { setReviewing(null); setError(null); }); }}>Request changes</button></div>
+                </div>}
               </div>
             ))}
           </div>

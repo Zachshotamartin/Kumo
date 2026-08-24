@@ -38,6 +38,7 @@ interface EditorState {
   presentationMode: boolean;
   presentationFrameId: string | null;
   currentPageId: string | null;
+  textSelection: { shapeId: string; start: number; end: number } | null;
 }
 
 const initialState: EditorState = {
@@ -63,6 +64,7 @@ const initialState: EditorState = {
   presentationMode: false,
   presentationFrameId: null,
   currentPageId: null,
+  textSelection: null,
 };
 
 const editorSlice = createSlice({
@@ -86,6 +88,7 @@ const editorSlice = createSlice({
       state.measureMode = false;
       state.presentationMode = false;
       state.presentationFrameId = null;
+      state.textSelection = null;
     },
     commitEditorSnapshot: (
       state,
@@ -172,6 +175,9 @@ const editorSlice = createSlice({
       state.editingShapeId = null;
       state.hoveredShapeId = null;
     },
+    setTextSelection: (state, action: PayloadAction<EditorState["textSelection"]>) => {
+      state.textSelection = action.payload;
+    },
   },
 });
 
@@ -197,6 +203,7 @@ export const {
   setPresentationMode,
   setPresentationFrameId,
   setCurrentPageId,
+  setTextSelection,
 } = editorSlice.actions;
 
 export default editorSlice.reducer;

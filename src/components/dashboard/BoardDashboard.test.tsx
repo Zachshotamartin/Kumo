@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer, { login } from "../../features/auth/authSlice";
@@ -17,6 +17,15 @@ const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   friendships: vi.fn(),
   preview: vi.fn(),
+  workspace: vi.fn(),
+  notifications: vi.fn(),
+  templates: vi.fn(),
+  markNotification: vi.fn(),
+  instantiateTemplate: vi.fn(),
+  createFolder: vi.fn(),
+  organize: vi.fn(),
+  redeem: vi.fn(),
+  requestAccess: vi.fn(),
 }));
 
 vi.mock("../../services/boardRepository", () => ({
@@ -29,6 +38,17 @@ vi.mock("../../services/boardRepository", () => ({
 }));
 vi.mock("../../services/socialRepository", () => ({
   listFriendships: mocks.friendships,
+}));
+vi.mock("../../services/productRepository", () => ({
+  loadWorkspaceOverview: mocks.workspace,
+  loadNotifications: mocks.notifications,
+  loadTemplates: mocks.templates,
+  markNotificationRead: mocks.markNotification,
+  instantiateTemplate: mocks.instantiateTemplate,
+  createFolder: mocks.createFolder,
+  organizeBoard: mocks.organize,
+  redeemShareLink: mocks.redeem,
+  requestBoardAccess: mocks.requestAccess,
 }));
 vi.mock("../social/FriendsView", () => ({
   FriendsView: ({ onOpenProfile }: { onOpenProfile: (username: string) => void }) => <div>Friends view <button onClick={() => onOpenProfile("alex")}>Open Alex</button></div>,
@@ -86,6 +106,15 @@ describe("BoardDashboard", () => {
     mocks.signOut.mockResolvedValue(undefined);
     mocks.friendships.mockResolvedValue({ friends: [], incoming: [], outgoing: [], blocked: [] });
     mocks.preview.mockResolvedValue("blob:generated-preview");
+    mocks.workspace.mockResolvedValue({ workspace: { workspace_id: "workspace" }, folders: [], organization: [] });
+    mocks.notifications.mockResolvedValue([]);
+    mocks.templates.mockResolvedValue([]);
+    mocks.markNotification.mockResolvedValue(undefined);
+    mocks.instantiateTemplate.mockResolvedValue({ boardId: "from-template" });
+    mocks.createFolder.mockResolvedValue({ folder: { id: "folder", workspace_id: "workspace", parent_id: null, name: "Research", created_by: "user", created_at: "", updated_at: "" } });
+    mocks.organize.mockImplementation(async (_action: string, boardId: string, payload?: Record<string, unknown>) => ({ organization: { board_id: boardId, workspace_id: "workspace", folder_id: payload?.folderId ?? null, favorite: payload?.favorite ?? false, archived_at: null, trashed_at: null } }));
+    mocks.redeem.mockResolvedValue({ boardId: "shared-link", role: "viewer" });
+    mocks.requestAccess.mockResolvedValue({ id: "request", status: "pending" });
   });
 
   it("opens an access-controlled direct board link after authentication", async () => {
@@ -152,5 +181,67 @@ describe("BoardDashboard", () => {
     mocks.create.mockRejectedValueOnce(new Error("Liveblocks configuration is incomplete"));
     fireEvent.click(screen.getByRole("button", { name: "New board" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Liveblocks configuration is incomplete");
+  });
+
+  it("organizes boards, creates folders, processes inbox items, and instantiates templates", async () => {
+    mocks.workspace.mockResolvedValue({
+      workspace: { workspace_id: "workspace" },
+      folders: [{ id: "existing", workspace_id: "workspace", parent_id: null, name: "Existing", created_by: "user", created_at: "", updated_at: "" }],
+      organization: [
+        { board_id: "mine", workspace_id: "workspace", folder_id: null, favorite: true, archived_at: null, trashed_at: null },
+        { board_id: "shared", workspace_id: "workspace", folder_id: null, favorite: false, archived_at: "2026-08-01", trashed_at: null },
+      ],
+    });
+    mocks.notifications.mockResolvedValue([{ id: "notice", actor_id: "other", board_id: "mine", kind: "access", title: "Access granted", body: "You can edit.", action_url: null, read_at: null, created_at: "2026-08-23" }]);
+    mocks.templates.mockResolvedValue([{ id: "template", owner_id: "user", source_board_id: "mine", name: "Workshop", description: "A reusable workshop", visibility: "private", created_at: "", updated_at: "" }]);
+    renderDashboard();
+    await screen.findByText("My map");
+    await waitFor(() => expect(screen.getByText("1 folder")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove My map from favorites" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive My map" }));
+    fireEvent.change(screen.getByLabelText("Folder for My map"), { target: { value: "existing" } });
+    await waitFor(() => expect(mocks.organize).toHaveBeenCalledTimes(3));
+
+    fireEvent.change(screen.getByLabelText("New folder name"), { target: { value: "Research" } });
+    fireEvent.submit(screen.getByLabelText("New folder name").closest("form")!);
+    await waitFor(() => expect(screen.getByText("2 folders")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: /Inbox/ }));
+    expect(screen.getByText("Access granted")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Access granted/ }));
+    await waitFor(() => expect(mocks.markNotification).toHaveBeenCalledWith("notice"));
+    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+    await waitFor(() => expect(mocks.markNotification).toHaveBeenCalledWith());
+
+    fireEvent.click(screen.getByRole("button", { name: /Templates/ }));
+    expect(screen.getByText("A reusable workshop")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use template" }));
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("from-template"));
+  });
+
+  it("redeems governed links and offers an access request when a direct board is unavailable", async () => {
+    window.history.replaceState({}, "", "/?share=secret-token");
+    renderDashboard();
+    await waitFor(() => expect(mocks.redeem).toHaveBeenCalledWith("secret-token"));
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("shared-link"));
+    expect(new URL(window.location.href).searchParams.has("share")).toBe(false);
+
+    cleanup();
+    vi.clearAllMocks();
+    mocks.list.mockResolvedValue([summary("mine"), summary("shared", "other")]);
+    mocks.workspace.mockResolvedValue({ workspace: { workspace_id: "workspace" }, folders: [], organization: [] });
+    mocks.notifications.mockResolvedValue([]);
+    mocks.templates.mockResolvedValue([]);
+    mocks.friendships.mockResolvedValue({ friends: [], incoming: [], outgoing: [], blocked: [] });
+    mocks.preview.mockResolvedValue("blob:generated-preview");
+    mocks.requestAccess.mockResolvedValue({ id: "request", status: "pending" });
+    window.history.replaceState({}, "", "/?board=restricted");
+    mocks.get.mockRejectedValueOnce(new Error("Board access is required."));
+    renderDashboard();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Board access is required");
+    fireEvent.click(screen.getByRole("button", { name: "Request access" }));
+    await waitFor(() => expect(mocks.requestAccess).toHaveBeenCalledWith("restricted", "viewer", "Please share this board with me."));
+    expect(screen.getByRole("alert")).toHaveTextContent("Access request sent");
   });
 });

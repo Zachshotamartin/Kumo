@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Graph,
+  Bell,
+  Folder,
+  Package,
   MagnifyingGlass,
   Plus,
   SignOut,
@@ -29,8 +32,23 @@ import { ProfileView } from "../social/ProfileView";
 import { BoardCard } from "./BoardCard";
 import styles from "./BoardDashboard.module.css";
 import ui from "../ui/Ui.module.css";
+import {
+  createFolder,
+  instantiateTemplate,
+  loadNotifications,
+  loadTemplates,
+  loadWorkspaceOverview,
+  markNotificationRead,
+  organizeBoard,
+  redeemShareLink,
+  requestBoardAccess,
+  type AccountNotification,
+  type BoardOrganization,
+  type BoardTemplateSummary,
+  type WorkspaceFolder,
+} from "../../services/productRepository";
 
-type DashboardView = "boards" | "friends" | "profile";
+type DashboardView = "boards" | "friends" | "profile" | "inbox" | "templates";
 
 const routeFromLocation = () => {
   const profile = new URL(window.location.href).searchParams.get("profile");
@@ -50,6 +68,13 @@ const BoardDashboard = () => {
   const [view, setView] = useState<DashboardView>(initialRoute.view);
   const [profileUsername, setProfileUsername] = useState<string | null>(initialRoute.profile);
   const [incomingCount, setIncomingCount] = useState(0);
+  const [notifications, setNotifications] = useState<AccountNotification[]>([]);
+  const [templates, setTemplates] = useState<BoardTemplateSummary[]>([]);
+  const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
+  const [organization, setOrganization] = useState<BoardOrganization[]>([]);
+  const [boardFilter, setBoardFilter] = useState<"active" | "favorites" | "archived" | "trash">("active");
+  const [folderName, setFolderName] = useState("");
+  const [requestedBoardId, setRequestedBoardId] = useState<string | null>(null);
   const directLinkHandledRef = useRef(false);
 
   const openBoard = useCallback(async (boardId: string) => {
@@ -63,6 +88,7 @@ const BoardDashboard = () => {
       dispatch(setWhiteboardData(board));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We couldn't open this board.");
+      setRequestedBoardId(boardId);
     }
   }, [dispatch]);
 
@@ -82,6 +108,31 @@ const BoardDashboard = () => {
       });
     return () => { active = false; };
   }, [user.uid]);
+
+  useEffect(() => {
+    if (!user.uid) return;
+    let active = true;
+    void Promise.all([loadWorkspaceOverview(), loadNotifications(), loadTemplates()]).then(([workspace, nextNotifications, nextTemplates]) => {
+      if (!active) return;
+      setFolders(workspace.folders);
+      setOrganization(workspace.organization);
+      setNotifications(nextNotifications);
+      setTemplates(nextTemplates);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user.uid]);
+
+  useEffect(() => {
+    if (!user.uid) return;
+    const token = new URL(window.location.href).searchParams.get("share");
+    if (!token) return;
+    void redeemShareLink(token).then(({ boardId }) => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("share");
+      window.history.replaceState({}, "", url);
+      return openBoard(boardId);
+    }).catch((caught) => setError(caught instanceof Error ? caught.message : "This share link could not be opened."));
+  }, [openBoard, user.uid]);
 
   useEffect(() => {
     if (!user.uid || directLinkHandledRef.current) return;
@@ -143,8 +194,22 @@ const BoardDashboard = () => {
     setView("profile");
   };
 
-  const myBoards = boards.filter((board) => board.ownerId === user.uid);
-  const sharedBoards = boards.filter((board) => board.ownerId !== user.uid);
+  const showSimpleView = (next: "inbox" | "templates") => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("profile");
+    window.history.replaceState({}, "", url);
+    setView(next);
+  };
+
+  const visibleBoards = boards.filter((board) => {
+    const state = organization.find((item) => item.board_id === board.id);
+    if (boardFilter === "favorites") return state?.favorite && !state.trashed_at;
+    if (boardFilter === "archived") return Boolean(state?.archived_at) && !state?.trashed_at;
+    if (boardFilter === "trash") return Boolean(state?.trashed_at);
+    return !state?.archived_at && !state?.trashed_at;
+  });
+  const myBoards = visibleBoards.filter((board) => board.ownerId === user.uid);
+  const sharedBoards = visibleBoards.filter((board) => board.ownerId !== user.uid);
   const publicResults = publicBoards;
 
   const handleCreate = async () => {
@@ -190,6 +255,8 @@ const BoardDashboard = () => {
             Friends
             {incomingCount > 0 && <span className={styles.navBadge} aria-label={`${incomingCount} pending friend requests`}>{incomingCount}</span>}
           </button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "inbox" ? styles.navActive : ""}`} aria-current={view === "inbox" ? "page" : undefined} onClick={() => showSimpleView("inbox")}><Bell aria-hidden="true" /> Inbox{notifications.some((notification) => !notification.read_at) && <span className={styles.navBadge} aria-label="Unread notifications">{notifications.filter((notification) => !notification.read_at).length}</span>}</button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "templates" ? styles.navActive : ""}`} aria-current={view === "templates" ? "page" : undefined} onClick={() => showSimpleView("templates")}><Package aria-hidden="true" /> Templates</button>
         </nav>
         {view === "boards" ? (
           <label className={`${ui.searchControl} ${styles.search}`}>
@@ -218,6 +285,17 @@ const BoardDashboard = () => {
             onOpenBoard={(board) => void openBoard(board.id)}
             onIncomingCountChange={refreshIncomingCount}
           />
+        ) : view === "inbox" ? (
+          <section className={styles.boardSection}>
+            <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h1>Inbox</h1><button type="button" className={`${ui.button} ${ui.buttonGhost}`} onClick={() => void markNotificationRead().then(() => setNotifications((current) => current.map((notification) => ({ ...notification, read_at: notification.read_at ?? new Date().toISOString() }))))}>Mark all read</button></div>
+            <div className={styles.notificationList}>{notifications.map((notification) => <button type="button" key={notification.id} className={!notification.read_at ? styles.unreadNotification : undefined} onClick={() => void markNotificationRead(notification.id).then(() => setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item)))}><Bell aria-hidden="true" /><span><strong>{notification.title}</strong><small>{notification.body}</small></span><time>{new Date(notification.created_at).toLocaleDateString()}</time></button>)}</div>
+            {!notifications.length && <div className={ui.emptyState}><p>Your inbox is clear.</p></div>}
+          </section>
+        ) : view === "templates" ? (
+          <section className={styles.boardSection}>
+            <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h1>Board templates</h1><span>{templates.length}</span></div>
+            <div className={styles.boardGrid}>{templates.map((template) => <article className={styles.boardCard} key={template.id}><div className={styles.templatePreview}><Package aria-hidden="true" /></div><div className={styles.boardMeta}><div><h3>{template.name}</h3><p>{template.description || "Reusable Kumo board"}</p></div><button type="button" className={`${ui.button} ${ui.buttonPrimary}`} onClick={() => void instantiateTemplate(template.id).then(({ boardId }) => openBoard(boardId))}>Use template</button></div></article>)}</div>
+          </section>
         ) : (
           <>
           <section className={styles.hero}>
@@ -232,7 +310,13 @@ const BoardDashboard = () => {
             </button>
           </section>
 
-        {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert">{error}</div>}
+          <section className={styles.workspaceControls} aria-label="Board organization">
+            <div role="group" aria-label="Board filters">{(["active", "favorites", "archived", "trash"] as const).map((filter) => <button type="button" key={filter} className={`${ui.button} ${ui.buttonGhost} ${boardFilter === filter ? styles.navActive : ""}`} aria-pressed={boardFilter === filter} onClick={() => setBoardFilter(filter)}>{filter}</button>)}</div>
+            <form onSubmit={(event) => { event.preventDefault(); if (!folderName.trim()) return; void createFolder(folderName).then(({ folder }) => { setFolders((current) => [...current, folder]); setFolderName(""); }); }}><Folder aria-hidden="true" /><input aria-label="New folder name" placeholder="New folder" value={folderName} onChange={(event) => setFolderName(event.target.value)} /><button type="submit" className={`${ui.button} ${ui.buttonGhost}`}>Add</button></form>
+            {folders.length > 0 && <span>{folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
+          </section>
+
+        {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert"><span>{error}</span>{requestedBoardId && <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => void requestBoardAccess(requestedBoardId, "viewer", "Please share this board with me.").then(() => { setError("Access request sent to the board owner."); setRequestedBoardId(null); }).catch((caught) => setError(caught instanceof Error ? caught.message : "Access request failed."))}>Request access</button>}</div>}
 
         {query.trim() ? (
           <section className={styles.boardSection}>
@@ -260,7 +344,7 @@ const BoardDashboard = () => {
               {loading ? (
                 <div className={styles.skeletonGrid} aria-label="Loading boards">{[0, 1, 2].map((value) => <span key={value} />)}</div>
               ) : myBoards.length > 0 ? (
-                <div className={styles.boardGrid}>{myBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} />)}</div>
+                <div className={styles.boardGrid}>{myBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} organization={organization.find((item) => item.board_id === board.id)} folders={folders} onOrganize={(action, payload) => void organizeBoard(action, board.id, payload).then(({ organization: next }) => setOrganization((current) => [...current.filter((item) => item.board_id !== board.id), next]))} />)}</div>
               ) : (
                 <div className={`${ui.emptyState} ${styles.emptyState}`}>
                   <KumoLogo className={styles.emptyLogo} context="attention" decorative />
@@ -273,7 +357,7 @@ const BoardDashboard = () => {
             {sharedBoards.length > 0 && (
               <section className={styles.boardSection}>
                 <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h2>Shared with me</h2><span>{sharedBoards.length}</span></div>
-                <div className={styles.boardGrid}>{sharedBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} />)}</div>
+                <div className={styles.boardGrid}>{sharedBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} organization={organization.find((item) => item.board_id === board.id)} folders={folders} onOrganize={(action, payload) => void organizeBoard(action, board.id, payload).then(({ organization: next }) => setOrganization((current) => [...current.filter((item) => item.board_id !== board.id), next]))} />)}</div>
               </section>
             )}
           </>

@@ -61,6 +61,7 @@ import {
   setCurrentPageId,
   setEditingShapeId,
   setHoveredShapeId,
+  setTextSelection,
   setViewport,
 } from "../../features/editor/editorSlice";
 import {
@@ -79,6 +80,7 @@ import { TextEditor } from "./TextEditor";
 import { ShapeVectorGraphic } from "./ShapeGraphic";
 import { shapeAppearanceStyle } from "../../editor/shapeAppearance";
 import { SelectionHighlight } from "./SelectionHighlight";
+import { fontFeatureCss, fontVariationCss, textSegments } from "../../platform/productCapabilities";
 
 type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan" | "vector-point";
 
@@ -1440,10 +1442,13 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                         lineHeight: shape.lineHeight ?? 1.2,
                         letterSpacing: `${(shape.letterSpacing ?? 0) * editor.viewport.zoom}px`,
                         textDecoration: shape.textDecoration ?? "none",
+                        fontVariationSettings: fontVariationCss(shape.fontAxes),
+                        fontFeatureSettings: fontFeatureCss(shape.openTypeFeatures),
                       }}
                       value={shape.text ?? ""}
                       onChange={(text) => handleTextChange(shape.id, text)}
                       onBlur={(text) => commitText(shape.id, text)}
+                      onSelectionChange={(start, end) => dispatch(setTextSelection({ shapeId: shape.id, start, end }))}
                     />
                   ) : (
                     <div
@@ -1464,6 +1469,8 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                         lineHeight: shape.lineHeight ?? 1.2,
                         letterSpacing: `${(shape.letterSpacing ?? 0) * editor.viewport.zoom}px`,
                         textDecoration: shape.textDecoration ?? "none",
+                        fontVariationSettings: fontVariationCss(shape.fontAxes),
+                        fontFeatureSettings: fontFeatureCss(shape.openTypeFeatures),
                       }}
                     >
                       <span
@@ -1474,7 +1481,18 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                           overflowWrap: shape.textAutoResize === "auto-width" ? "normal" : "anywhere",
                         }}
                       >
-                        {displayTextLines(shape).map((line, index) => (
+                        {shape.textRuns?.length ? textSegments(shape).map((segment, index) => (
+                          <span
+                            key={`${shape.id}-run-${index}`}
+                            style={{
+                              color: segment.style.color,
+                              fontFamily: segment.style.fontFamily,
+                              fontSize: segment.style.fontSize ? `${segment.style.fontSize * editor.viewport.zoom}px` : undefined,
+                              fontWeight: segment.style.fontWeight,
+                              textDecoration: segment.style.textDecoration,
+                            }}
+                          >{segment.text}</span>
+                        )) : displayTextLines(shape).map((line, index) => (
                           <span
                             key={`${shape.id}-line-${index}`}
                             className={styles.textParagraph}

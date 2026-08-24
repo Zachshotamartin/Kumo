@@ -36,6 +36,22 @@ export const shapeReact = (shape: Shape): string => {
   return `export function ${name}() {\n  return <div className="kumo-${shape.type}">${content}</div>;\n}`;
 };
 
+export const shapeSwiftUI = (shape: Shape): string => {
+  const bounds = shapeBounds(shape);
+  const content = shape.type === "text" ? `Text(${JSON.stringify(shape.text ?? "")})` : "Rectangle()";
+  return `${content}\n  .frame(width: ${Math.round(bounds.width)}, height: ${Math.round(bounds.height)})\n  .foregroundStyle(Color(hex: ${JSON.stringify(shape.color ?? shape.backgroundColor ?? "#000000")}))\n  .position(x: ${Math.round(bounds.x + bounds.width / 2)}, y: ${Math.round(bounds.y + bounds.height / 2)})`;
+};
+
+export const shapeJson = (shape: Shape): string => JSON.stringify({
+  id: shape.id,
+  name: shape.name ?? shape.type,
+  type: shape.type,
+  bounds: shapeBounds(shape),
+  tokens: inspectTokens(shape),
+  accessibility: { role: shape.semanticRole ?? "none", altText: shape.altText ?? null, focusOrder: shape.focusOrder ?? null },
+  status: shape.devStatus ?? "designing",
+}, null, 2);
+
 export const inspectTokens = (shape: Shape) => ({
   colors: [...new Set([shape.backgroundColor, shape.color, shape.borderColor, ...(shape.gradientStops ?? []).map((stop) => stop.color)].filter(Boolean) as string[])],
   typography: shape.type === "text" ? `${shape.fontWeight ?? "normal"} ${shape.fontSize ?? 18}px/${shape.lineHeight ?? 1.2} ${shape.fontFamily ?? "Arial"}` : null,

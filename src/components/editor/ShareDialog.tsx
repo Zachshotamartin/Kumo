@@ -16,6 +16,7 @@ import { AppDispatch, RootState } from "../../store";
 import { ProfileAvatar } from "../social/ProfileAvatar";
 import ui from "../ui/Ui.module.css";
 import styles from "./EditorWorkspace.module.css";
+import { createShareLink, loadAccessRequests, loadShareLinks, resolveAccessRequest, revokeShareLink, type BoardAccessRequest, type GovernedShareLink } from "../../services/productRepository";
 
 interface ShareDialogProps {
   onClose: () => void;
@@ -46,6 +47,11 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   const [friends, setFriends] = useState<SocialProfile[]>([]);
   const [invitingFriendUid, setInvitingFriendUid] = useState<string | null>(null);
   const [plan, setPlan] = useState<BoardSharePlan | null>(null);
+  const [accessRequests, setAccessRequests] = useState<BoardAccessRequest[]>([]);
+  const [allowedDomain, setAllowedDomain] = useState("");
+  const [linkExpiryDays, setLinkExpiryDays] = useState("7");
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [shareLinks, setShareLinks] = useState<GovernedShareLink[]>([]);
   const isOwner = board.role === "owner";
 
   useEffect(() => {
@@ -85,6 +91,17 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
       });
     return () => { active = false; };
   }, [isOwner]);
+
+  useEffect(() => {
+    if (!isOwner || !board.id) return;
+    let active = true;
+    void Promise.all([loadAccessRequests(board.id), loadShareLinks(board.id)]).then(([requests, links]) => {
+      if (!active) return;
+      setAccessRequests(requests ?? []);
+      setShareLinks(links ?? []);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [board.id, isOwner]);
 
   const linkedBoards = useMemo(
     () => plan?.boards.filter((candidate) => candidate.id !== board.id) ?? [],
@@ -258,6 +275,23 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
               </label>
             )}
           </form>
+          <section className={styles.governedShare} aria-labelledby="governed-link-title">
+            <h3 id="governed-link-title">Governed share link</h3>
+            <p>Create an expiring link, optionally restricted to one email domain.</p>
+            <div className={styles.fieldGrid}><label className={styles.field}><span>Expires in days</span><input type="number" min={1} max={365} value={linkExpiryDays} onChange={(event) => setLinkExpiryDays(event.target.value)} /></label><label className={styles.field}><span>Email domain</span><input placeholder="example.com" value={allowedDomain} onChange={(event) => setAllowedDomain(event.target.value)} /></label></div>
+            <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => {
+              if (!board.id) return;
+              const expiresAt = new Date(Date.now() + Math.max(1, Number(linkExpiryDays) || 7) * 86_400_000).toISOString();
+              void createShareLink(board.id, { role, allowedDomain: allowedDomain || undefined, expiresAt }).then(({ token }) => {
+                const url = new URL(window.location.origin);
+                url.searchParams.set("share", token);
+                setGeneratedLink(url.toString());
+              }).catch((caught) => setError(caught instanceof Error ? caught.message : "Share link creation failed."));
+            }}>Create secure link</button>
+            {generatedLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Secure link ready</b><small>{generatedLink}</small></span><button type="button" onClick={() => void navigator.clipboard.writeText(generatedLink)}>Copy</button></div>}
+            {shareLinks.filter((link) => !link.revoked_at).map((link) => <div className={styles.shareLinkRow} key={link.id}><span><LockSimple aria-hidden="true" /><b>{link.role === "editor" ? "Editing" : "Viewing"} link</b><small>{link.allowed_domain ? `@${link.allowed_domain} · ` : ""}{link.expires_at ? `Expires ${new Date(link.expires_at).toLocaleDateString()}` : "No expiry"}{link.last_used_at ? ` · Used ${new Date(link.last_used_at).toLocaleDateString()}` : " · Never used"}</small></span><button type="button" onClick={() => void revokeShareLink(link.id).then(() => setShareLinks((current) => current.map((item) => item.id === link.id ? { ...item, revoked_at: new Date().toISOString() } : item)))}>Revoke</button></div>)}
+          </section>
+          {accessRequests.some((request) => request.status === "pending") && <section className={styles.governedShare}><h3>Access requests</h3>{accessRequests.filter((request) => request.status === "pending").map((request) => <div className={styles.memberRow} key={request.id}><ProfileAvatar name={request.profiles?.display_name ?? request.requester_id} avatarUrl={request.profiles?.avatar_url ?? null} size={30} /><span className={styles.memberIdentity}><strong>{request.profiles?.display_name ?? "Kumo user"}</strong><small>{request.requested_role} · {request.message || "No message"}</small></span><button type="button" onClick={() => void resolveAccessRequest(request.id, "approved").then(() => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "approved" } : item)))}>Approve</button><button type="button" onClick={() => void resolveAccessRequest(request.id, "denied").then(() => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "denied" } : item)))}>Deny</button></div>)}</section>}
           </>
         ) : (
           <p className={`${ui.notice} ${styles.accessNote}`}>Only the board owner can invite or remove collaborators.</p>

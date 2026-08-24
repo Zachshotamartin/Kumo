@@ -14,6 +14,7 @@ interface TextEditorProps {
   verticalAlign: CSSProperties["alignItems"];
   onChange: (value: string) => void;
   onBlur: (value: string) => void;
+  onSelectionChange?: (start: number, end: number) => void;
   autoResize?: "auto-width" | "auto-height" | "fixed";
 }
 
@@ -23,6 +24,7 @@ export const TextEditor = ({
   verticalAlign,
   onChange,
   onBlur,
+  onSelectionChange,
   autoResize = "fixed",
 }: TextEditorProps) => {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -64,6 +66,7 @@ export const TextEditor = ({
         onPointerUp={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
+        onSelect={(event) => onSelectionChange?.(event.currentTarget.selectionStart, event.currentTarget.selectionEnd)}
         onChange={(event) => {
           setDraft(event.target.value);
           onChange(event.target.value);

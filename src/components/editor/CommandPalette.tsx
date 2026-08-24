@@ -52,7 +52,7 @@ const CommandPalette = () => {
 
   const items = useMemo<PaletteItem[]>(() => {
     const pages = documentPages(board.shapes);
-    const panel = (id: "properties" | "assets" | "prototype" | "comments" | "history" | "export" | "inspect" | "branches", label: string): PaletteItem => ({
+    const panel = (id: "properties" | "assets" | "prototype" | "comments" | "history" | "export" | "inspect" | "branches" | "platform", label: string): PaletteItem => ({
       id: `panel-${id}`, label, detail: "Panel", keywords: `${label} panel sidebar`, run: () => dispatch(setRightPanel(id)),
     });
     const tool = (id: "pointer" | "frame" | "rectangle" | "ellipse" | "pen" | "text" | "image" | "board" | "comment", label: string): PaletteItem => ({
@@ -72,7 +72,7 @@ const CommandPalette = () => {
         },
       })),
       panel("properties", "Open properties"), panel("assets", "Open assets"), panel("prototype", "Open prototype"),
-      panel("comments", "Open comments"), panel("history", "Open version history"), panel("export", "Open export"), panel("inspect", "Open developer inspect"), panel("branches", "Open design branches"),
+      panel("comments", "Open comments"), panel("history", "Open version history"), panel("export", "Open export"), panel("inspect", "Open developer inspect"), panel("branches", "Open design branches"), panel("platform", "Open product tools"),
       tool("pointer", "Select"), tool("frame", "Draw frame"), tool("rectangle", "Draw rectangle"),
       tool("ellipse", "Draw ellipse"), tool("pen", "Draw vector path"), tool("text", "Add text"), tool("image", "Add image"),
       tool("board", "Link a board"), tool("comment", "Add comment"),

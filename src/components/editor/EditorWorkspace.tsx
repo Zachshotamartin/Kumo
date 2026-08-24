@@ -16,6 +16,7 @@ import {
   Minus,
   Plus,
   ShareNetwork,
+  Toolbox,
   Presentation,
   SignOut,
   Trash,
@@ -52,6 +53,8 @@ import KumoLogo from "../brand/KumoLogo";
 import ShareDialog from "./ShareDialog";
 import CommandPalette from "./CommandPalette";
 import ui from "../ui/Ui.module.css";
+import { OfflineRecoveryBridge } from "../../collaboration/OfflineRecoveryBridge";
+import { loadProductGraph, type ProductGraph } from "../../services/productRepository";
 
 const CommentsPanel = lazy(() => import("../../comments/CommentsPanel").then((module) => ({ default: module.CommentsPanel })));
 const VersionHistoryPanel = lazy(() => import("../../history/VersionHistoryPanel").then((module) => ({ default: module.VersionHistoryPanel })));
@@ -61,6 +64,7 @@ const PresentationView = lazy(() => import("./PresentationView"));
 const ExportPanel = lazy(() => import("./ExportPanel"));
 const InspectPanel = lazy(() => import("./InspectPanel"));
 const BranchesPanel = lazy(() => import("./BranchesPanel"));
+const ProductPanel = lazy(() => import("./ProductPanel"));
 
 const emptyBoard = {
   shapes: [],
@@ -117,6 +121,7 @@ const EditorWorkspace = () => {
   const boardMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState(board.title ?? "Untitled board");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteGraph, setDeleteGraph] = useState<ProductGraph | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -263,6 +268,7 @@ const EditorWorkspace = () => {
 
   return (
     <main className={styles.workspace}>
+      <OfflineRecoveryBridge connectionStatus={connectionStatus} />
       <header className={styles.topbar}>
         <div className={styles.topbarStart}>
           <button type="button" className={styles.brandButton} onClick={goHome} aria-label="Back to boards">
@@ -382,6 +388,14 @@ const EditorWorkspace = () => {
             <GitBranch aria-hidden="true" />
             <span>Branches</span>
           </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "platform" ? styles.activeTopbarButton : ""}`}
+            onClick={() => dispatch(setRightPanel("platform"))}
+          >
+            <Toolbox aria-hidden="true" />
+            <span>Tools</span>
+          </button>
           <button type="button" className={`${styles.secondaryTopbarButton} ${styles.primaryTopbarButton}`} onClick={() => setShareOpen(true)}>
             <ShareNetwork aria-hidden="true" />
             <span>Share</span>
@@ -396,7 +410,7 @@ const EditorWorkspace = () => {
                 <button type="button" role="menuitem" onClick={() => { dispatch(setRightPanel("history")); setMenuOpen(false); }}>
                   <ClockCounterClockwise aria-hidden="true" /> <span>Version history</span>
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setConfirmDelete(true); setMenuOpen(false); }} disabled={board.role !== "owner"}>
+                <button type="button" role="menuitem" onClick={() => { setConfirmDelete(true); setMenuOpen(false); if (board.id) void loadProductGraph(board.id).then(setDeleteGraph).catch(() => setDeleteGraph(null)); }} disabled={board.role !== "owner"}>
                   <Trash aria-hidden="true" /> <span>Delete board</span>
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); void handleLogout(); }}><SignOut aria-hidden="true" /> <span>Sign out</span></button>
@@ -501,6 +515,8 @@ const EditorWorkspace = () => {
                           ? <InspectPanel />
                           : editor.rightPanel === "branches"
                             ? <BranchesPanel />
+                            : editor.rightPanel === "platform"
+                              ? <ProductPanel />
                             : <InspectorPanel />}
             </Suspense>
           )}
@@ -527,6 +543,7 @@ const EditorWorkspace = () => {
             <span className={styles.dialogEyebrow}>Permanent action</span>
             <h2 id="delete-board-title">Delete “{board.title}”?</h2>
             <p>This removes the board for every collaborator. This action cannot be undone.</p>
+            {deleteGraph && <p className={styles.deleteImpact}>{deleteGraph.incoming.length ? `${deleteGraph.incoming.length} incoming board ${deleteGraph.incoming.length === 1 ? "link will" : "links will"} become broken.` : "No other board links to this board."} {deleteGraph.edges.filter((edge) => edge.sourceId === board.id).length ? `${deleteGraph.edges.filter((edge) => edge.sourceId === board.id).length} outgoing links will be removed.` : ""}</p>}
             <div className={styles.dialogActions}>
               <button type="button" className={ui.button} onClick={() => setConfirmDelete(false)}>Cancel</button>
               <button type="button" className={`${ui.button} ${ui.buttonDanger} ${styles.destructive}`} onClick={handleDelete}>Delete board</button>

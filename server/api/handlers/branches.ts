@@ -27,7 +27,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (request.method === "GET") {
       const { data, error } = await database.from("document_branches")
-        .select("id, board_id, name, room_id, created_by, status, base_checksum, created_at, updated_at, merged_at")
+        .select("id, board_id, name, room_id, created_by, status, base_checksum, created_at, updated_at, merged_at, branch_reviews(reviewer_id,status,note,reviewed_checksum,updated_at)")
         .eq("board_id", boardId)
         .order("updated_at", { ascending: false });
       if (error) throw error;
@@ -71,6 +71,41 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (branchError) throw branchError;
     if (!branch) return response.status(404).json({ error: "Branch not found." });
 
+    if (action === "diff") {
+      const [mainDocument, branchDocument] = await Promise.all([
+        liveblocks.getStorageDocument(access.board.liveblocks_room_id, "json"),
+        liveblocks.getStorageDocument(branch.room_id as string, "json"),
+      ]);
+      const mainNodes = mainDocument.nodes && typeof mainDocument.nodes === "object" ? mainDocument.nodes as Record<string, Record<string, unknown>> : {};
+      const branchNodes = branchDocument.nodes && typeof branchDocument.nodes === "object" ? branchDocument.nodes as Record<string, Record<string, unknown>> : {};
+      const ids = new Set([...Object.keys(mainNodes), ...Object.keys(branchNodes)]);
+      const diff: Array<{ shapeId: string; status: "added" | "removed" | "changed"; name: string }> = [];
+      for (const shapeId of ids) {
+        const mainShape = mainNodes[shapeId];
+        const branchShape = branchNodes[shapeId];
+        if (!mainShape) diff.push({ shapeId, status: "added", name: String(branchShape?.name ?? branchShape?.type ?? shapeId) });
+        else if (!branchShape) diff.push({ shapeId, status: "removed", name: String(mainShape.name ?? mainShape.type ?? shapeId) });
+        else if (JSON.stringify(mainShape) !== JSON.stringify(branchShape)) diff.push({ shapeId, status: "changed", name: String(branchShape.name ?? branchShape.type ?? shapeId) });
+      }
+      return response.status(200).json({ diff });
+    }
+
+    if (action === "review") {
+      const status = request.body?.status === "approved" ? "approved" : request.body?.status === "changes-requested" ? "changes-requested" : null;
+      if (!status) return response.status(400).json({ error: "A valid review status is required." });
+      const reviewedDocument = await liveblocks.getStorageDocument(branch.room_id as string, "json");
+      const { error } = await database.from("branch_reviews").upsert({
+        branch_id: branchId,
+        reviewer_id: actor.uid,
+        status,
+        note: String(request.body?.note ?? "").slice(0, 1000),
+        reviewed_checksum: checksum(reviewedDocument),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "branch_id,reviewer_id" });
+      if (error) throw error;
+      return response.status(200).json({ reviewed: true, status });
+    }
+
     if (action === "archive") {
       if (branch.status !== "open") return response.status(409).json({ error: "Only open branches can be archived." });
       const { error } = await database.from("document_branches").update({ status: "archived", updated_at: new Date().toISOString() }).eq("id", branchId);
@@ -89,6 +124,17 @@ export default async function handler(request: VercelRequest, response: VercelRe
           code: "BRANCH_BASE_DIVERGED",
         });
       }
+      const { data: reviews, error: reviewError } = await database.from("branch_reviews")
+        .select("reviewer_id, status, reviewed_checksum")
+        .eq("branch_id", branchId);
+      if (reviewError) throw reviewError;
+      const branchChecksum = checksum(branchDocument);
+      const blockingReviews = (reviews ?? []).filter((review) => review.status === "changes-requested" && (!review.reviewed_checksum || review.reviewed_checksum === branchChecksum));
+      if (blockingReviews.length) return response.status(409).json({
+        error: "Resolve the requested branch changes before merging.",
+        code: "BRANCH_CHANGES_REQUESTED",
+        reviewers: blockingReviews.map((review) => review.reviewer_id),
+      });
       const { data: checkpoint, error: checkpointError } = await database.from("document_snapshots").insert({
         board_id: boardId, liveblocks_room_id: access.board.liveblocks_room_id, document: current,
         checksum: checksum(current), name: `Before merging ${branch.name}`, description: `Automatic recovery point for branch ${branchId}.`,

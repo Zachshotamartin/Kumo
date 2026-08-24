@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle, ChatCenteredText, Funnel, X } from "@phosphor-icons/react";
+import { CheckCircle, ChatCenteredText, Funnel, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useMarkThreadAsRead, useThreads } from "@liveblocks/react/suspense";
 import { useDispatch, useSelector } from "react-redux";
 import { setRightPanel, setSelectedThreadId, setViewport } from "../features/editor/editorSlice";
 import type { AppDispatch, RootState } from "../store";
 import { useBoardCollaborators } from "./useBoardCollaborators";
 import { CommentThread } from "./CommentThread";
+import { commentBodyText } from "./commentBody";
 import ui from "../components/ui/Ui.module.css";
 import styles from "./Comments.module.css";
 
@@ -20,10 +21,14 @@ export const CommentsPanel = () => {
   const markThreadAsRead = useMarkThreadAsRead();
   const { collaborators, error } = useBoardCollaborators(board.id);
   const [filter, setFilter] = useState<ThreadFilter>("open");
+  const [query, setQuery] = useState("");
+  const [assigneeId, setAssigneeId] = useState("all");
 
   const visibleThreads = useMemo(() => threads
     .filter((thread) => filter === "all" || thread.resolved === (filter === "resolved"))
-    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime()), [filter, threads]);
+    .filter((thread) => assigneeId === "all" || (assigneeId === "unassigned" ? !thread.metadata.assigneeId : thread.metadata.assigneeId === assigneeId))
+    .filter((thread) => !query.trim() || thread.comments.some((comment) => comment.body && commentBodyText(comment.body, collaborators).toLowerCase().includes(query.trim().toLowerCase())))
+    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime()), [assigneeId, collaborators, filter, query, threads]);
 
   useEffect(() => {
     if (editor.selectedThreadId) markThreadAsRead(editor.selectedThreadId);
@@ -58,6 +63,10 @@ export const CommentsPanel = () => {
             {value[0]!.toUpperCase() + value.slice(1)}
           </button>
         ))}
+      </div>
+      <div className={styles.commentSearch}>
+        <label><MagnifyingGlass aria-hidden="true" /><input type="search" aria-label="Search comments" value={query} placeholder="Search feedback" onChange={(event) => setQuery(event.currentTarget.value)} /></label>
+        <select aria-label="Filter comments by assignee" value={assigneeId} onChange={(event) => setAssigneeId(event.currentTarget.value)}><option value="all">All assignees</option><option value="unassigned">Unassigned</option>{collaborators.map((person) => <option key={person.id} value={person.id}>{person.id === currentUserId ? "Assigned to me" : person.name}</option>)}</select>
       </div>
       {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.panelError}`} role="alert">{error}</p>}
       <div className={styles.threadList}>

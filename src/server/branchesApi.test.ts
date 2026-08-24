@@ -87,6 +87,7 @@ describe("design branch API", () => {
       if (table === "document_branches") return {
         select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }),
       };
+      if (table === "branch_reviews") return { select: () => ({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) };
       if (table === "document_snapshots") return { insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "checkpoint" }, error: null }) }) }) };
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
@@ -125,6 +126,7 @@ describe("design branch API", () => {
     }));
     mocks.from.mockImplementation((table: string) => {
       if (table === "document_branches") return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }) };
+      if (table === "branch_reviews") return { select: () => ({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) };
       if (table === "document_snapshots") return { insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "checkpoint" }, error: null }) }) }) };
       return {};
     });
@@ -148,6 +150,34 @@ describe("design branch API", () => {
     const reply = response();
     await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), reply);
     expect(reply.statusCode).toBe(409);
+    expect(mocks.deleteStorage).not.toHaveBeenCalled();
+  });
+
+  it("records reviews against the branch checksum and blocks unresolved requested changes", async () => {
+    const current = { backgroundColor: "#000", nodes: {} };
+    const next = { backgroundColor: "#fff", nodes: { branch: { id: "branch" } } };
+    const nextChecksum = createHash("sha256").update(JSON.stringify(next)).digest("hex");
+    const branch = { id: "branch", board_id: "board", name: "Exploration", room_id: "branch:branch", status: "open", base_checksum: createHash("sha256").update(JSON.stringify(current)).digest("hex") };
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    mocks.getDocument.mockImplementation(async (room: string) => room === "branch:branch" ? next : current);
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "document_branches") return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: branch, error: null }) }) }) }) };
+      if (table === "branch_reviews") return {
+        upsert,
+        select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ reviewer_id: "reviewer", status: "changes-requested", reviewed_checksum: nextChecksum }], error: null }) }),
+      };
+      return {};
+    });
+
+    const reviewed = response();
+    await handler(request("POST", { action: "review", boardId: "board", branchId: "branch", status: "changes-requested", note: "Fix alignment" }), reviewed);
+    expect(reviewed.statusCode).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ reviewed_checksum: nextChecksum, note: "Fix alignment" }), expect.any(Object));
+
+    const merge = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), merge);
+    expect(merge.statusCode).toBe(409);
+    expect(merge.body).toMatchObject({ code: "BRANCH_CHANGES_REQUESTED", reviewers: ["reviewer"] });
     expect(mocks.deleteStorage).not.toHaveBeenCalled();
   });
 });

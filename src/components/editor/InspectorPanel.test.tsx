@@ -329,17 +329,46 @@ describe("InspectorPanel", () => {
     fireEvent.change(screen.getByLabelText("Indent"), { target: { value: "16" } });
     fireEvent.change(screen.getByLabelText("Case"), { target: { value: "upper" } });
     fireEvent.change(screen.getByLabelText("List"), { target: { value: "bulleted" } });
+    fireEvent.change(screen.getByLabelText("Variable weight"), { target: { value: "650" } });
+    fireEvent.change(screen.getByLabelText("Variable width"), { target: { value: "90" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ligatures" }));
     fireEvent.change(screen.getByLabelText("Positioning"), { target: { value: "absolute" } });
     fireEvent.change(screen.getByLabelText("Horizontal"), { target: { value: "left-right" } });
     fireEvent.change(screen.getByLabelText("Vertical"), { target: { value: "top-bottom" } });
     fireEvent.change(screen.getByLabelText("Grow"), { target: { value: "1" } });
     expect(actions.patchSelected).toHaveBeenCalledWith({ textAutoResize: "auto-height" });
     expect(actions.patchSelected).toHaveBeenCalledWith({ constraintHorizontal: "left-right" });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ fontAxes: { wght: 650 } });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ openTypeFeatures: { liga: false } });
 
-    const vector = rectangle("vector", { type: "vector", vectorPoints: [{ id: "node", x: 0, y: 0 }], vectorClosed: false });
+    const vector = rectangle("vector", { type: "vector", vectorPoints: [{ id: "a", x: 0, y: 0 }, { id: "b", x: 20, y: 20 }, { id: "c", x: 40, y: 0 }], vectorPaths: [{ id: "path", pointIds: ["a", "b", "c"], closed: false }], vectorClosed: false });
     const vectorInspector = renderInspector([vector], [vector.id]);
     fireEvent.click(screen.getByRole("checkbox", { name: "Closed path" }));
+    fireEvent.change(screen.getByLabelText("Cap"), { target: { value: "round" } });
+    fireEvent.change(screen.getByLabelText("Join"), { target: { value: "bevel" } });
+    fireEvent.change(screen.getByLabelText("Align"), { target: { value: "inside" } });
+    fireEvent.change(screen.getByLabelText("Stroke dash pattern"), { target: { value: "8, 4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add vector branch" }));
     expect(vectorInspector.actions.patchSelected).toHaveBeenCalledWith({ vectorClosed: true });
+    expect(vectorInspector.actions.patchSelected).toHaveBeenCalledWith({ strokeDash: [8, 4] });
+    expect(vectorInspector.actions.commitShapes).toHaveBeenCalledWith([expect.objectContaining({ vectorPaths: expect.arrayContaining([expect.objectContaining({ pointIds: expect.arrayContaining(["a"]) })]) })]);
+  });
+
+  it("crops and filters images and records accessibility and handoff metadata", () => {
+    const image = rectangle("image", { type: "image", imageFit: "crop", semanticRole: "image", backgroundImage: "data:image/png;base64,a" });
+    const { actions } = renderInspector([image], [image.id]);
+    fireEvent.change(screen.getByLabelText("Crop X %"), { target: { value: "25" } });
+    fireEvent.change(screen.getByLabelText("Crop width %"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("Brightness"), { target: { value: "1.2" } });
+    fireEvent.change(screen.getByLabelText("Alternative text"), { target: { value: "A product concept" } });
+    fireEvent.change(screen.getByLabelText("Focus order"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "ready" } });
+    fireEvent.change(screen.getByLabelText("Annotation"), { target: { value: "Use ProductImage" } });
+    fireEvent.change(screen.getByLabelText("Code component URL"), { target: { value: "https://example.com/component" } });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ imageCrop: { x: 0.25, y: 0, width: 1, height: 1 } });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ imageFilters: { brightness: 1.2, contrast: 1, saturation: 1, blur: 0 } });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ altText: "A product concept" });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ devStatus: "ready" });
   });
 
   it("releases boolean groups and masks and routes every multi-selection combine command", () => {

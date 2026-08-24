@@ -1,5 +1,5 @@
 import type { Shape } from "../classes/shape";
-import { inspectTokens, shapeCss, shapeReact } from "./handoff";
+import { inspectTokens, shapeCss, shapeJson, shapeReact, shapeSwiftUI } from "./handoff";
 
 const shape: Shape = {
   id: "text", type: "text", name: "Hero title", text: "Build <together>",
@@ -25,5 +25,14 @@ describe("developer handoff", () => {
     const output = shapeReact({ ...shape, name: "123 card", text: "Hello {danger}" });
     expect(output).toContain("function Layer123Card");
     expect(output).toContain("Hello &#123;danger&#125;");
+  });
+
+  it("generates SwiftUI and structured handoff JSON with accessibility and readiness", () => {
+    const ready = { ...shape, semanticRole: "heading" as const, altText: "Hero", focusOrder: 1, devStatus: "ready" as const };
+    expect(shapeSwiftUI(ready)).toContain("Text(\"Build <together>\")");
+    expect(shapeSwiftUI(ready)).toContain(".frame(width: 200, height: 60)");
+    expect(JSON.parse(shapeJson(ready))).toMatchObject({
+      id: "text", status: "ready", accessibility: { role: "heading", altText: "Hero", focusOrder: 1 },
+    });
   });
 });

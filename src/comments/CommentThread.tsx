@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CommentBody, CommentData, ThreadData } from "@liveblocks/client";
+import type { CommentAttachment, CommentBody, CommentData, ThreadData } from "@liveblocks/client";
 import {
   Check,
   Eye,
@@ -13,6 +13,8 @@ import {
   useDeleteComment,
   useDeleteThread,
   useEditComment,
+  useEditThreadMetadata,
+  useAttachmentUrl,
   useMarkThreadAsResolved,
   useMarkThreadAsUnresolved,
   useRemoveReaction,
@@ -50,6 +52,13 @@ const CommentBodyView = ({ body, collaborators }: {
   </div>
 );
 
+const CommentAttachmentView = ({ attachment }: { attachment: CommentAttachment }) => {
+  const result = useAttachmentUrl(attachment.id);
+  if (result.isLoading) return <span className={styles.attachment}>Loading {attachment.name}…</span>;
+  if (result.error) return <span className={styles.attachmentError}>{attachment.name} unavailable</span>;
+  return <a className={styles.attachment} href={result.url} target="_blank" rel="noreferrer" download={attachment.name}>{attachment.mimeType.startsWith("image/") && <img src={result.url} alt="" />}<span>{attachment.name}<small>{Math.max(1, Math.round(attachment.size / 1024))} KB</small></span></a>;
+};
+
 const CommentItem = ({ comment, collaborators, currentUserId }: {
   comment: CommentData;
   collaborators: BoardCollaborator[];
@@ -84,16 +93,18 @@ const CommentItem = ({ comment, collaborators, currentUserId }: {
           submitLabel="Save"
           focusOnMount
           onCancel={() => setEditing(false)}
-          onSubmit={(value) => {
+          onSubmit={(value, attachments) => {
             editComment({
               threadId: comment.threadId,
               commentId: comment.id,
               body: createCommentBody(value, collaborators),
+              attachments: [...comment.attachments, ...attachments],
             });
             setEditing(false);
           }}
         />
       ) : <CommentBodyView body={body} collaborators={collaborators} />}
+      {comment.attachments.length > 0 && <div className={styles.attachments}>{comment.attachments.map((attachment) => <CommentAttachmentView key={attachment.id} attachment={attachment} />)}</div>}
       <div className={styles.reactions}>
         {reactionOptions.map(({ value, label, Icon }) => {
           const reaction = comment.reactions.find((item) => item.emoji === value);
@@ -130,6 +141,7 @@ export const CommentThread = ({ thread, collaborators, currentUserId, selected =
   const deleteThread = useDeleteThread();
   const resolveThread = useMarkThreadAsResolved();
   const reopenThread = useMarkThreadAsUnresolved();
+  const editThreadMetadata = useEditThreadMetadata();
   const firstAuthor = thread.comments[0]?.userId;
 
   return (
@@ -144,6 +156,11 @@ export const CommentThread = ({ thread, collaborators, currentUserId, selected =
           <button type="button" aria-label="Delete thread" onClick={() => deleteThread(thread.id)}><Trash aria-hidden="true" /></button>
         )}
       </div>
+      <div className={styles.threadMetadata}>
+        <label>Assignee<select aria-label="Comment assignee" value={thread.metadata.assigneeId ?? ""} onChange={(event) => editThreadMetadata({ threadId: thread.id, metadata: { assigneeId: event.currentTarget.value || undefined } })}><option value="">Unassigned</option>{collaborators.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
+        <label>Priority<select aria-label="Comment priority" value={thread.metadata.priority ?? "normal"} onChange={(event) => editThreadMetadata({ threadId: thread.id, metadata: { priority: event.currentTarget.value as "low" | "normal" | "high" } })}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label>
+        <label>Due<input aria-label="Comment due date" type="date" value={thread.metadata.dueAt?.slice(0, 10) ?? ""} onChange={(event) => editThreadMetadata({ threadId: thread.id, metadata: { dueAt: event.currentTarget.value || undefined } })} /></label>
+      </div>
       {thread.comments.map((comment) => (
         <CommentItem key={comment.id} comment={comment} collaborators={collaborators} currentUserId={currentUserId} />
       ))}
@@ -153,11 +170,12 @@ export const CommentThread = ({ thread, collaborators, currentUserId, selected =
           focusOnMount
           submitLabel="Reply"
           onCancel={() => setReplying(false)}
-          onSubmit={(value) => {
+          onSubmit={(value, attachments) => {
             createComment({
               threadId: thread.id,
               body: createCommentBody(value, collaborators),
               metadata: { source: "canvas" },
+              attachments,
             });
             setReplying(false);
           }}
