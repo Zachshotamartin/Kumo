@@ -52,4 +52,16 @@ describe("production database migrations", () => {
     expect(source).toContain("linkedShare");
     expect(source).toContain("to service_role");
   });
+
+  it("adds stable profiles and a canonical friendship state machine", () => {
+    const source = migration("202608240001_friends_profiles.sql");
+    expect(source).toContain("create type public.friendship_status as enum ('pending', 'accepted', 'blocked')");
+    expect(source).toContain("primary key (user_low_id, user_high_id)");
+    expect(source).toContain("check (user_low_id < user_high_id)");
+    expect(source).toContain("ensure_kumo_profile");
+    expect(source).toContain("mutate_kumo_friendship");
+    expect(source).toContain("friends_of_friends");
+    expect(source).toContain("grant execute on function public.mutate_kumo_friendship");
+    expect(source).toContain("to service_role");
+  });
 });

@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   sharePlan: vi.fn(),
   membershipBoardIds: vi.fn(),
+  friendshipBetween: vi.fn(),
 }));
 
 vi.mock("../../api/_auth", () => ({ requireActor: mocks.requireActor }));
@@ -30,6 +31,7 @@ vi.mock("../../api/_boardSharing", () => ({
   linkedBoardSharePlan: mocks.sharePlan,
   membershipBoardIds: mocks.membershipBoardIds,
 }));
+vi.mock("../../api/_profiles", () => ({ friendshipBetween: mocks.friendshipBetween }));
 vi.mock("../../api/_liveblocks", () => ({
   liveblocksAdmin: () => ({
     prepareSession: () => ({ allow: mocks.allow, authorize: mocks.authorize }),
@@ -77,10 +79,17 @@ describe("sharing, session, and Liveblocks API handlers", () => {
       ],
     });
     mocks.membershipBoardIds.mockResolvedValue(new Set(["board", "linked"]));
+    mocks.friendshipBetween.mockResolvedValue({ status: "accepted" });
     mocks.from.mockImplementation((table: string) => {
       if (table === "profiles") {
         return {
           select: () => ({
+            eq: () => ({
+              maybeSingle: vi.fn().mockImplementation(async () => ({
+                data: mocks.invitedProfile,
+                error: null,
+              })),
+            }),
             ilike: () => ({
               maybeSingle: vi.fn().mockImplementation(async () => ({
                 data: mocks.invitedProfile,
@@ -103,6 +112,35 @@ describe("sharing, session, and Liveblocks API handlers", () => {
       }
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
+  });
+
+  it("shares directly with accepted friends and rejects unaccepted profile IDs", async () => {
+    const invited = response();
+    await shareBoardHandler(request({
+      boardId: "board", action: "invite", friendUid: "member", role: "editor",
+    }), invited);
+    expect(mocks.friendshipBetween).toHaveBeenCalledWith("owner", "member");
+    expect(invited.statusCode).toBe(200);
+    expect(invited.body).toEqual(expect.objectContaining({ uid: "member", role: "editor" }));
+
+    mocks.friendshipBetween.mockResolvedValueOnce(null);
+    const denied = response();
+    await shareBoardHandler(request({
+      boardId: "board", action: "invite", friendUid: "stranger", role: "viewer",
+    }), denied);
+    expect(denied.statusCode).toBe(403);
+    expect(denied.body).toEqual({ error: expect.stringContaining("accepted friends") });
+  });
+
+  it("does not let email invitations bypass either person's block", async () => {
+    mocks.friendshipBetween.mockResolvedValueOnce({ status: "blocked" });
+    const denied = response();
+    await shareBoardHandler(request({
+      boardId: "board", action: "invite", email: "member@example.com", role: "viewer",
+    }), denied);
+    expect(denied.statusCode).toBe(403);
+    expect(denied.body).toEqual({ error: "This profile cannot be invited." });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("invites and removes board collaborators", async () => {

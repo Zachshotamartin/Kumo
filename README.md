@@ -19,6 +19,7 @@ The interactive logo runtime is self-hosted at `public/embed/kumo-logo.js`, buil
 - Canvas- or layer-anchored movable live comments, mentions, replies, reactions, resolution, presence, following, and spotlight
 - Named checkpoints, visual version previews, recovery-point restores, and isolated design branches
 - Owner/editor/viewer roles, access-aware board links, transactional connected-board sharing, soft same-object ownership, remote cursors, and ephemeral `/` cursor chat
+- Editable profiles, privacy controls, friend requests, blocking, profile discovery, and direct board sharing with accepted friends
 - Private/public boards, public-board discovery, board copying, and legacy-board migration
 - Responsive authentication, dashboard, and editor layouts
 
@@ -70,7 +71,7 @@ yarn test:e2e
 
 ## Data migrations
 
-Supabase owns board metadata, membership, assets, links, audit events, version snapshots, and design-branch records. Liveblocks owns the current collaborative document, presence, and comment threads. Apply the checked-in migrations in filename order before deploying API code that depends on them. Migrations are idempotent and `document_branches.board_id` intentionally matches the text primary key used by `boards.id`. Connected-board membership changes use the owner-validating `share_kumo_board_set` and `remove_kumo_board_member_set` transactions; the API derives the graph rather than accepting board IDs from the browser.
+Supabase owns profiles, friendships, board metadata, membership, assets, links, audit events, version snapshots, and design-branch records. Liveblocks owns the current collaborative document, presence, and comment threads. Apply the checked-in migrations in filename order before deploying API code that depends on them. Migrations are idempotent and `document_branches.board_id` intentionally matches the text primary key used by `boards.id`. Connected-board membership changes use the owner-validating `share_kumo_board_set` and `remove_kumo_board_member_set` transactions; the API derives the graph rather than accepting board IDs from the browser. Friendship changes use one canonical pair row and the locked `mutate_kumo_friendship` transaction. Friendship never grants or revokes board access by itself.
 
 ## Deployment
 

@@ -15,7 +15,7 @@
   z-index: 20;
   display: grid;
   min-height: 66px;
-  grid-template-columns: 1fr minmax(240px, 520px) 1fr;
+  grid-template-columns: auto auto minmax(220px, 520px) minmax(210px, 1fr);
   align-items: center;
   gap: 24px;
   padding: 0 28px;
@@ -33,10 +33,75 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   text-decoration: none;
+  background: transparent;
+  border: 0;
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--kumo-accent);
+  outline-offset: 5px;
 }
 
 .brandLogo { width: 38px; }
 .brandName { font-size: 15px; }
+
+.primaryNav {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding-left: 8px;
+  border-left: 1px solid #38393d;
+}
+
+.primaryNav button {
+  position: relative;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: #8f908b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+  border-radius: var(--kumo-radius-control);
+}
+
+.primaryNav button:hover,
+.primaryNav button:focus-visible,
+.primaryNav .navActive {
+  color: var(--kumo-ink);
+  background: #2b2c2f;
+  outline: none;
+}
+
+.primaryNav .navActive::after {
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  left: 10px;
+  height: 2px;
+  content: "";
+  background: var(--kumo-accent);
+  border-radius: 2px;
+}
+
+.navBadge {
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0 5px;
+  color: #18191b;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  background: var(--kumo-accent-hover);
+  border-radius: 9px;
+}
+
+.headerSpacer { min-width: 0; }
 
 .search {
   display: grid;
@@ -84,7 +149,6 @@
   white-space: nowrap;
 }
 
-.account button,
 .sectionHeading span,
 .boardMeta button {
   color: inherit;
@@ -92,20 +156,28 @@
   border: 0;
 }
 
-.account button {
+.profileButton,
+.signOutButton {
   display: inline-flex;
   min-height: 36px;
   align-items: center;
   gap: 7px;
   padding: 0 8px;
   color: #b8b7b1;
+  background: transparent;
+  border: 0;
   border-radius: 5px;
 }
 
-.account button svg { width: 16px; height: 16px; }
+.profileButton { min-width: 0; }
+.profileButton > span { max-width: 150px; }
+.profileButton > svg,
+.signOutButton svg { width: 16px; height: 16px; }
 
-.account button:hover,
-.account button:focus-visible {
+.profileButton:hover,
+.profileButton:focus-visible,
+.signOutButton:hover,
+.signOutButton:focus-visible {
   color: var(--kumo-ink);
   background: #2c2d30;
   outline: none;
@@ -387,6 +459,8 @@
 }
 
 @media (max-width: 1000px) {
+  .header { grid-template-columns: auto auto minmax(180px, 1fr) auto; gap: 14px; }
+  .profileButton > span { display: none; }
   .boardGrid,
   .skeletonGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -398,9 +472,12 @@
     padding: 10px 14px;
   }
 
-  .account > span { display: none; }
-  .account button span { display: none; }
-  .account button { width: 38px; justify-content: center; padding: 0; }
+  .primaryNav { justify-self: center; }
+  .search,
+  .headerSpacer { display: none; }
+  .account { gap: 2px; }
+  .signOutButton span { display: none; }
+  .signOutButton { width: 38px; justify-content: center; padding: 0; }
   .brandName { display: none; }
   .content { width: min(100% - 28px, 1340px); padding-top: 42px; }
   .hero { align-items: flex-start; flex-direction: column; }

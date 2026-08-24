@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   plan: vi.fn(),
   invite: vi.fn(),
+  inviteFriend: vi.fn(),
+  friendships: vi.fn(),
   remove: vi.fn(),
   clipboard: vi.fn(),
 }));
@@ -20,8 +22,10 @@ vi.mock("../../services/collaboratorRepository", () => ({
   listBoardCollaborators: mocks.list,
   getBoardSharePlan: mocks.plan,
   inviteBoardCollaborator: mocks.invite,
+  inviteBoardFriend: mocks.inviteFriend,
   removeBoardCollaborator: mocks.remove,
 }));
+vi.mock("../../services/socialRepository", () => ({ listFriendships: mocks.friendships }));
 
 const linkedPlan = {
   truncated: false,
@@ -63,11 +67,29 @@ describe("ShareDialog", () => {
     mocks.plan.mockResolvedValue(linkedPlan);
     mocks.invite.mockResolvedValue({
       uid: "new", email: "new@example.com", role: "editor",
+      name: "New person", avatar: null,
       sharedBoards: linkedPlan.boards.slice(0, 2), unavailableBoards: linkedPlan.boards.slice(2),
+    });
+    mocks.inviteFriend.mockResolvedValue({
+      uid: "friend", email: "friend@example.com", name: "Alex", avatar: null, role: "editor",
+      sharedBoards: linkedPlan.boards.slice(0, 2), unavailableBoards: [],
+    });
+    mocks.friendships.mockResolvedValue({
+      friends: [{ id: "friend", displayName: "Alex", username: "alex", bio: "", avatarUrl: null, relationship: "friend" }],
+      incoming: [], outgoing: [], blocked: [],
     });
     mocks.remove.mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: mocks.clipboard } });
     mocks.clipboard.mockResolvedValue(undefined);
+  });
+
+  it("shares with an accepted friend without requiring their email", async () => {
+    const { store } = renderDialog();
+    const shareButton = await screen.findByRole("button", { name: "Share as editor" });
+    fireEvent.click(shareButton);
+    await waitFor(() => expect(mocks.inviteFriend).toHaveBeenCalledWith("board", "friend", "editor", true));
+    expect(store.getState().whiteBoard.members.friend).toBe("editor");
+    expect(screen.getByRole("status")).toHaveTextContent("Alex can now edit 2 connected boards");
   });
 
   it("shows the linked access plan, shares managed destinations, and removes collaborators", async () => {

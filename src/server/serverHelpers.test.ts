@@ -6,7 +6,7 @@ import { ensureActorProfile, supabaseAdmin } from "../../api/_supabase";
 const mocks = vi.hoisted(() => ({
   verify: vi.fn(),
   createClient: vi.fn(),
-  upsert: vi.fn(),
+  rpc: vi.fn(),
   Liveblocks: vi.fn(function MockLiveblocks(this: { secret?: string }, options: { secret: string }) {
     this.secret = options.secret;
   }),
@@ -20,9 +20,21 @@ describe("server clients and document helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.verify.mockResolvedValue({ uid: "actor" });
-    mocks.upsert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({
+      data: {
+        firebase_uid: "actor",
+        email: "user@example.com",
+        display_name: "User",
+        avatar_url: null,
+        username: "user-123456789012",
+        bio: "",
+        discoverable: true,
+        friend_request_policy: "everyone",
+      },
+      error: null,
+    });
     mocks.createClient.mockReturnValue({
-      from: () => ({ upsert: mocks.upsert }),
+      rpc: mocks.rpc,
     });
   });
 
@@ -45,7 +57,7 @@ describe("server clients and document helpers", () => {
     expect(boardDocumentFromJson(null)).toMatchObject({ data: { backgroundColor: "#252629" } });
   });
 
-  it("validates and caches server clients while upserting normalized profiles", async () => {
+  it("validates and caches server clients while ensuring normalized profiles", async () => {
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     expect(() => supabaseAdmin()).toThrow("Supabase server environment variables are incomplete");
@@ -54,9 +66,11 @@ describe("server clients and document helpers", () => {
     expect(supabaseAdmin()).toBeTruthy();
     await expect(ensureActorProfile({ uid: "actor", email: " USER@Example.com ", name: "  User  " }))
       .resolves.toMatchObject({ uid: "actor", email: "user@example.com", displayName: "User" });
-    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ firebase_uid: "actor" }), {
-      onConflict: "firebase_uid",
-    });
+    expect(mocks.rpc).toHaveBeenCalledWith("ensure_kumo_profile", expect.objectContaining({
+      p_firebase_uid: "actor",
+      p_email: "user@example.com",
+      p_default_display_name: "User",
+    }));
 
     delete process.env.LIVEBLOCKS_SECRET_KEY;
     expect(() => liveblocksAdmin()).toThrow("Liveblocks server environment variables are incomplete");

@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { FriendRequestPolicy, ProfileRow } from "./_profiles.js";
 
 let client: SupabaseClient | undefined;
 
@@ -19,6 +20,10 @@ export interface ActorProfile {
   email: string;
   displayName: string;
   avatarUrl: string | null;
+  username: string;
+  bio: string;
+  discoverable: boolean;
+  friendRequestPolicy: FriendRequestPolicy;
 }
 
 export const ensureActorProfile = async (actor: {
@@ -27,19 +32,24 @@ export const ensureActorProfile = async (actor: {
   name?: string;
   picture?: string;
 }): Promise<ActorProfile> => {
-  const profile: ActorProfile = {
-    uid: actor.uid,
-    email: actor.email?.trim().toLowerCase() ?? `${actor.uid}@firebase.local`,
-    displayName: actor.name?.trim() || actor.email?.split("@")[0] || "Kumo user",
-    avatarUrl: actor.picture ?? null,
-  };
-  const { error } = await supabaseAdmin().from("profiles").upsert({
-    firebase_uid: profile.uid,
-    email: profile.email,
-    display_name: profile.displayName,
-    avatar_url: profile.avatarUrl,
-  }, { onConflict: "firebase_uid" });
+  const email = actor.email?.trim().toLowerCase() ?? `${actor.uid}@firebase.local`;
+  const defaultDisplayName = actor.name?.trim() || actor.email?.split("@")[0] || "Kumo user";
+  const { data, error } = await supabaseAdmin().rpc("ensure_kumo_profile", {
+    p_firebase_uid: actor.uid,
+    p_email: email,
+    p_default_display_name: defaultDisplayName,
+    p_default_avatar_url: actor.picture ?? null,
+  });
   if (error) throw error;
-  return profile;
+  const row = data as ProfileRow;
+  return {
+    uid: row.firebase_uid,
+    email: row.email,
+    displayName: row.display_name,
+    avatarUrl: row.avatar_url,
+    username: row.username,
+    bio: row.bio,
+    discoverable: row.discoverable,
+    friendRequestPolicy: row.friend_request_policy,
+  };
 };
-

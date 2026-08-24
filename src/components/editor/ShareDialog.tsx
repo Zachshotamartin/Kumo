@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Link, LockSimple, Warning, X } from "@phosphor-icons/react";
+import { Check, Copy, Link, LockSimple, MagnifyingGlass, UserPlus, Warning, X } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { removeShare, share } from "../../features/whiteBoard/whiteBoardSlice";
 import {
   getBoardSharePlan,
   inviteBoardCollaborator,
+  inviteBoardFriend,
   listBoardCollaborators,
   removeBoardCollaborator,
   type BoardCollaborator,
   type BoardSharePlan,
 } from "../../services/collaboratorRepository";
+import { listFriendships, type SocialProfile } from "../../services/socialRepository";
 import { AppDispatch, RootState } from "../../store";
+import { ProfileAvatar } from "../social/ProfileAvatar";
 import styles from "./EditorWorkspace.module.css";
 
 interface ShareDialogProps {
@@ -29,6 +32,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   const board = useSelector((state: RootState) => state.whiteBoard);
   const inputRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
+  const [friendQuery, setFriendQuery] = useState("");
   const [role, setRole] = useState<"editor" | "viewer">("editor");
   const [includeLinkedBoards, setIncludeLinkedBoards] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +42,8 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<BoardCollaborator[]>([]);
+  const [friends, setFriends] = useState<SocialProfile[]>([]);
+  const [invitingFriendUid, setInvitingFriendUid] = useState<string | null>(null);
   const [plan, setPlan] = useState<BoardSharePlan | null>(null);
   const isOwner = board.role === "owner";
 
@@ -66,6 +72,19 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
     return () => { active = false; };
   }, [board.id, isOwner]);
 
+  useEffect(() => {
+    if (!isOwner) return;
+    let active = true;
+    void listFriendships()
+      .then((overview) => {
+        if (active) setFriends(overview.friends);
+      })
+      .catch(() => {
+        if (active) setFriends([]);
+      });
+    return () => { active = false; };
+  }, [isOwner]);
+
   const linkedBoards = useMemo(
     () => plan?.boards.filter((candidate) => candidate.id !== board.id) ?? [],
     [board.id, plan]
@@ -73,6 +92,35 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   const managedLinkedBoards = linkedBoards.filter((candidate) => candidate.manageable);
   const externalPrivateBoards = linkedBoards.filter((candidate) => !candidate.manageable && candidate.visibility === "private");
   const shareConnectedBoards = includeLinkedBoards && !plan?.truncated;
+  const collaboratorIds = useMemo(() => new Set(collaborators.map((person) => person.id)), [collaborators]);
+  const availableFriends = useMemo(() => {
+    const normalized = friendQuery.trim().toLowerCase();
+    return friends
+      .filter((friend) => !collaboratorIds.has(friend.id))
+      .filter((friend) => !normalized || friend.displayName.toLowerCase().includes(normalized) || friend.username.toLowerCase().includes(normalized))
+      .slice(0, 6);
+  }, [collaboratorIds, friendQuery, friends]);
+
+  const recordInvite = (
+    result: Awaited<ReturnType<typeof inviteBoardCollaborator>>,
+    fallbackName: string
+  ) => {
+    dispatch(share({ uid: result.uid, role: result.role }));
+    setCollaborators((current) => {
+      const next = current.filter((person) => person.id !== result.uid);
+      return [...next, {
+        id: result.uid,
+        email: result.email,
+        name: result.name || fallbackName,
+        avatar: result.avatar ?? "",
+        role: result.role,
+      }].sort((left, right) => left.name.localeCompare(right.name));
+    });
+  };
+
+  const inviteMessage = (recipient: string, sharedCount: number, inaccessibleCount: number) =>
+    `${recipient} can now ${role === "editor" ? "edit" : "view"} ${sharedCount === 1 ? "this board" : `${sharedCount} connected boards`}.` +
+    (inaccessibleCount ? ` ${inaccessibleCount} private ${inaccessibleCount === 1 ? "destination still needs" : "destinations still need"} its owner.` : "");
 
   const invite = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -83,28 +131,29 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
     setMessage(null);
     try {
       const result = await inviteBoardCollaborator(board.id, invitedEmail, role, shareConnectedBoards);
-      dispatch(share({ uid: result.uid, role: result.role }));
-      setCollaborators((current) => {
-        const next = current.filter((person) => person.id !== result.uid);
-        return [...next, {
-          id: result.uid,
-          email: result.email,
-          name: result.email,
-          avatar: "",
-          role: result.role,
-        }].sort((left, right) => left.name.localeCompare(right.name));
-      });
+      recordInvite(result, invitedEmail);
       setEmail("");
-      const sharedCount = result.sharedBoards.length;
-      const inaccessibleCount = result.unavailableBoards.length;
-      setMessage(
-        `${invitedEmail} can now ${role === "editor" ? "edit" : "view"} ${sharedCount === 1 ? "this board" : `${sharedCount} connected boards`}.` +
-        (inaccessibleCount ? ` ${inaccessibleCount} private ${inaccessibleCount === 1 ? "destination still needs" : "destinations still need"} its owner.` : "")
-      );
+      setMessage(inviteMessage(invitedEmail, result.sharedBoards.length, result.unavailableBoards.length));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We couldn't invite this person.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const inviteFriend = async (friend: SocialProfile) => {
+    if (!board.id || submitting || invitingFriendUid) return;
+    setInvitingFriendUid(friend.id);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await inviteBoardFriend(board.id, friend.id, role, shareConnectedBoards);
+      recordInvite(result, friend.displayName);
+      setMessage(inviteMessage(friend.displayName, result.sharedBoards.length, result.unavailableBoards.length));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn't share with this friend.");
+    } finally {
+      setInvitingFriendUid(null);
     }
   };
 
@@ -153,6 +202,38 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
         </div>
 
         {isOwner ? (
+          <>
+          <section className={styles.friendShare} aria-labelledby="friend-share-title">
+            <div className={styles.friendShareHeading}>
+              <span><UserPlus aria-hidden="true" /><strong id="friend-share-title">Share with a friend</strong></span>
+              <div className={styles.friendShareControls}>
+                <label>
+                  <span className="sr-only">Find a friend to share with</span>
+                  <MagnifyingGlass aria-hidden="true" />
+                  <input value={friendQuery} onChange={(event) => setFriendQuery(event.target.value)} placeholder="Find a friend" />
+                </label>
+                <select aria-label="Friend sharing role" value={role} onChange={(event) => setRole(event.target.value as "editor" | "viewer")}>
+                  <option value="editor">Can edit</option>
+                  <option value="viewer">Can view</option>
+                </select>
+              </div>
+            </div>
+            {availableFriends.length > 0 ? (
+              <div className={styles.friendShareList}>
+                {availableFriends.map((friend) => (
+                  <div className={styles.friendShareRow} key={friend.id}>
+                    <ProfileAvatar name={friend.displayName} avatarUrl={friend.avatarUrl} size={30} />
+                    <span><strong>{friend.displayName}</strong><small>@{friend.username}</small></span>
+                    <button type="button" disabled={Boolean(invitingFriendUid)} onClick={() => void inviteFriend(friend)}>
+                      {invitingFriendUid === friend.id ? "Sharing" : `Share as ${role === "editor" ? "editor" : "viewer"}`}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.friendShareEmpty}>{friends.length ? "Everyone matching this search already has access." : "Add friends from your dashboard to share here without entering an email."}</p>
+            )}
+          </section>
           <form className={styles.inviteForm} onSubmit={invite}>
             <label>
               <span>Email</span>
@@ -176,6 +257,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
               </label>
             )}
           </form>
+          </>
         ) : (
           <p className={styles.accessNote}>Only the board owner can invite or remove collaborators.</p>
         )}
@@ -194,7 +276,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
           <h3>People with access</h3>
           {collaborators.map((person) => (
             <div className={styles.memberRow} key={person.id}>
-              <span className={styles.memberAvatar}>{(person.name || person.email || "C").slice(0, 1).toUpperCase()}</span>
+              <ProfileAvatar name={person.name || person.email || "Collaborator"} avatarUrl={person.avatar || null} size={30} />
               <span className={styles.memberIdentity}><strong>{person.name || person.email || "Collaborator"}</strong><small>{person.email || (person.role === "owner" ? "Board owner" : "Member")}</small></span>
               <span className={styles.memberRole}>{person.role === "owner" ? "Owner" : person.role === "viewer" ? "Can view" : "Can edit"}</span>
               {isOwner && person.role !== "owner" && <button type="button" disabled={Boolean(removingUid)} aria-label={`Remove ${person.name || person.email}`} onClick={() => removeMember(person.id)}>{removingUid === person.id ? "Removing" : "Remove"}</button>}

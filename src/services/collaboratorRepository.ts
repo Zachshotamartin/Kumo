@@ -25,6 +25,8 @@ export interface BoardSharePlan {
 export interface ShareBoardResult {
   uid: string;
   email: string;
+  name: string;
+  avatar: string | null;
   role: "editor" | "viewer";
   sharedBoards: LinkedBoardShareItem[];
   unavailableBoards: LinkedBoardShareItem[];
@@ -52,6 +54,16 @@ export const inviteBoardCollaborator = (
 ): Promise<ShareBoardResult> => authenticatedFetch("/api/share-board", {
   method: "POST",
   body: JSON.stringify({ boardId, action: "invite", email, role, includeLinkedBoards }),
+});
+
+export const inviteBoardFriend = (
+  boardId: string,
+  friendUid: string,
+  role: "editor" | "viewer",
+  includeLinkedBoards: boolean
+): Promise<ShareBoardResult> => authenticatedFetch("/api/share-board", {
+  method: "POST",
+  body: JSON.stringify({ boardId, action: "invite", friendUid, role, includeLinkedBoards }),
 });
 
 export const removeBoardCollaborator = (

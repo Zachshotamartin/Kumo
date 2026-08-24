@@ -40,7 +40,8 @@ The storage webhook updates board activity and records at most one durable Postg
 
 ## Durable schema
 
-- `profiles`: Firebase UID mapped to product profile metadata.
+- `profiles`: Firebase UID mapped to editable product identity and discovery preferences.
+- `friendships`: one canonical pending, accepted, or blocked relationship per unordered user pair.
 - `boards`: title, owner, visibility, Liveblocks room, and legacy migration identity.
 - `board_members`: one owner plus editor/viewer memberships.
 - `board_links`: an indexed graph of source board, target board, and linking shape.

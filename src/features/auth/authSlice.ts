@@ -4,6 +4,9 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 interface AuthState {
   uid: string | null;
   email: string | null;
+  displayName: string | null;
+  username: string | null;
+  avatarUrl: string | null;
 
   isAuthenticated: boolean;
   isInitialized: boolean;
@@ -12,6 +15,9 @@ interface AuthState {
 const initialState: AuthState = {
   uid: null,
   email: null,
+  displayName: null,
+  username: null,
+  avatarUrl: null,
   isAuthenticated: false,
   isInitialized: false,
 };
@@ -27,14 +33,34 @@ const authSlice = createSlice({
         email: string;
       }>
     ) {
+      if (state.uid !== action.payload.uid) {
+        state.displayName = null;
+        state.username = null;
+        state.avatarUrl = null;
+      }
       state.email = action.payload.email;
       state.uid = action.payload.uid;
       state.isAuthenticated = true;
       state.isInitialized = true;
     },
+    setAuthenticatedProfile(
+      state,
+      action: PayloadAction<{
+        displayName: string;
+        username: string;
+        avatarUrl: string | null;
+      }>
+    ) {
+      state.displayName = action.payload.displayName;
+      state.username = action.payload.username;
+      state.avatarUrl = action.payload.avatarUrl;
+    },
     logout(state) {
       state.email = null;
       state.uid = null;
+      state.displayName = null;
+      state.username = null;
+      state.avatarUrl = null;
       state.isAuthenticated = false;
       state.isInitialized = true;
     },
@@ -44,6 +70,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { login, logout, setAuthInitialized } = authSlice.actions;
+export const { login, logout, setAuthenticatedProfile, setAuthInitialized } = authSlice.actions;
 
 export default authSlice.reducer;

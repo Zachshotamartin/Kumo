@@ -126,7 +126,8 @@ describe("asset repositories", () => {
 });
 
 it("ensures the authenticated user profile", async () => {
-  vi.mocked(authenticatedFetch).mockResolvedValue({ profile: {} });
-  await expect(ensureUserProfile()).resolves.toBeUndefined();
+  const profile = { uid: "user", email: "user@example.com", displayName: "User", username: "user", avatarUrl: null };
+  vi.mocked(authenticatedFetch).mockResolvedValue({ profile });
+  await expect(ensureUserProfile()).resolves.toEqual(profile);
   expect(authenticatedFetch).toHaveBeenCalledWith("/api/session", { method: "POST" });
 });
