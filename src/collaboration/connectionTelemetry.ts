@@ -20,6 +20,7 @@ const authAttempts = new Map<string, AuthAttemptState>();
 const TELEMETRY_QUEUE_KEY = "kumo:collaboration-telemetry";
 
 type TelemetryPayload = CollaborationTelemetryInput & { online: boolean | null };
+const TELEMETRY_RETRY_DELAYS_MS = [0, 250, 1_000] as const;
 
 const readQueue = (): TelemetryPayload[] => {
   if (typeof window === "undefined") return [];
@@ -62,14 +63,27 @@ export const reportCollaborationTelemetry = async (input: CollaborationTelemetry
     online: typeof navigator === "undefined" ? null : navigator.onLine,
   }];
   for (let index = 0; index < queue.length; index += 1) {
-    try {
-      await authenticatedFetch<{ accepted: true }>("/api/telemetry", {
-        method: "POST",
-        body: JSON.stringify(queue[index]),
-      });
-    } catch (error) {
+    let delivered = false;
+    let lastError: unknown;
+    const attempts = typeof navigator === "undefined" || navigator.onLine
+      ? TELEMETRY_RETRY_DELAYS_MS
+      : TELEMETRY_RETRY_DELAYS_MS.slice(0, 1);
+    for (const delay of attempts) {
+      if (delay) await new Promise((resolve) => globalThis.setTimeout(resolve, delay));
+      try {
+        await authenticatedFetch<{ accepted: true }>("/api/telemetry", {
+          method: "POST",
+          body: JSON.stringify(queue[index]),
+        });
+        delivered = true;
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!delivered) {
       writeQueue(queue.slice(index));
-      throw error;
+      throw lastError;
     }
   }
   writeQueue([]);

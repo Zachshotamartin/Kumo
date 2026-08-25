@@ -13,10 +13,11 @@ const mocks = vi.hoisted(() => ({
   broadcast: vi.fn(),
   syncLinks: vi.fn(),
   rpc: vi.fn(),
+  provisionBoard: vi.fn(),
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess }));
+vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess, provisionBoard: mocks.provisionBoard }));
 vi.mock("../../server/api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
 vi.mock("../../server/api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
 vi.mock("../../server/api/_liveblocks", () => ({
@@ -70,6 +71,17 @@ const queryChain = <T,>(result: T) => {
   return chain;
 };
 
+const fluentQuery = <T,>(result: T) => {
+  const chain: Record<string, unknown> = {};
+  for (const method of ["select", "eq", "is", "order", "limit", "in", "insert", "update"] as const) {
+    chain[method] = vi.fn(() => chain);
+  }
+  chain.maybeSingle = vi.fn(async () => result);
+  chain.single = vi.fn(async () => result);
+  chain.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(result).then(resolve, reject);
+  return chain;
+};
+
 describe("collaborator and version APIs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -80,6 +92,7 @@ describe("collaborator and version APIs", () => {
     mocks.initializeDocument.mockResolvedValue(undefined);
     mocks.broadcast.mockResolvedValue(undefined);
     mocks.syncLinks.mockResolvedValue(undefined);
+    mocks.provisionBoard.mockResolvedValue({ id: "duplicate" });
     mocks.rpc.mockImplementation(async (name: string) => ({
       data: name === "acquire_kumo_document_lease" ? true : null,
       error: null,
@@ -124,6 +137,73 @@ describe("collaborator and version APIs", () => {
     const reply = response();
     await collaboratorsHandler(request("GET", {}, { boardId: "board" }), reply);
     expect(reply.body).toEqual({ collaborators: [expect.objectContaining({ id: "owner", email: "" })] });
+  });
+
+  it("validates collaborator requests and missing board access", async () => {
+    const methodReply = response();
+    await collaboratorsHandler(request("POST"), methodReply);
+    expect(methodReply.statusCode).toBe(405);
+    const missingReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "  " }), missingReply);
+    expect(missingReply.statusCode).toBe(400);
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const inaccessibleReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), inaccessibleReply);
+    expect(inaccessibleReply.statusCode).toBe(404);
+  });
+
+  it("handles empty collaborator records and database failures", async () => {
+    mocks.from.mockReturnValueOnce({
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+    });
+    const emptyReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), emptyReply);
+    expect(emptyReply.body).toEqual({ collaborators: [] });
+
+    mocks.from.mockReturnValueOnce({
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: new Error("members offline") }) }),
+    });
+    const memberErrorReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), memberErrorReply);
+    expect(memberErrorReply).toMatchObject({ statusCode: 500, body: { error: "members offline" } });
+
+    mocks.from.mockImplementation((table: string) => table === "board_members" ? {
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ user_id: "owner", role: "owner" }], error: null }) }),
+    } : {
+      select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: new Error("profiles offline") }) }),
+    });
+    const profileErrorReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), profileErrorReply);
+    expect(profileErrorReply).toMatchObject({ statusCode: 500, body: { error: "profiles offline" } });
+  });
+
+  it("defaults missing profile data and maps authentication failures", async () => {
+    mocks.from.mockImplementation((table: string) => table === "board_members" ? {
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ user_id: "owner", role: "owner" }], error: null }) }),
+    } : {
+      select: () => ({ in: vi.fn().mockResolvedValue({ data: [{ firebase_uid: "other", email: "other@example.com", display_name: "Other", avatar_url: null }], error: null }) }),
+    });
+    const defaultsReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), defaultsReply);
+    expect(defaultsReply.body).toEqual({ collaborators: [expect.objectContaining({ id: "other", avatar: "", role: "viewer" })] });
+
+    mocks.from.mockImplementation((table: string) => table === "board_members" ? {
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ user_id: "owner", role: "owner" }], error: null }) }),
+    } : {
+      select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+    });
+    const emptyProfilesReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), emptyProfilesReply);
+    expect(emptyProfilesReply.body).toEqual({ collaborators: [] });
+
+    mocks.requireActor.mockRejectedValueOnce(new Error("Authentication required."));
+    const authReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), authReply);
+    expect(authReply.statusCode).toBe(401);
+    mocks.requireActor.mockRejectedValueOnce("offline");
+    const fallbackReply = response();
+    await collaboratorsHandler(request("GET", {}, { boardId: "board" }), fallbackReply);
+    expect(fallbackReply).toMatchObject({ statusCode: 500, body: { error: "We couldn't load board collaborators." } });
   });
 
   it("lists versions and resolves creator names", async () => {
@@ -268,5 +348,295 @@ describe("collaborator and version APIs", () => {
     const reply = response();
     await versionsHandler(request("POST", { action: "checkpoint", boardId: "board", name: "No" }), reply);
     expect(reply.statusCode).toBe(403);
+  });
+
+  it("validates public version links, expiry, rate limits, and deleted boards", async () => {
+    const snapshot = { id: "version", board_id: "board", document: {}, share_expires_at: new Date(Date.now() - 1_000).toISOString() };
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: snapshot, error: null }) }
+      : { select: () => queryChain({ data: { title: "Board" }, error: null }) });
+    const expired = response();
+    await versionsHandler(request("GET", {}, { versionId: "version", token: "secret" }), expired);
+    expect(expired.statusCode).toBe(404);
+
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: { ...snapshot, share_expires_at: new Date(Date.now() + 60_000).toISOString() }, error: null }) }
+      : { select: () => queryChain({ data: null, error: null }) });
+    const deleted = response();
+    await versionsHandler(request("GET", {}, { versionId: "version", token: "secret" }), deleted);
+    expect(deleted.statusCode).toBe(404);
+
+    mocks.rpc.mockImplementation(async (name: string) => name === "consume_kumo_rate_limit"
+      ? { data: { allowed: false, remaining: 0, retry_after_seconds: 2 }, error: null }
+      : { data: null, error: null });
+    const limited = response();
+    await versionsHandler(request("GET", {}, { versionId: "version", token: "limited" }), limited);
+    expect(limited.statusCode).toBe(429);
+  });
+
+  it("returns one version, empty history, and an unavailable branch safely", async () => {
+    const version = { id: "version", board_id: "board", document: { nodes: {} } };
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: version, error: null }) }
+      : {});
+    const detail = response();
+    await versionsHandler(request("GET", {}, { boardId: "board", versionId: "version" }), detail);
+    expect(detail.body).toEqual({ version });
+
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: null, error: null }) }
+      : {});
+    const missing = response();
+    await versionsHandler(request("GET", {}, { boardId: "board", versionId: "missing" }), missing);
+    expect(missing.statusCode).toBe(404);
+
+    mocks.from.mockImplementation((table: string) => table === "document_branches"
+      ? { select: () => queryChain({ data: { room_id: "branch:closed", status: "merged" }, error: null }) }
+      : {});
+    const branch = response();
+    await versionsHandler(request("GET", {}, { boardId: "board", branchId: "closed" }), branch);
+    expect(branch.statusCode).toBe(404);
+  });
+
+  it("lists empty history without a profile lookup and preserves unknown creators", async () => {
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: [], error: null }) }
+      : {});
+    const empty = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), empty);
+    expect(empty.body).toEqual({ versions: [] });
+    expect(mocks.from).not.toHaveBeenCalledWith("profiles");
+
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: [{ id: "anonymous", created_by: null }], error: null }) }
+      : {});
+    const anonymous = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), anonymous);
+    expect(anonymous.body).toEqual({ versions: [{ id: "anonymous", created_by: null, creatorName: null }] });
+  });
+
+  it("skips recent autosaves and creates a recovery snapshot after the window", async () => {
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => fluentQuery({ data: { id: "recent", checksum: "different", created_at: new Date().toISOString() }, error: null }) }
+      : {});
+    const skipped = response();
+    await versionsHandler(request("POST", { action: "autosave", boardId: "board" }), skipped);
+    expect(skipped.body).toEqual({ version: expect.objectContaining({ id: "recent" }), skipped: true });
+
+    let snapshotCalls = 0;
+    const created = { id: "autosave", kind: "autosave" };
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== "document_snapshots") return {};
+      snapshotCalls += 1;
+      return snapshotCalls === 1
+        ? { select: () => fluentQuery({ data: { id: "old", checksum: "different", created_at: new Date(0).toISOString() }, error: null }) }
+        : fluentQuery({ data: created, error: null });
+    });
+    const inserted = response();
+    await versionsHandler(request("POST", { action: "autosave", boardId: "board" }), inserted);
+    expect(inserted.statusCode).toBe(201);
+    expect(inserted.body).toEqual({ version: created, skipped: false });
+  });
+
+  it("renames, shares, compares, duplicates, and rejects unknown version actions", async () => {
+    const renamed = { id: "version", name: "Named version", description: null };
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? fluentQuery({ data: renamed, error: null })
+      : fluentQuery({ error: null }));
+    const rename = response();
+    await versionsHandler(request("POST", { action: "rename", boardId: "board", versionId: "version", name: "  ", description: 42 }), rename);
+    expect(rename.body).toEqual({ version: renamed });
+
+    const invalidExpiry = response();
+    await versionsHandler(request("POST", { action: "share", boardId: "board", versionId: "version", expiresAt: "not-a-date" }), invalidExpiry);
+    expect(invalidExpiry.statusCode).toBe(400);
+    const shared = response();
+    await versionsHandler(request("POST", { action: "share", boardId: "board", versionId: "version", expiresAt: new Date(Date.now() + 60_000).toISOString() }), shared);
+    expect(shared.statusCode).toBe(201);
+    expect(shared.body).toEqual(expect.objectContaining({ token: expect.any(String), url: expect.stringContaining("versionToken=") }));
+
+    const target = { id: "version", name: null, document: { backgroundColor: "#fff", nodes: { target: {} } } };
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: target, error: null }) }
+      : { insert: vi.fn().mockResolvedValue({ error: null }) });
+    const compared = response();
+    await versionsHandler(request("POST", { action: "compare", boardId: "board", versionId: "version" }), compared);
+    expect(compared.statusCode).toBe(200);
+    expect(compared.body).toHaveProperty("diff");
+    const duplicate = response();
+    await versionsHandler(request("POST", { action: "duplicate", boardId: "board", versionId: "version" }), duplicate);
+    expect(duplicate.body).toEqual({ boardId: "duplicate" });
+    expect(mocks.provisionBoard).toHaveBeenCalledWith(expect.objectContaining({ ownerId: "owner", title: "Board copy", document: target.document }));
+    const unknown = response();
+    await versionsHandler(request("POST", { action: "unknown", boardId: "board", versionId: "version" }), unknown);
+    expect(unknown.statusCode).toBe(400);
+  });
+
+  it("validates board input, access, editor role, and target version", async () => {
+    const missingBoard = response();
+    await versionsHandler(request("POST", { action: "checkpoint" }), missingBoard);
+    expect(missingBoard.statusCode).toBe(400);
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const notFound = response();
+    await versionsHandler(request("POST", { action: "checkpoint", boardId: "missing" }), notFound);
+    expect(notFound.statusCode).toBe(404);
+    mocks.getAccess.mockResolvedValueOnce({ board, role: "editor" });
+    mocks.rpc.mockImplementation(async (name: string) => ({ data: name === "create_kumo_checkpoint" ? { id: "editor-version" } : null, error: null }));
+    const editor = response();
+    await versionsHandler(request("POST", { action: "checkpoint", boardId: "board" }), editor);
+    expect(editor.statusCode).toBe(201);
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: null, error: null }) }
+      : {});
+    const target = response();
+    await versionsHandler(request("POST", { action: "compare", boardId: "board", versionId: "missing" }), target);
+    expect(target.statusCode).toBe(404);
+  });
+
+  it("preserves successful restore when best-effort broadcast fails and rejects a failed backup", async () => {
+    const target = { id: "target", document: { nodes: { restored: {} } } };
+    mocks.broadcast.mockRejectedValueOnce(new Error("broadcast unavailable"));
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots" ? {
+      select: () => queryChain({ data: target, error: null }),
+      insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "before" }, error: null }) }) }),
+    } : fluentQuery({ error: null }));
+    const restored = response();
+    await versionsHandler(request("POST", { action: "restore", boardId: "board", versionId: "target" }), restored);
+    expect(restored.statusCode).toBe(200);
+
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots" ? {
+      select: () => queryChain({ data: target, error: null }),
+      insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: null, error: new Error("backup failed") }) }) }),
+    } : fluentQuery({ error: null }));
+    const backup = response();
+    await versionsHandler(request("POST", { action: "restore", boardId: "board", versionId: "target" }), backup);
+    expect(backup.statusCode).toBe(500);
+  });
+
+  it("reports public-link and version-query database failures", async () => {
+    const invalidMethod = response();
+    await versionsHandler(request("DELETE"), invalidMethod);
+    expect(invalidMethod.statusCode).toBe(405);
+
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: null, error: new Error("snapshot failed") }) });
+    const snapshotError = response();
+    await versionsHandler(request("GET", {}, { versionId: "version", token: "secret" }), snapshotError);
+    expect(snapshotError.statusCode).toBe(500);
+
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: null, error: null }) });
+    const missingSnapshot = response();
+    await versionsHandler(request("GET", {}, { versionId: "version", token: "secret" }), missingSnapshot);
+    expect(missingSnapshot.statusCode).toBe(404);
+
+    const publicSnapshot = { id: "version", board_id: "board", document: {}, share_expires_at: null };
+    mocks.from.mockImplementationOnce(() => ({ select: () => queryChain({ data: publicSnapshot, error: null }) }))
+      .mockImplementationOnce(() => ({ select: () => queryChain({ data: null, error: new Error("board failed") }) }));
+    const boardError = response();
+    await versionsHandler(request("GET", {}, { versionId: "version", token: "secret" }), boardError);
+    expect(boardError.statusCode).toBe(500);
+
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: null, error: new Error("detail failed") }) });
+    const detailError = response();
+    await versionsHandler(request("GET", {}, { boardId: "board", versionId: "version" }), detailError);
+    expect(detailError.statusCode).toBe(500);
+
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: null, error: new Error("history failed") }) });
+    const historyError = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), historyError);
+    expect(historyError.statusCode).toBe(500);
+  });
+
+  it("handles branch and history profile edge cases", async () => {
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: null, error: new Error("branch failed") }) });
+    const branchError = response();
+    await versionsHandler(request("GET", {}, { boardId: "board", branchId: "branch" }), branchError);
+    expect(branchError.statusCode).toBe(500);
+
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: { room_id: 42, status: "open" }, error: null }) });
+    const malformedBranch = response();
+    await versionsHandler(request("GET", {}, { boardId: "board", branchId: "branch" }), malformedBranch);
+    expect(malformedBranch.statusCode).toBe(404);
+
+    const version = { id: "version", created_by: "owner" };
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: [version], error: null }) }
+      : { select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: new Error("profiles failed") }) }) });
+    const profileError = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), profileError);
+    expect(profileError.statusCode).toBe(500);
+
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: [version], error: null }) }
+      : { select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: null }) }) });
+    const missingProfiles = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), missingProfiles);
+    expect(missingProfiles.body).toEqual({ versions: [{ ...version, creatorName: null }] });
+
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: null, error: null }) });
+    const nullHistory = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), nullHistory);
+    expect(nullHistory.body).toEqual({ versions: [] });
+  });
+
+  it("reports autosave, checkpoint, rename, share, and target write failures", async () => {
+    mocks.from.mockReturnValueOnce({ select: () => fluentQuery({ data: null, error: new Error("latest failed") }) });
+    const latestError = response();
+    await versionsHandler(request("POST", { action: "autosave", boardId: "board" }), latestError);
+    expect(latestError.statusCode).toBe(500);
+
+    mocks.from.mockReturnValueOnce({ select: () => fluentQuery({ data: { id: "same", checksum: "9a2f192dead422a49da931094eb4c68fc5f06618207d0768183a76bc74f92cc8", created_at: null }, error: null }) });
+    const sameChecksum = response();
+    await versionsHandler(request("POST", { action: "autosave", boardId: "board" }), sameChecksum);
+    expect(sameChecksum.body).toMatchObject({ skipped: true, version: { id: "same" } });
+
+    let snapshotCalls = 0;
+    mocks.from.mockImplementation(() => {
+      snapshotCalls += 1;
+      return snapshotCalls === 1
+        ? { select: () => fluentQuery({ data: null, error: null }) }
+        : fluentQuery({ data: null, error: new Error("autosave insert failed") });
+    });
+    const autosaveInsertError = response();
+    await versionsHandler(request("POST", { action: "autosave", boardId: "board" }), autosaveInsertError);
+    expect(autosaveInsertError.statusCode).toBe(500);
+
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: null });
+    const emptyCheckpoint = response();
+    await versionsHandler(request("POST", { action: 42, boardId: "board", name: 42 }), emptyCheckpoint);
+    expect(emptyCheckpoint.body).toEqual({ error: "The checkpoint could not be created." });
+
+    mocks.from.mockReturnValueOnce(fluentQuery({ data: null, error: new Error("rename failed") }));
+    const renameError = response();
+    await versionsHandler(request("POST", { action: "rename", boardId: "board", versionId: 42 }), renameError);
+    expect(renameError.statusCode).toBe(500);
+
+    mocks.from.mockReturnValueOnce(fluentQuery({ data: null, error: new Error("share failed") }));
+    const shareError = response();
+    await versionsHandler(request("POST", { action: "share", boardId: "board", versionId: "version" }), shareError);
+    expect(shareError.statusCode).toBe(500);
+
+    mocks.from.mockReturnValueOnce(fluentQuery({ data: null, error: null }));
+    const missingShare = response();
+    await versionsHandler(request("POST", { action: "share", boardId: "board", versionId: "version", expiresAt: 42 }), missingShare);
+    expect(missingShare.statusCode).toBe(404);
+
+    mocks.from.mockReturnValueOnce({ select: () => queryChain({ data: null, error: new Error("target failed") }) });
+    const targetError = response();
+    await versionsHandler(request("POST", { action: "compare", boardId: "board", versionId: "version" }), targetError);
+    expect(targetError.statusCode).toBe(500);
+  });
+
+  it("maps authentication and document-conflict failures to their API statuses", async () => {
+    mocks.requireActor.mockRejectedValueOnce(new Error("Authentication required."));
+    const unauthenticated = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), unauthenticated);
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const conflict = new Error("Document changed concurrently.");
+    conflict.name = "DocumentConflict";
+    mocks.getAccess.mockRejectedValueOnce(conflict);
+    const conflicted = response();
+    await versionsHandler(request("GET", {}, { boardId: "board" }), conflicted);
+    expect(conflicted.statusCode).toBe(409);
   });
 });

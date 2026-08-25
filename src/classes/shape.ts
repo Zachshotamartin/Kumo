@@ -54,6 +54,29 @@ export interface Shape {
   borderStyle?: string;
   borderColor?: string;
   backgroundColor?: string;
+  /** Ordered paint stacks. Legacy single-value fields remain the compatibility fallback. */
+  fills?: Array<{
+    id: string;
+    type: "solid" | "linear-gradient" | "radial-gradient" | "image";
+    color?: string;
+    opacity: number;
+    visible: boolean;
+    blendMode?: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "difference";
+    gradientAngle?: number;
+    gradientStops?: Array<{ id: string; position: number; color: string; opacity: number }>;
+    imageUrl?: string;
+  }>;
+  strokes?: Array<{
+    id: string;
+    color: string;
+    width: number;
+    opacity: number;
+    visible: boolean;
+    style: "solid" | "dashed" | "dotted";
+    align: "inside" | "center" | "outside";
+  }>;
+  cornerRadii?: { topLeft: number; topRight: number; bottomRight: number; bottomLeft: number };
+  cornerSmoothing?: number;
   backgroundImage?: string;
   assetId?: string;
   color?: string;
@@ -110,7 +133,7 @@ export interface Shape {
   textStyleId?: string;
   effectStyleId?: string;
   variableBindings?: Record<string, string>;
-  resourceKind?: "fill-style" | "text-style" | "effect-style" | "color-variable" | "number-variable" | "string-variable" | "boolean-variable" | "timing-variable" | "easing-variable" | "variable-collection";
+  resourceKind?: "fill-style" | "text-style" | "effect-style" | "color-variable" | "number-variable" | "string-variable" | "boolean-variable" | "timing-variable" | "easing-variable" | "variable-collection" | "prototype-flow" | "workshop-state" | "font-face";
   resourceName?: string;
   resourceValue?: Record<string, string | number | boolean>;
   variableCollectionId?: string;
@@ -123,7 +146,17 @@ export interface Shape {
   libraryVersion?: number;
   librarySourceId?: string;
   prototypeStart?: boolean;
+  /** A frame may be the starting point of more than one named flow. */
+  prototypeFlowIds?: string[];
   prototypeOverflow?: "clip" | "scroll";
+  prototypeOverflowAxis?: "none" | "horizontal" | "vertical" | "both";
+  prototypePosition?: "scroll" | "fixed" | "sticky";
+  prototypeStickyOffset?: number;
+  prototypeOverlaySettings?: {
+    closeOnOutside: boolean;
+    background: string;
+    position: "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  };
   prototypeInteractions?: Array<{
     id: string;
     trigger: "click" | "hover" | "drag" | "after-delay" | "mouse-enter" | "mouse-leave" | "key-down";
@@ -153,6 +186,7 @@ export interface Shape {
     handleOut?: { x: number; y: number };
   }>;
   vectorClosed?: boolean;
+  drawingKind?: "pen" | "marker" | "highlighter";
   /** A vector network can contain multiple branching paths over shared points. */
   vectorPaths?: Array<{ id: string; pointIds: string[]; closed: boolean }>;
   strokeCap?: "none" | "round" | "square" | "arrow";
@@ -181,6 +215,9 @@ export interface Shape {
   imageCrop?: { x: number; y: number; width: number; height: number };
   imageFilters?: { brightness: number; contrast: number; saturation: number; blur: number };
   mediaType?: "image" | "gif" | "video";
+  mediaAutoplay?: boolean;
+  mediaLoop?: boolean;
+  mediaMuted?: boolean;
   altText?: string;
   semanticRole?: "none" | "button" | "heading" | "image" | "link" | "input" | "navigation";
   focusOrder?: number;
@@ -195,6 +232,32 @@ export interface Shape {
   collectionId?: string | null;
   collectionName?: string;
   rows?: number;
+  columns?: number;
+  tableCells?: string[][];
+  codeLanguage?: string;
+  embedUrl?: string;
+  embedTitle?: string;
+  embedDescription?: string;
+  embedImageUrl?: string;
+  connectorStart?: {
+    shapeId?: string;
+    anchor: "auto" | "top" | "right" | "bottom" | "left" | "center";
+    x: number;
+    y: number;
+  };
+  connectorEnd?: {
+    shapeId?: string;
+    anchor: "auto" | "top" | "right" | "bottom" | "left" | "center";
+    x: number;
+    y: number;
+  };
+  connectorRouting?: "straight" | "curved" | "orthogonal";
+  connectorLabel?: string;
+  connectorStartCap?: "none" | "arrow" | "circle" | "diamond";
+  connectorEndCap?: "none" | "arrow" | "circle" | "diamond";
+  connectorAvoidObstacles?: boolean;
+  portalVersionId?: string | null;
+  portalPinnedAt?: string | null;
   boardId?: string | null;
   title?: string | null;
   uid?: string | null;

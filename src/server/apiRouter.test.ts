@@ -52,6 +52,20 @@ describe("consolidated Vercel API router", () => {
     ]);
     expect(apiRouteName(["board-preview"])).toBe("board-preview");
     expect(apiRouteName("boards")).toBe("boards");
+    expect(apiRouteName(undefined)).toBe("");
+  });
+
+  it("dispatches a known route and returns its result", () => {
+    const testHandler = vi.fn(() => "handled");
+    const mutableHandlers = apiHandlers as Record<string, typeof testHandler>;
+    mutableHandlers.test = testHandler;
+    const result = response();
+    expect(routeApiRequest(
+      { query: { path: "test" } } as unknown as VercelRequest,
+      result as unknown as VercelResponse
+    )).toBe("handled");
+    expect(testHandler).toHaveBeenCalledWith(expect.any(Object), result);
+    delete mutableHandlers.test;
   });
 
   it("returns structured 404 responses for unknown API paths", () => {

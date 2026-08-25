@@ -19,6 +19,12 @@ describe("recoverable Liveblocks document replacement", () => {
     expect(operation).not.toHaveBeenCalled();
   });
 
+  it("surfaces lease acquisition storage errors", async () => {
+    const failure = new Error("lease storage unavailable");
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: failure });
+    await expect(withDocumentLease({ rpc }, "room", vi.fn())).rejects.toBe(failure);
+  });
+
   it("commits a replacement without invoking rollback", async () => {
     const client = { deleteStorageDocument: vi.fn().mockResolvedValue(undefined), initializeStorageDocument: vi.fn().mockResolvedValue(undefined) };
     const commit = vi.fn().mockResolvedValue(undefined);
@@ -62,6 +68,21 @@ describe("recoverable Liveblocks document replacement", () => {
     expect(client.deleteStorageDocument).toHaveBeenCalledTimes(2);
     expect(client.initializeStorageDocument).toHaveBeenCalledWith("room", document("old"));
     expect(rollback).toHaveBeenCalled();
+  });
+
+  it("restores the old document even when best-effort cleanup also fails", async () => {
+    const client = {
+      deleteStorageDocument: vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("cleanup failed")),
+      initializeStorageDocument: vi.fn().mockRejectedValueOnce(new Error("initialize failed")).mockResolvedValueOnce(undefined),
+    };
+    await expect(replaceStorageDocument({
+      client,
+      roomId: "room",
+      current: document("old"),
+      next: document("new"),
+      commit: vi.fn(),
+    })).rejects.toThrow("initialize failed");
+    expect(client.initializeStorageDocument).toHaveBeenLastCalledWith("room", document("old"));
   });
 
   it("surfaces an explicit recovery failure if the old document cannot be restored", async () => {

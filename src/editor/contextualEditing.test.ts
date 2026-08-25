@@ -23,13 +23,20 @@ import {
 import {
   adoptContainedShapes,
   ancestorsOf,
+  boundsContainBounds,
+  boundsContainPoint,
+  clippedByAncestor,
+  commonParentId,
   contextualSelectionIds,
   descendantIds,
   frameAtPoint,
+  immediateFrameFor,
   isEffectivelyHidden,
   isEffectivelyLocked,
   reparentAfterMove,
+  reparentSelection,
   rootSelectionIds,
+  shapeMap,
   topLevelFrameFor,
 } from "./hierarchy";
 import {
@@ -150,6 +157,82 @@ describe("frame hierarchy and contextual selection", () => {
     expect(result.find((shape) => shape.id === child.id)?.parentId).toBe(parent.id);
     expect(result.find((shape) => shape.id === outside.id)?.parentId).toBeNull();
     expect(result.find((shape) => shape.id === parent.id)!.zIndex).toBeLessThan(child.zIndex);
+  });
+
+  it("handles missing and cyclic ancestry plus direct hierarchy helpers", () => {
+    const parent = frame("f1", 0, 0);
+    const group = rectangle("g1", 10, 10, 20, 20, { parentId: parent.id, type: "group" });
+    const child = rectangle("c1", 20, 20, 20, 20, { parentId: group.id });
+    const orphan = rectangle("o1", 0, 0, 10, 10, { parentId: "missing" });
+    const cycleA = rectangle("a", 0, 0, 10, 10, { parentId: "b" });
+    const cycleB = rectangle("b", 0, 0, 10, 10, { parentId: "a" });
+    expect(shapeMap([parent]).get(parent.id)).toBe(parent);
+    expect(ancestorsOf([orphan], orphan.id)).toEqual([]);
+    expect(ancestorsOf([cycleA, cycleB], cycleA.id).map((item) => item.id)).toEqual(["b"]);
+    expect(immediateFrameFor([parent, group, child], group)).toBe(parent);
+    expect(immediateFrameFor([parent, group, child], child)).toBeUndefined();
+    expect(immediateFrameFor([parent], parent)).toBeUndefined();
+    expect(contextualSelectionIds([orphan], orphan)).toEqual([orphan.id]);
+    const groupedB = rectangle("b", 0, 0, 10, 10, { groupId: "same", parentId: null, zIndex: 1 });
+    const groupedA = rectangle("a", 0, 0, 10, 10, { groupId: "same", parentId: undefined, zIndex: 1 });
+    expect(contextualSelectionIds([groupedB, groupedA], groupedA)).toEqual(["a", "b"]);
+    expect(isEffectivelyHidden([orphan], orphan)).toBe(false);
+    expect(isEffectivelyLocked([orphan], orphan)).toBe(false);
+    expect(isEffectivelyHidden([{ ...orphan, hidden: true }], { ...orphan, hidden: true })).toBe(true);
+    expect(isEffectivelyLocked([{ ...orphan, locked: true }], { ...orphan, locked: true })).toBe(true);
+  });
+
+  it("evaluates containment, clipping, frame filtering, and common parents", () => {
+    const bounds = { x: 0, y: 0, width: 100, height: 100 };
+    expect(boundsContainBounds(bounds, { x: 0, y: 0, width: 100, height: 100 })).toBe(true);
+    expect(boundsContainBounds(bounds, { x: -1, y: 0, width: 1, height: 1 })).toBe(false);
+    expect(boundsContainBounds(bounds, { x: 0, y: -1, width: 1, height: 1 })).toBe(false);
+    expect(boundsContainBounds(bounds, { x: 99, y: 0, width: 2, height: 1 })).toBe(false);
+    expect(boundsContainBounds(bounds, { x: 0, y: 99, width: 1, height: 2 })).toBe(false);
+    expect(boundsContainPoint(bounds, { x: 100, y: 100 })).toBe(true);
+    expect(boundsContainPoint(bounds, { x: -1, y: 0 })).toBe(false);
+    expect(boundsContainPoint(bounds, { x: 0, y: -1 })).toBe(false);
+    expect(boundsContainPoint(bounds, { x: 101, y: 0 })).toBe(false);
+    expect(boundsContainPoint(bounds, { x: 0, y: 101 })).toBe(false);
+
+    const outer = frame("f1", 0, 0, 100, 100, { zIndex: 1 });
+    const inner = frame("f2", 0, 0, 100, 100, { zIndex: 2, parentId: outer.id });
+    const child = rectangle("c1", 10, 10, 10, 10, { parentId: inner.id });
+    const sibling = rectangle("c2", 20, 20, 10, 10, { parentId: inner.id });
+    const hidden = frame("hidden", 0, 0, 20, 20, { hidden: true });
+    const locked = frame("locked", 0, 0, 20, 20, { locked: true });
+    expect(frameAtPoint([outer, inner, hidden, locked], { x: 5, y: 5 })?.id).toBe(inner.id);
+    expect(frameAtPoint([outer, inner], { x: 5, y: 5 }, [inner.id])?.id).toBe(outer.id);
+    expect(commonParentId([child, sibling], [child.id, sibling.id])).toBe(inner.id);
+    expect(commonParentId([child, outer], [child.id, outer.id])).toBeNull();
+    expect(commonParentId([], [])).toBeNull();
+    expect(clippedByAncestor([outer, inner, child], child, { x: 150, y: 150 })).toBe(true);
+    expect(clippedByAncestor([{ ...outer, clipContent: false }, inner, child], child, { x: 50, y: 50 })).toBe(false);
+    expect(clippedByAncestor([outer, { ...inner, type: "group" }, child], child, { x: 150, y: 150 })).toBe(true);
+  });
+
+  it("reparents multiple roots safely and preserves already-correct selections", () => {
+    const destination = frame("dest", 0, 0, 300, 300, { zIndex: 10 });
+    const first = rectangle("c1", 20, 20, 20, 20, { zIndex: 4 });
+    const child = rectangle("c2", 22, 22, 10, 10, { parentId: first.id, zIndex: 5 });
+    const second = rectangle("c3", 60, 20, 20, 20, { zIndex: 2 });
+    const moved = reparentSelection([destination, first, child, second], [first.id, "missing", second.id], destination.id);
+    expect(moved.find((item) => item.id === first.id)?.parentId).toBe(destination.id);
+    expect(moved.find((item) => item.id === second.id)?.parentId).toBe(destination.id);
+    expect(moved.find((item) => item.id === child.id)!.zIndex).toBeGreaterThan(destination.zIndex);
+    expect(reparentSelection([first, child], [first.id], child.id).find((item) => item.id === first.id)?.parentId).toBeNull();
+    expect(reparentSelection([second], [second.id], "missing")[0]?.parentId).toBe("missing");
+    expect(reparentAfterMove([destination], [])).toEqual([destination]);
+    const inside = rectangle("inside", 10, 10, 20, 20, { parentId: destination.id });
+    expect(reparentAfterMove([destination, inside], [inside.id])).toEqual([destination, inside]);
+  });
+
+  it("leaves a frame unchanged when there is nothing eligible to adopt", () => {
+    const parent = frame("f1", 0, 0, 100, 100, { pageId: "page-a" });
+    const otherPage = rectangle("other", 10, 10, 10, 10, { pageId: "page-b" });
+    const locked = rectangle("locked", 10, 10, 10, 10, { pageId: "page-a", locked: true });
+    expect(adoptContainedShapes([otherPage], "missing")).toEqual([otherPage]);
+    expect(adoptContainedShapes([parent, otherPage, locked], parent.id)).toEqual([parent, otherPage, locked]);
   });
 });
 
@@ -360,5 +443,28 @@ describe("object snapping and frame clipping", () => {
       left: 10,
     });
     expect(frameClipInsets([{ ...parent, clipContent: false }, child], child)).toBeNull();
+  });
+
+  it("returns unsnapped coordinates without a selection or nearby guides", () => {
+    const target = rectangle("target", 100, 100, 20, 20);
+    expect(snapMoveToObjects([target], ["missing"], { x: 4, y: 5 }, 2)).toEqual({ delta: { x: 4, y: 5 }, guides: [] });
+    expect(snapResizePointerToObjects([target], ["missing"], "se", { x: 4, y: 5 }, 2)).toEqual({ point: { x: 4, y: 5 }, guides: [] });
+    const moving = rectangle("moving", 0, 0, 20, 20);
+    expect(snapMoveToObjects([moving, target], [moving.id], { x: 10, y: 10 }, 1)).toEqual({ delta: { x: 10, y: 10 }, guides: [] });
+    expect(snapMoveToObjects([moving, rectangle("near", 1, 1, 20, 20)], [moving.id], { x: 0, y: 0 }, 20).guides).toHaveLength(2);
+    expect(snapResizePointerToObjects([moving, target], [moving.id], "n", { x: 10, y: 10 }, 1)).toEqual({ point: { x: 10, y: 10 }, guides: [] });
+  });
+
+  it("uses frame visual bounds and intersects nested clipping frames", () => {
+    const outer = frame("outer", 0, 0, 100, 100, { borderWidth: 4 });
+    const inner = frame("inner", 10, 10, 60, 60, { parentId: outer.id });
+    const child = rectangle("child", -10, -10, 100, 100, { parentId: inner.id });
+    const target = rectangle("target", 120, 0, 20, 20);
+    expect(snapMoveToObjects([outer, target], [outer.id], { x: 18, y: 0 }, 4).guides.length).toBeGreaterThan(0);
+    expect(frameClipInsets([outer, inner, child], child)).toEqual({ top: 20, right: 20, bottom: 20, left: 20 });
+    expect(frameClipInsets([{ ...child, parentId: "missing" }], child)).toBeNull();
+    const cycleA = frame("a", 0, 0, 100, 100, { parentId: "b", clipContent: false });
+    const cycleB = frame("b", 0, 0, 100, 100, { parentId: "a", clipContent: false });
+    expect(frameClipInsets([cycleA, cycleB], cycleA)).toBeNull();
   });
 });

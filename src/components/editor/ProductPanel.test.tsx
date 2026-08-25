@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import actionsReducer from "../../features/actions/actionsSlice";
@@ -38,15 +38,18 @@ const shape = (id: string, patch: Partial<Shape> = {}): Shape => ({
   width: 100, height: 60, level: 0, zIndex: 1, parentId: null, ...patch,
 });
 
-const makeStore = () => {
+const defaultShapes = [
+  shape("copy", { type: "text", name: "Hero copy", text: "Launch Kumo", color: "#777777", backgroundColor: "#888888" }),
+  shape("image", { type: "image" }),
+  shape("link", { type: "board", boardId: "destination", title: "Roadmap" }),
+];
+
+const makeStore = (board: Record<string, unknown> = {}) => {
   const store = configureStore({ reducer: { auth: authReducer, whiteBoard: whiteBoardReducer, actions: actionsReducer, selected: selectedReducer, editor: editorReducer } });
   store.dispatch(setWhiteboardData({
     id: "board", roomId: "board:board", role: "owner", title: "Product", type: "private", uid: "owner",
-    shapes: [
-      shape("copy", { type: "text", name: "Hero copy", text: "Launch Kumo", color: "#777777", backgroundColor: "#888888" }),
-      shape("image", { type: "image" }),
-      shape("link", { type: "board", boardId: "destination", title: "Roadmap" }),
-    ],
+    shapes: defaultShapes,
+    ...board,
   }));
   store.dispatch(setSelectedShapes(["copy"]));
   return store;
@@ -55,6 +58,7 @@ const makeStore = () => {
 describe("ProductPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.actions.canEdit = true;
     window.localStorage.clear();
     mocks.graph.mockResolvedValue({
       sourceId: "board",
@@ -108,12 +112,13 @@ describe("ProductPanel", () => {
     fireEvent.click(screen.getByRole("tab", { name: "accessibility" }));
     expect(screen.getByText("Images need alternative text.")).toBeVisible();
     expect(screen.getByText(/Text contrast is/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /Images need alternative text/ }));
     fireEvent.click(screen.getByRole("button", { name: "Fix all safe issues" }));
     expect(mocks.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "image", altText: expect.any(String) })]));
     fireEvent.click(screen.getByRole("tab", { name: "extensions" }));
     fireEvent.change(screen.getByLabelText("Command value"), { target: { value: "Renamed" } });
     fireEvent.click(screen.getByRole("button", { name: "Rename selection" }));
-    expect(mocks.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "copy", name: "Renamed" })]));
+    expect(mocks.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "image", name: "Renamed" })]));
   });
 
   it("reports mounted document complexity and publishes a community board", async () => {
@@ -124,8 +129,9 @@ describe("ProductPanel", () => {
     expect(screen.getByText("This board is within the healthy interactive budget.")).toBeVisible();
     fireEvent.click(screen.getByRole("tab", { name: "publish" }));
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "A reusable product system" } });
+    fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "design, , tools" } });
     fireEvent.click(screen.getByRole("button", { name: "Publish board" }));
-    await waitFor(() => expect(mocks.publishCommunity).toHaveBeenCalledWith("board", expect.objectContaining({ description: "A reusable product system", tags: ["design", "collaboration"] })));
+    await waitFor(() => expect(mocks.publishCommunity).toHaveBeenCalledWith("board", expect.objectContaining({ description: "A reusable product system", tags: ["design", "tools"] })));
   });
 
   it("publishes, reviews, applies library changes, and creates templates", async () => {
@@ -151,7 +157,10 @@ describe("ProductPanel", () => {
   });
 
   it("governs semantic library releases through approval, rollback, and deprecation", async () => {
-    mocks.libraryVersions.mockResolvedValue({ versions: [{ library_id: "library", version: 3, semantic_version: "2.0.0", release_status: "review", description: "Breaking update", assets: [], created_by: "owner", created_at: "" }] });
+    mocks.libraryVersions.mockResolvedValue({ versions: [
+      { library_id: "library", version: 3, semantic_version: "2.0.0", release_status: "review", description: "Breaking update", assets: [], created_by: "owner", created_at: "" },
+      { library_id: "library", version: 2, semantic_version: "1.0.0", release_status: "deprecated", description: "Old", assets: [], created_by: "owner", created_at: "" },
+    ] });
     render(<Provider store={makeStore()}><ProductPanel /></Provider>);
     await screen.findAllByText("Roadmap");
     fireEvent.click(screen.getByRole("tab", { name: "libraries" }));
@@ -159,7 +168,7 @@ describe("ProductPanel", () => {
     expect(await screen.findByText("v2.0.0")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(mocks.govern).toHaveBeenCalledWith("approve-library-release", "library", 3));
-    fireEvent.click(screen.getByRole("button", { name: "Make current" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Make current" })[0]!);
     await waitFor(() => expect(mocks.govern).toHaveBeenCalledWith("rollback-library", "library", 3));
     fireEvent.click(screen.getByRole("button", { name: "Deprecate" }));
     await waitFor(() => expect(mocks.govern).toHaveBeenCalledWith("deprecate-library-release", "library", 3));
@@ -203,5 +212,185 @@ describe("ProductPanel", () => {
     expect(await screen.findByRole("alert")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Close product tools" }));
     expect(store.getState().editor.rightPanel).toBe("properties");
+  });
+
+  it("handles graph inconsistencies, accessible links, and missing local board layers", async () => {
+    mocks.graph.mockResolvedValue({
+      sourceId: "board",
+      nodes: [
+        { id: "board", title: "A very long current board title", visibility: "private", accessible: true, manageable: false },
+        { id: "remote", title: "Remote", visibility: "public", accessible: true, manageable: true },
+      ],
+      edges: [
+        { sourceId: "board", targetId: "remote", shapeId: "remote-link" },
+        { sourceId: "missing", targetId: "remote", shapeId: "bad-source" },
+        { sourceId: "board", targetId: "missing", shapeId: "bad-target" },
+      ],
+      incoming: [{ sourceId: "remote", targetId: "board", shapeId: "incoming" }],
+    });
+    const view = render(<Provider store={makeStore({ shapes: [] })}><ProductPanel /></Provider>);
+    expect(await screen.findByRole("img", { name: "2 connected boards and 3 links" })).toBeInTheDocument();
+    expect(screen.getByText("Backlinks").nextSibling).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: /Remote/ })).toBeDisabled();
+    expect(view.container.querySelectorAll("line")).toHaveLength(1);
+  });
+
+  it("shows empty search and clean accessibility states and selects a result", async () => {
+    const store = makeStore({ shapes: [shape("clean", { name: "Clean layer", width: 100, height: 100 })] });
+    render(<Provider store={store}><ProductPanel /></Provider>);
+    await screen.findByRole("img", { name: /connected boards/ });
+    fireEvent.click(screen.getByRole("tab", { name: "find" }));
+    fireEvent.change(screen.getByLabelText("Find layers, text, tokens, annotations, and board links"), { target: { value: "missing" } });
+    expect(screen.getByText("No document matches.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Find layers, text, tokens, annotations, and board links"), { target: { value: "Clean" } });
+    fireEvent.click(screen.getByRole("button", { name: /Clean layer/ }));
+    expect(store.getState().selected.selectedShapes).toEqual(["clean"]);
+    fireEvent.click(screen.getByRole("tab", { name: "accessibility" }));
+    expect(screen.getByText("No accessibility findings.")).toBeInTheDocument();
+  });
+
+  it("covers draft releases, current libraries, unchanged diffs, and release display fallbacks", async () => {
+    mocks.libraries.mockResolvedValue({
+      libraries: [
+        { id: "library", source_board_id: "other", owner_id: "owner", name: "Current", description: "", visibility: "public", latest_version: 2, updated_at: "" },
+        { id: "new", source_board_id: "other", owner_id: "other", name: "New", description: "", visibility: "public", latest_version: 1, updated_at: "" },
+        { id: "self", source_board_id: "board", owner_id: "owner", name: "Self", description: "", visibility: "public", latest_version: 1, updated_at: "" },
+      ],
+      subscriptions: [{ library_id: "library", accepted_version: 2 }, { library_id: "self", accepted_version: 1 }],
+    });
+    mocks.diff.mockResolvedValueOnce({ version: 2, diff: [{ sourceId: "same", status: "unchanged" }] });
+    mocks.libraryVersions.mockResolvedValue({ versions: [
+      { library_id: "library", version: 3, semantic_version: null, release_status: "published", description: "", assets: [], created_by: "owner", created_at: "" },
+      { library_id: "library", version: 2, semantic_version: "1.5.0", release_status: "deprecated", description: "Old", assets: [], created_by: "owner", created_at: "" },
+    ] });
+    render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    await screen.findAllByText("Roadmap");
+    fireEvent.click(screen.getByRole("tab", { name: "libraries" }));
+    expect(screen.getByText(/v2 · up to date/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Update" })[1]).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Library name"), { target: { value: "New system" } });
+    fireEvent.change(screen.getByLabelText("Release notes"), { target: { value: "First\n\nSecond" } });
+    fireEvent.change(screen.getByLabelText("Semantic version"), { target: { value: "2.0.0-beta.1" } });
+    fireEvent.change(screen.getByLabelText("Release state"), { target: { value: "draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create release" }));
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith("board", expect.objectContaining({
+      name: "New system",
+      semanticVersion: "2.0.0-beta.1",
+      releaseStatus: "draft",
+      changelog: ["First", "Second"],
+    })));
+    expect(await screen.findByText(/Created version/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Update" })[0]!);
+    expect(await screen.findByText("This library is already current.")).toBeInTheDocument();
+    expect(mocks.apply).not.toHaveBeenCalled();
+    fireEvent.click(screen.getAllByRole("button", { name: "Releases" })[0]!);
+    expect(await screen.findByText("v3")).toBeInTheDocument();
+    expect(screen.getByText("published · No release notes")).toBeInTheDocument();
+    expect(screen.getByText("deprecated · Old")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Make current" })[0]).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Make current" })[1]).toBeDisabled();
+    fireEvent.click(screen.getAllByRole("button", { name: "Make current" })[0]!);
+    await waitFor(() => expect(mocks.govern).toHaveBeenCalledWith("rollback-library", "library", 3));
+  });
+
+  it("covers extension permission states and developer catalog activation", async () => {
+    mocks.actions.canEdit = false;
+    mocks.extensions.mockResolvedValue([
+      { id: "disabled", name: "Disabled", description: "", verified: false, publisher_id: "owner", updated_at: "", manifest: { id: "disabled", name: "Disabled", permissions: [], commands: [] }, installed_extensions: [{ user_id: "owner", granted_permissions: [], enabled: false }] },
+      { id: "fresh", name: "Fresh", description: "Useful", verified: true, publisher_id: "owner", updated_at: "", manifest: { id: "fresh", name: "Fresh", permissions: [], commands: [] } },
+    ]);
+    const store = makeStore({ title: null });
+    store.dispatch(setSelectedShapes([]));
+    render(<Provider store={store}><ProductPanel /></Provider>);
+    await screen.findAllByText("Roadmap");
+    fireEvent.click(screen.getByRole("tab", { name: "libraries" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save board as template" }));
+    await waitFor(() => expect(mocks.createTemplate).toHaveBeenCalledWith("board", "Board template", "Reusable board starting point", "private"));
+    fireEvent.click(screen.getByRole("tab", { name: "extensions" }));
+    expect(screen.getByRole("button", { name: "Rename selection" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create rectangle" })).toBeDisabled();
+    expect(screen.getByText(/Developer build · No description/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    await waitFor(() => expect(mocks.toggleExtension).toHaveBeenCalledWith("disabled", true));
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(mocks.installExtension).toHaveBeenCalledWith("fresh", []));
+    fireEvent.click(screen.getByRole("button", { name: "Publish extension" }));
+    await waitFor(() => expect(mocks.publishExtension).toHaveBeenCalledWith(expect.any(Object), "Published from Kumo"));
+  });
+
+  it("runs create-rectangle without a selection and renders watch and heavy performance guidance", async () => {
+    const watchShape = shape("vector", { vectorPoints: Array.from({ length: 15_010 }, (_, index) => ({ id: `watch-${index}`, x: index, y: index })) });
+    const watchStore = makeStore({ shapes: [watchShape] });
+    watchStore.dispatch(setSelectedShapes([]));
+    const first = render(<Provider store={watchStore}><ProductPanel /></Provider>);
+    await screen.findByRole("img", { name: /connected boards/ });
+    fireEvent.click(screen.getByRole("tab", { name: "extensions" }));
+    expect(screen.getByRole("button", { name: "Rename selection" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Create rectangle" }));
+    expect(mocks.actions.commitShapes).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "performance" }));
+    expect(screen.getByText("Consider splitting dense sections into linked boards.")).toBeInTheDocument();
+    first.unmount();
+
+    const heavyShape = shape("heavy", { vectorPoints: Array.from({ length: 50_010 }, (_, index) => ({ id: `heavy-${index}`, x: index, y: index })) });
+    render(<Provider store={makeStore({ shapes: [heavyShape] })}><ProductPanel /></Provider>);
+    await screen.findByRole("img", { name: /connected boards/ });
+    fireEvent.click(screen.getByRole("tab", { name: "performance" }));
+    expect(screen.getByText(/This board is heavy/)).toBeInTheDocument();
+  });
+
+  it("handles missing board guards and normalizes community tags", async () => {
+    const store = makeStore({ id: null, roomId: null, title: null, shapes: [] });
+    render(<Provider store={store}><ProductPanel /></Provider>);
+    expect(screen.getByText("Loading graph…")).toBeInTheDocument();
+    expect(mocks.graph).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "libraries" }));
+    expect(screen.getByLabelText("Library name")).toHaveValue("Kumo library");
+    fireEvent.click(screen.getByRole("button", { name: /Publish update/ }));
+    expect(mocks.publish).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "publish" }));
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Community" } });
+    fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "design, , tools" } });
+    fireEvent.click(screen.getByRole("button", { name: "Publish board" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+    expect(mocks.publishCommunity).not.toHaveBeenCalled();
+    expect(mocks.unpublishCommunity).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "recovery" }));
+    expect(screen.getByText("No local recovery snapshot is waiting.")).toBeInTheDocument();
+  });
+
+  it("reports initial and operation failures and ignores stale initialization", async () => {
+    mocks.graph.mockRejectedValueOnce("offline");
+    const failed = render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Product tools could not be loaded.");
+    failed.unmount();
+
+    mocks.unpublishCommunity.mockRejectedValueOnce("nope");
+    const operation = render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    await screen.findAllByText("Roadmap");
+    fireEvent.click(screen.getByRole("tab", { name: "publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The operation failed.");
+    operation.unmount();
+
+    let finish: (value: unknown) => void = () => undefined;
+    mocks.graph.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const stale = render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    stale.unmount();
+    await act(async () => {
+      finish({ sourceId: "board", nodes: [], edges: [], incoming: [] });
+      await Promise.resolve();
+    });
+
+    let reject: (reason: unknown) => void = () => undefined;
+    mocks.graph.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+    const staleFailure = render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    staleFailure.unmount();
+    await act(async () => {
+      reject(new Error("late"));
+      await Promise.resolve();
+    });
   });
 });

@@ -4,15 +4,17 @@ import handler from "../../server/api/handlers/platform";
 const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(), ensureProfile: vi.fn(), from: vi.fn(), rpc: vi.fn(), getAccess: vi.fn(), listBoards: vi.fn(), searchBoards: vi.fn(),
   provisionBoard: vi.fn(), getDocument: vi.fn(), sendEmail: vi.fn(), revokeTokens: vi.fn(),
+  pushConfigured: vi.fn(), sendPush: vi.fn(), storageFrom: vi.fn(),
   queues: new Map<string, Array<{ data?: unknown; error: unknown }>>(), calls: [] as Array<{ table: string; operation: string; value?: unknown }>,
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
-vi.mock("../../server/api/_supabase", () => ({ ensureActorProfile: mocks.ensureProfile, supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
+vi.mock("../../server/api/_supabase", () => ({ ensureActorProfile: mocks.ensureProfile, supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc, storage: { from: mocks.storageFrom } }) }));
 vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess, listBoardsForUser: mocks.listBoards, searchPublicBoards: mocks.searchBoards, provisionBoard: mocks.provisionBoard }));
 vi.mock("../../server/api/_liveblocks", () => ({ liveblocksAdmin: () => ({ getStorageDocument: mocks.getDocument }) }));
 vi.mock("../../server/api/_email", () => ({ sendInvitationEmail: mocks.sendEmail }));
 vi.mock("../../server/api/_firebaseAdmin", () => ({ privilegedAdminAuth: () => ({ revokeRefreshTokens: mocks.revokeTokens }) }));
+vi.mock("../../server/api/_push", () => ({ pushConfigured: mocks.pushConfigured, sendPushToUser: mocks.sendPush }));
 
 const next = (table: string) => mocks.queues.get(table)?.shift() ?? { data: null, error: null };
 const query = (table: string) => {
@@ -37,6 +39,14 @@ describe("product maturity platform API", () => {
     mocks.getAccess.mockResolvedValue({ role: "owner", board: { id: "board", owner_id: "owner", title: "Board", visibility: "private", liveblocks_room_id: "board:board" } });
     mocks.listBoards.mockResolvedValue([]); mocks.searchBoards.mockResolvedValue([]); mocks.getDocument.mockResolvedValue({ backgroundColor: "#fff", nodes: {} });
     mocks.provisionBoard.mockResolvedValue({ id: "remix" }); mocks.sendEmail.mockResolvedValue("link-only"); mocks.revokeTokens.mockResolvedValue(undefined);
+    mocks.pushConfigured.mockReturnValue(true); mocks.sendPush.mockResolvedValue({ delivered: 1, subscriptions: 1 });
+    process.env.VAPID_PUBLIC_KEY = "test-public-key";
+    mocks.storageFrom.mockReturnValue({
+      createSignedUrls: vi.fn().mockResolvedValue({ data: [], error: null }),
+      createSignedUploadUrl: vi.fn().mockResolvedValue({ data: { path: "workspace/font.woff2", token: "token", signedUrl: "https://upload" }, error: null }),
+      createSignedUrl: vi.fn().mockResolvedValue({ data: { signedUrl: "https://signed/font" }, error: null }),
+      list: vi.fn().mockResolvedValue({ data: [{ name: "font.woff2", metadata: { mimetype: "font/woff2" } }], error: null }),
+    });
   });
 
   it("redeems passwordless prototype links without requiring editor authentication", async () => {
@@ -55,6 +65,82 @@ describe("product maturity platform API", () => {
     const update = response(); await handler(request("POST", { action: "update-notification-preferences", preferences: { digest: "weekly", board_comments: "mentions", browser_enabled: true } }), update);
     expect(update.body).toEqual({ preferences: expect.objectContaining({ digest: "weekly" }) });
     expect(mocks.calls).toContainEqual(expect.objectContaining({ table: "notification_preferences", operation: "upsert", value: expect.objectContaining({ browser_enabled: true }) }));
+
+    enqueue("notification_preferences", { data: { user_id: "owner", browser_enabled: false } });
+    enqueue("push_subscriptions", { error: null });
+    const disabled = response(); await handler(request("POST", { action: "update-notification-preferences", preferences: { browser_enabled: false } }), disabled);
+    expect(disabled.statusCode).toBe(200);
+    expect(mocks.calls).toContainEqual(expect.objectContaining({ table: "push_subscriptions", operation: "delete" }));
+  });
+
+  it("exposes push configuration and manages encrypted subscriptions", async () => {
+    const configured = response(); await handler(request("GET", {}, { scope: "push-config" }), configured);
+    expect(configured.body).toEqual({ configured: true, publicKey: "test-public-key" });
+    enqueue("push_subscriptions", { data: { id: "push", endpoint: "https://push.example/sub", updated_at: "now" } });
+    const subscribed = response(); await handler(request("POST", { action: "subscribe-push", endpoint: "https://push.example/sub", p256dh: "public-encryption-key", auth: "auth-secret" }), subscribed);
+    expect(subscribed.statusCode).toBe(201);
+    expect(mocks.calls).toContainEqual(expect.objectContaining({ table: "push_subscriptions", operation: "upsert", value: expect.objectContaining({ user_id: "owner", endpoint: "https://push.example/sub" }) }));
+    const tested = response(); await handler(request("POST", { action: "test-push" }), tested);
+    expect(tested.body).toEqual({ delivered: 1, subscriptions: 1 });
+    expect(mocks.sendPush).toHaveBeenCalledWith("owner", expect.objectContaining({ tag: "kumo:push-test" }));
+    enqueue("push_subscriptions", { error: null });
+    const removed = response(); await handler(request("POST", { action: "unsubscribe-push", endpoint: "https://push.example/sub" }), removed);
+    expect(removed.body).toEqual({ unsubscribed: true });
+    const invalid = response(); await handler(request("POST", { action: "subscribe-push", endpoint: "http://insecure", p256dh: "p", auth: "a" }), invalid);
+    expect(invalid.statusCode).toBe(400);
+  });
+
+  it("creates, lists, redeems, and revokes temporary guest sessions", async () => {
+    const future = new Date(Date.now() + 60 * 60_000).toISOString();
+    enqueue("board_open_sessions", { data: { id: "session", board_id: "board", role: "editor", expires_at: future, created_at: "now" } });
+    enqueue("audit_events", { error: null });
+    const created = response(); await handler(request("POST", { action: "create-open-session", boardId: "board", role: "editor", password: "secure-password", expiresAt: future }), created);
+    expect(created.statusCode).toBe(201);
+    expect(created.body).toEqual(expect.objectContaining({ token: expect.any(String), url: expect.stringContaining("openSession=") }));
+    const inserted = mocks.calls.find((call) => call.table === "board_open_sessions" && call.operation === "insert")?.value as Record<string, unknown>;
+    expect(inserted.password_hash).not.toBe("secure-password");
+    expect(inserted.token_hash).toMatch(/^[a-f0-9]{64}$/);
+
+    enqueue("board_open_sessions", { data: [{ id: "session", board_id: "board", role: "editor", expires_at: future, revoked_at: null, use_count: 0, created_at: "now" }] });
+    const listed = response(); await handler(request("GET", {}, { scope: "open-sessions", boardId: "board" }), listed);
+    expect(listed.body).toEqual({ sessions: [expect.objectContaining({ id: "session" })] });
+
+    mocks.requireActor.mockClear();
+    enqueue("board_open_sessions", { data: { id: "session", board_id: "board", password_hash: inserted.password_hash, role: "editor", expires_at: future, revoked_at: null, use_count: 0, boards: { id: "board", title: "Open board", liveblocks_room_id: "board:board", visibility: "private", owner_id: "owner", updated_at: "2026-08-25T00:00:00.000Z" } } }, { error: null });
+    const createdBody = created.body as { token: string };
+    const redeemed = response(); await handler(request("POST", { action: "redeem-open-session", token: createdBody.token, password: "secure-password", guestNonce: "0123456789abcdef" }), redeemed);
+    expect(redeemed.body).toEqual({ session: expect.objectContaining({ boardId: "board", guestId: expect.stringMatching(/^guest:/), role: "editor" }) });
+    expect(mocks.requireActor).not.toHaveBeenCalled();
+
+    const invalidNonce = response();
+    await handler(request("POST", { action: "redeem-open-session", token: createdBody.token, guestNonce: "shared" }), invalidNonce);
+    expect(invalidNonce.statusCode).toBe(400);
+
+    mocks.requireActor.mockResolvedValue({ uid: "owner", email: "owner@example.com" });
+    enqueue("board_open_sessions", { error: null }); enqueue("audit_events", { error: null });
+    const revoked = response(); await handler(request("POST", { action: "revoke-open-session", boardId: "board", sessionId: "session" }), revoked);
+    expect(revoked.body).toEqual({ revoked: true });
+  });
+
+  it("enforces editor-session passwords and workspace-font boundaries", async () => {
+    const weak = response(); await handler(request("POST", { action: "create-open-session", boardId: "board", role: "editor", password: "short" }), weak);
+    expect(weak.statusCode).toBe(400);
+    expect(weak.body).toEqual({ error: expect.stringContaining("at least 8") });
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Studio", owner_id: "owner" } } });
+    const prepared = response(); await handler(request("POST", { action: "prepare-font-upload", fileName: "Kumo.woff2", mimeType: "font/woff2", byteSize: 2048 }), prepared);
+    expect(prepared.statusCode).toBe(200);
+    expect(prepared.body).toEqual(expect.objectContaining({ workspaceId: "workspace", upload: expect.objectContaining({ token: "token" }) }));
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Studio", owner_id: "owner" } } });
+    enqueue("workspace_fonts", { data: { id: "font", workspace_id: "workspace", family: "Kumo Sans", style: "normal", weight_min: 400, weight_max: 700, storage_key: "workspace/font.woff2", mime_type: "font/woff2", created_at: "now" } });
+    const completed = response(); await handler(request("POST", { action: "complete-font-upload", storageKey: "workspace/font.woff2", family: "Kumo Sans", weightMin: 400, weightMax: 700 }), completed);
+    expect(completed.statusCode).toBe(201);
+    expect(completed.body).toEqual({ font: expect.objectContaining({ family: "Kumo Sans", url: "https://signed/font" }) });
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Studio", owner_id: "owner" } } });
+    const escaped = response(); await handler(request("POST", { action: "complete-font-upload", storageKey: "other/../font.woff2", family: "Bad" }), escaped);
+    expect(escaped.statusCode).toBe(400);
   });
 
   it("refreshes pending workspace invitations atomically and transfers ownership transactionally", async () => {
@@ -228,6 +314,10 @@ describe("product maturity platform API", () => {
     expect(cycle.statusCode).toBe(409);
 
     enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { data: folders });
+    const foreignParent = response(); await handler(request("POST", { action: "move-folder", workspaceId: "workspace", folderId: "child", parentId: "other-workspace-folder" }), foreignParent);
+    expect(foreignParent.statusCode).toBe(404);
+
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { data: folders });
     const nested = response(); await handler(request("POST", { action: "delete-folder", workspaceId: "workspace", folderId: "parent" }), nested);
     expect(nested.statusCode).toBe(409);
 
@@ -299,5 +389,365 @@ describe("product maturity platform API", () => {
     const scope = response(); await handler(request("GET", {}, { scope: "unknown" }), scope); expect(scope.statusCode).toBe(400);
     const action = response(); await handler(request("POST", { action: "unknown" }), action); expect(action.statusCode).toBe(400);
     const method = response(); await handler(request("DELETE"), method); expect(method.statusCode).toBe(405);
+  });
+
+  it("covers public-link rate limits and persistence failures", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { allowed: false, remaining: 0, retry_after_seconds: 2 }, error: null });
+    const limitedPrototype = response(); await handler(request("POST", { action: "redeem-prototype", token: "limited" }), limitedPrototype); expect(limitedPrototype.statusCode).toBe(429);
+
+    enqueue("prototype_share_links", { error: new Error("link failed") });
+    const linkError = response(); await handler(request("POST", { action: "redeem-prototype", token: "secret" }), linkError); expect(linkError.statusCode).toBe(500);
+    enqueue("prototype_share_links", { data: { revoked_at: "now", expires_at: null } });
+    const revoked = response(); await handler(request("POST", { action: "redeem-prototype", token: "secret" }), revoked); expect(revoked.statusCode).toBe(404);
+    enqueue("prototype_share_links", { data: { revoked_at: null, expires_at: new Date(Date.now() - 1_000).toISOString() } });
+    const expired = response(); await handler(request("POST", { action: "redeem-prototype", token: "secret" }), expired); expect(expired.statusCode).toBe(404);
+    enqueue("prototype_share_links", { data: { board_id: "board", password_hash: null, revoked_at: null, expires_at: null } });
+    enqueue("boards", { error: new Error("board failed") });
+    const boardError = response(); await handler(request("POST", { action: "redeem-prototype", token: 42 }), boardError); expect(boardError.statusCode).toBe(500);
+    enqueue("prototype_share_links", { data: { board_id: "board", password_hash: null, revoked_at: null, expires_at: null } });
+    enqueue("boards", { data: null });
+    const missingBoard = response(); await handler(request("POST", { action: "redeem-prototype", token: "secret", password: 42 }), missingBoard); expect(missingBoard.statusCode).toBe(404);
+
+    mocks.rpc.mockResolvedValueOnce({ data: { allowed: false, remaining: 0, retry_after_seconds: 2 }, error: null });
+    const limitedSession = response(); await handler(request("POST", { action: "redeem-open-session", token: "limited" }), limitedSession); expect(limitedSession.statusCode).toBe(429);
+    enqueue("board_open_sessions", { error: new Error("session failed") });
+    const sessionError = response(); await handler(request("POST", { action: "redeem-open-session", token: "secret", guestNonce: "0123456789abcdef" }), sessionError); expect(sessionError.statusCode).toBe(500);
+    for (const session of [
+      null,
+      { revoked_at: "now", expires_at: new Date(Date.now() + 60_000).toISOString() },
+      { revoked_at: null, expires_at: new Date(Date.now() - 1_000).toISOString() },
+    ]) {
+      enqueue("board_open_sessions", { data: session });
+      const unavailable = response(); await handler(request("POST", { action: "redeem-open-session", token: "secret", guestNonce: "0123456789abcdef" }), unavailable); expect(unavailable.statusCode).toBe(404);
+    }
+    enqueue("board_open_sessions", { data: { password_hash: "bad:hash", revoked_at: null, expires_at: new Date(Date.now() + 60_000).toISOString() } });
+    const wrongPassword = response(); await handler(request("POST", { action: "redeem-open-session", token: "secret", password: "wrong", guestNonce: "0123456789abcdef" }), wrongPassword); expect(wrongPassword.statusCode).toBe(403);
+    enqueue("board_open_sessions", { data: { password_hash: null, revoked_at: null, expires_at: new Date(Date.now() + 60_000).toISOString(), boards: [] } });
+    const missingSessionBoard = response(); await handler(request("POST", { action: "redeem-open-session", token: "secret", guestNonce: "0123456789abcdef" }), missingSessionBoard); expect(missingSessionBoard.statusCode).toBe(404);
+    enqueue("board_open_sessions", { data: { id: "session", password_hash: null, role: "viewer", revoked_at: null, expires_at: new Date(Date.now() + 60_000).toISOString(), use_count: null, boards: [{ id: "board", title: "Board", liveblocks_room_id: "board:board", owner_id: "owner", visibility: "private", updated_at: null }] } }, { error: null });
+    const arrayBoard = response(); await handler(request("POST", { action: "redeem-open-session", token: "secret", guestNonce: "0123456789abcdef" }), arrayBoard); expect(arrayBoard.body).toEqual({ session: expect.objectContaining({ updatedAt: null }) });
+  });
+
+  it("covers workspace provisioning and administration read failures", async () => {
+    enqueue("workspace_members", { error: new Error("membership failed") });
+    const membershipError = response(); await handler(request("GET"), membershipError); expect(membershipError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: null }); enqueue("workspaces", { error: new Error("workspace failed") });
+    const workspaceError = response(); await handler(request("GET"), workspaceError); expect(workspaceError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: null }, { error: new Error("member insert failed") }); enqueue("workspaces", { data: { id: "workspace", name: "Studio", owner_id: "owner" } });
+    const memberInsertError = response(); await handler(request("GET"), memberInsertError); expect(memberInsertError.statusCode).toBe(500);
+
+    const workspace = { id: "workspace", name: "Studio", owner_id: "owner" };
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: [workspace] } }, { data: null });
+    enqueue("workspace_folders", { data: null }); enqueue("workspace_invitations", { data: null });
+    const arrayRelation = response(); await handler(request("GET"), arrayRelation);
+    expect(arrayRelation.body).toEqual(expect.objectContaining({ members: [], folders: [], invitations: [] }));
+
+    for (const [table, error] of [["workspace_members", "members failed"], ["workspace_folders", "folders failed"], ["workspace_invitations", "invitations failed"]] as const) {
+      enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }, table === "workspace_members" ? { error: new Error(error) } : { data: [] });
+      enqueue("workspace_folders", table === "workspace_folders" ? { error: new Error(error) } : { data: [] });
+      enqueue("workspace_invitations", table === "workspace_invitations" ? { error: new Error(error) } : { data: [] });
+      const failed = response(); await handler(request("GET"), failed); expect(failed.statusCode).toBe(500);
+    }
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }, { data: [{ user_id: "owner" }] });
+    enqueue("workspace_folders", { data: [] }); enqueue("workspace_invitations", { data: [] }); enqueue("profiles", { error: new Error("profiles failed") });
+    const profilesError = response(); await handler(request("GET"), profilesError); expect(profilesError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }, { data: [{ user_id: "missing" }] });
+    enqueue("workspace_folders", { data: [] }); enqueue("workspace_invitations", { data: [] }); enqueue("profiles", { data: null });
+    const missingProfile = response(); await handler(request("GET"), missingProfile); expect(missingProfile.body).toEqual(expect.objectContaining({ members: [expect.objectContaining({ profile: null })] }));
+  });
+
+  it("lists workspace fonts and covers signing failures and empty libraries", async () => {
+    const workspace = { id: "workspace", name: "Studio", owner_id: "owner" };
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }); enqueue("workspace_fonts", { data: [] });
+    const empty = response(); await handler(request("GET", {}, { scope: "workspace-fonts" }), empty); expect(empty.body).toEqual({ fonts: [] });
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }); enqueue("workspace_fonts", { data: null });
+    const nullFonts = response(); await handler(request("GET", {}, { scope: "workspace-fonts" }), nullFonts); expect(nullFonts.body).toEqual({ fonts: [] });
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }); enqueue("workspace_fonts", { data: [{ id: "font", storage_key: "workspace/font.woff2" }] });
+    mocks.storageFrom.mockReturnValueOnce({ createSignedUrls: vi.fn().mockResolvedValue({ data: [{ path: "workspace/font.woff2", signedUrl: "https://font" }], error: null }) });
+    const signed = response(); await handler(request("GET", {}, { scope: "workspace-fonts" }), signed); expect(signed.body).toEqual({ fonts: [expect.objectContaining({ url: "https://font" })] });
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }); enqueue("workspace_fonts", { error: new Error("fonts failed") });
+    const fontError = response(); await handler(request("GET", {}, { scope: "workspace-fonts" }), fontError); expect(fontError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }); enqueue("workspace_fonts", { data: [{ id: "font", storage_key: "workspace/font.woff2" }] });
+    mocks.storageFrom.mockReturnValueOnce({ createSignedUrls: vi.fn().mockResolvedValue({ data: null, error: new Error("sign failed") }) });
+    const signError = response(); await handler(request("GET", {}, { scope: "workspace-fonts" }), signError); expect(signError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { workspace_id: "workspace", role: "owner", workspaces: workspace } }); enqueue("workspace_fonts", { data: [{ id: "font", storage_key: "workspace/font.woff2" }] });
+    mocks.storageFrom.mockReturnValueOnce({ createSignedUrls: vi.fn().mockResolvedValue({ data: null, error: null }) });
+    const unsigned = response(); await handler(request("GET", {}, { scope: "workspace-fonts" }), unsigned); expect(unsigned.body).toEqual({ fonts: [expect.objectContaining({ url: null })] });
+
+    mocks.pushConfigured.mockReturnValueOnce(false).mockReturnValueOnce(false);
+    const push = response(); await handler(request("GET", {}, { scope: "push-config" }), push); expect(push.body).toEqual({ configured: false, publicKey: "" });
+  });
+
+  it("covers global-search empty and failure results", async () => {
+    const blank = response(); await handler(request("GET", {}, { scope: "global-search", q: "  " }), blank); expect(blank.body).toEqual({ results: [] });
+
+    for (const failedTable of ["profiles", "board_templates", "community_publications"] as const) {
+      enqueue("profiles", failedTable === "profiles" ? { error: new Error("profiles failed") } : { data: [] });
+      enqueue("board_templates", failedTable === "board_templates" ? { error: new Error("templates failed") } : { data: [] });
+      enqueue("community_publications", failedTable === "community_publications" ? { error: new Error("community failed") } : { data: [] });
+      const failed = response(); await handler(request("GET", {}, { scope: "global-search", q: "design" }), failed); expect(failed.statusCode).toBe(500);
+    }
+
+    mocks.listBoards.mockResolvedValueOnce([{ id: "owned", title: "Design", role: undefined }]);
+    enqueue("profiles", { data: null }); enqueue("board_templates", { data: null });
+    enqueue("community_publications", { data: [{ board_id: "community", slug: "fallback-slug", description: "Design", boards: null }] });
+    const fallbacks = response(); await handler(request("GET", {}, { scope: "global-search", q: "design" }), fallbacks);
+    expect(fallbacks.body).toEqual({ results: expect.arrayContaining([
+      expect.objectContaining({ kind: "board", detail: "public" }),
+      expect.objectContaining({ kind: "community", label: "fallback-slug" }),
+    ]) });
+
+    enqueue("profiles", { data: [] }); enqueue("board_templates", { data: [] }); enqueue("community_publications", { data: null });
+    const nullCommunity = response(); await handler(request("GET", {}, { scope: "global-search", q: "design" }), nullCommunity); expect(nullCommunity.statusCode).toBe(200);
+  });
+
+  it("covers every platform read error and nullable collection", async () => {
+    enqueue("notification_preferences", { error: new Error("preferences failed") });
+    const preferenceError = response(); await handler(request("GET", {}, { scope: "notification-preferences" }), preferenceError); expect(preferenceError.statusCode).toBe(500);
+
+    enqueue("audit_events", { data: null });
+    const ownOperations = response(); await handler(request("GET", {}, { scope: "operations" }), ownOperations); expect(ownOperations.body).toEqual(expect.objectContaining({ events: [] }));
+    enqueue("audit_events", { error: new Error("events failed") });
+    const operationError = response(); await handler(request("GET", {}, { scope: "operations" }), operationError); expect(operationError.statusCode).toBe(500);
+
+    enqueue("extension_catalog", { data: null });
+    const emptyExtensions = response(); await handler(request("GET", {}, { scope: "extensions" }), emptyExtensions); expect(emptyExtensions.body).toEqual({ extensions: [] });
+    enqueue("extension_catalog", { error: new Error("extensions failed") });
+    const extensionError = response(); await handler(request("GET", {}, { scope: "extensions" }), extensionError); expect(extensionError.statusCode).toBe(500);
+
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const missingPrototypeAccess = response(); await handler(request("GET", {}, { scope: "prototype-links", boardId: "board" }), missingPrototypeAccess); expect(missingPrototypeAccess.statusCode).toBe(403);
+    enqueue("prototype_share_links", { data: null });
+    const emptyLinks = response(); await handler(request("GET", {}, { scope: "prototype-links", boardId: "board" }), emptyLinks); expect(emptyLinks.body).toEqual({ links: [] });
+    enqueue("prototype_share_links", { error: new Error("links failed") });
+    const linkError = response(); await handler(request("GET", {}, { scope: "prototype-links", boardId: "board" }), linkError); expect(linkError.statusCode).toBe(500);
+
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const missingSessionAccess = response(); await handler(request("GET", {}, { scope: "open-sessions", boardId: "board" }), missingSessionAccess); expect(missingSessionAccess.statusCode).toBe(403);
+    enqueue("board_open_sessions", { data: null });
+    const emptySessions = response(); await handler(request("GET", {}, { scope: "open-sessions", boardId: "board" }), emptySessions); expect(emptySessions.body).toEqual({ sessions: [] });
+    enqueue("board_open_sessions", { error: new Error("sessions failed") });
+    const sessionError = response(); await handler(request("GET", {}, { scope: "open-sessions", boardId: "board" }), sessionError); expect(sessionError.statusCode).toBe(500);
+
+    enqueue("community_publications", { data: null });
+    const emptyCommunity = response(); await handler(request("GET", {}, { scope: "community" }), emptyCommunity); expect(emptyCommunity.body).toEqual({ publications: [] });
+    enqueue("community_publications", { error: new Error("community failed") });
+    const communityError = response(); await handler(request("GET", {}, { scope: "community" }), communityError); expect(communityError.statusCode).toBe(500);
+
+    for (const failedTable of ["account_notifications", "friendships", "audit_events"] as const) {
+      enqueue("account_notifications", failedTable === "account_notifications" ? { error: new Error("notifications failed") } : { data: null });
+      enqueue("friendships", failedTable === "friendships" ? { error: new Error("friendships failed") } : { data: null });
+      enqueue("audit_events", failedTable === "audit_events" ? { error: new Error("audits failed") } : { data: null });
+      const failed = response(); await handler(request("GET", {}, { scope: "account-export" }), failed); expect(failed.statusCode).toBe(500);
+    }
+    enqueue("account_notifications", { data: null }); enqueue("friendships", { data: null }); enqueue("audit_events", { data: null });
+    const emptyExport = response(); await handler(request("GET", {}, { scope: "account-export" }), emptyExport); expect(emptyExport.body).toEqual(expect.objectContaining({ notifications: [], friendships: [], auditEvents: [] }));
+  });
+
+  it("covers rate limits and workspace mutation validation", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { allowed: false, remaining: 0, retry_after_seconds: 2 }, error: null });
+    const limitedInvite = response(); await handler(request("POST", { action: "accept-workspace-invitation", token: "invite" }), limitedInvite); expect(limitedInvite.statusCode).toBe(429);
+    mocks.rpc.mockImplementationOnce(async () => ({ data: { allowed: true, remaining: 9 }, error: null }))
+      .mockImplementationOnce(async () => ({ data: null, error: new Error("accept failed") }));
+    const acceptError = response(); await handler(request("POST", { action: "accept-workspace-invitation", token: "invite" }), acceptError); expect(acceptError.statusCode).toBe(500);
+    mocks.rpc.mockResolvedValueOnce({ data: { allowed: false, remaining: 0, retry_after_seconds: 2 }, error: null });
+    const limitedAction = response(); await handler(request("POST", { action: 42 }), limitedAction); expect(limitedAction.statusCode).toBe(429);
+
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspaces", { error: new Error("rename failed") });
+    const renameError = response(); await handler(request("POST", { action: "rename-workspace", workspaceId: "workspace", name: 42 }), renameError); expect(renameError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { role: "owner" } });
+    const invalidEmail = response(); await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "invalid", role: "invalid" }), invalidEmail); expect(invalidEmail.statusCode).toBe(400);
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("profiles", { error: new Error("profile lookup failed") });
+    const profileError = response(); await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "member@example.com" }), profileError); expect(profileError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: { role: "owner" } }, { error: new Error("member upsert failed") }); enqueue("profiles", { data: { firebase_uid: "member" } });
+    const memberError = response(); await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "member@example.com" }), memberError); expect(memberError.statusCode).toBe(500);
+
+    mocks.rpc.mockImplementation(async (name: string) => name === "create_or_refresh_kumo_workspace_invitation"
+      ? { data: null, error: new Error("invitation failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("profiles", { data: null });
+    const invitationError = response(); await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "new@example.com" }), invitationError); expect(invitationError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_invitations", { error: new Error("cancel failed") });
+    const cancelError = response(); await handler(request("POST", { action: "cancel-workspace-invitation", workspaceId: "workspace", invitationId: 42 }), cancelError); expect(cancelError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { role: "owner" } }, { error: new Error("remove failed") });
+    const removeError = response(); await handler(request("POST", { action: "remove-workspace-member", workspaceId: "workspace", userId: "member" }), removeError); expect(removeError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: { role: "owner" } }, { error: new Error("update failed") });
+    const updateError = response(); await handler(request("POST", { action: "update-workspace-member", workspaceId: "workspace", userId: "member", role: "invalid" }), updateError); expect(updateError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { role: "owner" } });
+    const selfTransfer = response(); await handler(request("POST", { action: "transfer-workspace-ownership", workspaceId: "workspace", userId: "owner" }), selfTransfer); expect(selfTransfer.statusCode).toBe(400);
+    enqueue("workspace_members", { data: { role: "owner" } });
+    const missingTransfer = response(); await handler(request("POST", { action: "transfer-workspace-ownership", workspaceId: "workspace", userId: 42 }), missingTransfer); expect(missingTransfer.statusCode).toBe(400);
+    mocks.rpc.mockImplementation(async (name: string) => name === "transfer_kumo_workspace_ownership"
+      ? { data: null, error: new Error("transfer failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    enqueue("workspace_members", { data: { role: "owner" } });
+    const transferError = response(); await handler(request("POST", { action: "transfer-workspace-ownership", workspaceId: "workspace", userId: "member" }), transferError); expect(transferError.statusCode).toBe(500);
+  });
+
+  it("covers folder and workspace-leave persistence failures", async () => {
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { error: new Error("folders failed") });
+    const foldersError = response(); await handler(request("POST", { action: "rename-folder", workspaceId: "workspace", folderId: "folder" }), foldersError); expect(foldersError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { data: null });
+    const missing = response(); await handler(request("POST", { action: "rename-folder", workspaceId: "workspace", folderId: "folder" }), missing); expect(missing.statusCode).toBe(404);
+
+    const folders = [{ id: "folder", parent_id: null }];
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { data: folders }, { error: new Error("rename failed") });
+    const renameError = response(); await handler(request("POST", { action: "rename-folder", workspaceId: "workspace", folderId: "folder" }), renameError); expect(renameError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { data: folders }, { error: new Error("move failed") });
+    const moveError = response(); await handler(request("POST", { action: "move-folder", workspaceId: "workspace", folderId: "folder", parentId: 42 }), moveError); expect(moveError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { data: folders }, { error: new Error("delete failed") });
+    const deleteError = response(); await handler(request("POST", { action: "delete-folder", workspaceId: "workspace", folderId: "folder" }), deleteError); expect(deleteError.statusCode).toBe(500);
+
+    enqueue("workspace_members", { data: { role: "member" } }, { error: new Error("leave failed") });
+    const leaveError = response(); await handler(request("POST", { action: "leave-workspace", workspaceId: "workspace" }), leaveError); expect(leaveError.statusCode).toBe(500);
+  });
+
+  it("covers notification and push subscription failure paths", async () => {
+    enqueue("notification_preferences", { error: new Error("preferences failed") });
+    const preferenceError = response(); await handler(request("POST", { action: "update-notification-preferences", preferences: 42 }), preferenceError); expect(preferenceError.statusCode).toBe(500);
+
+    enqueue("notification_preferences", { data: { browser_enabled: false } }); enqueue("push_subscriptions", { error: new Error("unsubscribe all failed") });
+    const subscriptionCleanupError = response(); await handler(request("POST", { action: "update-notification-preferences", preferences: {
+      email_enabled: false, browser_enabled: false, digest: "invalid", board_comments: "invalid", branch_reviews: false, library_updates: false, access_changes: false,
+    } }), subscriptionCleanupError); expect(subscriptionCleanupError.statusCode).toBe(500);
+
+    const missingKeys = response(); await handler(request("POST", { action: "subscribe-push", endpoint: "https://push.example/sub", p256dh: 42, auth: "" }), missingKeys); expect(missingKeys.statusCode).toBe(400);
+    enqueue("push_subscriptions", { error: new Error("unsubscribe failed") });
+    const unsubscribeError = response(); await handler(request("POST", { action: "unsubscribe-push", endpoint: "https://push.example/sub" }), unsubscribeError); expect(unsubscribeError.statusCode).toBe(500);
+    enqueue("push_subscriptions", { error: new Error("subscribe failed") });
+    const subscribeError = response(); await handler(request("POST", { action: "subscribe-push", endpoint: "https://push.example/sub", p256dh: "p", auth: "a" }), subscribeError); expect(subscribeError.statusCode).toBe(500);
+  });
+
+  it("validates all workspace-font upload and completion boundaries", async () => {
+    const membership = (role: string = "owner") => enqueue("workspace_members", { data: { workspace_id: "workspace", role, workspaces: { id: "workspace", name: "Studio", owner_id: "owner" } } });
+    membership("guest");
+    const guest = response(); await handler(request("POST", { action: "prepare-font-upload" }), guest); expect(guest.statusCode).toBe(403);
+
+    for (const body of [
+      { mimeType: "text/plain", byteSize: 4 },
+      { mimeType: "font/woff2", byteSize: "nope" },
+      { mimeType: "font/woff2", byteSize: 0 },
+      { mimeType: "font/woff2", byteSize: 11 * 1024 * 1024 },
+    ]) {
+      membership();
+      const invalid = response(); await handler(request("POST", { action: "prepare-font-upload", ...body }), invalid); expect(invalid.statusCode).toBe(400);
+    }
+
+    membership();
+    const noExtension = response(); await handler(request("POST", { action: "prepare-font-upload", mimeType: "font/woff2", byteSize: 4, fileName: "???" }), noExtension); expect(noExtension.statusCode).toBe(200);
+    membership();
+    mocks.storageFrom.mockReturnValueOnce({ createSignedUploadUrl: vi.fn().mockResolvedValue({ data: null, error: new Error("prepare failed") }) });
+    const prepareError = response(); await handler(request("POST", { action: "prepare-font-upload", mimeType: "font/woff2", byteSize: 4 }), prepareError); expect(prepareError.statusCode).toBe(500);
+
+    membership();
+    mocks.storageFrom.mockReturnValueOnce({ list: vi.fn().mockResolvedValue({ data: null, error: new Error("list failed") }) });
+    const listError = response(); await handler(request("POST", { action: "complete-font-upload", storageKey: "workspace/font.woff2", family: "Kumo" }), listError); expect(listError.statusCode).toBe(500);
+
+    for (const objects of [[], [{ name: "font.woff2", metadata: {} }]]) {
+      membership();
+      mocks.storageFrom.mockReturnValueOnce({ list: vi.fn().mockResolvedValue({ data: objects, error: null }) });
+      const incomplete = response(); await handler(request("POST", { action: "complete-font-upload", storageKey: "workspace/font.woff2", family: "Kumo" }), incomplete); expect(incomplete.statusCode).toBe(409);
+    }
+
+    membership();
+    const missingFamily = response(); await handler(request("POST", { action: "complete-font-upload", storageKey: "workspace/font.woff2", family: 42 }), missingFamily); expect(missingFamily.statusCode).toBe(400);
+
+    membership(); enqueue("workspace_fonts", { error: new Error("font insert failed") });
+    const insertError = response(); await handler(request("POST", { action: "complete-font-upload", storageKey: "workspace/font.woff2", family: "Kumo", weightMin: 0, weightMax: 0, style: "italic" }), insertError); expect(insertError.statusCode).toBe(500);
+
+    membership(); enqueue("workspace_fonts", { data: { id: "font", storage_key: "workspace/font.woff2" } });
+    mocks.storageFrom
+      .mockReturnValueOnce({ list: vi.fn().mockResolvedValue({ data: [{ name: "font.woff2", metadata: { mimetype: "font/woff2" } }], error: null }) })
+      .mockReturnValueOnce({ createSignedUrl: vi.fn().mockResolvedValue({ data: null, error: new Error("sign failed") }) });
+    const signError = response(); await handler(request("POST", { action: "complete-font-upload", storageKey: "workspace/font.woff2", family: "Kumo", weightMin: 2000, weightMax: 1 }), signError); expect(signError.statusCode).toBe(500);
+  });
+
+  it("covers prototype and open-session ownership, defaults, and write errors", async () => {
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const noPrototypeAccess = response(); await handler(request("POST", { action: "create-prototype-link", boardId: "board" }), noPrototypeAccess); expect(noPrototypeAccess.statusCode).toBe(403);
+    enqueue("prototype_share_links", { error: new Error("revoke failed") });
+    const prototypeRevokeError = response(); await handler(request("POST", { action: "revoke-prototype-link", boardId: "board", linkId: 42 }), prototypeRevokeError); expect(prototypeRevokeError.statusCode).toBe(500);
+    enqueue("prototype_share_links", { error: new Error("create failed") });
+    const prototypeCreateError = response(); await handler(request("POST", { action: "create-prototype-link", boardId: "board", startShapeId: 42, password: 42, deviceFrame: "watch", expiresAt: 42 }), prototypeCreateError); expect(prototypeCreateError.statusCode).toBe(500);
+
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const noSessionAccess = response(); await handler(request("POST", { action: "create-open-session", boardId: "board" }), noSessionAccess); expect(noSessionAccess.statusCode).toBe(403);
+    enqueue("board_open_sessions", { error: new Error("revoke failed") });
+    const sessionRevokeError = response(); await handler(request("POST", { action: "revoke-open-session", boardId: "board", sessionId: 42 }), sessionRevokeError); expect(sessionRevokeError.statusCode).toBe(500);
+    enqueue("board_open_sessions", { error: new Error("create failed") });
+    const sessionCreateError = response(); await handler(request("POST", { action: "create-open-session", boardId: "board", role: "viewer", password: 42, expiresAt: "invalid" }), sessionCreateError); expect(sessionCreateError.statusCode).toBe(500);
+  });
+
+  it("covers every extension write and permission failure", async () => {
+    enqueue("extension_catalog", { error: new Error("publish failed") });
+    const publishError = response(); await handler(request("POST", { action: "publish-extension", manifest: { id: "kumo.test", name: "Test", permissions: [], commands: [{ id: "run", name: "Run", operation: "rename-selected" }] } }), publishError); expect(publishError.statusCode).toBe(500);
+    enqueue("installed_extensions", { error: new Error("uninstall failed") });
+    const uninstallError = response(); await handler(request("POST", { action: "uninstall-extension", extensionId: 42 }), uninstallError); expect(uninstallError.statusCode).toBe(500);
+    enqueue("installed_extensions", { error: new Error("toggle failed") });
+    const toggleError = response(); await handler(request("POST", { action: "toggle-extension", extensionId: "extension", enabled: true }), toggleError); expect(toggleError.statusCode).toBe(500);
+    enqueue("extension_catalog", { error: new Error("catalog failed") });
+    const catalogError = response(); await handler(request("POST", { action: "install-extension", extensionId: "extension" }), catalogError); expect(catalogError.statusCode).toBe(500);
+    enqueue("extension_catalog", { data: { manifest: {}, verified: false, publisher_id: "other" } });
+    const unverified = response(); await handler(request("POST", { action: "install-extension", extensionId: "extension" }), unverified); expect(unverified.statusCode).toBe(403);
+    enqueue("extension_catalog", { data: { manifest: { permissions: "read-document" }, verified: false, publisher_id: "owner" } }); enqueue("installed_extensions", { error: null });
+    const defaults = response(); await handler(request("POST", { action: "install-extension", extensionId: "extension", permissions: "read-document" }), defaults); expect(defaults.body).toEqual({ installed: true, permissions: [] });
+    enqueue("extension_catalog", { data: { manifest: { permissions: [] }, verified: true, publisher_id: null } }); enqueue("installed_extensions", { error: new Error("install failed") });
+    const installError = response(); await handler(request("POST", { action: "install-extension", extensionId: "extension", permissions: [] }), installError); expect(installError.statusCode).toBe(500);
+  });
+
+  it("covers community reporting, remixing, publishing, and fallback metadata", async () => {
+    enqueue("community_publications", { error: new Error("publication failed") });
+    const reportLookupError = response(); await handler(request("POST", { action: "report-community", boardId: "board" }), reportLookupError); expect(reportLookupError.statusCode).toBe(500);
+    enqueue("community_publications", { data: null });
+    const missingReport = response(); await handler(request("POST", { action: "report-community", boardId: "board" }), missingReport); expect(missingReport.statusCode).toBe(404);
+    enqueue("community_publications", { data: { board_id: "board" } }); enqueue("community_reports", { error: new Error("report failed") });
+    const reportError = response(); await handler(request("POST", { action: "report-community", boardId: "board", reason: 42 }), reportError); expect(reportError.statusCode).toBe(500);
+
+    enqueue("community_publications", { error: new Error("remix failed") });
+    const remixLookupError = response(); await handler(request("POST", { action: "remix-community", boardId: "board" }), remixLookupError); expect(remixLookupError.statusCode).toBe(500);
+    enqueue("community_publications", { data: null });
+    const missingRemix = response(); await handler(request("POST", { action: "remix-community", boardId: "board" }), missingRemix); expect(missingRemix.statusCode).toBe(404);
+    enqueue("community_publications", { data: { remix_allowed: true, boards: [] } });
+    const missingRelatedBoard = response(); await handler(request("POST", { action: "remix-community", boardId: "board" }), missingRelatedBoard); expect(missingRelatedBoard.statusCode).toBe(404);
+    enqueue("community_publications", { data: { remix_allowed: true, remix_count: null, boards: [{ title: null, liveblocks_room_id: "board:public" }] } }, { error: null });
+    const remixFallbacks = response(); await handler(request("POST", { action: "remix-community", boardId: "board" }), remixFallbacks); expect(remixFallbacks.statusCode).toBe(201);
+
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const missingBoard = response(); await handler(request("POST", { action: "publish-community", boardId: "missing" }), missingBoard); expect(missingBoard.statusCode).toBe(404);
+    mocks.getAccess.mockResolvedValueOnce({ role: "editor", board: { title: "Board" } });
+    const nonOwner = response(); await handler(request("POST", { action: "publish-community", boardId: "board" }), nonOwner); expect(nonOwner.statusCode).toBe(403);
+    enqueue("community_publications", { error: new Error("unpublish failed") });
+    const unpublishError = response(); await handler(request("POST", { action: "unpublish-community", boardId: "board" }), unpublishError); expect(unpublishError.statusCode).toBe(500);
+    enqueue("community_publications", { error: new Error("publish failed") });
+    const publishError = response(); await handler(request("POST", { action: "publish-community", boardId: "board", slug: "", tags: [42, "  ", "Tag"], remixAllowed: false }), publishError); expect(publishError.statusCode).toBe(500);
+    enqueue("community_publications", { data: { board_id: "board", slug: "board" } });
+    const tagDefaults = response(); await handler(request("POST", { action: "publish-community", boardId: "board", tags: "tag" }), tagDefaults); expect(tagDefaults.statusCode).toBe(201);
+  });
+
+  it("covers account lifecycle write errors and semantic status mapping", async () => {
+    enqueue("account_deletion_requests", { error: new Error("deletion failed") });
+    const deletionError = response(); await handler(request("POST", { action: "request-account-deletion" }), deletionError); expect(deletionError.statusCode).toBe(500);
+    enqueue("account_deletion_requests", { error: new Error("cancel failed") });
+    const cancelError = response(); await handler(request("POST", { action: "cancel-account-deletion" }), cancelError); expect(cancelError.statusCode).toBe(500);
+
+    mocks.requireActor.mockRejectedValueOnce(Object.assign(new Error("Invitation is unavailable."), { name: "NotFound" }));
+    const notFound = response(); await handler(request("GET"), notFound); expect(notFound.statusCode).toBe(404);
+    mocks.requireActor.mockRejectedValueOnce(new Error("Resolve conflict before leaving."));
+    const conflict = response(); await handler(request("GET"), conflict); expect(conflict.statusCode).toBe(409);
+    mocks.requireActor.mockRejectedValueOnce(new Error("Invalid value required."));
+    const invalid = response(); await handler(request("GET"), invalid); expect(invalid.statusCode).toBe(400);
   });
 });

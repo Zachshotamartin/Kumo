@@ -2,6 +2,22 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { FriendRequestPolicy, ProfileRow } from "./_profiles.js";
 
 let client: SupabaseClient | undefined;
+export const DATABASE_FETCH_TIMEOUT_MS = 15_000;
+
+export const databaseFetch: typeof fetch = async (input, init = {}) => {
+  const controller = new AbortController();
+  const upstreamSignal = init.signal ?? (input instanceof Request ? input.signal : null);
+  const abort = () => controller.abort();
+  if (upstreamSignal?.aborted) abort();
+  else upstreamSignal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(abort, DATABASE_FETCH_TIMEOUT_MS);
+  try {
+    return await globalThis.fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    upstreamSignal?.removeEventListener("abort", abort);
+  }
+};
 
 export const supabaseAdmin = (): SupabaseClient => {
   const url = process.env.SUPABASE_URL;
@@ -11,6 +27,7 @@ export const supabaseAdmin = (): SupabaseClient => {
   }
   client ??= createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: databaseFetch },
   });
   return client;
 };

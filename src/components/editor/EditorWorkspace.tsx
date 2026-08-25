@@ -4,6 +4,7 @@ import {
   CaretLeft,
   CaretRight,
   Broadcast,
+  BezierCurve,
   ChatCenteredText,
   ClockCounterClockwise,
   DotsThree,
@@ -38,6 +39,7 @@ import {
   setFollowingUserId,
   setPresentationMode,
   setRightPanel,
+  setSaveStatus,
   setViewport,
 } from "../../features/editor/editorSlice";
 import { clearSelectedShapes, setSelectedShapes } from "../../features/selected/selectedSlice";
@@ -56,6 +58,7 @@ import ui from "../ui/Ui.module.css";
 import { OfflineRecoveryBridge } from "../../collaboration/OfflineRecoveryBridge";
 import { loadProductGraph, type ProductGraph } from "../../services/productRepository";
 import { listDesignBranches } from "../../services/branchRepository";
+import { BoardNavigation } from "./BoardNavigation";
 
 const CommentsPanel = lazy(() => import("../../comments/CommentsPanel").then((module) => ({ default: module.CommentsPanel })));
 const VersionHistoryPanel = lazy(() => import("../../history/VersionHistoryPanel").then((module) => ({ default: module.VersionHistoryPanel })));
@@ -66,6 +69,7 @@ const ExportPanel = lazy(() => import("./ExportPanel"));
 const InspectPanel = lazy(() => import("./InspectPanel"));
 const BranchesPanel = lazy(() => import("./BranchesPanel"));
 const ProductPanel = lazy(() => import("./ProductPanel"));
+const AdvancedStudioPanel = lazy(() => import("./AdvancedStudioPanel"));
 
 const emptyBoard = {
   shapes: [],
@@ -129,10 +133,10 @@ const EditorWorkspace = () => {
   const [layersWidth, setLayersWidth] = useState(236);
   const [propertiesWidth, setPropertiesWidth] = useState(268);
   const [layersCollapsed, setLayersCollapsed] = useState(
-    () => typeof window !== "undefined" && window.innerWidth < 720
+    () => window.innerWidth < 720
   );
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(
-    () => typeof window !== "undefined" && window.innerWidth < 960
+    () => window.innerWidth < 960
   );
   const [resizingPanel, setResizingPanel] = useState<PanelSide | null>(null);
   const deepLinkHandledRef = useRef<string | null>(null);
@@ -290,14 +294,17 @@ const EditorWorkspace = () => {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    dispatch(logout());
-    dispatch(setWhiteboardData(emptyBoard));
+    try {
+      await signOut(auth);
+      dispatch(logout());
+      dispatch(setWhiteboardData(emptyBoard));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn't sign you out.");
+    }
   };
 
   const setZoomAroundCanvasCenter = (nextZoom: number) => {
-    const rect = canvasRegionRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const rect = canvasRegionRef.current!.getBoundingClientRect();
     dispatch(
       setViewport(
         zoomAtPoint(
@@ -317,6 +324,10 @@ const EditorWorkspace = () => {
       type: spotlight ? "SPOTLIGHT_START" : "SPOTLIGHT_STOP",
       presenterId: user.uid,
     });
+  };
+  const dismissError = () => {
+    setError(null);
+    if (editor.saveError) dispatch(setSaveStatus({ status: "idle", error: null }));
   };
   const propertiesVisible = !propertiesCollapsed || editor.rightPanel !== "properties";
 
@@ -341,6 +352,7 @@ const EditorWorkspace = () => {
             onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
           />
           {board.activeBranchName && <span className={styles.branchBadge}><GitBranch aria-hidden="true" />{board.activeBranchName}</span>}
+          <BoardNavigation />
         </div>
         <div className={styles.topbarEnd}>
           <CommandPalette />
@@ -441,6 +453,14 @@ const EditorWorkspace = () => {
           >
             <GitBranch aria-hidden="true" />
             <span>Branches</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "studio" ? styles.activeTopbarButton : ""}`}
+            onClick={() => dispatch(setRightPanel("studio"))}
+          >
+            <BezierCurve aria-hidden="true" />
+            <span>Studio</span>
           </button>
           <button
             type="button"
@@ -571,6 +591,8 @@ const EditorWorkspace = () => {
                             ? <BranchesPanel />
                             : editor.rightPanel === "platform"
                               ? <ProductPanel />
+                              : editor.rightPanel === "studio"
+                                ? <AdvancedStudioPanel />
                             : <InspectorPanel />}
             </Suspense>
           )}
@@ -587,7 +609,7 @@ const EditorWorkspace = () => {
       {(error || editor.saveError) && (
         <div className={`${ui.notice} ${ui.noticeError} ${styles.errorToast}`} role="alert">
           <span>{error ?? editor.saveError}</span>
-          <button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X aria-hidden="true" /></button>
+          <button type="button" aria-label="Dismiss error" onClick={dismissError}><X aria-hidden="true" /></button>
         </div>
       )}
 

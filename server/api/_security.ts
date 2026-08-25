@@ -14,6 +14,11 @@ export const requestOrigin = (request: VercelRequest) => {
 
 export const hashSecret = digest;
 
+export const validOpenSessionGuestNonce = (value: string) => /^[a-z0-9_-]{16,80}$/i.test(value);
+
+export const openSessionGuestId = (token: string, nonce: string) =>
+  `guest:${digest(token).slice(0, 12)}:${digest(nonce).slice(0, 12)}`;
+
 export const verifySecret = (value: string, expectedHash: string) => {
   const actual = Buffer.from(digest(value));
   const expected = Buffer.from(expectedHash);

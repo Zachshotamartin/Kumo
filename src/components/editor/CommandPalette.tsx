@@ -46,7 +46,7 @@ const CommandPalette = () => {
 
   useEffect(() => {
     if (!open) return;
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    const frame = window.requestAnimationFrame(() => inputRef.current!.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [open]);
 

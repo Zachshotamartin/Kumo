@@ -152,7 +152,7 @@ jobs:
       - name: Pull Vercel production configuration
         run: yarn vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Validate Vercel production runtime
-        run: yarn validate:vercel-env .vercel/.env.production.local
+        run: yarn validate:vercel-env .vercel/.env.production.local --require-delivery
       - name: Build production artifacts
         run: yarn vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy production artifacts

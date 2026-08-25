@@ -34,6 +34,7 @@ describe("localhost Google redirects", () => {
   it("uses the direct redirect only for plain-HTTP loopback origins", () => {
     expect(usesLocalGoogleRedirect({ protocol: "http:", hostname: "localhost" })).toBe(true);
     expect(usesLocalGoogleRedirect({ protocol: "http:", hostname: "127.0.0.1" })).toBe(true);
+    expect(usesLocalGoogleRedirect({ protocol: "http:", hostname: "[::1]" })).toBe(true);
     expect(usesLocalGoogleRedirect({ protocol: "https:", hostname: "localhost" })).toBe(false);
     expect(usesLocalGoogleRedirect({ protocol: "https:", hostname: "kumo.example" })).toBe(false);
   });
@@ -90,5 +91,38 @@ describe("localhost Google redirects", () => {
       cancelledStorage
     )).toThrow("cancelled or denied");
     expect(consumeLocalGoogleRedirect("http://localhost:5175/", storage())).toBeNull();
+  });
+
+  it("rejects expired storage and malformed identity tokens", () => {
+    expect(() => consumeLocalGoogleRedirect("http://localhost:5175/#state=x&id_token=y", storage())).toThrow("session expired");
+    const malformedStorage = storage(); malformedStorage.setItem("kumo.googleRedirect", "not-json");
+    expect(() => consumeLocalGoogleRedirect("http://localhost:5175/#state=x&id_token=y", malformedStorage)).toThrow("session expired");
+    const incompleteStorage = storage(); incompleteStorage.setItem("kumo.googleRedirect", JSON.stringify({ state: "x" }));
+    expect(() => consumeLocalGoogleRedirect("http://localhost:5175/#state=x&id_token=y", incompleteStorage)).toThrow("session expired");
+    const pending = storage(); pending.setItem("kumo.googleRedirect", JSON.stringify({ state: "x", nonce: "nonce", returnUrl: "http://localhost:5175/" }));
+    expect(() => consumeLocalGoogleRedirect("http://localhost:5175/#state=x&id_token=invalid", pending)).toThrow("invalid identity token");
+    const undecodable = storage(); undecodable.setItem("kumo.googleRedirect", JSON.stringify({ state: "x", nonce: "nonce", returnUrl: "http://localhost:5175/" }));
+    expect(() => consumeLocalGoogleRedirect("http://localhost:5175/#state=x&id_token=header.%%%.signature", undecodable)).toThrow("invalid identity token");
+  });
+
+  it("rejects invalid Firebase authorization responses", async () => {
+    const localStorage = storage();
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "provider disabled" } }), { status: 400 }));
+    await expect(prepareLocalGoogleRedirect("key", "http://localhost:5175/", localStorage)).rejects.toThrow("provider disabled");
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 }));
+    await expect(prepareLocalGoogleRedirect("key", "http://localhost:5175/", localStorage)).rejects.toThrow("could not be started");
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ authUri: "http://evil.test/?redirect_uri=http%3A%2F%2Flocalhost%3A5175%2F&state=x&nonce=y" }), { status: 200 }));
+    await expect(prepareLocalGoogleRedirect("key", "http://localhost:5175/", localStorage)).rejects.toThrow("invalid Google sign-in URL");
+  });
+
+  it("rejects mismatched nonce, missing tokens, and cross-origin returns", () => {
+    const pending = (returnUrl = "http://localhost:5175/") => {
+      const value = storage();
+      value.setItem("kumo.googleRedirect", JSON.stringify({ state: "x", nonce: "expected", returnUrl }));
+      return value;
+    };
+    expect(() => consumeLocalGoogleRedirect("http://localhost:5175/#state=x&id_token=", pending())).toThrow("could not be verified");
+    expect(() => consumeLocalGoogleRedirect(`http://localhost:5175/#state=x&id_token=${jwt({ nonce: "wrong" })}`, pending())).toThrow("could not be verified");
+    expect(() => consumeLocalGoogleRedirect(`http://localhost:5175/#state=x&id_token=${jwt({ nonce: "expected" })}`, pending("http://other.test/"))).toThrow("could not be verified");
   });
 });

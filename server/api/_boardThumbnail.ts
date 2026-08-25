@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { Shape } from "../../src/classes/shape.js";
+import { connectorRenderBounds } from "../../src/editor/advancedFeatures.js";
 import { serializeSvg } from "../../src/editor/export.js";
 import { normalizeShape, selectionBounds } from "../../src/editor/geometry.js";
 import type { Bounds } from "../../src/editor/types.js";
@@ -9,6 +10,7 @@ const THUMBNAIL_ASPECT_RATIO = 1.55;
 const THUMBNAIL_MINIMUM_PADDING = 48;
 const THUMBNAIL_REFRESH_WINDOW_MS = 15_000;
 const SIGNED_URL_LIFETIME_SECONDS = 60 * 60;
+const THUMBNAIL_URL_TIMEOUT_MS = 2_500;
 
 type ThumbnailBoard = {
   id: string;
@@ -69,7 +71,14 @@ export const thumbnailDocument = (document: unknown): {
 
 export const thumbnailBounds = (shapes: Shape[]): Bounds => {
   const visible = shapes.filter((shape) => !shape.hidden && shape.type !== "guide" && shape.type !== "resource");
-  const content = selectionBounds(visible, visible.map((shape) => shape.id));
+  const baseContent = selectionBounds(visible, visible.map((shape) => shape.id));
+  const connectorBounds = visible.filter((shape) => shape.type === "connector").map((shape) => connectorRenderBounds(visible, shape));
+  const content = baseContent && connectorBounds.length ? {
+    x: Math.min(baseContent.x, ...connectorBounds.map((item) => item.x)),
+    y: Math.min(baseContent.y, ...connectorBounds.map((item) => item.y)),
+    width: Math.max(baseContent.x + baseContent.width, ...connectorBounds.map((item) => item.x + item.width)) - Math.min(baseContent.x, ...connectorBounds.map((item) => item.x)),
+    height: Math.max(baseContent.y + baseContent.height, ...connectorBounds.map((item) => item.y + item.height)) - Math.min(baseContent.y, ...connectorBounds.map((item) => item.y)),
+  } : baseContent ?? connectorBounds[0] ?? null;
   if (!content) return { x: 0, y: 0, width: 1200, height: 1200 / THUMBNAIL_ASPECT_RATIO };
   const padding = Math.max(
     THUMBNAIL_MINIMUM_PADDING,
@@ -148,22 +157,39 @@ export const boardThumbnailUrls = async (
 ): Promise<Map<string, string>> => {
   const ids = [...new Set(boards.flatMap((board) => board.thumbnail_asset_id ? [board.thumbnail_asset_id] : []))];
   if (!ids.length) return new Map();
-  const database = supabaseAdmin();
-  const { data: assets, error } = await database
-    .from("assets")
-    .select("id, storage_key")
-    .in("id", ids);
-  if (error) throw error;
-  const storageKeys = (assets ?? []).map((asset) => asset.storage_key as string);
-  const { data: signed, error: signedError } = await database.storage
-    .from("board-assets")
-    .createSignedUrls(storageKeys, SIGNED_URL_LIFETIME_SECONDS);
-  if (signedError) throw signedError;
-  const urlByPath = new Map((signed ?? []).flatMap((entry) =>
-    entry.signedUrl ? [[entry.path, entry.signedUrl] as const] : []
-  ));
-  return new Map((assets ?? []).flatMap((asset) => {
-    const url = urlByPath.get(asset.storage_key as string);
-    return url ? [[asset.id as string, url] as const] : [];
-  }));
+  const resolveUrls = async () => {
+    const database = supabaseAdmin();
+    const { data: assets, error } = await database
+      .from("assets")
+      .select("id, storage_key")
+      .in("id", ids);
+    if (error) throw error;
+    const storageKeys = (assets ?? []).map((asset) => asset.storage_key as string);
+    const { data: signed, error: signedError } = await database.storage
+      .from("board-assets")
+      .createSignedUrls(storageKeys, SIGNED_URL_LIFETIME_SECONDS);
+    if (signedError) throw signedError;
+    const urlByPath = new Map((signed ?? []).flatMap((entry) =>
+      entry.signedUrl ? [[entry.path, entry.signedUrl] as const] : []
+    ));
+    return new Map((assets ?? []).flatMap((asset) => {
+      const url = urlByPath.get(asset.storage_key as string);
+      return url ? [[asset.id as string, url] as const] : [];
+    }));
+  };
+  const timeoutResult = (() => {
+    let handle!: ReturnType<typeof setTimeout>;
+    const promise = new Promise<Map<string, string>>((resolve) => {
+      handle = setTimeout(() => resolve(new Map()), THUMBNAIL_URL_TIMEOUT_MS);
+    });
+    return { handle, promise };
+  })();
+  try {
+    return await Promise.race([
+      resolveUrls().catch(() => new Map<string, string>()),
+      timeoutResult.promise,
+    ]);
+  } finally {
+    clearTimeout(timeoutResult.handle);
+  }
 };

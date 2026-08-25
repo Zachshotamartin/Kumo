@@ -40,6 +40,86 @@
   gap: 8px;
 }
 
+.boardNavigation {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 2px;
+  margin-inline-start: 4px;
+  color: var(--kumo-text-muted, #9b9da3);
+}
+
+.boardNavigation > button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+}
+
+.boardNavigation > button:hover:not(:disabled),
+.boardTrail button:hover {
+  background: #303136;
+  color: #f7f7f5;
+}
+
+.boardTrail {
+  display: flex;
+  min-width: 0;
+  max-width: 280px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.boardTrail > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.boardTrail svg {
+  flex: 0 0 auto;
+  font-size: var(--kumo-text-2xs);
+}
+
+.boardTrail button {
+  max-width: 110px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigationError {
+  max-width: 180px;
+  overflow: hidden;
+  color: #f08d7b;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workshopTimer {
+  padding: 16px;
+  border: 1px solid #3b3d42;
+  border-radius: 8px;
+  background: #17181a;
+  color: #f6d365;
+  font: 700 34px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .06em;
+  text-align: center;
+}
+
+.paintEditor { display: grid; gap: var(--kumo-space-2); padding: var(--kumo-space-2); background: var(--kumo-surface-input); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
+
 .topbarEnd {
   position: relative;
   min-width: 0;

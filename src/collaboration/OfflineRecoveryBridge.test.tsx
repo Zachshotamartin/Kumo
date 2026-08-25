@@ -28,12 +28,16 @@ describe("OfflineRecoveryBridge", () => {
   });
 
   it("snapshots disconnected work and replays queued settings after reconnection", async () => {
+    vi.useFakeTimers();
     const state = store();
     queueBoardMutation({ id: "settings", boardId: "board", createdAt: 1, kind: "settings", payload: { title: "Offline title" } });
     const view = render(<Provider store={state}><OfflineRecoveryBridge connectionStatus="disconnected" /></Provider>);
     expect(JSON.parse(window.localStorage.getItem("kumo:recovery:board") ?? "null")).toMatchObject({ boardId: "board", baseRevision: 4 });
     view.rerender(<Provider store={state}><OfflineRecoveryBridge connectionStatus="connected" /></Provider>);
-    await waitFor(() => expect(updateBoardSettings).toHaveBeenCalledWith("board", { title: "Offline title" }));
+    await vi.waitFor(() => expect(updateBoardSettings).toHaveBeenCalledWith("board", { title: "Offline title" }));
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(window.localStorage.getItem("kumo:recovery:board")).toBeNull();
+    vi.useRealTimers();
   });
 
   it("does nothing before a board has been opened", () => {
@@ -41,5 +45,15 @@ describe("OfflineRecoveryBridge", () => {
     state.dispatch(setWhiteboardData({ id: null }));
     render(<Provider store={state}><OfflineRecoveryBridge connectionStatus="disconnected" /></Provider>);
     expect(window.localStorage.length).toBe(0);
+  });
+
+  it("retains the recovery snapshot when a queued mutation still fails", async () => {
+    vi.mocked(updateBoardSettings).mockRejectedValueOnce(new Error("offline"));
+    const state = store();
+    queueBoardMutation({ id: "failed", boardId: "board", createdAt: 1, kind: "settings", payload: { title: "Retry" } });
+    const view = render(<Provider store={state}><OfflineRecoveryBridge connectionStatus="disconnected" /></Provider>);
+    view.rerender(<Provider store={state}><OfflineRecoveryBridge connectionStatus="connected" /></Provider>);
+    await waitFor(() => expect(updateBoardSettings).toHaveBeenCalled());
+    expect(window.localStorage.getItem("kumo:recovery:board")).not.toBeNull();
   });
 });

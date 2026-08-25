@@ -34,9 +34,7 @@ export const CommentsPanel = () => {
     if (editor.selectedThreadId) markThreadAsRead(editor.selectedThreadId);
   }, [editor.selectedThreadId, markThreadAsRead]);
 
-  const focusThread = (threadId: string) => {
-    const thread = threads.find((candidate) => candidate.id === threadId);
-    if (!thread) return;
+  const focusThread = (thread: (typeof threads)[number]) => {
     dispatch(setSelectedThreadId(thread.id));
     const shape = thread.metadata.shapeId
       ? board.shapes.find((candidate) => candidate.id === thread.metadata.shapeId)
@@ -83,7 +81,7 @@ export const CommentsPanel = () => {
             collaborators={collaborators}
             currentUserId={currentUserId}
             selected={thread.id === editor.selectedThreadId}
-            onFocus={() => focusThread(thread.id)}
+            onFocus={() => focusThread(thread)}
           />
         ))}
       </div>

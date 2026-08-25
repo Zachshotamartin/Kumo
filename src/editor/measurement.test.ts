@@ -17,5 +17,11 @@ describe("canvas measurement", () => {
 
   it("reports zero for an overlapping axis", () => {
     expect(measureShapes(shape("a", 0, 0), shape("b", 10, 40))[0]?.value).toBe(0);
+    expect(measureShapes(shape("a", 0, 0), shape("b", 10, 10)).map((measurement) => measurement.value)).toEqual([0, 0]);
+  });
+
+  it("measures shapes positioned above and to the left in reverse argument order", () => {
+    const values = measureShapes(shape("lower-right", 80, 90), shape("upper-left", 10, 20));
+    expect(values.map((measurement) => measurement.value)).toEqual([50, 50]);
   });
 });

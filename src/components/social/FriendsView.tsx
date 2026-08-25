@@ -112,9 +112,9 @@ const PeopleSection = ({
           />
         ))}
       </div>
-    ) : emptyTitle ? (
-      <div className={ui.emptyState}><strong>{emptyTitle}</strong><span>{emptyCopy}</span></div>
-    ) : null}
+    ) : (
+      <div className={ui.emptyState}><strong>{emptyTitle!}</strong><span>{emptyCopy}</span></div>
+    )}
   </section>
 );
 
@@ -186,7 +186,6 @@ export const FriendsView = ({
   };
 
   const act = async (person: SocialProfile, action: FriendshipAction) => {
-    if (busyUid) return;
     if ((action === "block" || action === "remove") && !window.confirm(
       action === "block"
         ? `Block ${person.displayName}? They will not be able to find or request you.`

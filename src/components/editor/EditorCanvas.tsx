@@ -3,7 +3,7 @@ import { Cursor, LockSimple, X } from "@phosphor-icons/react";
 import { useUpdateMyPresence } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
 import { Shape, ShapeFunctions } from "../../classes/shape";
-import { duplicateShapes } from "../../editor/commands";
+import { deleteShapes, duplicateShapes } from "../../editor/commands";
 import {
   hitTest,
   effectiveGridSize,
@@ -34,6 +34,7 @@ import {
 } from "../../editor/layout";
 import { measureShapes } from "../../editor/measurement";
 import {
+  updateVectorHandle,
   updateVectorPoint,
 } from "../../editor/graphics";
 import { createDraftShape, draftAtPoint } from "../../editor/shapeCreation";
@@ -77,13 +78,21 @@ import styles from "./EditorCanvas.module.css";
 import { CommentPins } from "../../comments/CommentPins";
 import { documentPages, shapesOnPage } from "../../editor/workspace";
 import { TextEditor } from "./TextEditor";
-import { ShapeVectorGraphic } from "./ShapeGraphic";
+import { ShapeSurfaceGraphic, ShapeVectorGraphic } from "./ShapeGraphic";
 import { shapeAppearanceStyle } from "../../editor/shapeAppearance";
 import { SelectionHighlight } from "./SelectionHighlight";
 import { cullDocumentShapes, fontFeatureCss, fontVariationCss, textSegments } from "../../platform/productCapabilities";
 import { useCollaborativeText } from "../../collaboration/useCollaborativeText";
+import {
+  appendFreehandPoint,
+  connectorRenderBounds,
+  finalizeConnector,
+} from "../../editor/advancedFeatures";
+import { AdvancedShapeContent } from "./AdvancedShapeContent";
+import { deleteBoardAsset, uploadBoardAsset } from "../../services/assetRepository";
+import { recordBoardVisit } from "../../platform/recentBoards";
 
-type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan" | "vector-point";
+type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan" | "vector-point" | "vector-handle" | "gradient-handle";
 
 const CONTEXT_ACTIONS_REQUIRING_IDLE_SELECTION = new Set([
   "Group",
@@ -114,6 +123,10 @@ interface Interaction {
   commitBaseline?: Shape[];
   vectorShapeId?: string;
   vectorPointId?: string;
+  vectorHandle?: "handleIn" | "handleOut";
+  gradientFillId?: string;
+  gradientStopId?: string;
+  gradientHandle?: "start" | "end";
 }
 
 interface ContextMenuState {
@@ -172,8 +185,8 @@ export const EditorCanvasView = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
   const interactionRef = useRef<Interaction | null>(null);
-  const finishInteractionRef = useRef<(event: CanvasPointerReleaseEvent) => void>(() => undefined);
-  const cancelInteractionRef = useRef<(event?: Pick<CanvasPointerReleaseEvent, "currentTarget" | "pointerId">) => void>(() => undefined);
+  const finishInteractionRef = useRef<((event: CanvasPointerReleaseEvent) => void) | null>(null);
+  const cancelInteractionRef = useRef<((event?: Pick<CanvasPointerReleaseEvent, "currentTarget" | "pointerId">) => void) | null>(null);
   const textBaselineRef = useRef<Shape[] | null>(null);
   const textDraftRef = useRef(new Map<string, string>());
   const spacePressedRef = useRef(false);
@@ -218,8 +231,7 @@ export const EditorCanvasView = ({
   }, selectedIds), [canvasShapes, canvasSize.height, canvasSize.width, editor.viewport.x, editor.viewport.y, editor.viewport.zoom, selectedIds]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvas = canvasRef.current!;
     const update = () => setCanvasSize({ width: canvas.clientWidth, height: canvas.clientHeight });
     update();
     if (typeof ResizeObserver === "undefined") return;
@@ -235,6 +247,9 @@ export const EditorCanvasView = ({
     () => canvasShapes.filter((shape) => selectedIds.includes(shape.id)),
     [canvasShapes, selectedIds]
   );
+  const selectedGradientFill = selectedShapes.length === 1
+    ? [...(selectedShapes[0]?.fills ?? [])].reverse().find((fill) => fill.visible && (fill.type === "linear-gradient" || fill.type === "radial-gradient"))
+    : undefined;
   const selectedGroupId = selectedShapes[0]?.groupId;
   const isExistingGroup = Boolean(
     selectedShapes.length > 1 &&
@@ -258,13 +273,77 @@ export const EditorCanvasView = ({
     presence.uid !== user.uid && presence.activeShapeIds?.some((id) => shapeIds.includes(id))
   ), [board.currentUsers, user.uid]);
 
+  const ingestExternalFile = useCallback(async (file: File, point: Point) => {
+    if (!board.id || !actions.canEdit || !/^(image\/(png|jpeg|webp|gif|svg\+xml)|video\/(mp4|webm))$/.test(file.type)) return;
+    let assetId: string | null = null;
+    try {
+      let dimensions = { width: 640, height: 360 };
+      if (file.type.startsWith("image/")) {
+        const bitmap = await createImageBitmap(file);
+        dimensions = { width: bitmap.width, height: bitmap.height };
+        bitmap.close();
+      } else {
+        const url = URL.createObjectURL(file);
+        try {
+          dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+            const video = document.createElement("video");
+            video.preload = "metadata";
+            video.onloadedmetadata = () => resolve({ width: video.videoWidth || 640, height: video.videoHeight || 360 });
+            video.onerror = () => reject(new Error("This video could not be read."));
+            video.src = url;
+          });
+        } finally { URL.revokeObjectURL(url); }
+      }
+      const asset = await uploadBoardAsset(board.id, file, dimensions);
+      assetId = asset.id;
+      const scale = Math.min(1, 480 / Math.max(1, dimensions.width, dimensions.height));
+      const shape = normalizeShape({
+        ...ShapeFunctions.createShape("image", point.x, point.y, board.shapes),
+        name: file.name,
+        x2: point.x + Math.max(48, dimensions.width * scale),
+        y2: point.y + Math.max(48, dimensions.height * scale),
+        assetId: asset.id,
+        backgroundImage: asset.url,
+        backgroundColor: "transparent",
+        mediaType: file.type.startsWith("video/") ? "video" : file.type === "image/gif" ? "gif" : "image",
+        mediaMuted: file.type.startsWith("video/") ? true : undefined,
+        pageId: activePageId,
+      });
+      actions.commitShapes([...board.shapes, shape]);
+      dispatch(setSelectedShapes([shape.id]));
+      setNavigationError(null);
+    } catch (caught) {
+      if (assetId) void deleteBoardAsset(assetId).catch(() => undefined);
+      setNavigationError(caught instanceof Error ? caught.message : "This media could not be added.");
+    }
+  }, [actions, activePageId, board.id, board.shapes, dispatch]);
+
+  useEffect(() => {
+    const paste = (event: ClipboardEvent) => {
+      if ((event.target as Element | null)?.closest?.("input, textarea, [contenteditable='true']")) return;
+      const file = [...(event.clipboardData?.files ?? [])][0];
+      if (!file) return;
+      event.preventDefault();
+      void ingestExternalFile(file, latestCursorRef.current ?? {
+        x: editor.viewport.x + 80 / editor.viewport.zoom,
+        y: editor.viewport.y + 80 / editor.viewport.zoom,
+      });
+    };
+    window.addEventListener("paste", paste);
+    return () => window.removeEventListener("paste", paste);
+  }, [editor.viewport, ingestExternalFile]);
+
   const claimShapeActivity = useCallback((
     shapeIds: string[],
     activity: NonNullable<Liveblocks["Presence"]["activity"]>
   ) => {
     const activeCollaborator = remoteActivityFor(shapeIds);
     if (activeCollaborator) {
-      if (activity === "editing" && activeCollaborator.activity === "editing") {
+      const isCollaborativeTextEdit = activity === "editing"
+        && activeCollaborator.activity === "editing"
+        && shapeIds.length === 1
+        && canvasShapes.find((shape) => shape.id === shapeIds[0])?.type === "text";
+      if (isCollaborativeTextEdit) {
         setCollaborationNotice(`Editing text with ${activeCollaborator.label ?? "a collaborator"}.`);
         updateMyPresence({ activeShapeIds: shapeIds, activity });
         return true;
@@ -277,7 +356,7 @@ export const EditorCanvasView = ({
     setCollaborationNotice(null);
     updateMyPresence({ activeShapeIds: shapeIds, activity });
     return true;
-  }, [remoteActivityFor, updateMyPresence]);
+  }, [canvasShapes, remoteActivityFor, updateMyPresence]);
 
   const releaseShapeActivity = useCallback(() => {
     updateMyPresence({ activeShapeIds: [], activity: null, textSelection: null });
@@ -339,8 +418,7 @@ export const EditorCanvasView = ({
   }, [editor.viewport]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvas = canvasRef.current!;
 
     const wheelUnit = (event: WheelEvent) => {
       if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return 16;
@@ -381,8 +459,7 @@ export const EditorCanvasView = ({
 
   const pointerWorld = useCallback(
     (event: Pick<React.PointerEvent<HTMLDivElement>, "clientX" | "clientY">): Point => {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return { x: 0, y: 0 };
+      const rect = canvasRef.current!.getBoundingClientRect();
       return screenToWorld({ x: event.clientX, y: event.clientY }, rect, editor.viewport);
     },
     [editor.viewport]
@@ -409,10 +486,8 @@ export const EditorCanvasView = ({
 
   const pointerScreen = useCallback(
     (event: Pick<React.PointerEvent<HTMLDivElement>, "clientX" | "clientY">): Point => {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      return rect
-        ? { x: event.clientX - rect.left, y: event.clientY - rect.top }
-        : { x: 0, y: 0 };
+      const rect = canvasRef.current!.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     },
     []
   );
@@ -437,6 +512,10 @@ export const EditorCanvasView = ({
     const wantsRotate = (event.target as HTMLElement).dataset.rotationHandle === "true";
     const vectorPointId = (event.target as HTMLElement).dataset.vectorPointId;
     const vectorShapeId = (event.target as HTMLElement).dataset.vectorShapeId;
+    const vectorHandle = (event.target as HTMLElement).dataset.vectorHandle as "handleIn" | "handleOut" | undefined;
+    const gradientFillId = (event.target as HTMLElement).dataset.gradientFillId;
+    const gradientStopId = (event.target as HTMLElement).dataset.gradientStopId;
+    const gradientHandle = (event.target as HTMLElement).dataset.gradientHandle as "start" | "end" | undefined;
     const wantsPan = event.button === 1 || selectedTool === "hand" || spacePressedRef.current;
     const deepSelection = event.metaKey || event.ctrlKey;
 
@@ -451,14 +530,40 @@ export const EditorCanvasView = ({
       return;
     }
 
+    if (selectedTool === "eraser") {
+      if (!actions.canEdit) return;
+      const hit = hitTest(canvasShapes, startWorld);
+      if (!hit || isEffectivelyLocked(canvasShapes, hit)) return;
+      const ids = contextualSelectionIds(canvasShapes, hit, true);
+      actions.commitShapes(deleteShapes(board.shapes, ids));
+      dispatch(setSelectedShapes([]));
+      return;
+    }
+
     capturePointer(event.currentTarget, event.pointerId);
+    if (gradientFillId && selectedShapes.length === 1 && actions.canEdit) {
+      interactionRef.current = {
+        mode: "gradient-handle",
+        pointerId: event.pointerId,
+        startWorld,
+        startScreen,
+        baseline,
+        preview: baseline,
+        selectedIds: [selectedShapes[0]!.id],
+        startViewport,
+        gradientFillId,
+        gradientStopId,
+        gradientHandle,
+      };
+      return;
+    }
     if (vectorPointId && vectorShapeId && actions.canEdit) {
       if (!claimShapeActivity([vectorShapeId], "editing")) {
         event.currentTarget.releasePointerCapture(event.pointerId);
         return;
       }
       interactionRef.current = {
-        mode: "vector-point",
+        mode: vectorHandle ? "vector-handle" : "vector-point",
         pointerId: event.pointerId,
         startWorld,
         startScreen,
@@ -468,6 +573,7 @@ export const EditorCanvasView = ({
         startViewport,
         vectorPointId,
         vectorShapeId,
+        vectorHandle,
       };
       return;
     }
@@ -575,6 +681,10 @@ export const EditorCanvasView = ({
         let moveBaseline = baseline;
         let commitBaseline: Shape[] | undefined;
         if (event.altKey) {
+          if (blockIfRemotelyActive(nextSelection)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+            return;
+          }
           const duplicated = duplicateShapes(baseline, nextSelection, 0);
           moveBaseline = duplicated.shapes;
           commitBaseline = baseline;
@@ -584,7 +694,6 @@ export const EditorCanvasView = ({
         }
         if (!claimShapeActivity(nextSelection, "moving")) {
           event.currentTarget.releasePointerCapture(event.pointerId);
-          if (commitBaseline) actions.cancelPreview(commitBaseline);
           return;
         }
         interactionRef.current = {
@@ -660,20 +769,65 @@ export const EditorCanvasView = ({
       return;
     }
 
+    if (interaction.mode === "vector-handle" && interaction.vectorShapeId && interaction.vectorPointId && interaction.vectorHandle) {
+      interaction.preview = updateVectorHandle(
+        interaction.baseline,
+        interaction.vectorShapeId,
+        interaction.vectorPointId,
+        interaction.vectorHandle,
+        activeGridSize ? snapPointToGrid(world, activeGridSize) : world,
+        !event.altKey
+      );
+      actions.previewShapes(interaction.preview);
+      return;
+    }
+
+    if (interaction.mode === "gradient-handle" && interaction.gradientFillId && interaction.selectedIds[0]) {
+      const shapeId = interaction.selectedIds[0];
+      interaction.preview = interaction.baseline.map((shape) => {
+        if (shape.id !== shapeId) return shape;
+        const bounds = shapeBounds(shape);
+        const middle = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        const fill = shape.fills?.find((candidate) => candidate.id === interaction.gradientFillId);
+        if (!fill) return shape;
+        let angle = fill.gradientAngle ?? 90;
+        if (interaction.gradientHandle) {
+          angle = Math.atan2(world.y - middle.y, world.x - middle.x) * 180 / Math.PI + 90 + (interaction.gradientHandle === "start" ? 180 : 0);
+        }
+        const radians = (angle - 90) * Math.PI / 180;
+        const radius = Math.max(bounds.width, bounds.height) / 2;
+        const start = { x: middle.x - Math.cos(radians) * radius, y: middle.y - Math.sin(radians) * radius };
+        const end = { x: middle.x + Math.cos(radians) * radius, y: middle.y + Math.sin(radians) * radius };
+        const lengthSquared = Math.max(1, (end.x - start.x) ** 2 + (end.y - start.y) ** 2);
+        const position = Math.max(0, Math.min(1, ((world.x - start.x) * (end.x - start.x) + (world.y - start.y) * (end.y - start.y)) / lengthSquared));
+        return {
+          ...shape,
+          fills: shape.fills?.map((candidate) => candidate.id === fill.id ? {
+            ...candidate,
+            gradientAngle: angle,
+            gradientStops: interaction.gradientStopId
+              ? candidate.gradientStops?.map((stop) => stop.id === interaction.gradientStopId ? { ...stop, position } : stop)
+              : candidate.gradientStops,
+          } : candidate),
+        };
+      });
+      actions.previewShapes(interaction.preview);
+      return;
+    }
+
     if (interaction.mode === "draw" && interaction.shapeId) {
-      const draft = interaction.baseline.length < interaction.preview.length
-        ? interaction.preview.find((shape) => shape.id === interaction.shapeId)
-        : undefined;
-      if (!draft) return;
+      const draft = interaction.preview.find((shape) => shape.id === interaction.shapeId)!;
       const drawEnd = activeGridSize
         ? snapPointToGrid(world, activeGridSize)
         : world;
-      const nextDraft = draftAtPoint(
-        draft,
-        interaction.startWorld,
-        drawEnd,
-        event.shiftKey
-      );
+      const nextDraft = draft.drawingKind
+        ? appendFreehandPoint(draft, drawEnd, 1.5 / editor.viewport.zoom)
+        : draftAtPoint(
+            draft,
+            interaction.startWorld,
+            drawEnd,
+            event.shiftKey
+          );
       interaction.preview = [...interaction.baseline, nextDraft];
       actions.previewShapes(interaction.preview);
       return;
@@ -783,16 +937,14 @@ export const EditorCanvasView = ({
       return;
     }
 
-    if (interaction.mode === "marquee") {
-      setMarquee({ start: interaction.startWorld, end: world });
-      const hits = shapesInMarquee(
-        interaction.baseline,
-        interaction.startWorld,
-        world,
-        interaction.includeNested
-      );
-      dispatch(setSelectedShapes([...new Set([...(interaction.additiveSelection ?? []), ...hits])]));
-    }
+    setMarquee({ start: interaction.startWorld, end: world });
+    const hits = shapesInMarquee(
+      interaction.baseline,
+      interaction.startWorld,
+      world,
+      interaction.includeNested
+    );
+    dispatch(setSelectedShapes([...new Set([...interaction.additiveSelection!, ...hits])]));
   };
 
   const finishInteraction = (event: CanvasPointerReleaseEvent) => {
@@ -836,32 +988,34 @@ export const EditorCanvasView = ({
 
     let shouldCommit = false;
     if (interaction.mode === "draw" && interaction.shapeId) {
-      const current = interaction.preview.find((shape) => shape.id === interaction.shapeId);
-      if (current) {
-        const bounds = shapeBounds(current);
-        if (bounds.width < 3 || bounds.height < 3) {
-          const defaults = current.type === "text"
-            ? { width: 180, height: 40 }
-            : current.type === "vector"
-              ? { width: 120, height: 0 }
-            : { width: 120, height: 88 };
-          const replacement = current.type === "vector" && current.vectorPoints?.length
-            ? updateVectorPoint([current], current.id, current.vectorPoints.at(-1)!.id, {
-                x: current.x1 + defaults.width,
-                y: current.y1 + defaults.height,
-              })[0]!
-            : normalizeShape({
-                ...current,
-                ...(current.type === "text" ? { textAutoResize: "auto-width" as const } : {}),
-                x2: current.x1 + defaults.width,
-                y2: current.y1 + defaults.height,
-              });
-          interaction.preview = [...interaction.baseline, replacement];
-        } else if (current.type === "text") {
-          interaction.preview = interaction.preview.map((shape) => shape.id === current.id
-            ? fitTextShape({ ...shape, textAutoResize: "auto-height" })
-            : shape);
-        }
+      const current = interaction.preview.find((shape) => shape.id === interaction.shapeId)!;
+      const bounds = shapeBounds(current);
+      const isLineLike = current.type === "vector" || current.type === "connector";
+      const tooSmall = isLineLike
+        ? Math.hypot(current.x2 - current.x1, current.y2 - current.y1) < 3
+        : bounds.width < 3 || bounds.height < 3;
+      if (tooSmall) {
+        const defaults = current.type === "text"
+          ? { width: 180, height: 40 }
+          : isLineLike
+            ? { width: 120, height: 0 }
+          : { width: 120, height: 88 };
+        const replacement = current.type === "vector" && current.vectorPoints?.length
+          ? updateVectorPoint([current], current.id, current.vectorPoints.at(-1)!.id, {
+              x: current.x1 + defaults.width,
+              y: current.y1 + defaults.height,
+            })[0]!
+          : normalizeShape({
+              ...current,
+              ...(current.type === "text" ? { textAutoResize: "auto-width" as const } : {}),
+              x2: current.x1 + defaults.width,
+              y2: current.y1 + defaults.height,
+            });
+        interaction.preview = [...interaction.baseline, replacement];
+      } else if (current.type === "text") {
+        interaction.preview = interaction.preview.map((shape) => shape.id === current.id
+          ? fitTextShape({ ...shape, textAutoResize: "auto-height" })
+          : shape);
       }
       shouldCommit = true;
       dispatch(setSelectedTool("pointer"));
@@ -869,7 +1023,9 @@ export const EditorCanvasView = ({
       interaction.mode === "move" ||
       interaction.mode === "resize" ||
       interaction.mode === "rotate" ||
-      interaction.mode === "vector-point"
+      interaction.mode === "vector-point" ||
+      interaction.mode === "vector-handle" ||
+      interaction.mode === "gradient-handle"
     ) {
       shouldCommit = true;
     }
@@ -886,12 +1042,15 @@ export const EditorCanvasView = ({
       interaction.preview = created?.type === "frame"
         ? adoptContainedShapes(interaction.preview, created.id)
         : reparentAfterMove(interaction.preview, interaction.selectedIds);
+      if (created?.type === "connector") {
+        interaction.preview = finalizeConnector(interaction.preview, created.id);
+      }
     }
 
     if (shouldCommit) {
       actions.commitShapes(interaction.preview, interaction.commitBaseline ?? interaction.baseline);
     }
-    if (["move", "resize", "rotate", "vector-point"].includes(interaction.mode)) {
+    if (["move", "resize", "rotate", "vector-point", "vector-handle"].includes(interaction.mode)) {
       releaseShapeActivity();
     }
     if (interaction.mode === "draw" && interaction.shapeId) {
@@ -909,7 +1068,7 @@ export const EditorCanvasView = ({
       if (interaction.mode === "rotate" && interaction.selectionFrame) {
         dispatch(setSelectionRotation(interaction.selectionFrame.rotation));
       }
-      if (["move", "resize", "rotate", "vector-point"].includes(interaction.mode)) {
+      if (["move", "resize", "rotate", "vector-point", "vector-handle"].includes(interaction.mode)) {
         releaseShapeActivity();
       }
     }
@@ -1002,7 +1161,7 @@ export const EditorCanvasView = ({
 
   useEffect(() => {
     const interaction = interactionRef.current;
-    if (!interaction || !["move", "resize", "rotate", "vector-point"].includes(interaction.mode)) return;
+    if (!interaction || !["move", "resize", "rotate", "vector-point", "vector-handle"].includes(interaction.mode)) return;
     const contender = board.currentUsers
       .filter((presence) => presence.activeShapeIds?.some((id) => interaction.selectedIds.includes(id)))
       .sort((left, right) => left.uid.localeCompare(right.uid))[0];
@@ -1011,7 +1170,7 @@ export const EditorCanvasView = ({
     // A stable user-id ordering gives both clients the same winner instead of
     // allowing two divergent previews to commit over one another.
     if (user.uid && user.uid.localeCompare(contender.uid) < 0) return;
-    cancelInteractionRef.current();
+    cancelInteractionRef.current!();
     setCollaborationNotice(
       `${contender.label ?? "A collaborator"} took control of this selection first.`
     );
@@ -1021,7 +1180,7 @@ export const EditorCanvasView = ({
     const finishOutsideCanvas = (event: PointerEvent) => {
       const canvas = canvasRef.current;
       if (!canvas || !interactionRef.current) return;
-      finishInteractionRef.current({
+      finishInteractionRef.current!({
         currentTarget: canvas,
         pointerId: event.pointerId,
         clientX: event.clientX,
@@ -1034,7 +1193,7 @@ export const EditorCanvasView = ({
     const cancelOutsideCanvas = (event: PointerEvent) => {
       const canvas = canvasRef.current;
       if (!canvas || !interactionRef.current) return;
-      cancelInteractionRef.current({ currentTarget: canvas, pointerId: event.pointerId });
+      cancelInteractionRef.current!({ currentTarget: canvas, pointerId: event.pointerId });
     };
     window.addEventListener("pointerup", finishOutsideCanvas);
     window.addEventListener("pointercancel", cancelOutsideCanvas);
@@ -1045,8 +1204,7 @@ export const EditorCanvasView = ({
   }, []);
 
   const fitToContent = useCallback(() => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const rect = canvasRef.current!.getBoundingClientRect();
     const bounds = selectionBounds(canvasShapes, canvasShapes.map((shape) => shape.id));
     if (!bounds) {
       dispatch(setViewport({ x: 0, y: 0, zoom: 1 }));
@@ -1114,7 +1272,7 @@ export const EditorCanvasView = ({
       }
       if (command && event.key.toLowerCase() === "v") {
         event.preventDefault();
-        const rect = canvasRef.current?.getBoundingClientRect();
+        const rect = canvasRef.current!.getBoundingClientRect();
         const selectedShape = selectedIds.length === 1
           ? canvasShapes.find((shape) => shape.id === selectedIds[0])
           : undefined;
@@ -1125,14 +1283,12 @@ export const EditorCanvasView = ({
             : undefined;
         actions.paste({
           targetFrameId: target?.id ?? null,
-          ...(rect ? {
-            viewport: {
-              x: editor.viewport.x,
-              y: editor.viewport.y,
-              width: rect.width / editor.viewport.zoom,
-              height: rect.height / editor.viewport.zoom,
-            },
-          } : {}),
+          viewport: {
+            x: editor.viewport.x,
+            y: editor.viewport.y,
+            width: rect.width / editor.viewport.zoom,
+            height: rect.height / editor.viewport.zoom,
+          },
         });
         return;
       }
@@ -1151,8 +1307,7 @@ export const EditorCanvasView = ({
       }
       if (command && (event.key === "+" || event.key === "=" || event.key === "-")) {
         event.preventDefault();
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
+        const rect = canvasRef.current!.getBoundingClientRect();
         const factor = event.key === "-" ? 1 / ZOOM_STEP_FACTOR : ZOOM_STEP_FACTOR;
         dispatch(
           setViewport(
@@ -1168,8 +1323,7 @@ export const EditorCanvasView = ({
       }
       if (command && event.key === "1") {
         event.preventDefault();
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
+        const rect = canvasRef.current!.getBoundingClientRect();
         dispatch(
           setViewport(
             zoomAtPoint(
@@ -1252,6 +1406,14 @@ export const EditorCanvasView = ({
         r: "rectangle",
         o: "ellipse",
         p: "pen",
+        l: "connector",
+        m: "marker",
+        k: "highlighter",
+        e: "eraser",
+        s: "sticky",
+        a: "table",
+        d: "code",
+        u: "link",
         t: "text",
         i: "image",
         b: "board",
@@ -1344,6 +1506,8 @@ export const EditorCanvasView = ({
         cursor:
           selectedTool === "hand"
             ? "grab"
+            : selectedTool === "eraser"
+            ? "cell"
             : selectedTool === "pointer"
             ? "default"
             : "crosshair",
@@ -1375,6 +1539,13 @@ export const EditorCanvasView = ({
         if (hit && !selectedIds.includes(hit.id)) dispatch(setSelectedShapes(selectHitTarget(hit)));
         setContextMenu({ x: event.clientX, y: event.clientY, worldPoint });
       }}
+      onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
+      onDrop={(event) => {
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        event.preventDefault();
+        void ingestExternalFile(file, pointerWorld(event));
+      }}
       onDoubleClick={(event) => {
         const hit = hitTest(canvasShapes, pointerWorld(event));
         if (hit?.type === "board" && hit.boardId) {
@@ -1393,6 +1564,13 @@ export const EditorCanvasView = ({
               window.history.replaceState({}, "", url);
               dispatch(clearSelectedShapes());
               dispatch(setWhiteboardData(nextBoard));
+              recordBoardVisit(user.uid, hit.boardId!);
+              window.dispatchEvent(new CustomEvent("kumo:board-navigate", { detail: {
+                boardId: hit.boardId!,
+                title: nextBoard.title ?? linkedAccess?.title ?? "Connected board",
+                sourceBoardId: board.id ?? undefined,
+                sourceShapeId: hit.id,
+              } }));
             })
             .catch((error) => {
               if (requestId === navigationRequestRef.current) {
@@ -1404,10 +1582,8 @@ export const EditorCanvasView = ({
           return;
         }
         if (hit) dispatch(setSelectedShapes(selectHitTarget(hit, true)));
-        if (hit?.type === "text") {
-          if (!isEffectivelyLocked(canvasShapes, hit) && claimShapeActivity([hit.id], "editing")) {
-            dispatch(setEditingShapeId(hit.id));
-          }
+        if (hit?.type === "text" && claimShapeActivity([hit.id], "editing")) {
+          dispatch(setEditingShapeId(hit.id));
         }
       }}
     >
@@ -1419,7 +1595,7 @@ export const EditorCanvasView = ({
           .map((shape) => {
             if (isEffectivelyHidden(canvasShapes, shape)) return null;
             if (shape.isMask) return null;
-            const bounds = shapeBounds(shape);
+            const bounds = shape.type === "connector" ? connectorRenderBounds(canvasShapes, shape) : shapeBounds(shape);
             const clipInsets = frameClipInsets(canvasShapes, shape);
             const mask = shape.maskId ? canvasShapes.find((candidate) => candidate.id === shape.maskId) : undefined;
             const maskBounds = mask ? shapeBounds(mask) : null;
@@ -1448,6 +1624,11 @@ export const EditorCanvasView = ({
                 clipPath: `inset(${clipInsets.top * editor.viewport.zoom}px ${clipInsets.right * editor.viewport.zoom}px ${clipInsets.bottom * editor.viewport.zoom}px ${clipInsets.left * editor.viewport.zoom}px)`,
               } : {}),
               ...(maskClip ? { clipPath: maskClip } : {}),
+              ...(linkedAccess?.thumbnailUrl ? {
+                backgroundImage: `linear-gradient(rgba(24,25,28,.14), rgba(24,25,28,.42)), url(${linkedAccess.thumbnailUrl})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              } : {}),
             };
 
             return (
@@ -1459,6 +1640,7 @@ export const EditorCanvasView = ({
                 data-group-id={shape.groupId ?? undefined}
                 data-parent-id={shape.parentId ?? undefined}
                 data-shape-type={shape.type}
+                data-drawing-kind={shape.drawingKind ?? undefined}
                 data-locked={isEffectivelyLocked(canvasShapes, shape) ? "true" : "false"}
                 data-z-index={shape.zIndex}
                 data-flip-x={shape.flipX ? "true" : "false"}
@@ -1470,6 +1652,8 @@ export const EditorCanvasView = ({
                   <span className={styles.frameLabel}>{shape.name ?? "Frame"}</span>
                 )}
                 {(shape.type === "vector" || shape.type === "boolean") && <ShapeVectorGraphic shape={shape} />}
+                <ShapeSurfaceGraphic shape={shape} />
+                <AdvancedShapeContent shape={shape} shapes={canvasShapes} zoom={editor.viewport.zoom} />
                 {shape.type === "text" &&
                   (isEditing ? (
                     <TextEditor
@@ -1554,7 +1738,11 @@ export const EditorCanvasView = ({
                     <b>{shape.title ?? "Open board"}</b>
                     {linkedAccess && !linkedAccess.accessible
                       ? <small><LockSimple aria-hidden="true" />Access required</small>
-                      : <small>Open connected board</small>}
+                      : <small>{shape.portalVersionId
+                        ? "Pinned board version"
+                        : shape.portalPinnedAt && linkedAccess?.updatedAt && linkedAccess.updatedAt > new Date(shape.portalPinnedAt).getTime()
+                          ? "Updated · open connected board"
+                          : "Open connected board"}</small>}
                   </span>
                 )}
               </div>
@@ -1564,18 +1752,56 @@ export const EditorCanvasView = ({
 
       {selectedShapes.length === 1 && selectedShapes[0]?.type === "vector" && selectedShapes[0].vectorPoints?.map((point) => {
         const position = worldToScreen(point, editor.viewport);
+        const handles = (["handleIn", "handleOut"] as const).flatMap((handle) => point[handle] ? [{ handle, point: point[handle]! }] : []);
         return (
-          <button
-            type="button"
-            key={point.id}
-            className={styles.vectorPoint}
-            style={{ left: position.x, top: position.y }}
-            data-vector-point-id={point.id}
-            data-vector-shape-id={selectedShapes[0]!.id}
-            aria-label={`Move vector point ${point.id}`}
-          />
+          <React.Fragment key={point.id}>
+            {handles.map(({ handle, point: handlePoint }) => {
+              const handlePosition = worldToScreen(handlePoint, editor.viewport);
+              const dx = handlePosition.x - position.x;
+              const dy = handlePosition.y - position.y;
+              return <React.Fragment key={handle}>
+                <span className={styles.vectorHandleLine} style={{ left: position.x, top: position.y, width: Math.hypot(dx, dy), transform: `rotate(${Math.atan2(dy, dx)}rad)` }} aria-hidden="true" />
+                <button type="button" className={styles.vectorHandle} style={{ left: handlePosition.x, top: handlePosition.y }} data-vector-point-id={point.id} data-vector-shape-id={selectedShapes[0]!.id} data-vector-handle={handle} aria-label={`Move ${handle === "handleIn" ? "incoming" : "outgoing"} Bézier handle`} />
+              </React.Fragment>;
+            })}
+            <button
+              type="button"
+              className={styles.vectorPoint}
+              style={{ left: position.x, top: position.y }}
+              data-vector-point-id={point.id}
+              data-vector-shape-id={selectedShapes[0]!.id}
+              aria-label={`Move vector point ${point.id}`}
+            />
+          </React.Fragment>
         );
       })}
+
+      {selectedShapes.length === 1 && selectedGradientFill && (() => {
+        const bounds = shapeBounds(selectedShapes[0]!);
+        const middle = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        const radians = ((selectedGradientFill.gradientAngle ?? 90) - 90) * Math.PI / 180;
+        const radius = Math.max(bounds.width, bounds.height) / 2;
+        const start = { x: middle.x - Math.cos(radians) * radius, y: middle.y - Math.sin(radians) * radius };
+        const end = { x: middle.x + Math.cos(radians) * radius, y: middle.y + Math.sin(radians) * radius };
+        const startScreen = worldToScreen(start, editor.viewport);
+        const endScreen = worldToScreen(end, editor.viewport);
+        const dx = endScreen.x - startScreen.x;
+        const dy = endScreen.y - startScreen.y;
+        return <div className={styles.gradientControls} aria-label="Gradient controls">
+          <span className={styles.gradientLine} style={{ left: startScreen.x, top: startScreen.y, width: Math.hypot(dx, dy), transform: `rotate(${Math.atan2(dy, dx)}rad)` }} aria-hidden="true" />
+          <button type="button" className={styles.gradientEndpoint} style={{ left: startScreen.x, top: startScreen.y }} data-gradient-fill-id={selectedGradientFill.id} data-gradient-handle="start" aria-label="Move gradient start" />
+          {(selectedGradientFill.gradientStops ?? []).map((stop) => <button
+            type="button"
+            key={stop.id}
+            className={styles.gradientStop}
+            style={{ left: startScreen.x + dx * stop.position, top: startScreen.y + dy * stop.position, backgroundColor: stop.color }}
+            data-gradient-fill-id={selectedGradientFill.id}
+            data-gradient-stop-id={stop.id}
+            aria-label={`Move gradient stop ${Math.round(stop.position * 100)} percent`}
+          />)}
+          <button type="button" className={styles.gradientEndpoint} style={{ left: endScreen.x, top: endScreen.y }} data-gradient-fill-id={selectedGradientFill.id} data-gradient-handle="end" aria-label="Move gradient end" />
+        </div>;
+      })()}
 
       {editor.showRulers && (
         <>

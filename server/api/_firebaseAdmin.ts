@@ -11,12 +11,8 @@ const PRIVILEGED_APP_NAME = "kumo-privileged-admin";
 
 const existingApp = (name: string) => getApps().find((app) => app.name === name);
 
-const verifierApp = () => {
-  if (!projectId) {
-    throw new Error("Firebase project ID is missing.");
-  }
-  return existingApp(VERIFIER_APP_NAME) ?? initializeApp({ projectId }, VERIFIER_APP_NAME);
-};
+const verifierApp = () =>
+  existingApp(VERIFIER_APP_NAME) ?? initializeApp({ projectId }, VERIFIER_APP_NAME);
 
 const privilegedApp = () => {
   if (!projectId || !clientEmail || !privateKey || !databaseURL) {

@@ -4,7 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import { displayTextLines } from "../../editor/layout";
 import { shapeBounds } from "../../editor/geometry";
-import { effectStyles, gradientCss, shapePathData, vectorNetworkPathData, vectorPathData } from "../../editor/graphics";
+import { shapePathData, vectorNetworkPathData, vectorPathData } from "../../editor/graphics";
+import { shapeAppearanceStyle } from "../../editor/shapeAppearance";
 import { interactionForTrigger, shapesInPrototypeFrame, startPrototypeFrame, type PrototypeInteraction } from "../../editor/prototype";
 import { resolveVariables, swapInstanceVariant } from "../../editor/designSystem";
 import { frameClipInsets } from "../../editor/snapping";
@@ -14,7 +15,9 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { getBoard } from "../../services/boardRepository";
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
-import { fontFeatureCss, fontVariationCss, mediaCropCss, mediaFilterCss, prototypeConditionMatches, type VariableValue } from "../../platform/productCapabilities";
+import { fontFeatureCss, fontVariationCss, prototypeConditionMatches, type VariableValue } from "../../platform/productCapabilities";
+import { connectorRenderBounds, prototypeFlows } from "../../editor/advancedFeatures";
+import { AdvancedShapeContent } from "./AdvancedShapeContent";
 
 const safeExternalUrl = (value?: string) => {
   if (!value) return null;
@@ -68,8 +71,12 @@ const PresentationView = () => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const requestedFrameId = useSelector((state: RootState) => state.editor.presentationFrameId);
-  const initial = board.shapes.find((shape) => shape.id === requestedFrameId && shape.type === "frame") ?? startPrototypeFrame(board.shapes);
+  const flows = useMemo(() => prototypeFlows(board.shapes), [board.shapes]);
+  const initial = board.shapes.find((shape) => shape.id === requestedFrameId && shape.type === "frame")
+    ?? board.shapes.find((shape) => shape.id === flows[0]?.startFrameId)
+    ?? startPrototypeFrame(board.shapes);
   const [frameId, setFrameId] = useState(initial?.id ?? null);
+  const [flowId, setFlowId] = useState(flows.find((flow) => flow.startFrameId === initial?.id)?.id ?? flows[0]?.id ?? "");
   const [history, setHistory] = useState<string[]>([]);
   const [localShapes, setLocalShapes] = useState(board.shapes);
   const [prototypeVariables, setPrototypeVariables] = useState<Record<string, VariableValue>>(() => Object.fromEntries(board.shapes
@@ -79,6 +86,8 @@ const PresentationView = () => {
   const [error, setError] = useState<string | null>(null);
   const pointerStart = useRef<{ id: string; x: number; y: number } | null>(null);
   const draggedShape = useRef<string | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
   const frame = localShapes.find((shape) => shape.id === frameId);
   const frameBounds = frame ? shapeBounds(frame) : null;
   const visible = useMemo(() => frameId ? shapesInPrototypeFrame(localShapes, frameId) : [], [frameId, localShapes]);
@@ -100,7 +109,7 @@ const PresentationView = () => {
     if (!interaction) return;
     if (!prototypeConditionMatches(interaction.condition, prototypeVariables)) return;
     if (interaction.action === "navigate" && interaction.destinationId) {
-      setHistory((current) => frameId ? [...current, frameId] : current);
+      setHistory((current) => [...current, frameId!]);
       setFrameId(interaction.destinationId);
       return;
     }
@@ -174,20 +183,33 @@ const PresentationView = () => {
     <div className={styles.presentationOverlay} role="dialog" aria-modal="true" aria-label="Prototype presentation">
       <header>
         <button type="button" aria-label="Back" disabled={!history.length} onClick={goBack}><ArrowLeft aria-hidden="true" /></button>
-        <span>{frame.name ?? "Prototype"}</span>
+        <span>{flows.length ? <select aria-label="Prototype flow" value={flowId} onChange={(event) => {
+          const nextFlow = flows.find((flow) => flow.id === event.target.value);
+          if (!nextFlow) return;
+          setFlowId(nextFlow.id);
+          setHistory([]);
+          setOverlayId(null);
+          setFrameId(nextFlow.startFrameId);
+          setScrollOffset({ x: 0, y: 0 });
+          frameRef.current?.scrollTo(0, 0);
+        }}>{flows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select> : frame.name ?? "Prototype"}</span>
         <span><ArrowsOutSimple aria-hidden="true" /> Fit</span>
         <button type="button" aria-label="Close presentation" onClick={close}><X aria-hidden="true" /></button>
       </header>
       <div className={styles.presentationStage}>
         <div
+          ref={frameRef}
           className={styles.presentationFrame}
           style={{
             aspectRatio: `${Math.max(1, frameBounds.width)} / ${Math.max(1, frameBounds.height)}`,
             background: frame.backgroundColor ?? board.backGroundColor,
+            overflowX: frame.prototypeOverflowAxis === "horizontal" || frame.prototypeOverflowAxis === "both" ? "auto" : "hidden",
+            overflowY: frame.prototypeOverflowAxis === "vertical" || frame.prototypeOverflowAxis === "both" || frame.prototypeOverflow === "scroll" ? "auto" : "hidden",
           }}
+          onScroll={(event) => setScrollOffset({ x: event.currentTarget.scrollLeft, y: event.currentTarget.scrollTop })}
         >
           {visible.filter((shape) => shape.id !== frame.id && !shape.isMask).sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id)).map((shape) => {
-            const bounds = shapeBounds(shape);
+            const bounds = shape.type === "connector" ? connectorRenderBounds(localShapes, shape) : shapeBounds(shape);
             const left = (bounds.x - frameBounds.x) / frameBounds.width * 100;
             const top = (bounds.y - frameBounds.y) / frameBounds.height * 100;
             const click = interactionForTrigger(shape, "click");
@@ -213,21 +235,14 @@ const PresentationView = () => {
                 className={styles.presentationShape}
                 aria-label={shape.name ?? shape.type}
                 style={{
+                  ...shapeAppearanceStyle(shape, 1),
                   left: `${left}%`, top: `${top}%`, width: `${bounds.width / frameBounds.width * 100}%`, height: `${bounds.height / frameBounds.height * 100}%`,
-                  borderRadius: shape.type === "ellipse" ? "50%" : shape.borderRadius,
-                  border: shape.type === "vector" || shape.type === "boolean" ? 0 : `${shape.borderWidth ?? 0}px ${shape.borderStyle ?? "solid"} ${shape.borderColor ?? "transparent"}`,
-                  background: shape.type === "vector" || shape.type === "boolean" ? "transparent" : gradientCss(shape) ?? shape.backgroundColor,
-                  backgroundImage: shape.backgroundImage ? `url(${shape.backgroundImage})` : gradientCss(shape),
-                  backgroundSize: mediaCropCss(shape)?.backgroundSize ?? (shape.imageFit === "fit" ? "contain" : shape.imageFit === "tile" ? "auto" : "cover"),
-                  backgroundPosition: mediaCropCss(shape)?.backgroundPosition ?? "center",
-                  backgroundRepeat: shape.imageFit === "tile" ? "repeat" : "no-repeat",
-                  filter: shape.backgroundImage ? mediaFilterCss(shape) : undefined,
                   color: shape.color,
                   opacity: shape.opacity,
                   fontFamily: shape.fontFamily,
                   fontSize: shape.fontSize,
                   fontWeight: shape.fontWeight,
-                  transform: `rotate(${shape.rotation ?? 0}deg) scaleX(${shape.flipX ? -1 : 1}) scaleY(${shape.flipY ? -1 : 1})`,
+                  transform: `${shape.prototypePosition === "fixed" ? `translate(${scrollOffset.x}px, ${scrollOffset.y}px) ` : shape.prototypePosition === "sticky" ? `translateY(${Math.max(0, scrollOffset.y - (shape.prototypeStickyOffset ?? 0))}px) ` : ""}rotate(${shape.rotation ?? 0}deg) scaleX(${shape.flipX ? -1 : 1}) scaleY(${shape.flipY ? -1 : 1})`,
                   cursor: click || hover || mouseEnter || mouseLeave || drag ? "pointer" : "default",
                   zIndex: shape.zIndex,
                   mixBlendMode: shape.blendMode,
@@ -238,7 +253,6 @@ const PresentationView = () => {
                   fontVariationSettings: fontVariationCss(shape.fontAxes),
                   fontFeatureSettings: fontFeatureCss(shape.openTypeFeatures),
                   clipPath,
-                  ...effectStyles(shape),
                 }}
                 onClick={() => {
                   if (draggedShape.current === shape.id) {
@@ -262,6 +276,7 @@ const PresentationView = () => {
                 }}
               >
                 {(shape.type === "vector" || shape.type === "boolean") && <PrototypeVector shape={shape} />}
+                <AdvancedShapeContent shape={shape} shapes={localShapes} zoom={1} />
                 {shape.type === "text" ? displayTextLines(shape).join("\n") : shape.type === "board" ? shape.title : null}
               </button>
             );
@@ -276,7 +291,8 @@ const PresentationView = () => {
               role="button"
               tabIndex={0}
               aria-label="Close prototype overlay backdrop"
-              onClick={(event) => { if (event.target === event.currentTarget) setOverlayId(null); }}
+              style={{ background: overlay.prototypeOverlaySettings?.background ?? "rgba(0,0,0,.55)" }}
+              onClick={(event) => { if (event.target === event.currentTarget && overlay.prototypeOverlaySettings?.closeOnOutside !== false) setOverlayId(null); }}
               onKeyDown={(event) => { if (event.key === "Escape" || event.key === "Enter" || event.key === " ") setOverlayId(null); }}
             ><div className={styles.prototypeOverlayCard} style={{ aspectRatio: `${Math.max(1, overlayBounds.width)} / ${Math.max(1, overlayBounds.height)}`, background: overlay.backgroundColor }}>{overlayChildren.map((child) => {
               const bounds = shapeBounds(child);

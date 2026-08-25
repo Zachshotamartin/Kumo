@@ -10,6 +10,7 @@ import {
   releaseMask,
   shapePathData,
   updateVectorPoint,
+  updateVectorHandle,
   vectorPathData,
   vectorNetworkPathData,
 } from "./graphics";
@@ -35,12 +36,28 @@ describe("vector and compositing graphics", () => {
     expect(vectorPathData([], { x: 0, y: 0 })).toBe("");
     expect(vectorPathData([{ id: "a", x: 1, y: 2 }, { id: "b", x: 3, y: 4 }])).toBe("M 1 2 L 3 4");
     expect(shapePathData(shape("ellipse", 0, { type: "ellipse" }))).toContain(" A ");
+    expect(shapePathData(shape("rectangle", 0))).toContain(" H ");
     expect(shapePathData(vector)).toContain(" C ");
     const created = createVectorShape({ x: 30, y: 20 }, { x: 10, y: 40 }, 9);
     expect(created).toMatchObject({ type: "vector", x1: 10, y1: 20, width: 20, height: 20, zIndex: 9 });
+    expect(vectorPathData([{ id: "a", x: 0, y: 0 }, { id: "b", x: 20, y: 20, handleIn: { x: 10, y: 20 } }])).toContain("C 0 0 10 20");
+    expect(vectorPathData([{ id: "a", x: 0, y: 0, handleOut: { x: 10, y: 0 } }, { id: "b", x: 20, y: 20 }])).toContain("C 10 0 20 20");
+    expect(updateVectorPoint([shape("other", 0)], "missing", "point", { x: 1, y: 2 })).toEqual([shape("other", 0)]);
+    const bothHandles = shape("both", 0, { type: "vector", vectorPoints: [{ id: "point", x: 0, y: 0, handleIn: { x: -1, y: 0 }, handleOut: { x: 1, y: 0 } }] });
+    expect(updateVectorPoint([bothHandles], "both", "point", { x: 2, y: 2 })[0]?.vectorPoints?.[0]).toMatchObject({ handleIn: { x: 1, y: 2 }, handleOut: { x: 3, y: 2 } });
+    const noHandles = shape("plain-vector", 0, { type: "vector", vectorPoints: [{ id: "point", x: 0, y: 0 }] });
+    expect(updateVectorPoint([noHandles], "plain-vector", "point", { x: 2, y: 2 })[0]?.vectorPoints?.[0]).toMatchObject({ x: 2, y: 2 });
     const appended = appendVectorPoint([created, shape("other", 0)], created.id, { x: 50, y: 60 });
     expect(appended[0]?.vectorPoints).toHaveLength(3);
     expect(appended[0]).toMatchObject({ x2: 50, y2: 60 });
+  });
+
+  it("updates vector handles with optional mirroring", () => {
+    const vector = shape("vector", 0, { type: "vector", vectorPoints: [{ id: "a", x: 10, y: 10 }, { id: "b", x: 20, y: 20 }] });
+    const mirrored = updateVectorHandle([vector, shape("other", 30)], "vector", "a", "handleIn", { x: 5, y: 10 }, true)[0]!;
+    expect(mirrored.vectorPoints?.[0]).toMatchObject({ handleIn: { x: 5, y: 10 }, handleOut: { x: 15, y: 10 } });
+    const plain = updateVectorHandle([mirrored], "vector", "b", "handleOut", { x: 25, y: 20 }, false)[0]!;
+    expect(plain.vectorPoints?.[1]).toMatchObject({ handleOut: { x: 25, y: 20 } });
   });
 
   it("renders branching vector networks and appends to the active path", () => {
@@ -67,10 +84,22 @@ describe("vector and compositing graphics", () => {
     const invalid = createBooleanOperation([frame, child, text], [frame.id, text.id], "union");
     expect(invalid).toEqual({ shapes: [frame, child, text], booleanId: null });
     expect(flattenBooleanOperation([shape("a", 0)], "missing")).toEqual([shape("a", 0)]);
+    const separateParents = createBooleanOperation([
+      shape("a", 0, { parentId: "one" }), shape("b", 10, { parentId: "two" }),
+    ], ["a", "b"], "union");
+    expect(separateParents.shapes.find((item) => item.id === separateParents.booleanId)?.parentId).toBeNull();
+    const sameParent = createBooleanOperation([
+      shape("a", 0, { parentId: "parent" }), shape("b", 10, { parentId: "parent" }),
+    ], ["a", "b"], "union");
+    expect(sameParent.shapes.find((item) => item.id === sameParent.booleanId)?.parentId).toBe("parent");
+    const defaultFill = createBooleanOperation([
+      shape("a", 0, { backgroundColor: undefined }), shape("b", 10),
+    ], ["a", "b"], "union");
+    expect(defaultFill.shapes.find((item) => item.id === defaultFill.booleanId)?.backgroundColor).toBe("#ffffff");
   });
 
   it("uses the back object as a reversible mask", () => {
-    const masked = createMask([shape("mask", 0), shape("content", 10)], ["mask", "content"]);
+    const masked = createMask([shape("mask", 0), shape("content", 10), shape("other", 20)], ["mask", "content"]);
     expect(masked[0]?.isMask).toBe(true);
     expect(masked[1]?.maskId).toBe("mask");
     expect(releaseMask(masked, "mask").every((item) => !item.maskId && !item.isMask)).toBe(true);
@@ -91,6 +120,8 @@ describe("vector and compositing graphics", () => {
     expect(gradientCss(styled)).toContain("linear-gradient(45deg");
     expect(effectStyles(styled)).toMatchObject({ filter: expect.stringContaining("blur(0px)"), boxShadow: expect.stringContaining("inset"), backdropFilter: "blur(8px)" });
     expect(gradientCss({ ...styled, fillType: "radial-gradient" })).toContain("radial-gradient(circle");
+    expect(gradientCss({ ...styled, gradientAngle: undefined })).toContain("linear-gradient(90deg");
     expect(gradientCss({ ...styled, fillType: "solid" })).toBeUndefined();
+    expect(effectStyles(shape("plain", 0))).toEqual({});
   });
 });

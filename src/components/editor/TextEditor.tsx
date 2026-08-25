@@ -31,8 +31,7 @@ export const TextEditor = ({
   const [draft, setDraft] = useState(value);
 
   const fitEditorToContent = useCallback(() => {
-    const textarea = ref.current;
-    if (!textarea) return;
+    const textarea = ref.current!;
     textarea.style.height = "0px";
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, []);

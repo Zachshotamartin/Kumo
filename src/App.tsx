@@ -7,12 +7,20 @@ import { login, logout, setAuthenticatedProfile, setAuthInitialized } from "./fe
 import { ensureUserProfile } from "./services/userRepository";
 import { AppDispatch, RootState } from "./store";
 import KumoLogo from "./components/brand/KumoLogo";
+import { startObservability } from "./platform/observability";
 
-const WorkSpace = lazy(() => import("./components/workSpace/workSpace"));
+const importWorkspace = () => import("./components/workSpace/workSpace");
+let workspacePromise: ReturnType<typeof importWorkspace> | null = null;
+const loadWorkspace = () => {
+  workspacePromise ??= importWorkspace();
+  return workspacePromise;
+};
+const WorkSpace = lazy(loadWorkspace);
 const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
 const HomePage = lazy(() => import("./components/homepage/homePage"));
 const PrototypeShareView = lazy(() => import("./components/editor/PrototypeShareView"));
 const VersionShareView = lazy(() => import("./history/VersionShareView"));
+const OpenSessionView = lazy(() => import("./components/editor/OpenSessionView"));
 export const MINIMUM_LOADING_DURATION_MS = 1800;
 
 const LoadingScreen = () => (
@@ -33,6 +41,7 @@ function App() {
   const prototypeToken = new URL(window.location.href).searchParams.get("prototype");
   const versionToken = new URL(window.location.href).searchParams.get("versionToken");
   const versionId = new URL(window.location.href).searchParams.get("version");
+  const openSessionToken = new URL(window.location.href).searchParams.get("openSession");
 
   useEffect(() => {
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -51,6 +60,9 @@ function App() {
           dispatch(logout());
           return;
         }
+        // Start the core editor chunk before dashboard requests and preview work.
+        // Opening a board should only wait for collaboration, never module scheduling.
+        void loadWorkspace();
         dispatch(
           login({
             uid: firebaseUser.uid,
@@ -68,6 +80,11 @@ function App() {
     return () => unsubscribe();
   }, [dispatch]);
 
+  useEffect(() => {
+    if (!user.isAuthenticated) return;
+    return startObservability();
+  }, [user.isAuthenticated]);
+
   if (!user.isInitialized || !loadingAnimationComplete) return <LoadingScreen />;
 
   return (
@@ -75,7 +92,9 @@ function App() {
       <a className="skip-link" href="#main-content">Skip to content</a>
       <div className="App" id="main-content">
         <Suspense fallback={<LoadingScreen />}>
-          {versionToken && versionId ? (
+          {openSessionToken ? (
+            <OpenSessionView token={openSessionToken} />
+          ) : versionToken && versionId ? (
             <VersionShareView versionId={versionId} token={versionToken} />
           ) : prototypeToken ? (
             <PrototypeShareView token={prototypeToken} />

@@ -1,15 +1,15 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import type { EditorActions } from "../../editor/useEditorActions";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer from "../../features/auth/authSlice";
-import editorReducer from "../../features/editor/editorSlice";
+import editorReducer, { setTextSelection } from "../../features/editor/editorSlice";
 import selectedReducer, { setSelectedShapes } from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
-import { listBoards } from "../../services/boardRepository";
-import { InspectorPanelView } from "./InspectorPanel";
+import { listBoards, type BoardSummary } from "../../services/boardRepository";
+import { ColorField, InspectorPanelView, NumberField, inspectorValue } from "./InspectorPanel";
 
 vi.mock("../../services/boardRepository", () => ({ listBoards: vi.fn().mockResolvedValue([]) }));
 
@@ -124,6 +124,35 @@ describe("InspectorPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(listBoards).mockResolvedValue([]);
+  });
+
+  it("normalizes nullish inspector values and keeps focused field drafts stable", () => {
+    expect(inspectorValue("configured", "fallback")).toBe("configured");
+    expect(inspectorValue(null, "fallback")).toBe("fallback");
+    expect(inspectorValue(undefined, "fallback")).toBe("fallback");
+
+    const onNumberCommit = vi.fn();
+    const number = render(<NumberField label="Standalone number" value={5} onCommit={onNumberCommit} />);
+    const numberInput = screen.getByLabelText("Standalone number");
+    fireEvent.focus(numberInput);
+    number.rerender(<NumberField label="Standalone number" value={9} onCommit={onNumberCommit} />);
+    expect(numberInput).toHaveValue(5);
+    fireEvent.blur(numberInput);
+    number.rerender(<NumberField label="Standalone number" value={10} onCommit={onNumberCommit} />);
+    expect(numberInput).toHaveValue(10);
+    cleanup();
+
+    const onColorCommit = vi.fn();
+    const color = render(<ColorField label="Standalone color" value="#111111" onCommit={onColorCommit} />);
+    const colorInput = screen.getByLabelText("Standalone color hex value");
+    fireEvent.focus(colorInput);
+    color.rerender(<ColorField label="Standalone color" value="#222222" onCommit={onColorCommit} />);
+    expect(colorInput).toHaveValue("#111111");
+    fireEvent.change(colorInput, { target: { value: "#abcdef" } });
+    fireEvent.blur(colorInput);
+    color.rerender(<ColorField label="Standalone color" value="#333333" onCommit={onColorCommit} />);
+    expect(colorInput).toHaveValue("#333333");
+    expect(onColorCommit).toHaveBeenCalledWith("#abcdef");
   });
 
   it("restores the complete text formatting controls", () => {
@@ -246,11 +275,13 @@ describe("InspectorPanel", () => {
     vi.mocked(listBoards).mockResolvedValue([
       { id: "board", title: "Current", ownerId: "me", role: "owner", visibility: "private", roomId: "board:board", updatedAt: 1 },
       { id: "destination", title: "Roadmap", ownerId: "owner", role: "editor", visibility: "private", roomId: "board:destination", updatedAt: 2 },
+      { id: "owned", title: "Owned", ownerId: "me", role: "owner", visibility: "private", roomId: "board:owned", updatedAt: 3 },
     ]);
     const linked = rectangle("link", { type: "board", boardId: null, title: "Choose a destination" });
     const { actions } = renderInspector([linked], [linked.id]);
     const destination = await screen.findByLabelText("Destination");
     await waitFor(() => expect(destination).toHaveTextContent("Roadmap - shared"));
+    expect(destination).toHaveTextContent("Owned - yours");
     expect(destination).not.toHaveTextContent("Current");
     fireEvent.change(destination, { target: { value: "destination" } });
     expect(actions.patchSelected).toHaveBeenCalledWith({
@@ -342,7 +373,7 @@ describe("InspectorPanel", () => {
     expect(actions.patchSelected).toHaveBeenCalledWith({ openTypeFeatures: { liga: false } });
 
     const vector = rectangle("vector", { type: "vector", vectorPoints: [{ id: "a", x: 0, y: 0 }, { id: "b", x: 20, y: 20 }, { id: "c", x: 40, y: 0 }], vectorPaths: [{ id: "path", pointIds: ["a", "b", "c"], closed: false }], vectorClosed: false });
-    const vectorInspector = renderInspector([vector], [vector.id]);
+    const vectorInspector = renderInspector([vector, rectangle("vector-sibling")], [vector.id]);
     fireEvent.click(screen.getByRole("checkbox", { name: "Closed path" }));
     fireEvent.change(screen.getByLabelText("Cap"), { target: { value: "round" } });
     fireEvent.change(screen.getByLabelText("Join"), { target: { value: "bevel" } });
@@ -351,7 +382,10 @@ describe("InspectorPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add vector branch" }));
     expect(vectorInspector.actions.patchSelected).toHaveBeenCalledWith({ vectorClosed: true });
     expect(vectorInspector.actions.patchSelected).toHaveBeenCalledWith({ strokeDash: [8, 4] });
-    expect(vectorInspector.actions.commitShapes).toHaveBeenCalledWith([expect.objectContaining({ vectorPaths: expect.arrayContaining([expect.objectContaining({ pointIds: expect.arrayContaining(["a"]) })]) })]);
+    expect(vectorInspector.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ vectorPaths: expect.arrayContaining([expect.objectContaining({ pointIds: expect.arrayContaining(["a"]) })]) }),
+      expect.objectContaining({ id: "vector-sibling" }),
+    ]));
   });
 
   it("crops and filters images and records accessibility and handoff metadata", () => {
@@ -390,5 +424,197 @@ describe("InspectorPanel", () => {
     });
     expect(multi.actions.booleanSelected).toHaveBeenCalledTimes(4);
     expect(multi.actions.collectSelectedSections).toHaveBeenCalled();
+  });
+
+  it("commits the remaining numeric, color, appearance, accessibility, and canvas controls", () => {
+    const { actions, store } = renderInspector();
+    fireEvent.change(screen.getByLabelText("Y"), { target: { value: "15" } });
+    fireEvent.change(screen.getByLabelText("H"), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText("°"), { target: { value: "25" } });
+    fireEvent.change(screen.getByLabelText("Radius"), { target: { value: "9" } });
+    fireEvent.change(screen.getByLabelText("Semantic role"), { target: { value: "heading" } });
+    const y = screen.getByLabelText("Y");
+    fireEvent.focus(y);
+    fireEvent.keyDown(y, { key: "Enter" });
+    fireEvent.blur(y);
+    const textHex = screen.getByLabelText("Text hex value");
+    fireEvent.keyDown(textHex, { key: "Enter" });
+    const picker = textHex.closest("label")!.querySelector("input[type='color']")!;
+    fireEvent.focus(picker);
+    fireEvent.blur(picker);
+    expect(actions.setShapeGeometry).toHaveBeenCalledWith(expect.objectContaining({ id: "text" }), { y: 15 });
+    expect(actions.setShapeGeometry).toHaveBeenCalledWith(expect.objectContaining({ id: "text" }), { height: 45 });
+
+    cleanup();
+    const canvas = renderInspector([], []);
+    const rulersBefore = canvas.store.getState().editor.showRulers;
+    fireEvent.click(screen.getByLabelText("Rulers and guides"));
+    expect(canvas.store.getState().editor.showRulers).toBe(!rulersBefore);
+    expect(store.getState().whiteBoard.id).toBe("board");
+  });
+
+  it("creates fills, edits every gradient stop and effect field, and handles the empty effect choice", () => {
+    const solid = rectangle("solid", { backgroundColor: undefined, fillType: "solid", gradientStops: undefined });
+    const first = renderInspector([solid], [solid.id]);
+    fireEvent.change(screen.getByLabelText("Fill type"), { target: { value: "linear-gradient" } });
+    expect(first.actions.patchSelected).toHaveBeenCalledWith(expect.objectContaining({
+      fillType: "linear-gradient",
+      gradientStops: expect.arrayContaining([expect.objectContaining({ position: 0 }), expect.objectContaining({ position: 1 })]),
+    }));
+    const effectChoice = screen.getByLabelText("Add effect");
+    fireEvent.change(effectChoice, { target: { value: "" } });
+    cleanup();
+
+    const rich = rectangle("rich", {
+      fillType: "linear-gradient", gradientAngle: undefined,
+      gradientStops: [
+        { id: "one", position: 0, color: "#111111", opacity: 1 },
+        { id: "two", position: 1, color: "#222222", opacity: 1 },
+      ],
+      effects: [
+        { id: "one", type: "drop-shadow", color: "#000000", x: 1, y: 2, blur: 3, spread: 4, visible: true },
+        { id: "two", type: "inner-shadow", color: "#000000", x: 5, y: 6, blur: 7, spread: 8, visible: false },
+      ],
+    });
+    const second = renderInspector([rich], [rich.id]);
+    fireEvent.change(screen.getByLabelText("Gradient angle"), { target: { value: "70" } });
+    fireEvent.change(screen.getByLabelText("Stop 2 hex value"), { target: { value: "#abcdef" } });
+    fireEvent.change(screen.getAllByLabelText("At %")[1]!, { target: { value: "75" } });
+    const effects = screen.getByText("Effects").closest("section")!;
+    const rows = effects.querySelectorAll("div[class*='effectRow']");
+    const secondEffect = rows[1] as HTMLElement;
+    fireEvent.click(within(secondEffect).getByRole("checkbox"));
+    fireEvent.change(within(secondEffect).getByLabelText("X"), { target: { value: "10" } });
+    fireEvent.change(within(secondEffect).getByLabelText("Y"), { target: { value: "11" } });
+    fireEvent.change(within(secondEffect).getByLabelText("Blur"), { target: { value: "12" } });
+    fireEvent.change(within(secondEffect).getByLabelText("Spread"), { target: { value: "13" } });
+    expect(second.actions.patchSelected).toHaveBeenCalled();
+  });
+
+  it("edits all image filters, crop coordinates, and fit mode", () => {
+    const image = rectangle("image", {
+      type: "image", imageFit: "crop",
+      imageFilters: { brightness: 1.1, contrast: 1.2, saturation: 1.3, blur: 2 },
+      imageCrop: { x: 0.1, y: 0.2, width: 0.7, height: 0.8 },
+    });
+    const { actions } = renderInspector([image], [image.id]);
+    fireEvent.change(screen.getByLabelText("Fit"), { target: { value: "fit" } });
+    fireEvent.change(screen.getByLabelText("Contrast"), { target: { value: "1.5" } });
+    fireEvent.change(screen.getByLabelText("Saturation"), { target: { value: "1.6" } });
+    fireEvent.change(screen.getByLabelText("Blur"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Crop Y %"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Crop height %"), { target: { value: "60" } });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ imageFit: "fit" });
+    expect(actions.patchSelected).toHaveBeenCalledWith(expect.objectContaining({ imageCrop: expect.objectContaining({ y: 0.3 }) }));
+  });
+
+  it("converts and splits vector networks and safely ignores a missing branch origin", () => {
+    const points = [{ id: "a", x: 0, y: 0 }, { id: "b", x: 20, y: 20 }, { id: "c", x: 40, y: 0 }];
+    const plain = rectangle("plain-vector", { type: "vector", vectorPoints: points, vectorPaths: undefined, vectorClosed: true });
+    const first = renderInspector([plain], [plain.id]);
+    fireEvent.click(screen.getByRole("button", { name: "Convert to vector network" }));
+    expect(first.actions.patchSelected).toHaveBeenCalledWith(expect.objectContaining({ vectorPaths: [expect.objectContaining({ closed: true })] }));
+    cleanup();
+
+    const network = rectangle("network", { type: "vector", vectorPoints: points, vectorPaths: [{ id: "path", pointIds: ["a", "b", "c"], closed: false }] });
+    const second = renderInspector([network, rectangle("other")], [network.id]);
+    fireEvent.click(screen.getByRole("button", { name: "Split path at midpoint" }));
+    expect(second.actions.commitShapes).toHaveBeenCalled();
+    cleanup();
+
+    const missing = rectangle("missing", { type: "vector", vectorPoints: points, vectorPaths: [{ id: "path", pointIds: ["unknown", "b", "c"], closed: false }] });
+    const third = renderInspector([missing], [missing.id]);
+    fireEvent.click(screen.getByRole("button", { name: "Add vector branch" }));
+    expect(third.actions.commitShapes).not.toHaveBeenCalled();
+  });
+
+  it("applies selected-character formatting and the remaining typography controls", () => {
+    const { actions, store } = renderInspector([textShape, rectangle("other")], [textShape.id]);
+    act(() => store.dispatch(setTextSelection({ shapeId: "text", start: 0, end: 4 })));
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
+    fireEvent.click(screen.getByRole("button", { name: "Underline" }));
+    fireEvent.change(screen.getByLabelText("Selection color hex value"), { target: { value: "#123456" } });
+    fireEvent.change(screen.getByLabelText("Optical size"), { target: { value: "24" } });
+    fireEvent.change(screen.getByLabelText("Slant"), { target: { value: "-5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kerning" }));
+    fireEvent.click(screen.getByRole("button", { name: "Contextual alternates" }));
+    expect(actions.commitShapes).toHaveBeenCalledTimes(3);
+    expect(actions.patchSelected).toHaveBeenCalledWith({ fontAxes: { opsz: 24 } });
+  });
+
+  it("routes every parent alignment and remaining multi-layer arrange command", () => {
+    const nested = rectangle("nested", { parentId: "frame" });
+    const first = renderInspector([nested], [nested.id]);
+    ["Left", "Center X", "Right", "Top", "Center Y", "Bottom"].forEach((name) => fireEvent.click(screen.getByRole("button", { name })));
+    expect(first.actions.alignSelected).toHaveBeenCalledTimes(6);
+    cleanup();
+
+    const shapes = [rectangle("1", { groupId: "group" }), rectangle("2", { groupId: "group", zIndex: 2 })];
+    const second = renderInspector(shapes, ["1", "2"]);
+    fireEvent.click(screen.getByRole("button", { name: "Front" }));
+    fireEvent.click(screen.getByRole("button", { name: "Backward" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ungroup" }));
+    expect(second.actions.orderSelected).toHaveBeenCalledTimes(3);
+  });
+
+  it("ignores stale board-destination responses", async () => {
+    let resolveBoards: (value: BoardSummary[]) => void = () => undefined;
+    vi.mocked(listBoards).mockImplementationOnce(() => new Promise((resolve) => { resolveBoards = resolve; }));
+    const linked = rectangle("link", { type: "board" });
+    renderInspector([linked], [linked.id]);
+    cleanup();
+    await act(async () => { resolveBoards([]); await Promise.resolve(); });
+  });
+
+  it("normalizes explicit null legacy values across shape inspectors", () => {
+    const nullText = {
+      ...textShape,
+      rotation: null, opacity: null, color: null, backgroundColor: null, fillType: null,
+      borderColor: null, borderWidth: null, borderRadius: null, borderStyle: null, blendMode: null,
+      effects: null, fontSize: null, lineHeight: null, letterSpacing: null, fontFamily: null,
+      fontWeight: null, textAutoResize: null, fontAxes: null, openTypeFeatures: null,
+      paragraphSpacing: null, textIndent: null, textCase: null, listStyle: null, textAlign: null,
+      alignItems: null, textDecoration: null, semanticRole: null, focusOrder: null,
+      devStatus: null, devAnnotation: null, codeComponentUrl: null, parentId: "frame",
+      layoutPositioning: null, constraintHorizontal: null, constraintVertical: null, layoutGrow: null,
+    } as unknown as Shape;
+    renderInspector([nullText], [nullText.id]);
+    expect(screen.getByLabelText("°")).toHaveValue(0);
+    expect(screen.getByLabelText("Font family")).toHaveValue("Arial");
+    expect(screen.getByLabelText("Positioning")).toHaveValue("auto");
+    cleanup();
+
+    const nullImage = {
+      ...rectangle("legacy-image"), type: "image", imageFit: "crop",
+      imageFilters: { brightness: null, contrast: null, saturation: null, blur: null },
+      imageCrop: { x: null, y: null, width: null, height: null }, semanticRole: null, altText: null,
+    } as unknown as Shape;
+    renderInspector([nullImage], [nullImage.id]);
+    expect(screen.getByLabelText("Brightness")).toHaveValue(1);
+    expect(screen.getByLabelText("Crop width %")).toHaveValue(100);
+    cleanup();
+
+    const nullFrame = {
+      ...rectangle("legacy-frame"), type: "frame", layoutMode: "vertical", clipContent: null,
+      layoutGap: null, layoutCounterGap: null, paddingTop: null, paddingRight: null,
+      paddingBottom: null, paddingLeft: null, layoutWrap: null, primaryAlign: null,
+      counterAlign: null, horizontalSizing: null, verticalSizing: null,
+    } as unknown as Shape;
+    renderInspector([nullFrame], [nullFrame.id]);
+    expect(screen.getByLabelText("Gap")).toHaveValue(12);
+    expect(screen.getByLabelText("Width")).toHaveValue("fixed");
+  });
+
+  it("commits stroke color/width and covers non-Enter field keys", () => {
+    const { actions } = renderInspector([rectangle("shape")], ["shape"]);
+    const appearance = screen.getByText("Appearance").closest("section")!;
+    fireEvent.change(within(appearance).getByLabelText("Stroke hex value"), { target: { value: "#334455" } });
+    const numeric = appearance.querySelector("input[type='number']")!;
+    fireEvent.change(numeric, { target: { value: "3" } });
+    fireEvent.keyDown(numeric, { key: "Escape" });
+    fireEvent.blur(within(appearance).getByLabelText("Stroke hex value"));
+    expect(actions.patchSelected).toHaveBeenCalledWith({ borderColor: "#334455" });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ borderWidth: 3 });
   });
 });

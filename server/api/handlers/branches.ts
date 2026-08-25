@@ -8,6 +8,7 @@ import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { boardDocumentFromJson, liveblocksAdmin } from "../_liveblocks.js";
 import { supabaseAdmin } from "../_supabase.js";
 import { branchVisualDiff, threeWayMergeDocuments } from "../_branchMerge.js";
+import { sendPreferredPushToUser } from "../_push.js";
 
 const cleanName = (value: unknown) => typeof value === "string" ? value.trim().slice(0, 120) : "";
 const checksum = (document: unknown) => createHash("sha256").update(JSON.stringify(document)).digest("hex");
@@ -114,6 +115,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const notifications = reviewers.map((reviewer) => ({ recipient_id: reviewer.firebase_uid, actor_id: actor.uid, board_id: boardId, kind: "branch", title: `Review requested: ${branch.name}`, body: String(request.body?.note ?? "Please review this branch.").slice(0, 500), action_url: `/?board=${encodeURIComponent(boardId)}&branch=${encodeURIComponent(branchId)}` }));
       const { error: noticeError } = await database.from("account_notifications").insert(notifications);
       if (noticeError) throw noticeError;
+      await Promise.allSettled(notifications.map((notification) => sendPreferredPushToUser(notification.recipient_id, "branch_reviews", {
+        title: notification.title, body: notification.body, url: notification.action_url, tag: `kumo:branch-review:${branchId}`,
+      })));
       return response.status(200).json({ requested: reviewers.map((reviewer) => reviewer.firebase_uid) });
     }
 

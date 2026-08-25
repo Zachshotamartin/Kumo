@@ -75,8 +75,7 @@ export const removeQueuedMutation = (id: string) => {
   window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queuedMutations().filter((mutation) => mutation.id !== id)));
 };
 
-const changedFields = (base: Shape | undefined, candidate: Shape | undefined) => {
-  if (!base || !candidate) return new Set(["__shape"]);
+const changedFields = (base: Shape, candidate: Shape) => {
   const keys = new Set([...Object.keys(base), ...Object.keys(candidate)]);
   return new Set([...keys].filter((key) => JSON.stringify((base as unknown as Record<string, unknown>)[key]) !== JSON.stringify((candidate as unknown as Record<string, unknown>)[key])));
 };
@@ -99,10 +98,10 @@ export const mergeRecoverySnapshot = (base: Shape[], remote: Shape[], local: Sha
       return;
     }
     if (!localShape || !remoteShape) {
-      const surviving = localShape ?? remoteShape;
-      const changed = surviving && changedFields(baseShape, surviving).size > 0;
+      const surviving = (localShape ?? remoteShape)!;
+      const changed = changedFields(baseShape, surviving).size > 0;
       if (changed) conflicts.push({ shapeId: id, fields: ["__deleted"] });
-      if (surviving) merged.push(surviving);
+      merged.push(surviving);
       return;
     }
     const localChanges = changedFields(baseShape, localShape);

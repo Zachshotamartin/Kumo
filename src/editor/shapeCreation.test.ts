@@ -46,6 +46,7 @@ describe("shared editor shape creation", () => {
       .toEqual([{ x: 10, y: 90 }, { x: 110, y: 10 }]);
     expect(falling.vectorPoints?.map(({ x, y }) => ({ x, y })))
       .toEqual([{ x: 10, y: 10 }, { x: 110, y: 90 }]);
+    expect(createDraftShape("pen", { x: 0, y: 0 }, [rising])).toMatchObject({ zIndex: rising.zIndex + 1 });
   });
 
   it("creates frames with an opaque white fill", () => {
@@ -61,5 +62,22 @@ describe("shared editor shape creation", () => {
       width: 200,
       height: 120,
     });
+  });
+
+  it("applies specialized defaults for text, images, boards, and advanced primitives", () => {
+    expect(createDraftShape("text", { x: 0, y: 0 }, [])).toMatchObject({ name: "Text", text: "Type something", fontSize: 18, backgroundColor: "transparent", borderWidth: 0 });
+    expect(createDraftShape("image", { x: 0, y: 0 }, [])).toMatchObject({ name: "Image", backgroundColor: "transparent" });
+    expect(createDraftShape("board", { x: 0, y: 0 }, [])).toMatchObject({ name: "Linked board", title: "Choose a destination", backgroundColor: "#303640" });
+    const connector = createDraftShape("connector", { x: 5, y: 6 }, []);
+    expect(draftAtPoint(connector, { x: 5, y: 6 }, { x: 15, y: 26 }, false)).toMatchObject({
+      x1: 5, y1: 6, x2: 15, y2: 26,
+      connectorStart: { anchor: "auto", x: 5, y: 6 },
+      connectorEnd: { anchor: "auto", x: 15, y: 26 },
+    });
+  });
+
+  it("keeps zero-length constrained drafts stable", () => {
+    const draft = createDraftShape("rectangle", { x: 10, y: 10 }, []);
+    expect(draftAtPoint(draft, { x: 10, y: 10 }, { x: 10, y: 10 }, true)).toMatchObject({ width: 0, height: 0 });
   });
 });

@@ -34,6 +34,8 @@ const kindLabel = (version: BoardVersion) => {
   return "Autosave";
 };
 
+const errorMessage = (caught: unknown, fallback: string) => caught instanceof Error ? caught.message : fallback;
+
 export const SnapshotPreview = ({ version }: { version: BoardVersionDetail | null }) => {
   const shapes = useMemo(() => Object.values(version?.document.nodes ?? {}) as unknown as Shape[], [version]);
   const scene = useMemo(() => {
@@ -94,8 +96,7 @@ export const VersionHistoryPanel = () => {
   const detail = detailState.id === selectedId ? detailState.version : null;
 
   const refresh = async () => {
-    if (!board.id) return;
-    const next = await listBoardVersions(board.id, board.activeBranchId);
+    const next = await listBoardVersions(board.id!, board.activeBranchId);
     setVersions(next);
     setSelectedId((current) => current ?? next[0]?.id ?? null);
   };
@@ -110,7 +111,7 @@ export const VersionHistoryPanel = () => {
         setSelectedId(next[0]?.id ?? null);
       })
       .catch((caught) => {
-        if (active) setError(caught instanceof Error ? caught.message : "Version history could not be loaded.");
+        if (active) setError(errorMessage(caught, "Version history could not be loaded."));
       });
     return () => { active = false; };
   }, [board.activeBranchId, board.id]);
@@ -120,38 +121,36 @@ export const VersionHistoryPanel = () => {
     let active = true;
     void getBoardVersion(board.id, selectedId, board.activeBranchId)
       .then((version) => active && setDetailState({ id: selectedId, version }))
-      .catch((caught) => active && setError(caught instanceof Error ? caught.message : "Version preview could not be loaded."));
+      .catch((caught) => active && setError(errorMessage(caught, "Version preview could not be loaded.")));
     return () => { active = false; };
   }, [board.activeBranchId, board.id, selectedId]);
 
   const createCheckpoint = async () => {
-    if (!board.id || !name.trim() || saving) return;
     setSaving(true);
     setError(null);
     try {
-      const created = await createBoardCheckpoint(board.id, name, description, board.activeBranchId);
+      const created = await createBoardCheckpoint(board.id!, name, description, board.activeBranchId);
       setName("");
       setDescription("");
       await refresh();
       setSelectedId(created.id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The checkpoint could not be created.");
+      setError(errorMessage(caught, "The checkpoint could not be created."));
     } finally {
       setSaving(false);
     }
   };
 
   const restore = async () => {
-    if (!board.id || !selectedId || restoring) return;
     setRestoring(true);
     setError(null);
     try {
-      const result = await restoreBoardVersion(board.id, selectedId, board.activeBranchId);
+      const result = await restoreBoardVersion(board.id!, selectedId!, board.activeBranchId);
       dispatch(setWhiteboardData({ revision: result.revision }));
       setConfirmRestore(false);
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The version could not be restored.");
+      setError(errorMessage(caught, "The version could not be restored."));
     } finally {
       setRestoring(false);
     }
@@ -160,20 +159,19 @@ export const VersionHistoryPanel = () => {
   const selected = versions.find((version) => version.id === selectedId) ?? null;
 
   const runSelectedAction = async (operation: "rename" | "compare" | "duplicate" | "share") => {
-    if (!board.id || !selectedId) return;
     setError(null); setMessage(null);
     try {
       if (operation === "rename") {
-        await renameBoardVersion(board.id, selectedId, metadataName || selected?.name || "Named version", metadataDescription, board.activeBranchId);
+        await renameBoardVersion(board.id!, selectedId!, metadataName || selected?.name || "Named version", metadataDescription, board.activeBranchId);
         setEditingMetadata(false); setMetadataName(""); setMetadataDescription(""); await refresh(); setMessage("Version details updated.");
       } else if (operation === "compare") {
-        const result = await compareBoardVersion(board.id, selectedId, board.activeBranchId); setComparison(result.diff); setMessage(`${result.diff.length} changes from this version to the current board.`);
+        const result = await compareBoardVersion(board.id!, selectedId!, board.activeBranchId); setComparison(result.diff); setMessage(`${result.diff.length} changes from this version to the current board.`);
       } else if (operation === "duplicate") {
-        const result = await duplicateBoardVersion(board.id, selectedId, `${selected?.name ?? board.title ?? "Board"} copy`, board.activeBranchId); setMessage(`Created a new board from this version (${result.boardId}).`);
+        const result = await duplicateBoardVersion(board.id!, selectedId!, `${selected?.name ?? board.title ?? "Board"} copy`, board.activeBranchId); setMessage(`Created a new board from this version (${result.boardId}).`);
       } else {
-        const result = await shareBoardVersion(board.id, selectedId, undefined, board.activeBranchId); await navigator.clipboard.writeText(result.url); setMessage("Version link copied.");
+        const result = await shareBoardVersion(board.id!, selectedId!, undefined, board.activeBranchId); await navigator.clipboard.writeText(result.url); setMessage("Version link copied.");
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "The version action failed."); }
+    } catch (caught) { setError(errorMessage(caught, "The version action failed.")); }
   };
 
   return (
@@ -194,7 +192,7 @@ export const VersionHistoryPanel = () => {
         <section className={styles.checkpointForm}>
           <label className={ui.field}><span className={ui.fieldLabel}>Name</span><input className={ui.control} value={name} maxLength={120} placeholder="Ready for review" onChange={(event) => setName(event.target.value)} /></label>
           <label className={ui.field}><span className={ui.fieldLabel}>Description</span><textarea className={ui.control} value={description} maxLength={500} placeholder="What changed?" onChange={(event) => setDescription(event.target.value)} /></label>
-          <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${ui.buttonCompact}`} disabled={!name.trim() || saving} onClick={createCheckpoint}><FloppyDisk aria-hidden="true" /> {saving ? "Saving" : "Save checkpoint"}</button>
+          <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${ui.buttonCompact}`} disabled={!board.id || !name.trim() || saving} onClick={createCheckpoint}><FloppyDisk aria-hidden="true" /> {saving ? "Saving" : "Save checkpoint"}</button>
         </section>
       )}
       {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.error}`} role="alert">{error}</p>}

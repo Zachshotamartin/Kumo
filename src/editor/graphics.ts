@@ -101,6 +101,29 @@ export const updateVectorPoint = (
   return normalizeShape({ ...shape, vectorPoints, x1: left, y1: top, x2: right, y2: bottom });
 });
 
+export const updateVectorHandle = (
+  shapes: Shape[],
+  shapeId: string,
+  pointId: string,
+  handle: "handleIn" | "handleOut",
+  point: { x: number; y: number },
+  mirror = false
+): Shape[] => shapes.map((shape) => {
+  if (shape.id !== shapeId || !shape.vectorPoints) return shape;
+  return {
+    ...shape,
+    vectorPoints: shape.vectorPoints.map((candidate) => {
+      if (candidate.id !== pointId) return candidate;
+      const opposite = handle === "handleIn" ? "handleOut" : "handleIn";
+      return {
+        ...candidate,
+        [handle]: point,
+        ...(mirror ? { [opposite]: { x: candidate.x * 2 - point.x, y: candidate.y * 2 - point.y } } : {}),
+      };
+    }),
+  };
+});
+
 export const appendVectorPoint = (shapes: Shape[], shapeId: string, point: { x: number; y: number }): Shape[] =>
   shapes.map((shape) => {
     if (shape.id !== shapeId || !shape.vectorPoints) return shape;
@@ -119,8 +142,8 @@ export const createBooleanOperation = (
 ): { shapes: Shape[]; booleanId: string | null } => {
   const selected = shapes.filter((shape) => selectedIds.includes(shape.id) && BOOLEAN_SHAPE_TYPES.has(shape.type));
   if (selected.length < 2) return { shapes, booleanId: null };
-  const bounds = selectionBounds(selected, selected.map((shape) => shape.id));
-  if (!bounds) return { shapes, booleanId: null };
+  const bounds = selectionBounds(selected, selected.map((shape) => shape.id))!;
+  const first = selected[0]!;
   const booleanId = createShapeId();
   const composite = normalizeShape({
     id: booleanId,
@@ -129,10 +152,10 @@ export const createBooleanOperation = (
     x1: bounds.x, y1: bounds.y, x2: bounds.x + bounds.width, y2: bounds.y + bounds.height,
     width: bounds.width, height: bounds.height, level: 0,
     zIndex: Math.max(...selected.map((shape) => shape.zIndex)),
-    parentId: selected.every((shape) => shape.parentId === selected[0]?.parentId) ? selected[0]?.parentId ?? null : null,
-    backgroundColor: selected[0]?.backgroundColor ?? "#ffffff",
-    borderColor: selected[0]?.borderColor ?? "transparent",
-    borderWidth: selected[0]?.borderWidth ?? 0,
+    parentId: selected.every((shape) => shape.parentId === first.parentId) ? first.parentId : null,
+    backgroundColor: first.backgroundColor ?? "#ffffff",
+    borderColor: first.borderColor ?? "transparent",
+    borderWidth: first.borderWidth ?? 0,
     booleanOperation: operation,
     booleanChildren: JSON.parse(JSON.stringify(selected)) as Shape[],
   });

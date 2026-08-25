@@ -54,7 +54,6 @@ const orderedLayerUnits = (shapes: Shape[]): Shape[][] => {
 };
 
 const expandedLayerOrder = (shapes: Shape[], roots: Shape[]): string[] => {
-  const seen = new Set<string>();
   const ids: string[] = [];
   roots.forEach((root) => {
     const unit = [
@@ -62,8 +61,6 @@ const expandedLayerOrder = (shapes: Shape[], roots: Shape[]): string[] => {
       ...orderedShapes(shapes.filter((shape) => descendantIds(shapes, [root.id]).has(shape.id))),
     ];
     unit.forEach((shape) => {
-      if (seen.has(shape.id)) return;
-      seen.add(shape.id);
       ids.push(shape.id);
     });
   });
@@ -153,15 +150,15 @@ const cloneShapeTree = (
 ): Shape => {
   const sourceGroupId = shape.groupId ?? null;
   let groupId: string | null = null;
-  if (sourceGroupId && (groupCounts.get(sourceGroupId) ?? 0) > 1) {
+  if (sourceGroupId && groupCounts.get(sourceGroupId)! > 1) {
     if (!groupIdMap.has(sourceGroupId)) groupIdMap.set(sourceGroupId, createShapeId());
-    groupId = groupIdMap.get(sourceGroupId) ?? null;
+    groupId = groupIdMap.get(sourceGroupId)!;
   }
 
   const internalId = (value: string | null | undefined) => value ? shapeIdMap.get(value) : undefined;
   return normalizeShape({
     ...shape,
-    id: shapeIdMap.get(shape.id) ?? createShapeId(),
+    id: shapeIdMap.get(shape.id)!,
     name: isRoot ? `${shape.name ?? shape.type} copy` : shape.name,
     groupId,
     parentId: shape.parentId && shapeIdMap.has(shape.parentId)
@@ -295,7 +292,7 @@ export const mergeShapeChanges = (
 
   const merged = remote
     .filter((shape) => !deletedLocally.has(shape.id))
-    .map((shape) => changedLocally.has(shape.id) ? localById.get(shape.id) ?? shape : shape);
+    .map((shape) => changedLocally.has(shape.id) ? localById.get(shape.id)! : shape);
   const remoteIds = new Set(remote.map((shape) => shape.id));
   local.forEach((shape) => {
     if (
@@ -469,7 +466,6 @@ export const orderShapes = (
   const parentSet = new Set(roots.map((id) => shapes.find((shape) => shape.id === id)?.parentId ?? null));
   if (parentSet.size !== 1) return shapes;
   const parentId = commonParentId(shapes, roots);
-  if (!roots.length || parentId === undefined) return shapes;
   const rootSet = new Set(roots);
   const selectedGroups = new Set(
     shapes.filter((shape) => rootSet.has(shape.id) && shape.groupId).map((shape) => shape.groupId!)
@@ -517,7 +513,7 @@ export const orderShapes = (
   const zSlots = expandedIds
     .map((id) => shapes.find((shape) => shape.id === id)!.zIndex)
     .sort((left, right) => left - right);
-  const zById = new Map(expandedIds.map((id, index) => [id, zSlots[index] ?? index + 1]));
+  const zById = new Map(expandedIds.map((id, index) => [id, zSlots[index]!]));
   return orderedShapes(shapes.map((shape) => zById.has(shape.id)
     ? { ...shape, zIndex: zById.get(shape.id)! }
     : shape));
@@ -570,8 +566,6 @@ export const moveShapesRelative = (
   const targetIndex = remainingUnits.findIndex((unit) =>
     unit.some((shape) => target.has(shape.id))
   );
-  if (targetIndex < 0) return shapes;
-
   const insertionIndex = placement === "front" ? targetIndex + 1 : targetIndex;
   const next = [
     ...remainingUnits.slice(0, insertionIndex),
@@ -583,7 +577,7 @@ export const moveShapesRelative = (
   const zSlots = expandedIds
     .map((id) => shapes.find((shape) => shape.id === id)!.zIndex)
     .sort((left, right) => left - right);
-  const zById = new Map(expandedIds.map((id, index) => [id, zSlots[index] ?? index + 1]));
+  const zById = new Map(expandedIds.map((id, index) => [id, zSlots[index]!]));
   return orderedShapes(shapes.map((shape) => zById.has(shape.id)
     ? { ...shape, zIndex: zById.get(shape.id)! }
     : shape));
@@ -607,8 +601,8 @@ export const alignShapes = (
         ...ShapeFunctions.createShape("rectangle", unit.bounds.x, unit.bounds.y, []),
         x2: unit.bounds.x + unit.bounds.width,
         y2: unit.bounds.y + unit.bounds.height,
-      })));
-  if (!bounds || (units.length < 2 && !parent)) return shapes;
+      })))!;
+  if (units.length < 2 && !parent) return shapes;
   const deltas = new Map<string, { x: number; y: number }>();
 
   units.forEach((unit) => {

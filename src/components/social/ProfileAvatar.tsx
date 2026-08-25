@@ -21,7 +21,7 @@ export const ProfileAvatar = ({
       aria-hidden="true"
     >
       {showImage ? (
-        <img src={avatarUrl ?? undefined} alt="" onError={() => setFailedUrl(avatarUrl ?? null)} />
+        <img src={avatarUrl!} alt="" onError={() => setFailedUrl(avatarUrl!)} />
       ) : name.trim().slice(0, 1).toUpperCase() || "K"}
     </span>
   );

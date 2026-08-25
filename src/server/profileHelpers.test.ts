@@ -61,6 +61,7 @@ describe("profile relationship helpers", () => {
       avatarUrl: null,
       relationship: "friend",
     });
+    expect(profileSummary(profile).relationship).toBe("none");
   });
 
   it("loads both canonical sides of the actor's bounded relationship list", async () => {
@@ -105,5 +106,28 @@ describe("profile relationship helpers", () => {
     });
     mocks.from.mockReturnValueOnce(builder(new Error("offline"))).mockReturnValueOnce(builder(null));
     await expect(friendshipRowsForActor("alex")).rejects.toThrow("offline");
+
+    mocks.from.mockReturnValueOnce(builder(null)).mockReturnValueOnce(builder(new Error("high side offline")));
+    await expect(friendshipRowsForActor("alex")).rejects.toThrow("high side offline");
+
+    mocks.from.mockReturnValueOnce({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: new Error("pair failed") }) }) }) }) });
+    await expect(friendshipBetween("alex", "zach")).rejects.toThrow("pair failed");
+
+    mocks.from.mockReturnValueOnce({ select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: new Error("profiles failed") }) }) });
+    await expect(getProfilesByIds(["alex"])).rejects.toThrow("profiles failed");
+
+    mocks.from.mockReturnValueOnce({ select: () => ({ ilike: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: new Error("username failed") }) }) }) });
+    await expect(getProfileByUsername("alex")).rejects.toThrow("username failed");
+
+    mocks.from.mockReturnValueOnce({ select: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: new Error("id failed") }) }) }) });
+    await expect(getProfileById("alex")).rejects.toThrow("id failed");
+  });
+
+  it("normalizes absent relationship and profile rows", async () => {
+    const builder = () => ({ select: () => ({ eq: () => ({ limit: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) });
+    mocks.from.mockReturnValueOnce(builder()).mockReturnValueOnce(builder());
+    await expect(friendshipRowsForActor("alex")).resolves.toEqual([]);
+    mocks.from.mockReturnValueOnce({ select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: null }) }) });
+    await expect(getProfilesByIds(["alex"])).resolves.toEqual(new Map());
   });
 });

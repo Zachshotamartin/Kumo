@@ -12,6 +12,22 @@ export class ApiError extends Error {
   }
 }
 
+export const CLIENT_API_TIMEOUT_MS = 15_000;
+
+const requestWithDeadline = async (input: string, init: RequestInit): Promise<Response> => {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (init.signal?.aborted) abort();
+  else init.signal?.addEventListener("abort", abort, { once: true });
+  const timeout = globalThis.setTimeout(abort, CLIENT_API_TIMEOUT_MS);
+  try {
+    return await globalThis.fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeout);
+    init.signal?.removeEventListener("abort", abort);
+  }
+};
+
 export const authenticatedRequest = async (
   input: string,
   init: RequestInit = {}
@@ -21,7 +37,7 @@ export const authenticatedRequest = async (
     : null;
   const token = e2eToken ?? await auth.currentUser?.getIdToken();
   if (!token) throw new Error("Authentication required.");
-  const response = await fetch(input, {
+  const response = await requestWithDeadline(input, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -46,7 +62,7 @@ export const authenticatedFetch = async <T>(
 };
 
 export const publicFetch = async <T>(input: string, init: RequestInit = {}): Promise<T> => {
-  const response = await fetch(input, {
+  const response = await requestWithDeadline(input, {
     ...init,
     headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers },
   });

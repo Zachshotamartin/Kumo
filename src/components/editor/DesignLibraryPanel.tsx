@@ -56,7 +56,7 @@ const DesignLibraryPanel = () => {
             {components.map((component) => (
               <div className={styles.assetRow} key={component.id}>
                 <span><DiamondsFour aria-hidden="true" /> {component.componentName ?? component.name ?? "Component"}</span>
-                <button type="button" aria-label={`Insert ${component.componentName ?? component.name}`} onClick={() => actions.addComponentInstance(component.id)}><Plus aria-hidden="true" /></button>
+                <button type="button" aria-label={`Insert ${component.componentName ?? component.name ?? "Component"}`} onClick={() => actions.addComponentInstance(component.id)}><Plus aria-hidden="true" /></button>
               </div>
             ))}
           </div>
@@ -87,23 +87,19 @@ const DesignLibraryPanel = () => {
           {selectedDefinition && <div className={styles.assetActions}>
             <span className={styles.controlLabel}>Component properties</span>
             <button type="button" disabled={!selectedDefinitionChildren.some((shape) => shape.type === "text")} onClick={() => {
-              const target = selectedDefinitionChildren.find((shape) => shape.type === "text");
-              if (!target) return;
+              const target = selectedDefinitionChildren.find((shape) => shape.type === "text")!;
               actions.commitShapes(board.shapes.map((shape) => shape.id === selectedDefinition.id ? defineComponentProperty(shape, "label", { type: "text", label: "Label", defaultValue: target.text ?? "", targetNodeId: target.id, targetField: "text" }) : shape));
             }}>Expose text</button>
             <button type="button" disabled={!selectedDefinitionChildren.length} onClick={() => {
-              const target = selectedDefinitionChildren[0];
-              if (!target) return;
+              const target = selectedDefinitionChildren[0]!;
               actions.commitShapes(board.shapes.map((shape) => shape.id === selectedDefinition.id ? defineComponentProperty(shape, "visible", { type: "boolean", label: "Show content", defaultValue: !target.hidden, targetNodeId: target.id, targetField: "hidden" }) : shape));
             }}>Expose visibility</button>
             <button type="button" disabled={!selectedDefinitionChildren.some((shape) => shape.instanceOf)} onClick={() => {
-              const target = selectedDefinitionChildren.find((shape) => shape.instanceOf);
-              if (!target?.instanceOf) return;
+              const target = selectedDefinitionChildren.find((shape) => shape.instanceOf)!;
               actions.commitShapes(board.shapes.map((shape) => shape.id === selectedDefinition.id ? defineComponentProperty(shape, "nested-instance", { type: "instance-swap", label: "Nested component", defaultValue: target.instanceOf!, targetNodeId: target.id, targetField: "instanceOf", preferredValues: components.map((component) => component.id) }) : shape));
             }}>Expose instance swap</button>
             <button type="button" disabled={!selectedDefinitionChildren.length} onClick={() => {
-              const target = selectedDefinitionChildren[0];
-              if (!target) return;
+              const target = selectedDefinitionChildren[0]!;
               actions.commitShapes(board.shapes.map((shape) => shape.id === selectedDefinition.id ? defineComponentProperty(shape, "slot-content", { type: "slot", label: "Slot content", defaultValue: target.text ?? target.name ?? "", targetNodeId: target.id, targetField: target.type === "text" ? "text" : "name" }) : shape));
             }}>Expose slot</button>
           </div>}

@@ -23,6 +23,10 @@ describe("product API document helpers", () => {
     const assets = extractLibraryAssets(document);
     expect(assets.map((asset) => asset.id)).toEqual(["component", "child", "resource"]);
     expect(assets.every((asset) => asset.librarySourceId === asset.id)).toBe(true);
+    expect(extractLibraryAssets({ nodes: {
+      invalid: { type: "resource" },
+      sourced: { id: "sourced", type: "resource", librarySourceId: "original" },
+    } })).toEqual([expect.objectContaining({ id: "sourced", librarySourceId: "original" })]);
   });
 
   it("reports added, removed, changed, and unchanged assets", () => {
@@ -61,6 +65,20 @@ describe("product API document helpers", () => {
     expect(next.nodes.imported).toMatchObject({ id: "imported", libraryVersion: 4, zIndex: 3 });
     const child = Object.values(next.nodes).find((node) => node.librarySourceId === "child")!;
     expect(child.parentId).toBe("imported");
+  });
+
+  it("merges sparse legacy library payloads with stable fallbacks", () => {
+    expect(diffLibraryPayload([{ id: "same", name: "old" }], [{ id: "same", name: "new" }]))
+      .toEqual([{ sourceId: "same", status: "changed" }]);
+    const next = mergeLibraryPayload({ nodes: {
+      imported: { id: "imported", libraryId: "library", zIndex: "legacy" },
+      local: { id: "local", zIndex: "legacy" },
+    } }, [
+      { id: "imported", type: "frame" },
+      { id: "child", type: "text", parentId: "external" },
+    ], "library", 2);
+    expect(next.nodes.imported).toMatchObject({ id: "imported", librarySourceId: "imported", zIndex: 1 });
+    expect(Object.values(next.nodes)).toContainEqual(expect.objectContaining({ librarySourceId: "child", parentId: "external", zIndex: 2 }));
   });
 
   it("cleans external names without allowing empty or oversized values", () => {

@@ -138,6 +138,10 @@ describe("boards API", () => {
     const missing = response();
     await boardsHandler(request("PATCH", { boardId: "missing" }), missing);
     expect(missing.statusCode).toBe(404);
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const malformed = response();
+    await boardsHandler(request("PATCH", { boardId: 42 }), malformed);
+    expect(malformed.statusCode).toBe(404);
     mocks.getAccess.mockResolvedValueOnce({ board: boardRow, role: "editor" });
     const forbidden = response();
     await boardsHandler(request("DELETE", { boardId: "board" }), forbidden);
@@ -149,6 +153,97 @@ describe("boards API", () => {
     const unauthenticated = response();
     await boardsHandler(request("GET"), unauthenticated);
     expect(unauthenticated.statusCode).toBe(401);
+  });
+
+  it("handles board read and settings persistence failures", async () => {
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const missingDetail = response();
+    await boardsHandler(request("GET", {}, { id: "missing" }), missingDetail);
+    expect(missingDetail.statusCode).toBe(404);
+
+    mocks.database.from.mockImplementationOnce(() => ({
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: new Error("members failed") }) }),
+    }));
+    const memberError = response();
+    await boardsHandler(request("GET", {}, { id: "board" }), memberError);
+    expect(memberError.statusCode).toBe(500);
+
+    mocks.database.from.mockImplementationOnce(() => ({
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+    }));
+    const noMembers = response();
+    await boardsHandler(request("GET", {}, { id: "board" }), noMembers);
+    expect(noMembers.body).toMatchObject({ board: { members: {} } });
+
+    const invalidPatch = response();
+    await boardsHandler(request("PATCH", { boardId: "board", visibility: "team" }), invalidPatch);
+    expect(invalidPatch.statusCode).toBe(400);
+
+    const privatePatch = response();
+    await boardsHandler(request("PATCH", { boardId: "board", visibility: "private" }), privatePatch);
+    expect(privatePatch.statusCode).toBe(200);
+
+    mocks.database.rpc.mockResolvedValueOnce({ error: new Error("delete failed") });
+    const deleteError = response();
+    await boardsHandler(request("DELETE", { boardId: "board" }), deleteError);
+    expect(deleteError.statusCode).toBe(500);
+
+    mocks.database.from.mockImplementationOnce(() => ({
+      update: () => ({ eq: () => ({ eq: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: null, error: new Error("update failed") }) }) }) }) }),
+    }));
+    const updateError = response();
+    await boardsHandler(request("PATCH", { boardId: "board", title: "New" }), updateError);
+    expect(updateError.statusCode).toBe(500);
+
+    mocks.requireActor.mockRejectedValueOnce("offline");
+    const fallback = response();
+    await boardsHandler(request("GET"), fallback);
+    expect(fallback).toMatchObject({ statusCode: 500, body: { error: "The board request failed." } });
+  });
+
+  it("covers duplicate validation, empty titles, and transactional cleanup", async () => {
+    const untitled = response();
+    await boardsHandler(request("POST", { title: 42 }), untitled);
+    expect(mocks.provision).toHaveBeenLastCalledWith({ ownerId: "actor", title: "Untitled board" });
+
+    const blank = response();
+    await boardsHandler(request("POST", { title: "   " }), blank);
+    expect(mocks.provision).toHaveBeenLastCalledWith({ ownerId: "actor", title: "Untitled board" });
+
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const malformedDuplicate = response();
+    await boardsHandler(request("POST", { action: "duplicate", boardId: 42 }), malformedDuplicate);
+    expect(malformedDuplicate.statusCode).toBe(404);
+
+    mocks.cloneAssets.mockResolvedValueOnce(new Map());
+    const noAssets = response();
+    await boardsHandler(request("POST", { action: "duplicate", boardId: "board" }), noAssets);
+    expect(noAssets.statusCode).toBe(201);
+
+    const remove = vi.fn().mockRejectedValue(new Error("storage cleanup failed"));
+    mocks.database.storage.from.mockReturnValueOnce({ remove });
+    mocks.database.from.mockImplementation((table: string) => table === "assets" ? {
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ storage_key: "board/copy.png" }], error: null }) }),
+    } : {
+      delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+    });
+    mocks.cloneAssets.mockRejectedValueOnce(new Error("clone failed"));
+    mocks.deleteRoom.mockRejectedValueOnce(new Error("room cleanup failed"));
+    const cleaned = response();
+    await boardsHandler(request("POST", { action: "duplicate", boardId: "board" }), cleaned);
+    expect(cleaned.statusCode).toBe(500);
+    expect(remove).toHaveBeenCalledWith(["board/copy.png"]);
+    expect(mocks.deleteRoom).toHaveBeenCalled();
+
+    mocks.database.from.mockImplementation((table: string) => table === "assets" ? {
+      select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+    } : {
+      delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+    });
+    mocks.syncLinks.mockRejectedValueOnce(new Error("link sync failed"));
+    const cleanedWithoutAssets = response();
+    await boardsHandler(request("POST", { action: "duplicate", boardId: "board" }), cleanedWithoutAssets);
+    expect(cleanedWithoutAssets.statusCode).toBe(500);
   });
 });
 
@@ -199,6 +294,20 @@ describe("assets API", () => {
     expect(cloned.body).toEqual({ assetIds: { asset: "copy" } });
   });
 
+  it("rejects empty uploaded objects and discards invalid media dimensions", async () => {
+    storage.list.mockResolvedValueOnce({ data: [{ name: "empty.png", metadata: { mimetype: "image/png", size: 0 } }], error: null });
+    const empty = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "board/empty.png" }), empty);
+    expect(empty.statusCode).toBe(400);
+    expect(storage.remove).toHaveBeenCalledWith(["board/empty.png"]);
+
+    storage.list.mockResolvedValueOnce({ data: [{ name: "image.png", metadata: { mimetype: "image/png", size: 4 } }], error: null });
+    const invalidDimensions = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "board/image.png", width: -10, height: 1_000_000 }), invalidDimensions);
+    expect(invalidDimensions.statusCode).toBe(201);
+    expect(mocks.database.from).toHaveBeenCalledWith("assets");
+  });
+
   it("deletes owned assets and validates permissions and upload input", async () => {
     const deleted = response();
     await assetsHandler(request("DELETE", {}, { id: "asset" }), deleted);
@@ -216,5 +325,156 @@ describe("assets API", () => {
     const path = response();
     await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "other/image.png" }), path);
     expect(path.statusCode).toBe(400);
+  });
+
+  it("handles asset lookup, deletion, and storage failures", async () => {
+    const queryResult = (data: unknown, error: unknown = null) => ({
+      select: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data, error }) }) }),
+      delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+    });
+
+    mocks.database.from.mockReturnValueOnce(queryResult(null, new Error("lookup failed")));
+    const lookupError = response();
+    await assetsHandler(request("GET", {}, { id: "asset" }), lookupError);
+    expect(lookupError).toMatchObject({ statusCode: 500, body: { error: "lookup failed" } });
+
+    mocks.database.from.mockReturnValueOnce(queryResult(null));
+    const missing = response();
+    await assetsHandler(request("GET", {}, { id: "missing" }), missing);
+    expect(missing.statusCode).toBe(404);
+
+    mocks.database.from.mockReturnValueOnce(queryResult(asset));
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const inaccessible = response();
+    await assetsHandler(request("GET", {}, { id: "asset" }), inaccessible);
+    expect(inaccessible.statusCode).toBe(404);
+
+    storage.createSignedUrl.mockResolvedValueOnce({ data: null, error: new Error("sign failed") });
+    const signError = response();
+    await assetsHandler(request("GET", {}, { id: "asset" }), signError);
+    expect(signError.statusCode).toBe(500);
+
+    mocks.database.from.mockReturnValueOnce(queryResult(null));
+    const missingDelete = response();
+    await assetsHandler(request("DELETE", {}, { id: "missing" }), missingDelete);
+    expect(missingDelete.statusCode).toBe(404);
+
+    mocks.database.from.mockReturnValueOnce(queryResult(null, new Error("delete lookup failed")));
+    const deleteLookupError = response();
+    await assetsHandler(request("DELETE", {}, { id: "asset" }), deleteLookupError);
+    expect(deleteLookupError.statusCode).toBe(500);
+
+    mocks.getAccess.mockResolvedValueOnce({ board: boardRow, role: "viewer" });
+    const viewerDelete = response();
+    await assetsHandler(request("DELETE", {}, { id: "asset" }), viewerDelete);
+    expect(viewerDelete.statusCode).toBe(403);
+
+    mocks.database.from.mockReturnValueOnce(queryResult({ ...asset, uploader_id: "someone-else" }));
+    mocks.getAccess.mockResolvedValueOnce({ board: boardRow, role: "editor" });
+    const otherUploader = response();
+    await assetsHandler(request("DELETE", {}, { id: "asset" }), otherUploader);
+    expect(otherUploader.statusCode).toBe(403);
+
+    storage.remove.mockResolvedValueOnce({ error: new Error("remove failed") });
+    const removeError = response();
+    await assetsHandler(request("DELETE", {}, { id: "asset" }), removeError);
+    expect(removeError.statusCode).toBe(500);
+
+    mocks.database.from.mockImplementationOnce(() => ({
+      select: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: asset, error: null }) }) }),
+    })).mockImplementationOnce(() => ({
+      delete: () => ({ eq: vi.fn().mockResolvedValue({ error: new Error("delete failed") }) }),
+    }));
+    const deleteError = response();
+    await assetsHandler(request("DELETE", {}, { id: "asset" }), deleteError);
+    expect(deleteError.statusCode).toBe(500);
+  });
+
+  it("validates every asset action boundary and reports write failures", async () => {
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const missingBoard = response();
+    await assetsHandler(request("POST", { action: "prepare", boardId: 42, mimeType: "image/png", byteSize: 4 }), missingBoard);
+    expect(missingBoard.statusCode).toBe(404);
+
+    const emptyClone = response();
+    await assetsHandler(request("POST", { action: "clone", boardId: "board", assetIds: "asset" }), emptyClone);
+    expect(mocks.cloneAssets).toHaveBeenLastCalledWith(expect.objectContaining({ assetIds: [] }));
+
+    const filteredClone = response();
+    await assetsHandler(request("POST", { action: "clone", boardId: "board", assetIds: ["asset", 4] }), filteredClone);
+    expect(mocks.cloneAssets).toHaveBeenLastCalledWith(expect.objectContaining({ assetIds: ["asset"] }));
+
+    for (const body of [
+      { action: "prepare", boardId: "board", mimeType: 4, byteSize: 4 },
+      { action: "prepare", boardId: "board", mimeType: "image/png", byteSize: "nope" },
+      { action: "prepare", boardId: "board", mimeType: "image/png", byteSize: -1 },
+      { action: "prepare", boardId: "board", mimeType: "image/png", byteSize: 21 * 1024 * 1024 },
+      { action: "prepare", boardId: "board", mimeType: "video/mp4", byteSize: 101 * 1024 * 1024 },
+    ]) {
+      const invalid = response();
+      await assetsHandler(request("POST", body), invalid);
+      expect(invalid.statusCode).toBe(400);
+    }
+
+    const video = response();
+    await assetsHandler(request("POST", { action: "prepare", boardId: "board", mimeType: "video/mp4", byteSize: 100, fileName: 4 }), video);
+    expect(video.statusCode).toBe(200);
+
+    const noExtension = response();
+    await assetsHandler(request("POST", { action: "prepare", boardId: "board", mimeType: "image/png", byteSize: 4, fileName: "???" }), noExtension);
+    expect(noExtension.statusCode).toBe(200);
+
+    storage.createSignedUploadUrl.mockResolvedValueOnce({ data: null, error: new Error("prepare failed") });
+    const prepareError = response();
+    await assetsHandler(request("POST", { action: "prepare", boardId: "board", mimeType: "image/png", byteSize: 4 }), prepareError);
+    expect(prepareError.statusCode).toBe(500);
+
+    const action = response();
+    await assetsHandler(request("POST", { boardId: "board" }), action);
+    expect(action.statusCode).toBe(400);
+
+    const traversal = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "board/../image.png" }), traversal);
+    expect(traversal.statusCode).toBe(400);
+
+    const nonStringPath = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: 42 }), nonStringPath);
+    expect(nonStringPath.statusCode).toBe(400);
+
+    storage.list.mockResolvedValueOnce({ data: null, error: new Error("list failed") });
+    const listError = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "board/image.png" }), listError);
+    expect(listError.statusCode).toBe(500);
+
+    storage.list.mockResolvedValueOnce({ data: [{ name: "different.png" }], error: null });
+    const incomplete = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "board/image.png" }), incomplete);
+    expect(incomplete.statusCode).toBe(409);
+
+    storage.list.mockResolvedValueOnce({ data: [{ name: "image.png", metadata: {} }], error: null });
+    const missingMetadata = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "board/image.png" }), missingMetadata);
+    expect(missingMetadata.statusCode).toBe(400);
+
+    mocks.database.from.mockImplementationOnce(() => ({
+      insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: null, error: new Error("insert failed") }) }) }),
+    }));
+    const insertError = response();
+    await assetsHandler(request("POST", { action: "complete", boardId: "board", storageKey: "board/image.png" }), insertError);
+    expect(insertError.statusCode).toBe(500);
+
+    mocks.requireActor.mockRejectedValueOnce("offline");
+    const fallback = response();
+    await assetsHandler(request("GET"), fallback);
+    expect(fallback).toMatchObject({ statusCode: 500, body: { error: "The asset request failed." } });
+
+    mocks.requireActor.mockRejectedValueOnce(new Error("Authentication required."));
+    const unauthenticated = response();
+    await assetsHandler(request("GET"), unauthenticated);
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const invalidMethod = response();
+    await assetsHandler(request("OPTIONS"), invalidMethod);
+    expect(invalidMethod.statusCode).toBe(405);
   });
 });

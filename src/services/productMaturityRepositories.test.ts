@@ -36,11 +36,13 @@ describe("product maturity repositories", () => {
       .mockResolvedValueOnce({ preferences: { digest: "weekly" } })
       .mockResolvedValueOnce({ results: [] })
       .mockResolvedValueOnce({ events: [], telemetry: {} })
+      .mockResolvedValueOnce({ events: [], telemetry: {} })
       .mockResolvedValueOnce({ accepted: true, workspaceId: "workspace" });
     await loadWorkspaceAdmin(); await renameWorkspace("workspace", "Studio"); await updateWorkspaceMember("workspace", "user", "admin"); await removeWorkspaceMember("workspace", "user"); await mutateWorkspaceFolder("move-folder", "workspace", "folder", { parentId: "parent" });
-    await loadNotificationPreferences(); await updateNotificationPreferences({ digest: "weekly" }); await globalSearch("design system"); await loadOperations("board"); await acceptWorkspaceInvitation("secret");
+    await loadNotificationPreferences(); await updateNotificationPreferences({ digest: "weekly" }); await globalSearch("design system"); await loadOperations("board"); await loadOperations(); await acceptWorkspaceInvitation("secret");
     expect(authenticatedFetch).toHaveBeenCalledWith("/api/platform?scope=global-search&q=design+system");
     expect(authenticatedFetch).toHaveBeenCalledWith("/api/platform?scope=operations&boardId=board");
+    expect(authenticatedFetch).toHaveBeenCalledWith("/api/platform?scope=operations");
   });
 
   it("covers prototype, extension, community, and account operations", async () => {
@@ -99,6 +101,20 @@ describe("product maturity repositories", () => {
     await renameDesignBranch("board", "branch", "Renamed"); await restoreDesignBranch("board", "branch"); await requestBranchReview("board", "branch", ["reviewer"], "Please review"); await updateBranchFromMain("board", "branch", { shape: "main" });
     expect(authenticatedFetch).toHaveBeenCalledWith("/api/versions?boardId=board&versionId=version&branchId=branch");
     expect(authenticatedFetch).toHaveBeenCalledWith("/api/branches", expect.objectContaining({ body: expect.stringContaining("update-from-main") }));
+  });
+
+  it("omits optional branch scoping from every version mutation", async () => {
+    const version = { id: "version", board_id: "board", kind: "checkpoint", created_at: "now" };
+    [
+      { versions: [version] }, { version: { ...version, document: {} } }, { version }, { version: null, skipped: true },
+      { version }, { diff: [] }, { boardId: "copy" }, { token: "token", url: "url" }, { restored: true },
+    ].forEach((value) => vi.mocked(authenticatedFetch).mockResolvedValueOnce(value));
+    await listBoardVersions("board"); await getBoardVersion("board", "version");
+    await createBoardCheckpoint("board", "Checkpoint"); await createBoardAutosave("board");
+    await renameBoardVersion("board", "version", "Name"); await compareBoardVersion("board", "version");
+    await duplicateBoardVersion("board", "version"); await shareBoardVersion("board", "version"); await restoreBoardVersion("board", "version");
+    const bodies = vi.mocked(authenticatedFetch).mock.calls.slice(2).map((call) => String(call[1]?.body));
+    expect(bodies.every((body) => !body.includes("branchId"))).toBe(true);
   });
 
   it("covers collaborator invitation, role, ownership, and acceptance contracts", async () => {

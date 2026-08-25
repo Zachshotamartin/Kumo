@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- canvas model helpers are intentionally exported with the component. */
 import {
   ArrowClockwise,
   ArrowCounterClockwise,
@@ -83,21 +84,24 @@ const boundsFromPoints = (start: Point, end: Point) => ({
   height: Math.abs(end.y - start.y),
 });
 
-const textTransform = (shape: Shape): CSSProperties["textTransform"] => {
+export const marketingValue = <T,>(value: T | null | undefined, fallback: T): T =>
+  value == null ? fallback : value;
+
+export const textTransform = (shape: Shape): CSSProperties["textTransform"] => {
   if (shape.textCase === "upper") return "uppercase";
   if (shape.textCase === "lower") return "lowercase";
   if (shape.textCase === "title") return "capitalize";
   return "none";
 };
 
-const textTagForShape = (shape: Shape): ElementType => {
+export const textTagForShape = (shape: Shape): ElementType => {
   if (shape.id === "marketing-headline") return "h1";
   if (shape.id === "marketing-eyebrow" || shape.id === "marketing-copy") return "p";
   return "span";
 };
 
-const responsiveFontSize = (shape: Shape) => {
-  const fluid = `${(shape.fontSize ?? 12) / 10}cqi`;
+export const responsiveFontSize = (shape: Shape) => {
+  const fluid = `${marketingValue(shape.fontSize, 12) / 10}cqi`;
   if (shape.id === "marketing-brand") return `clamp(18px, ${fluid}, 20px)`;
   if (shape.id === "marketing-descriptor") return `clamp(9px, ${fluid}, 10px)`;
   if (isFlowShape(shape)) return `clamp(8px, ${fluid}, 10px)`;
@@ -108,7 +112,7 @@ const responsiveFontSize = (shape: Shape) => {
   return fluid;
 };
 
-const isFlowShape = (shape: Shape) =>
+export const isFlowShape = (shape: Shape) =>
   shape.id === "marketing-explore" ||
   shape.id === "marketing-shape" ||
   shape.id === "marketing-build";
@@ -157,8 +161,8 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
   });
 
   const clearPreview = () => {
-    [previewRectRef.current, previewEllipseRef.current, previewLineRef.current]
-      .forEach((element) => element?.removeAttribute("data-visible"));
+    [previewRectRef.current!, previewEllipseRef.current!, previewLineRef.current!]
+      .forEach((element) => element.removeAttribute("data-visible"));
   };
 
   const updatePreview = (
@@ -178,24 +182,24 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
       }
       : end;
     const bounds = boundsFromPoints(start, constrainedEnd);
-    if (tool === "rectangle" && previewRectRef.current) {
-      previewRectRef.current.setAttribute("x", String(bounds.x));
-      previewRectRef.current.setAttribute("y", String(bounds.y));
-      previewRectRef.current.setAttribute("width", String(bounds.width));
-      previewRectRef.current.setAttribute("height", String(bounds.height));
-      previewRectRef.current.setAttribute("data-visible", "true");
-    } else if (tool === "ellipse" && previewEllipseRef.current) {
-      previewEllipseRef.current.setAttribute("cx", String(bounds.x + bounds.width / 2));
-      previewEllipseRef.current.setAttribute("cy", String(bounds.y + bounds.height / 2));
-      previewEllipseRef.current.setAttribute("rx", String(bounds.width / 2));
-      previewEllipseRef.current.setAttribute("ry", String(bounds.height / 2));
-      previewEllipseRef.current.setAttribute("data-visible", "true");
-    } else if (tool === "pen" && previewLineRef.current) {
-      previewLineRef.current.setAttribute("x1", String(start.x));
-      previewLineRef.current.setAttribute("y1", String(start.y));
-      previewLineRef.current.setAttribute("x2", String(constrainedEnd.x));
-      previewLineRef.current.setAttribute("y2", String(constrainedEnd.y));
-      previewLineRef.current.setAttribute("data-visible", "true");
+    if (tool === "rectangle") {
+      previewRectRef.current!.setAttribute("x", String(bounds.x));
+      previewRectRef.current!.setAttribute("y", String(bounds.y));
+      previewRectRef.current!.setAttribute("width", String(bounds.width));
+      previewRectRef.current!.setAttribute("height", String(bounds.height));
+      previewRectRef.current!.setAttribute("data-visible", "true");
+    } else if (tool === "ellipse") {
+      previewEllipseRef.current!.setAttribute("cx", String(bounds.x + bounds.width / 2));
+      previewEllipseRef.current!.setAttribute("cy", String(bounds.y + bounds.height / 2));
+      previewEllipseRef.current!.setAttribute("rx", String(bounds.width / 2));
+      previewEllipseRef.current!.setAttribute("ry", String(bounds.height / 2));
+      previewEllipseRef.current!.setAttribute("data-visible", "true");
+    } else {
+      previewLineRef.current!.setAttribute("x1", String(start.x));
+      previewLineRef.current!.setAttribute("y1", String(start.y));
+      previewLineRef.current!.setAttribute("x2", String(constrainedEnd.x));
+      previewLineRef.current!.setAttribute("y2", String(constrainedEnd.y));
+      previewLineRef.current!.setAttribute("data-visible", "true");
     }
   };
 
@@ -258,15 +262,14 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
     }
   };
 
-  const stampShape = () => {
-    if (activeTool === "pointer") return;
+  const stampShape = (tool: MarketingDrawTool) => {
     setDrawings((current) => {
       const offset = (current.length % 5) * 28;
       const start = { x: 350 + offset, y: 360 + offset };
-      const end = activeTool === "pen"
+      const end = tool === "pen"
         ? { x: start.x + 170, y: start.y + 90 }
         : { x: start.x + 150, y: start.y + 105 };
-      const draft = createDraftShape(activeTool, start, current);
+      const draft = createDraftShape(tool, start, current);
       return [...current, draftAtPoint(draft, start, end, false)];
     });
   };
@@ -286,14 +289,13 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
     }
     if (event.key === "Enter" && activeTool !== "pointer") {
       event.preventDefault();
-      stampShape();
+      stampShape(activeTool);
     }
   };
 
   const beginTextDrag = (event: PointerEvent<HTMLDivElement>, shape: Shape) => {
     if (activeTool !== "pointer" || editingTextId === shape.id || event.button !== 0) return;
-    const canvasRect = canvasRef.current?.getBoundingClientRect();
-    if (!canvasRect) return;
+    const canvasRect = canvasRef.current!.getBoundingClientRect();
     setSelectedTextId(shape.id);
     setSelectedDrawingId(null);
     textDragRef.current = {
@@ -376,8 +378,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
 
   const beginDrawingDrag = (event: PointerEvent<HTMLDivElement>, shapeId: string) => {
     if (activeTool !== "pointer" || event.button !== 0) return;
-    const canvasRect = canvasRef.current?.getBoundingClientRect();
-    if (!canvasRect) return;
+    const canvasRect = canvasRef.current!.getBoundingClientRect();
     event.stopPropagation();
     event.preventDefault();
     setEditingTextId(null);
@@ -475,7 +476,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
                 role="button"
                 tabIndex={activeTool === "pointer" ? 0 : -1}
                 aria-pressed={selected}
-                aria-label={`${shape.name ?? shape.type}. Drag to move. Press Delete to remove.`}
+                aria-label={`${marketingValue(shape.name, shape.type)}. Drag to move. Press Delete to remove.`}
                 onFocus={() => {
                   if (activeTool === "pointer") {
                     setSelectedTextId(null);
@@ -525,7 +526,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
       <div className={styles.objectLayer} data-layer="marketing-objects" data-tool={activeTool}>
         {textShapes.map((modelShape) => {
           const shape = modelShape.id === MARKETING_STATUS_SHAPE_ID
-            ? { ...modelShape, text: statusOverride ?? logoStatus }
+            ? { ...modelShape, text: marketingValue(statusOverride, logoStatus) }
             : modelShape;
           const TextTag = textTagForShape(shape);
           const editing = editingTextId === shape.id;
@@ -543,7 +544,7 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
             fontSize: responsiveFontSize(shape),
             fontWeight: shape.fontWeight,
             lineHeight: shape.lineHeight,
-            letterSpacing: `${(shape.letterSpacing ?? 0) / 10}cqi`,
+            letterSpacing: `${marketingValue(shape.letterSpacing, 0) / 10}cqi`,
             textAlign: shape.textAlign as CSSProperties["textAlign"],
             textTransform: textTransform(shape),
           } satisfies CSSProperties;
@@ -583,15 +584,15 @@ const MarketingCanvas = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
               {shape.id === "marketing-eyebrow" && <Graph aria-hidden="true" />}
               {editing ? (
                 <TextEditor
-                  autoResize={shape.textAutoResize ?? "fixed"}
-                  value={shape.text ?? ""}
+                  autoResize={marketingValue(shape.textAutoResize, "fixed")}
+                  value={marketingValue(shape.text, "")}
                   verticalAlign="flex-start"
                   style={{
                     fontFamily: shape.fontFamily,
                     fontSize: responsiveFontSize(shape),
                     fontWeight: shape.fontWeight,
                     lineHeight: shape.lineHeight,
-                    letterSpacing: `${(shape.letterSpacing ?? 0) / 10}cqi`,
+                    letterSpacing: `${marketingValue(shape.letterSpacing, 0) / 10}cqi`,
                     textAlign: shape.textAlign as CSSProperties["textAlign"],
                     textTransform: textTransform(shape),
                   }}

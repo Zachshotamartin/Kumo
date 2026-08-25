@@ -41,7 +41,7 @@ const rect = (id: string, x: number, assetId?: string): Shape => ({
   ...(assetId ? { assetId, backgroundImage: "signed" } : {}),
 });
 
-const setup = (role: "owner" | "viewer" = "owner") => {
+const setup = (role: "owner" | "editor" | "viewer" = "owner") => {
   const store = configureStore({
     reducer: {
       auth: authReducer,
@@ -65,6 +65,8 @@ describe("useEditorActions", () => {
     vi.clearAllMocks();
     mocks.update.mockResolvedValue({});
     mocks.clone.mockResolvedValue({ image: "copy" });
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
+    window.localStorage.clear();
   });
 
   it("previews, edits, groups, orders, and removes selected shapes", () => {
@@ -128,6 +130,10 @@ describe("useEditorActions", () => {
       result.current.cutSelected();
       result.current.duplicateSelected();
       result.current.commitBoardPatch({ title: "No" });
+      result.current.createComponentSelected();
+      result.current.createVariantSetSelected();
+      result.current.addComponentInstance("missing");
+      result.current.removeSelected();
     });
     await act(async () => { await result.current.paste(); });
     expect(store.getState().whiteBoard.shapes).toEqual(before);
@@ -186,5 +192,147 @@ describe("useEditorActions", () => {
       act(() => store.dispatch(setSelectedShapes([section.id])));
       act(() => result.current.collectSelectedSections());
     }
+  });
+
+  it("handles commit guards, defaults, overrides, and editor board permissions", async () => {
+    const { result, store } = setup();
+    const current = store.getState().whiteBoard.shapes;
+
+    act(() => result.current.commitShapes(current));
+    expect(store.getState().editor.localPreviewActive).toBe(false);
+
+    const withModes = [{ ...current[0]!, opacity: 0.75, activeVariableModes: { theme: "dark" } }, current[1]!];
+    act(() => result.current.commitShapes(withModes, current, { ...store.getState().whiteBoard, id: "override" }));
+    expect(store.getState().whiteBoard.shapes[0]?.opacity).toBe(0.75);
+
+    act(() => store.dispatch(setWhiteboardData({ id: null })));
+    act(() => result.current.commitShapes([rect("new", 0)]));
+    expect(store.getState().whiteBoard.shapes.some((shape) => shape.id === "new")).toBe(false);
+
+    const editorSetup = setup("editor");
+    act(() => editorSetup.result.current.commitBoardPatch({ title: "Forbidden" }));
+    expect(mocks.update).not.toHaveBeenCalled();
+    act(() => editorSetup.result.current.commitBoardPatch({ backGroundColor: "#fafafa" }));
+    expect(mocks.storageSet).toHaveBeenCalledWith("backgroundColor", "#fafafa");
+
+    const owner = setup();
+    act(() => owner.result.current.commitBoardPatch({ backGroundColor: owner.store.getState().whiteBoard.backGroundColor, type: "team" }));
+    expect(mocks.update).not.toHaveBeenCalled();
+    act(() => owner.result.current.commitBoardPatch({ type: "private" }));
+    await waitFor(() => expect(owner.store.getState().editor.saveStatus).toBe("saved"));
+
+    mocks.update.mockRejectedValueOnce(new Error("Settings failed"));
+    act(() => owner.result.current.commitBoardPatch({ title: "Rejected" }));
+    await waitFor(() => expect(owner.store.getState().editor.saveError).toBe("Settings failed"));
+
+    mocks.update.mockRejectedValueOnce("bad settings");
+    act(() => owner.result.current.commitBoardPatch({ title: "Rejected again" }));
+    await waitFor(() => expect(owner.store.getState().editor.saveError).toBe("We couldn't save board settings."));
+
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+    mocks.update.mockRejectedValueOnce(new Error("Offline"));
+    act(() => owner.result.current.commitBoardPatch({ title: "Queued" }));
+    await waitFor(() => expect(window.localStorage.getItem("kumo:offline-queue")).toContain("Queued"));
+    expect(owner.store.getState().editor.saveStatus).toBe("saving");
+  });
+
+  it("covers invalid selections and the no-result command paths", () => {
+    const { result, store } = setup();
+    act(() => store.dispatch(setSelectedShapes([])));
+
+    act(() => {
+      result.current.createComponentSelected();
+      result.current.createVariantSetSelected();
+      result.current.addComponentInstance("missing");
+      result.current.detachSelectedInstance();
+      result.current.resetSelectedInstance();
+      result.current.swapSelectedVariant("missing");
+      result.current.createStyleFromSelected("fill-style", "Missing");
+      result.current.booleanSelected("union");
+      result.current.flattenSelectedBoolean();
+      result.current.releaseSelectedMask();
+      result.current.sectionSelected();
+      result.current.collectSelectedSections();
+      result.current.copySelected();
+      result.current.frameSelected();
+      result.current.unframeSelected();
+    });
+    expect(store.getState().selected.selectedShapes).toEqual([]);
+
+    act(() => result.current.duplicateDocumentPage("missing"));
+    expect(store.getState().editor.currentPageId).toBeNull();
+
+    const first = { ...rect("first-component", 0), componentDefinition: true, componentName: "First" };
+    const second = { ...rect("second-component", 40), componentDefinition: true, componentName: "Second" };
+    act(() => store.dispatch(setWhiteboardData({ shapes: [first, second] })));
+    act(() => store.dispatch(setSelectedShapes([first.id, second.id])));
+    act(() => result.current.createVariantSetSelected());
+    expect(store.getState().whiteBoard.shapes.every((shape) => Boolean(shape.componentSetId))).toBe(true);
+
+    act(() => result.current.cutSelected());
+    expect(store.getState().whiteBoard.shapes).toEqual([]);
+  });
+
+  it("copies and pastes within frame hierarchy and releases masks from either side", async () => {
+    const { result, store } = setup();
+    const frame: Shape = { ...rect("frame", 100), type: "frame", x2: 300, y2: 200, width: 200, height: 200 };
+    const child: Shape = { ...rect("child", 120), parentId: frame.id };
+    act(() => store.dispatch(setWhiteboardData({ shapes: [frame, child] })));
+    act(() => store.dispatch(setSelectedShapes([child.id])));
+    act(() => result.current.copySelected());
+    expect(store.getState().editor.clipboardParentBounds).not.toBeNull();
+    await act(async () => { await result.current.paste({ targetFrameId: frame.id }); });
+    expect(store.getState().editor.clipboard[0]?.parentId).toBe(frame.id);
+
+    act(() => store.dispatch(setWhiteboardData({ shapes: [rect("a", 0), rect("b", 40)] })));
+    act(() => store.dispatch(setSelectedShapes(["a", "b"])));
+    act(() => result.current.maskSelected());
+    act(() => store.dispatch(setSelectedShapes(["b"])));
+    act(() => result.current.releaseSelectedMask());
+    expect(store.getState().whiteBoard.shapes.find((shape) => shape.id === "b")?.maskId).toBeUndefined();
+
+    act(() => store.dispatch(setSelectedShapes(["a", "b"])));
+    act(() => result.current.maskSelected());
+    act(() => store.dispatch(setSelectedShapes(["a"])));
+    act(() => result.current.releaseSelectedMask());
+    expect(store.getState().whiteBoard.shapes.find((shape) => shape.id === "a")?.isMask).toBe(false);
+  });
+
+  it("frames, unframes, and applies default or protected geometry", () => {
+    const { result, store } = setup();
+    act(() => store.dispatch(setSelectedShapes(["a", "b"])));
+    act(() => result.current.frameSelected());
+    const frame = store.getState().whiteBoard.shapes.find((shape) => shape.type === "frame")!;
+    expect(frame).toBeDefined();
+
+    act(() => result.current.setShapeGeometry(frame, {}));
+    act(() => store.dispatch(setSelectedShapes([frame.id])));
+    act(() => result.current.unframeSelected());
+    expect(store.getState().whiteBoard.shapes.some((shape) => shape.id === frame.id)).toBe(false);
+
+    const locked = { ...store.getState().whiteBoard.shapes[0]!, locked: true };
+    act(() => store.dispatch(setWhiteboardData({ shapes: [locked, store.getState().whiteBoard.shapes[1]!] })));
+    const before = store.getState().whiteBoard.shapes[0];
+    act(() => result.current.setShapeGeometry(locked, { x: 500 }));
+    expect(store.getState().whiteBoard.shapes[0]).toEqual(before);
+  });
+
+  it("short-circuits unavailable paste states and reports non-Error failures", async () => {
+    const { result, store } = setup();
+    act(() => store.dispatch(setClipboard({ shapes: [], boardId: "board" })));
+    await act(async () => { await result.current.paste(); });
+
+    act(() => store.dispatch(setClipboard({ shapes: [rect("copy", 0)], boardId: "board" })));
+    act(() => store.dispatch(setWhiteboardData({ id: null })));
+    await act(async () => { await result.current.paste(); });
+
+    act(() => store.dispatch(setWhiteboardData({ id: "board" })));
+    await act(async () => { await result.current.paste(); });
+    expect(store.getState().whiteBoard.shapes.some((shape) => shape.id !== "a" && shape.id !== "b")).toBe(true);
+
+    mocks.clone.mockRejectedValueOnce("clone failed");
+    act(() => store.dispatch(setClipboard({ shapes: [rect("remote", 0, "image")], boardId: "other" })));
+    await act(async () => { await result.current.paste(); });
+    expect(store.getState().editor.saveError).toBe("We couldn't paste these assets.");
   });
 });

@@ -83,13 +83,16 @@ export const createVariantSet = (
   const selected = shapes.filter((shape) => selectedIds.includes(shape.id) && shape.componentDefinition);
   if (selected.length < 2) return { shapes, componentSetId: null };
   const componentSetId = createShapeId();
-  const selectedSet = new Set(selected.map((shape) => shape.id));
+  const variantNameById = new Map(selected.map((shape, index) => [
+    shape.id,
+    shape.componentName ?? `Variant ${index + 1}`,
+  ]));
   return {
     componentSetId,
-    shapes: shapes.map((shape, index) => selectedSet.has(shape.id) ? {
+    shapes: shapes.map((shape) => variantNameById.has(shape.id) ? {
       ...shape,
       componentSetId,
-      variantProperties: { ...(shape.variantProperties ?? {}), [propertyName]: shape.componentName ?? `Variant ${index + 1}` },
+      variantProperties: { ...(shape.variantProperties ?? {}), [propertyName]: variantNameById.get(shape.id)! },
     } : shape),
   };
 };
@@ -126,8 +129,7 @@ const translateVectorData = (shape: Shape, offset: Point): Pick<Shape, "vectorPo
 const componentNodePaths = (shapes: Shape[], componentId: string): Map<string, Shape> => {
   const result = new Map<string, Shape>();
   const visit = (id: string, path: string) => {
-    const node = shapes.find((shape) => shape.id === id);
-    if (!node) return;
+    const node = shapes.find((shape) => shape.id === id)!;
     result.set(path, node);
     shapes
       .filter((shape) => shape.parentId === id)
@@ -157,7 +159,7 @@ export const instantiateComponent = (
     ...shape,
     id: idMap.get(shape.id)!,
     name: shape.id === componentId ? `${component.componentName ?? component.name ?? "Component"} instance` : shape.name,
-    parentId: shape.id === componentId ? component.parentId ?? null : shape.parentId ? idMap.get(shape.parentId) ?? null : null,
+    parentId: shape.id === componentId ? component.parentId ?? null : idMap.get(shape.parentId!)!,
     x1: shape.x1 + offset.x,
     x2: shape.x2 + offset.x,
     y1: shape.y1 + offset.y,
@@ -257,7 +259,7 @@ export const synchronizeComponentInstances = (shapes: Shape[]): Shape[] => {
       next.id = idMap.get(sourceNode.id)!;
       next.parentId = sourceNode.id === definition.id
         ? root.parentId ?? null
-        : sourceNode.parentId ? idMap.get(sourceNode.parentId) ?? null : null;
+        : idMap.get(sourceNode.parentId!)!;
       next.componentDefinition = false;
       next.componentNodeId = sourceNode.id;
       next.instanceRootId = root.id;

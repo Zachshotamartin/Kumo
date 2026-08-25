@@ -16,6 +16,10 @@ describe("ruler ticks", () => {
     expect(highZoom[1]!.value - highZoom[0]!.value).toBe(10);
     expect(lowZoom[1]!.position - lowZoom[0]!.position).toBeGreaterThanOrEqual(64);
     expect(highZoom[1]!.position - highZoom[0]!.position).toBeGreaterThanOrEqual(64);
+    const mediumZoom = rulerTicks(0, 0.5, 1000, 0, 110);
+    expect(mediumZoom[1]!.value - mediumZoom[0]!.value).toBe(500);
+    expect(rulerTicks(0, 1, 20, 0, 1)[1]!.value).toBe(1);
+    expect(rulerTicks(0, 1, 20, 0, 2)[1]!.value).toBe(2);
   });
 
   it("formats large and fractional values without negative zero", () => {

@@ -56,6 +56,20 @@ describe("collaborative mutations", () => {
     expect(target.created).toEqual(["new"]);
   });
 
+  it("preserves an addition that has already arrived through collaboration", () => {
+    const target = fakeNodes({ new: { x1: 0 } });
+    applyShapeMutation(target.nodes, [shape("new")], []);
+    expect(target.created).toEqual([]);
+    expect(target.records.get("new")?.x1).toBe(0);
+  });
+
+  it("does not issue empty updates for an unchanged existing shape", () => {
+    const unchanged = shape("same");
+    const target = fakeNodes({ same: { x1: 0 } });
+    applyShapeMutation(target.nodes, [unchanged], [unchanged]);
+    expect(target.records.get("same")).toEqual({ x1: 0 });
+  });
+
   it("applies local removals and property removals without replacing nodes", () => {
     const previous = [{ ...shape("kept"), text: "old" }, shape("removed")];
     const next = [{ ...shape("kept", 15), text: undefined }];

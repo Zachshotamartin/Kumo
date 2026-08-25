@@ -13,15 +13,19 @@ const BoardPreview = ({ board }: { board: BoardSummary }) => {
     if (!loadGenerated) return;
     let active = true;
     let generatedUrl: string | null = null;
-    void loadBoardPreview(board.id)
+    const controller = new AbortController();
+    void loadBoardPreview(board.id, controller.signal)
       .then((url) => {
         generatedUrl = url;
         if (active) setSource(url);
         else URL.revokeObjectURL(url);
       })
-      .catch(() => active && setSource(null));
+      .catch(() => {
+        // The placeholder is already visible while generated previews load.
+      });
     return () => {
       active = false;
+      controller.abort();
       if (generatedUrl) URL.revokeObjectURL(generatedUrl);
     };
   }, [board.id, loadGenerated]);

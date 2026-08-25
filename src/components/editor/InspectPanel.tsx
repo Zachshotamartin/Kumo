@@ -2,9 +2,10 @@ import { Check, Code, Copy, X } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { shapeBounds } from "../../editor/geometry";
-import { designTokenExport, inspectTokens, shapeCss, shapeJson, shapeReact, shapeStory, shapeSwiftUI } from "../../editor/handoff";
+import { compareFrames, componentPlayground, designTokenExport, downloadableAssets, inspectTokens, shapeCss, shapeJson, shapeReact, shapeStory, shapeSwiftUI, variableAliasTrace } from "../../editor/handoff";
 import { measureShapes } from "../../editor/measurement";
 import { setRightPanel } from "../../features/editor/editorSlice";
+import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
@@ -28,6 +29,10 @@ const InspectPanel = () => {
   const bounds = shape ? shapeBounds(shape) : null;
   const tokens = shape ? inspectTokens(shape) : null;
   const measurements = shape && secondShape ? measureShapes(shape, secondShape) : [];
+  const comparison = shape?.type === "frame" && secondShape?.type === "frame" ? compareFrames(shape, secondShape) : null;
+  const playground = shape ? componentPlayground(board.shapes, shape) : null;
+  const aliases = shape ? variableAliasTrace(board.shapes, shape) : [];
+  const assets = shape ? downloadableAssets(shape) : [];
   const code = shape ? codeFormat === "css" ? shapeCss(shape) : codeFormat === "react" ? shapeReact(shape) : codeFormat === "swift" ? shapeSwiftUI(shape) : codeFormat === "story" ? shapeStory(shape) : codeFormat === "tokens" ? designTokenExport(shape) : shapeJson(shape) : "";
   const selectionUrl = shape ? (() => { const url = new URL(window.location.href); url.searchParams.set("selection", shape.id); if (shape.pageId) url.searchParams.set("page", shape.pageId); return url.toString(); })() : "";
   return (
@@ -42,6 +47,10 @@ const InspectPanel = () => {
             </section>
             <section className={styles.inspectorSection}><h2>Tokens</h2>{tokens.colors.map((color) => <button className={styles.tokenRow} type="button" key={color} onClick={() => void navigator.clipboard.writeText(color)}><i style={{ background: color }} /><span>{color}</span><Copy aria-hidden="true" /></button>)}{tokens.typography && <p className={styles.typeToken}>{tokens.typography}</p>}{tokens.variables.map((variable) => <p className={styles.typeToken} key={variable.property}>{variable.property} → {variable.id}</p>)}</section>
             <section className={styles.inspectorSection}><h2>Handoff</h2><p className={styles.typeToken}>Status: {shape.devStatus ?? "designing"}</p>{shape.devAnnotation && <p>{shape.devAnnotation}</p>}{shape.codeComponentUrl && <a href={shape.codeComponentUrl} target="_blank" rel="noreferrer">Open code component</a>}{measurements.map((measurement) => <p className={styles.typeToken} key={measurement.axis}>{measurement.axis} gap: {Math.round(measurement.value)}px</p>)}<button type="button" onClick={() => void navigator.clipboard.writeText(selectionUrl)}>Copy link to selection</button><label className={styles.fullField}><span>Code format</span><select value={codeFormat} onChange={(event) => setCodeFormat(event.target.value as typeof codeFormat)}><option value="css">CSS</option><option value="react">React</option><option value="swift">SwiftUI</option><option value="json">JSON</option><option value="story">Storybook story</option><option value="tokens">Design tokens</option></select></label></section>
+            {playground && <section className={styles.inspectorSection}><h2>Component playground</h2><p className={styles.typeToken}>{playground.variants.length} variant{playground.variants.length === 1 ? "" : "s"}</p>{playground.variants.map((variant) => <button type="button" key={variant.id} onClick={() => dispatch(setSelectedShapes([variant.id]))}>{variant.componentName ?? variant.name ?? "Variant"}{Object.keys(variant.variantProperties ?? {}).length ? ` · ${Object.entries(variant.variantProperties!).map(([key, value]) => `${key}=${value}`).join(", ")}` : ""}</button>)}{playground.properties.map((property) => <p className={styles.typeToken} key={property.id}>{property.label}: {String(property.currentValue)}</p>)}</section>}
+            {!!aliases.length && <section className={styles.inspectorSection}><h2>Variable alias trace</h2>{aliases.map((alias) => <p className={styles.typeToken} key={alias.property}>{alias.property} → {alias.chain.join(" → ")}{alias.circular ? " → circular" : ""}</p>)}</section>}
+            {comparison && <section className={styles.inspectorSection}><h2>Frame comparison</h2><p className={styles.typeToken}>Size Δ {Math.round(comparison.size.width)} × {Math.round(comparison.size.height)}</p>{comparison.changes.map((change) => <p className={styles.typeToken} key={String(change.field)}>{String(change.field)}: {String(change.before ?? "—")} → {String(change.after ?? "—")}</p>)}</section>}
+            {!!assets.length && <section className={styles.inspectorSection}><h2>Assets</h2>{assets.map((asset) => <a key={asset.url} href={asset.url} download target="_blank" rel="noreferrer">Download {asset.label}</a>)}</section>}
             <CopyBlock label={codeFormat === "swift" ? "SwiftUI" : codeFormat.toUpperCase()} value={code} />
           </>
         )}

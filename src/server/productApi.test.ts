@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getDocument: vi.fn(),
   replaceDocument: vi.fn(),
   withLease: vi.fn(),
+  sendPreferredPush: vi.fn(),
   queues: new Map<string, Array<{ data?: unknown; error: unknown }>>(),
   calls: [] as Array<{ table: string; operation: string; value?: unknown }>,
 }));
@@ -31,6 +32,7 @@ vi.mock("../../server/api/_documentMutation", () => ({
   withDocumentLease: mocks.withLease,
   replaceStorageDocument: mocks.replaceDocument,
 }));
+vi.mock("../../server/api/_push", () => ({ sendPreferredPushToUser: mocks.sendPreferredPush }));
 
 const nextResult = (table: string) => mocks.queues.get(table)?.shift() ?? { data: null, error: null };
 
@@ -90,6 +92,7 @@ describe("product API", () => {
     mocks.getDocument.mockResolvedValue({ nodes: {} });
     mocks.withLease.mockImplementation(async (_database: unknown, _roomId: string, operation: () => Promise<unknown>) => operation());
     mocks.replaceDocument.mockImplementation(async ({ commit }: { commit: () => Promise<void> }) => commit());
+    mocks.sendPreferredPush.mockResolvedValue({ delivered: 1, subscriptions: 1, skipped: false });
   });
 
   it("builds a permission-aware graph with private titles, backlinks, and link health", async () => {
@@ -209,12 +212,18 @@ describe("product API", () => {
   it("creates folders and executes every personal board organization mutation", async () => {
     const membership = { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Team" } };
     enqueue("workspace_members", { data: membership });
-    enqueue("workspace_folders", { data: { id: "folder", workspace_id: "workspace", name: "Research" } });
+    enqueue("workspace_folders", { data: { id: "parent" } }, { data: { id: "folder", workspace_id: "workspace", name: "Research" } });
     const folder = response();
     await productHandler(request("POST", { action: "create-folder", name: " Research ", parentId: "parent" }), folder);
     expect(folder.statusCode).toBe(201);
     expect(folder.body).toMatchObject({ folder: { id: "folder", name: "Research" } });
     expect(mocks.calls).toContainEqual(expect.objectContaining({ table: "workspace_folders", operation: "insert", value: expect.objectContaining({ name: "Research", parent_id: "parent" }) }));
+
+    enqueue("workspace_members", { data: membership });
+    enqueue("workspace_folders", { data: null });
+    const foreignParent = response();
+    await productHandler(request("POST", { action: "create-folder", name: "Nested", parentId: "foreign-folder" }), foreignParent);
+    expect(foreignParent.statusCode).toBe(404);
 
     const cases = [
       ["move-board", { folderId: "folder" }, { folder_id: "folder" }],
@@ -225,6 +234,7 @@ describe("product API", () => {
     ] as const;
     for (const [action, payload, expectedPatch] of cases) {
       enqueue("workspace_members", { data: membership });
+      if (action === "move-board") enqueue("workspace_folders", { data: { id: "folder" } });
       enqueue("board_organization", { data: { board_id: "board", action } });
       const reply = response();
       await productHandler(request("POST", { action, boardId: "board", ...payload }), reply);
@@ -232,6 +242,12 @@ describe("product API", () => {
       const upsert = mocks.calls.filter((call) => call.table === "board_organization" && call.operation === "upsert").at(-1)?.value;
       expect(upsert).toEqual(expect.objectContaining(expectedPatch));
     }
+
+    enqueue("workspace_members", { data: membership });
+    enqueue("workspace_folders", { data: null });
+    const foreignFolder = response();
+    await productHandler(request("POST", { action: "move-board", boardId: "board", folderId: "foreign-folder" }), foreignFolder);
+    expect(foreignFolder.statusCode).toBe(404);
   });
 
   it("publishes a versioned design library and returns a non-mutating diff", async () => {
@@ -289,6 +305,7 @@ describe("product API", () => {
     expect(mocks.calls).toContainEqual(expect.objectContaining({
       table: "account_notifications", operation: "insert", value: expect.objectContaining({ recipient_id: "owner", kind: "access-request" }),
     }));
+    expect(mocks.sendPreferredPush).toHaveBeenCalledWith("owner", "access_changes", expect.objectContaining({ title: "Access requested for Plan" }));
 
     enqueue("board_access_requests", { data: { id: "request", board_id: "board", requester_id: "collaborator", requested_role: "editor", status: "pending" } }, { error: null });
     enqueue("board_members", { error: null });
@@ -298,6 +315,7 @@ describe("product API", () => {
     expect(mocks.calls).toContainEqual(expect.objectContaining({
       table: "board_members", operation: "upsert", value: { board_id: "board", user_id: "collaborator", role: "editor" },
     }));
+    expect(mocks.sendPreferredPush).toHaveBeenCalledWith("collaborator", "access_changes", expect.objectContaining({ title: "Board access approved" }));
   });
 
   it("redeems, revokes, expires, and domain-restricts governed share links", async () => {
@@ -475,5 +493,201 @@ describe("product API", () => {
     await invoke("board_share_links", { action: "create-share-link", boardId: "board" });
     await invoke("board_share_links", { action: "revoke-share-link", linkId: "link" });
     await invoke("board_share_links", { action: "redeem-share-link", token: "secret" });
+  });
+
+  it("covers graph, workspace, and collection read failures", async () => {
+    enqueue("board_links", { error: new Error("links failed") });
+    const graphLinksError = response(); await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), graphLinksError); expect(graphLinksError.statusCode).toBe(500);
+
+    enqueue("board_links", { data: null }); enqueue("boards", { error: new Error("boards failed") }); enqueue("board_members", { data: null });
+    const graphBoardsError = response(); await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), graphBoardsError); expect(graphBoardsError.statusCode).toBe(500);
+    enqueue("board_links", { data: null }); enqueue("boards", { data: null }); enqueue("board_members", { error: new Error("members failed") });
+    const graphMembersError = response(); await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), graphMembersError); expect(graphMembersError.statusCode).toBe(500);
+    enqueue("board_links", { data: null }); enqueue("boards", { data: [{ id: "board", title: "Board", visibility: "public" }] }); enqueue("board_members", { data: null });
+    const graphFallbacks = response(); await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), graphFallbacks); expect(graphFallbacks.statusCode).toBe(200);
+
+    enqueue("workspace_members", { error: new Error("membership failed") });
+    const membershipError = response(); await productHandler(request("GET"), membershipError); expect(membershipError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: null }); enqueue("workspaces", { error: new Error("workspace failed") });
+    const workspaceError = response(); await productHandler(request("GET"), workspaceError); expect(workspaceError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: null }, { error: new Error("member insert failed") }); enqueue("workspaces", { data: { id: "workspace" } });
+    const memberInsertError = response(); await productHandler(request("GET"), memberInsertError); expect(memberInsertError.statusCode).toBe(500);
+
+    const membership = { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace" } };
+    enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { error: new Error("folders failed") }); enqueue("board_organization", { data: null });
+    const folderError = response(); await productHandler(request("GET"), folderError); expect(folderError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { data: null }); enqueue("board_organization", { error: new Error("organization failed") });
+    const organizationError = response(); await productHandler(request("GET"), organizationError); expect(organizationError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { data: null }); enqueue("board_organization", { data: null });
+    const emptyWorkspace = response(); await productHandler(request("GET"), emptyWorkspace); expect(emptyWorkspace.body).toEqual(expect.objectContaining({ folders: [], organization: [] }));
+
+    enqueue("account_notifications", { data: null });
+    const emptyNotifications = response(); await productHandler(request("GET", {}, { scope: "notifications" }), emptyNotifications); expect(emptyNotifications.body).toEqual({ notifications: [] });
+  });
+
+  it("covers library, template, access-request, and share-link read boundaries", async () => {
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const inaccessibleLibraries = response(); await productHandler(request("GET", {}, { scope: "libraries", boardId: "missing" }), inaccessibleLibraries); expect(inaccessibleLibraries.statusCode).toBe(404);
+    enqueue("design_libraries", { error: new Error("libraries failed") });
+    const libraryError = response(); await productHandler(request("GET", {}, { scope: "libraries" }), libraryError); expect(libraryError.statusCode).toBe(500);
+    enqueue("design_libraries", { data: null }); enqueue("design_library_subscriptions", { error: new Error("subscriptions failed") });
+    const subscriptionError = response(); await productHandler(request("GET", {}, { scope: "libraries", boardId: "board" }), subscriptionError); expect(subscriptionError.statusCode).toBe(500);
+    enqueue("design_libraries", { data: null }); enqueue("design_library_subscriptions", { data: null });
+    const emptyLibraries = response(); await productHandler(request("GET", {}, { scope: "libraries", boardId: "board" }), emptyLibraries); expect(emptyLibraries.body).toEqual({ libraries: [], subscriptions: [] });
+
+    enqueue("design_libraries", { error: new Error("library failed") });
+    const versionsLibraryError = response(); await productHandler(request("GET", {}, { scope: "library-versions", libraryId: "library" }), versionsLibraryError); expect(versionsLibraryError.statusCode).toBe(500);
+    enqueue("design_libraries", { data: null });
+    const missingLibrary = response(); await productHandler(request("GET", {}, { scope: "library-versions", libraryId: "library" }), missingLibrary); expect(missingLibrary.statusCode).toBe(404);
+    enqueue("design_libraries", { data: { id: "library", source_board_id: "source", owner_id: "other" } }); mocks.getAccess.mockResolvedValueOnce(null);
+    const privateLibrary = response(); await productHandler(request("GET", {}, { scope: "library-versions", libraryId: "library" }), privateLibrary); expect(privateLibrary.statusCode).toBe(403);
+    enqueue("design_libraries", { data: { id: "library", source_board_id: "source", owner_id: "actor" } }); mocks.getAccess.mockResolvedValueOnce(null); enqueue("design_library_versions", { error: new Error("versions failed") });
+    const versionsError = response(); await productHandler(request("GET", {}, { scope: "library-versions", libraryId: "library" }), versionsError); expect(versionsError.statusCode).toBe(500);
+    enqueue("design_libraries", { data: { id: "library", source_board_id: "source", owner_id: "actor" } }); mocks.getAccess.mockResolvedValueOnce(null); enqueue("design_library_versions", { data: null });
+    const emptyVersions = response(); await productHandler(request("GET", {}, { scope: "library-versions", libraryId: "library" }), emptyVersions); expect(emptyVersions.body).toEqual(expect.objectContaining({ versions: [] }));
+
+    enqueue("board_templates", { data: null }); const emptyTemplates = response(); await productHandler(request("GET", {}, { scope: "templates" }), emptyTemplates); expect(emptyTemplates.body).toEqual({ templates: [] });
+    enqueue("board_templates", { error: new Error("templates failed") }); const templateError = response(); await productHandler(request("GET", {}, { scope: "templates" }), templateError); expect(templateError.statusCode).toBe(500);
+
+    mocks.getAccess.mockResolvedValueOnce(null); const noAccessRequests = response(); await productHandler(request("GET", {}, { scope: "access-requests", boardId: "board" }), noAccessRequests); expect(noAccessRequests.statusCode).toBe(403);
+    enqueue("board_access_requests", { data: null }); const emptyRequests = response(); await productHandler(request("GET", {}, { scope: "access-requests", boardId: "board" }), emptyRequests); expect(emptyRequests.body).toEqual({ requests: [] });
+    enqueue("board_access_requests", { error: new Error("requests failed") }); const requestError = response(); await productHandler(request("GET", {}, { scope: "access-requests", boardId: "board" }), requestError); expect(requestError.statusCode).toBe(500);
+
+    mocks.getAccess.mockResolvedValueOnce(null); const noShareLinks = response(); await productHandler(request("GET", {}, { scope: "share-links", boardId: "board" }), noShareLinks); expect(noShareLinks.statusCode).toBe(403);
+    enqueue("board_share_links", { data: null }); const emptyLinks = response(); await productHandler(request("GET", {}, { scope: "share-links", boardId: "board" }), emptyLinks); expect(emptyLinks.body).toEqual({ links: [] });
+    enqueue("board_share_links", { error: new Error("share links failed") }); const shareLinkError = response(); await productHandler(request("GET", {}, { scope: "share-links", boardId: "board" }), shareLinkError); expect(shareLinkError.statusCode).toBe(500);
+  });
+
+  it("covers folder and board-organization validation and query errors", async () => {
+    const membership = { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace" } };
+    enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { error: new Error("parent failed") });
+    const parentError = response(); await productHandler(request("POST", { action: "create-folder", parentId: "parent" }), parentError); expect(parentError.statusCode).toBe(500);
+
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const malformedBoard = response(); await productHandler(request("POST", { action: "move-board", boardId: 42 }), malformedBoard); expect(malformedBoard.statusCode).toBe(404);
+    enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { error: new Error("folder failed") });
+    const folderError = response(); await productHandler(request("POST", { action: "move-board", boardId: "board", folderId: "folder" }), folderError); expect(folderError.statusCode).toBe(500);
+  });
+
+  it("covers every design-library publication branch and write failure", async () => {
+    const document = { nodes: { component: { id: "component", type: "frame", componentDefinition: true } } };
+    mocks.getDocument.mockResolvedValue(document);
+    enqueue("design_libraries", { error: new Error("prior failed") });
+    const priorError = response(); await productHandler(request("POST", { action: "publish-library", boardId: 42 }), priorError); expect(priorError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: { id: "library", latest_version: 2 } }); enqueue("design_library_versions", { error: new Error("release lookup failed") });
+    const releaseLookupError = response(); await productHandler(request("POST", { action: "publish-library", boardId: "board" }), releaseLookupError); expect(releaseLookupError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: { id: "library", latest_version: 2 } }, { error: new Error("library update failed") }); enqueue("design_library_versions", { data: { version: 4 } });
+    const libraryUpdateError = response(); await productHandler(request("POST", { action: "publish-library", boardId: "board", releaseStatus: "draft", visibility: "invalid", description: null, versionDescription: null, changelog: ["change"] }), libraryUpdateError); expect(libraryUpdateError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: { id: "library", latest_version: 2 } }, { error: null }); enqueue("design_library_versions", { data: { version: 2 } }, { error: new Error("version insert failed") });
+    const versionInsertError = response(); await productHandler(request("POST", { action: "publish-library", boardId: "board", releaseStatus: "review", visibility: "workspace", changelog: "change" }), versionInsertError); expect(versionInsertError.statusCode).toBe(500);
+  });
+
+  it("approves, deprecates, and rolls back governed library releases", async () => {
+    const library = { id: "library", source_board_id: "board", owner_id: "actor", latest_version: 2, name: "Core" };
+    enqueue("design_libraries", { error: new Error("library failed") });
+    const libraryError = response(); await productHandler(request("POST", { action: "approve-library-release", libraryId: 42, version: 1 }), libraryError); expect(libraryError.statusCode).toBe(500);
+    enqueue("design_libraries", { data: { ...library, owner_id: "other" } });
+    const foreign = response(); await productHandler(request("POST", { action: "approve-library-release", libraryId: "library", version: 1 }), foreign); expect(foreign.statusCode).toBe(403);
+    for (const version of [0, 1.5]) {
+      enqueue("design_libraries", { data: library });
+      const invalid = response(); await productHandler(request("POST", { action: "approve-library-release", libraryId: "library", version }), invalid); expect(invalid.statusCode).toBe(400);
+    }
+
+    enqueue("design_libraries", { data: library }); enqueue("design_library_versions", { error: new Error("target failed") });
+    const targetError = response(); await productHandler(request("POST", { action: "rollback-library", libraryId: "library", version: 1 }), targetError); expect(targetError.statusCode).toBe(500);
+    for (const target of [null, { version: 1, release_status: "deprecated" }]) {
+      enqueue("design_libraries", { data: library }); enqueue("design_library_versions", { data: target });
+      const invalidTarget = response(); await productHandler(request("POST", { action: "rollback-library", libraryId: "library", version: 1 }), invalidTarget); expect(invalidTarget.statusCode).toBe(409);
+    }
+    enqueue("design_libraries", { data: library }, { error: new Error("rollback failed") }); enqueue("design_library_versions", { data: { version: 1, release_status: "published" } });
+    const rollbackError = response(); await productHandler(request("POST", { action: "rollback-library", libraryId: "library", version: 1 }), rollbackError); expect(rollbackError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: library }); enqueue("design_library_versions", { error: new Error("status failed") });
+    const statusError = response(); await productHandler(request("POST", { action: "deprecate-library-release", libraryId: "library", version: 2 }), statusError); expect(statusError.statusCode).toBe(500);
+    enqueue("design_libraries", { data: library }, { error: new Error("current failed") }); enqueue("design_library_versions", { error: null });
+    const currentError = response(); await productHandler(request("POST", { action: "approve-library-release", libraryId: "library", version: 3 }), currentError); expect(currentError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: library }); enqueue("design_library_versions", { error: null }); enqueue("design_library_subscriptions", { error: new Error("subscribers failed") });
+    const subscriberError = response(); await productHandler(request("POST", { action: "deprecate-library-release", libraryId: "library", version: 2 }), subscriberError); expect(subscriberError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: library }); enqueue("design_library_versions", { error: null }); enqueue("design_library_subscriptions", { data: [{ subscribed_by: "subscriber", board_id: "board" }] }); enqueue("account_notifications", { error: new Error("notice failed") });
+    const noticeError = response(); await productHandler(request("POST", { action: "deprecate-library-release", libraryId: "library", version: 2 }), noticeError); expect(noticeError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: library }); enqueue("design_library_versions", { error: null }); enqueue("design_library_subscriptions", { data: [{ subscribed_by: "subscriber", board_id: "board" }] }); enqueue("account_notifications", { error: null });
+    mocks.sendPreferredPush.mockRejectedValueOnce(new Error("push failed"));
+    const deprecated = response(); await productHandler(request("POST", { action: "deprecate-library-release", libraryId: "library", version: 2 }), deprecated); expect(deprecated.statusCode).toBe(200);
+
+    enqueue("design_libraries", { data: library }, { error: null }); enqueue("design_library_versions", { data: { version: 1, release_status: "published" } }); enqueue("design_library_subscriptions", { data: null });
+    const rolledBack = response(); await productHandler(request("POST", { action: "rollback-library", libraryId: "library", version: 1 }), rolledBack); expect(rolledBack.statusCode).toBe(200);
+
+    enqueue("design_libraries", { data: library }, { error: null }); enqueue("design_library_versions", { error: null }); enqueue("design_library_subscriptions", { data: null });
+    const approved = response(); await productHandler(request("POST", { action: "approve-library-release", libraryId: "library", version: 3 }), approved); expect(approved.statusCode).toBe(200);
+  });
+
+  it("covers remaining graph, action, publication, and governance fallbacks", async () => {
+    enqueue("board_links", { data: null }); enqueue("boards", { data: null }); enqueue("board_members", { data: null });
+    const emptyGraph = response(); await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), emptyGraph); expect(emptyGraph.statusCode).toBe(200);
+
+    const malformedAction = response(); await productHandler(request("POST", { action: 42 }), malformedAction); expect(malformedAction.statusCode).toBe(400);
+
+    mocks.getDocument.mockResolvedValue({ nodes: { component: { id: "component", type: "frame", componentDefinition: true } } });
+    enqueue("design_libraries", { data: null }, { error: null }); enqueue("design_library_versions", { error: null });
+    const draft = response(); await productHandler(request("POST", { action: "publish-library", boardId: "board", releaseStatus: "draft", changelog: ["change"] }), draft); expect(draft.statusCode).toBe(201);
+
+    const library = { id: "library", source_board_id: "board", owner_id: "actor", latest_version: 2, name: "Core" };
+    for (const action of ["rollback-library", "approve-library-release"] as const) {
+      enqueue("design_libraries", { data: library }, ...(action === "rollback-library" ? [{ error: null }] : [{ error: null }]));
+      if (action === "rollback-library") enqueue("design_library_versions", { data: { version: 1, release_status: "published" } });
+      else enqueue("design_library_versions", { error: null });
+      enqueue("design_library_subscriptions", { data: [{ subscribed_by: "subscriber", board_id: "board" }] }); enqueue("account_notifications", { error: null });
+      const updated = response(); await productHandler(request("POST", { action, libraryId: "library", version: 1 }), updated); expect(updated.statusCode).toBe(200);
+    }
+  });
+
+  it("covers library application query and commit failures", async () => {
+    enqueue("design_libraries", { error: new Error("library failed") });
+    const libraryError = response(); await productHandler(request("POST", { action: "library-diff", boardId: 42, libraryId: 42 }), libraryError); expect(libraryError.statusCode).toBe(500);
+    enqueue("design_libraries", { data: { id: "library", latest_version: 1, visibility: "public", owner_id: "other" } }); enqueue("design_library_versions", { error: new Error("version failed") });
+    const versionError = response(); await productHandler(request("POST", { action: "library-diff", boardId: "board", libraryId: "library" }), versionError); expect(versionError.statusCode).toBe(500);
+
+    enqueue("design_libraries", { data: { id: "library", latest_version: 1, visibility: "public", owner_id: "other" } }); enqueue("design_library_versions", { data: { version: 1, assets: null } });
+    const emptyDiff = response(); await productHandler(request("POST", { action: "library-diff", boardId: "board", libraryId: "library" }), emptyDiff); expect(emptyDiff.body).toEqual({ version: 1, diff: [] });
+
+    enqueue("design_libraries", { data: { id: "library", latest_version: 1, visibility: "public", owner_id: "other" } }); enqueue("design_library_versions", { data: { version: 1, assets: null } }); enqueue("design_library_subscriptions", { error: new Error("subscription failed") });
+    const subscriptionError = response(); await productHandler(request("POST", { action: "apply-library", boardId: "board", libraryId: "library" }), subscriptionError); expect(subscriptionError.statusCode).toBe(500);
+  });
+
+  it("covers template, access-request, and notification persistence failures", async () => {
+    enqueue("board_templates", { data: { id: "template", visibility: "public" } });
+    const publicTemplate = response(); await productHandler(request("POST", { action: "create-template", boardId: 42, visibility: "public", description: null }), publicTemplate); expect(publicTemplate.statusCode).toBe(201);
+    enqueue("board_templates", { data: { owner_id: "actor", name: "Template", visibility: "private", document: {} } });
+    const malformedTemplateId = response(); await productHandler(request("POST", { action: "instantiate-template", templateId: 42 }), malformedTemplateId); expect(malformedTemplateId.statusCode).toBe(201);
+
+    enqueue("boards", { data: { id: "board", owner_id: "owner", title: "Board" } }); enqueue("board_access_requests", { error: new Error("request failed") });
+    const requestError = response(); await productHandler(request("POST", { action: "request-access", boardId: 42, role: "viewer", message: null }), requestError); expect(requestError.statusCode).toBe(500);
+    enqueue("boards", { data: { id: "board", owner_id: "owner", title: "Board" } }); enqueue("board_access_requests", { data: { id: "request" } }); enqueue("account_notifications", { error: new Error("notice failed") });
+    const requestNoticeError = response(); await productHandler(request("POST", { action: "request-access", boardId: "board" }), requestNoticeError); expect(requestNoticeError.statusCode).toBe(500);
+
+    const accessRequest = { id: "request", board_id: "board", requester_id: "collaborator", requested_role: "editor" };
+    enqueue("board_access_requests", { data: accessRequest }); enqueue("board_members", { error: new Error("member failed") });
+    const memberError = response(); await productHandler(request("POST", { action: "resolve-access", requestId: 42, decision: "approved" }), memberError); expect(memberError.statusCode).toBe(500);
+    enqueue("board_access_requests", { data: accessRequest }, { error: new Error("update failed") }); enqueue("board_members", { error: null });
+    const updateError = response(); await productHandler(request("POST", { action: "resolve-access", requestId: "request", decision: "approved" }), updateError); expect(updateError.statusCode).toBe(500);
+    enqueue("board_access_requests", { data: accessRequest }, { error: null }); enqueue("account_notifications", { error: new Error("notice failed") });
+    const resolveNoticeError = response(); await productHandler(request("POST", { action: "resolve-access", requestId: "request", decision: "denied" }), resolveNoticeError); expect(resolveNoticeError.statusCode).toBe(500);
+  });
+
+  it("covers governed share-link parsing and membership failures", async () => {
+    enqueue("board_share_links", { data: { id: "link", role: "viewer" } });
+    const validExpiry = response(); await productHandler(request("POST", { action: "create-share-link", boardId: 42, expiresAt: new Date(Date.now() + 60_000).toISOString() }), validExpiry); expect(validExpiry.statusCode).toBe(201);
+
+    enqueue("board_share_links", { data: { id: "link", board_id: "board" } }, { error: new Error("revoke failed") });
+    const revokeError = response(); await productHandler(request("POST", { action: "revoke-share-link", linkId: 42 }), revokeError); expect(revokeError.statusCode).toBe(500);
+
+    enqueue("board_share_links", { data: { id: "link", board_id: "board", role: "viewer", allowed_domain: null, expires_at: null, revoked_at: null } }); enqueue("board_members", { error: new Error("member failed") });
+    const memberError = response(); await productHandler(request("POST", { action: "redeem-share-link", token: 42 }), memberError); expect(memberError.statusCode).toBe(500);
   });
 });

@@ -16,4 +16,12 @@ describe("shape construction", () => {
     expect(createShapeId()).toEqual(expect.any(String));
     expect(createShapeId()).not.toHaveLength(0);
   });
+
+  it("falls back to a time-and-random identifier without Web Crypto", () => {
+    vi.stubGlobal("crypto", undefined);
+    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    vi.spyOn(Math, "random").mockReturnValue(0.25);
+    expect(createShapeId()).toBe("loyw3v28-9");
+    vi.unstubAllGlobals();
+  });
 });

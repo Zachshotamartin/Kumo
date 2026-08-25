@@ -13,6 +13,14 @@ const person = (id: string): BoardCollaborator => ({
 });
 
 describe("useBoardCollaborators", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("does not load collaborators before a board is selected", () => {
+    const { result } = renderHook(() => useBoardCollaborators(null));
+    expect(result.current).toEqual({ collaborators: [], error: null });
+    expect(listBoardCollaborators).not.toHaveBeenCalled();
+  });
+
   it("clears stale people and ignores an earlier board request", async () => {
     let resolveFirst: (people: BoardCollaborator[]) => void = () => undefined;
     let resolveSecond: (people: BoardCollaborator[]) => void = () => undefined;
@@ -39,5 +47,18 @@ describe("useBoardCollaborators", () => {
     rerender({ boardId: "second" });
     await waitFor(() => expect(result.current.error).toBeNull());
     expect(result.current.collaborators).toEqual([person("fresh")]);
+  });
+
+  it("uses a safe fallback for non-error failures and ignores stale failures", async () => {
+    let rejectFirst: (reason: unknown) => void = () => undefined;
+    vi.mocked(listBoardCollaborators)
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirst = reject; }))
+      .mockRejectedValueOnce("offline");
+    const { result, rerender } = renderHook(({ boardId }) => useBoardCollaborators(boardId), {
+      initialProps: { boardId: "first" as string | null },
+    });
+    rerender({ boardId: "second" });
+    act(() => rejectFirst(new Error("stale")));
+    await waitFor(() => expect(result.current.error).toBe("Collaborators could not be loaded."));
   });
 });

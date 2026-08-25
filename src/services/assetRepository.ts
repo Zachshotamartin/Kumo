@@ -19,7 +19,7 @@ const storageClient = () => {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 };
 
-export const uploadBoardImage = async (
+export const uploadBoardAsset = async (
   boardId: string,
   file: File,
   dimensions: { width: number; height: number }
@@ -55,6 +55,8 @@ export const uploadBoardImage = async (
   });
   return completed.asset;
 };
+
+export const uploadBoardImage = uploadBoardAsset;
 
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 

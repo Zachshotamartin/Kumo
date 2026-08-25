@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- layer presentation helpers are intentionally exported with the panel. */
 import { useEffect, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -40,9 +41,20 @@ const layerIcon = (type: string): Icon => {
   return Rectangle;
 };
 
-const unitLabel = (unit: LayerUnit) => unit.groupId
-  ? `${unit.members[0]?.groupName ?? "Group"}, ${unit.members.length} layers`
-  : unit.members[0]?.name ?? unit.members[0]?.type ?? "Layer";
+export const layerUnitLabel = (unit: LayerUnit) => unit.groupId
+  ? `${unit.members[0]!.groupName || "Group"}, ${unit.members.length} layers`
+  : unit.members[0]!.name || unit.members[0]!.type;
+
+export const layerDropPlacement = (clientY: number, bounds: Pick<DOMRect, "top" | "height">): RelativeOrder =>
+  clientY < bounds.top + bounds.height / 2 ? "front" : "back";
+
+export const layerDisplayName = (isGroup: boolean, shape: Shape) =>
+  isGroup ? shape.groupName || "Group" : shape.name || shape.type;
+
+export const layerDropClass = (target: { key: string; placement: RelativeOrder } | null, key: string) => {
+  if (target?.key !== key) return "";
+  return target.placement === "front" ? styles.dropInFront : styles.dropBehind;
+};
 
 const LayerNameInput = ({
   label,
@@ -152,9 +164,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     const bounds = event.currentTarget.getBoundingClientRect();
-    const placement: RelativeOrder = event.clientY < bounds.top + bounds.height / 2
-      ? "front"
-      : "back";
+    const placement = layerDropPlacement(event.clientY, bounds);
     setDropTarget({ key: unit.key, placement });
   };
 
@@ -163,9 +173,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
     const activeIds = draggedIdsRef.current;
     if (activeIds && !unit.ids.some((id) => activeIds.includes(id))) {
       const bounds = event.currentTarget.getBoundingClientRect();
-      const placement: RelativeOrder = event.clientY < bounds.top + bounds.height / 2
-        ? "front"
-        : "back";
+      const placement = layerDropPlacement(event.clientY, bounds);
       actions.commitShapes(
         moveShapesRelative(
           board.shapes,
@@ -194,7 +202,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
   };
 
   const finishUnitRename = (unit: LayerUnit) => {
-    const name = draftName.trim() || (unit.groupId ? "Group" : unit.members[0]?.type ?? "Layer");
+    const name = draftName.trim() || (unit.groupId ? "Group" : unit.members[0]!.type);
     const ids = new Set(unit.ids);
     actions.commitShapes(
       board.shapes.map((shape) => {
@@ -209,9 +217,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
     const LayerIcon = layerIcon(shape.type);
     const name = shape.name ?? shape.type;
     const selected = selectedIds.includes(shape.id);
-    const selectionIds = shape.groupId
-      ? board.shapes.filter((candidate) => candidate.groupId === shape.groupId).map((candidate) => candidate.id)
-      : [shape.id];
+    const selectionIds = board.shapes.filter((candidate) => candidate.groupId === shape.groupId).map((candidate) => candidate.id);
     return (
       <div
         className={`${styles.layerRow} ${styles.nestedLayerRow} ${selected ? styles.selectedLayer : ""}`}
@@ -277,16 +283,14 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
       const isGroup = Boolean(unit.groupId);
       const shape = unit.members[0]!;
       const isFrame = !isGroup && (shape.type === "frame" || shape.type === "section");
-      const label = unitLabel(unit);
+      const label = layerUnitLabel(unit);
       const key = isGroup ? unit.key : `frame-child:${shape.id}`;
       const collapsedKey = isGroup ? unit.groupId! : `frame:${shape.id}`;
       const collapsed = collapsedGroups.has(collapsedKey);
       const selectionIds = unit.ids;
       const selected = selectionIds.every((id) => selectedIds.includes(id));
       const UnitIcon = isGroup ? Stack : layerIcon(shape.type);
-      const dropClass = dropTarget?.key === unit.key
-        ? dropTarget.placement === "front" ? styles.dropInFront : styles.dropBehind
-        : "";
+      const dropClass = layerDropClass(dropTarget, unit.key);
       return (
         <div
           className={`${styles.layerUnit} ${dropClass}`}
@@ -336,7 +340,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                 onClick={(event) => selectUnit(event, selectionIds)}
                 onDoubleClick={() => {
                   if (!actions.canEdit) return;
-                  setDraftName(isGroup ? shape.groupName ?? "Group" : shape.name ?? shape.type);
+                  setDraftName(layerDisplayName(isGroup, shape));
                   setRenamingId(key);
                 }}
               >
@@ -445,15 +449,13 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
           const isGroup = Boolean(unit.groupId);
           const isFrame = !isGroup && (unit.members[0]?.type === "frame" || unit.members[0]?.type === "section");
           const isContainer = isGroup || isFrame;
-          const label = unitLabel(unit);
+          const label = layerUnitLabel(unit);
           const selected = unit.ids.every((id) => selectedIds.includes(id));
           const collapsedKey = unit.groupId ?? `frame:${unit.members[0]?.id}`;
           const collapsed = isContainer ? collapsedGroups.has(collapsedKey) : false;
           const allHidden = unit.members.every((shape) => shape.hidden);
           const allLocked = unit.members.every((shape) => shape.locked);
-          const dropClass = dropTarget?.key === unit.key
-            ? dropTarget.placement === "front" ? styles.dropInFront : styles.dropBehind
-            : "";
+          const dropClass = layerDropClass(dropTarget, unit.key);
           const UnitIcon = isGroup ? Stack : layerIcon(unit.members[0]!.type);
 
           return (
@@ -504,15 +506,15 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                     onDragEnd={finishDrag}
                     onClick={(event) => selectUnit(event, unit.ids)}
                     onDoubleClick={() => {
-                      const shape = unit.members[0];
-                      if (shape && actions.canEdit) {
-                        setDraftName(isGroup ? shape.groupName ?? "Group" : shape.name ?? shape.type);
+                      const shape = unit.members[0]!;
+                      if (actions.canEdit) {
+                        setDraftName(layerDisplayName(isGroup, shape));
                         setRenamingId(isGroup ? unit.key : shape.id);
                       }
                     }}
                   >
                     <span className={styles.layerType} aria-hidden="true"><UnitIcon /></span>
-                    <span className={styles.layerName}>{isGroup ? unit.members[0]?.groupName ?? "Group" : unit.members[0]?.name ?? unit.members[0]?.type}</span>
+                    <span className={styles.layerName}>{layerDisplayName(isGroup, unit.members[0]!)}</span>
                     {isGroup && <span className={styles.groupCount} aria-hidden="true">{unit.members.length}</span>}
                   </button>
                 )}

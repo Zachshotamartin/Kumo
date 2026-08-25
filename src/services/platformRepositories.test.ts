@@ -30,6 +30,7 @@ import {
   loadAccessRequests,
   loadLibraries,
   loadLibraryDiff,
+  loadLibraryVersions,
   loadNotifications,
   loadProductGraph,
   loadShareLinks,
@@ -38,6 +39,7 @@ import {
   markNotificationRead,
   organizeBoard,
   publishLibrary,
+  governLibraryRelease,
   redeemShareLink,
   requestBoardAccess,
   resolveAccessRequest,
@@ -154,5 +156,21 @@ describe("collaboration platform repositories", () => {
     expect(authenticatedFetch).toHaveBeenNthCalledWith(4, "/api/product", expect.objectContaining({ body: JSON.stringify({ action: "mark-notification", id: "notice" }) }));
     expect(authenticatedFetch).toHaveBeenNthCalledWith(15, "/api/product", expect.objectContaining({ body: JSON.stringify({ action: "create-share-link", boardId: "board", role: "viewer", allowedDomain: "example.com" }) }));
     expect(authenticatedFetch).toHaveBeenNthCalledWith(17, "/api/product?scope=share-links&boardId=board");
+  });
+
+  it("normalizes omitted product collections to empty arrays", async () => {
+    [
+      { workspace: { workspace_id: "workspace" } }, {}, {}, {}, {}, {}, {},
+    ].forEach((value) => vi.mocked(authenticatedFetch).mockResolvedValueOnce(value));
+    await expect(loadWorkspaceOverview()).resolves.toMatchObject({ folders: [], organization: [] });
+    await expect(loadNotifications()).resolves.toEqual([]);
+    await expect(loadLibraries("board")).resolves.toEqual({ libraries: [], subscriptions: [] });
+    await expect(loadTemplates()).resolves.toEqual([]);
+    await expect(loadShareLinks("board")).resolves.toEqual([]);
+    await expect(loadAccessRequests("board")).resolves.toEqual([]);
+    vi.mocked(authenticatedFetch).mockResolvedValueOnce({ library: { id: "library" }, versions: [] });
+    await loadLibraryVersions("library / one");
+    vi.mocked(authenticatedFetch).mockResolvedValueOnce({ updated: true });
+    await governLibraryRelease("approve-library-release", "library", 2);
   });
 });

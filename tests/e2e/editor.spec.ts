@@ -66,6 +66,45 @@ test.describe("editor regression workflows", () => {
     await expect(page.getByRole("button", { name: "Text tool (T)" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  test("draws connectors, freehand marks, structured blocks, and erases with the shared toolbar model", async ({ page }) => {
+    const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    const draw = async (tool: string, start: { x: number; y: number }, end: { x: number; y: number }) => {
+      await page.getByRole("button", { name: tool }).click();
+      await page.mouse.move(box!.x + start.x, box!.y + start.y);
+      await page.mouse.down();
+      await page.mouse.move(box!.x + end.x, box!.y + end.y, { steps: 6 });
+      await page.mouse.up();
+    };
+
+    await draw("Connector tool (L)", { x: 260, y: 300 }, { x: 430, y: 370 });
+    await draw("Marker tool (M)", { x: 70, y: 320 }, { x: 190, y: 390 });
+    await draw("Highlighter tool (K)", { x: 80, y: 420 }, { x: 220, y: 450 });
+    await draw("Sticky note tool (S)", { x: 500, y: 300 }, { x: 640, y: 410 });
+    await draw("Table tool (A)", { x: 260, y: 460 }, { x: 470, y: 570 });
+    await draw("Code block tool (D)", { x: 500, y: 460 }, { x: 680, y: 570 });
+    await draw("Link preview tool (U)", { x: 60, y: 500 }, { x: 220, y: 580 });
+
+    await expect(page.locator('[data-shape-type="connector"]')).toHaveCount(1);
+    await expect(page.locator('[data-drawing-kind="marker"]')).toHaveCount(1);
+    await expect(page.locator('[data-drawing-kind="highlighter"]')).toHaveCount(1);
+    await expect(page.locator('[data-shape-type="sticky"]')).toContainText("Write an idea");
+    await expect(page.locator('[data-shape-type="table"] [role="table"]')).toBeVisible();
+    await expect(page.locator('[data-shape-type="code"]')).toContainText("javascript");
+    await expect(page.locator('[data-shape-type="code"]')).toContainText("const idea");
+    await expect(page.locator('[data-shape-type="link"]')).toContainText("Paste a link");
+    await expect(page.locator('[data-shape-type="link"]')).toContainText("A rich preview will appear here.");
+
+    const sticky = page.locator('[data-shape-type="sticky"]');
+    const stickyBox = await sticky.boundingBox();
+    expect(stickyBox).not.toBeNull();
+    await page.getByRole("button", { name: "Eraser tool (E)" }).click();
+    await page.mouse.click(stickyBox!.x + stickyBox!.width / 2, stickyBox!.y + stickyBox!.height / 2);
+    await expect(sticky).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+  });
+
   test("wraps dragged text at a fixed width and grows vertically without an editor scrollbar", async ({ page }) => {
     const canvas = page.getByRole("application", { name: "Kumo design canvas" });
     const canvasBox = await canvas.boundingBox();

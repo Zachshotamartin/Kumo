@@ -37,7 +37,7 @@ test("landing mini canvas draws below editable modeled copy and resets cleanly",
     );
     await page.mouse.up();
   }
-  const vectorPaths = page.locator("[data-shape-type='vector'] path");
+  const vectorPaths = page.locator("[data-shape-type='vector'] path[stroke]");
   await expect(vectorPaths).toHaveCount(2);
   const slopes = await vectorPaths.evaluateAll((paths) => paths.map((path) => {
     const coordinates = (path.getAttribute("d")?.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
