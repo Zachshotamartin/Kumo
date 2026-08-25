@@ -47,3 +47,13 @@ export const assertLighthouseBudgets = (report: LighthouseReport) => {
     seo: report.categories.seo!.score!,
   };
 };
+
+export const assertLighthouseQuorum = (reports: readonly LighthouseReport[]) => {
+  if (!reports.length) throw new Error("Lighthouse quorum requires at least one report.");
+  const passing = reports.filter((report) => lighthouseBudgetFailures(report).length === 0).length;
+  const required = Math.floor(reports.length / 2) + 1;
+  if (passing < required) {
+    throw new Error(`Lighthouse budgets passed in ${passing}/${reports.length} runs; ${required} required.`);
+  }
+  return { passing, required, total: reports.length };
+};

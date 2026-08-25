@@ -1,4 +1,4 @@
-import { assertLighthouseBudgets, lighthouseBudgetFailures, type LighthouseReport } from "./lighthouseBudgets";
+import { assertLighthouseBudgets, assertLighthouseQuorum, lighthouseBudgetFailures, type LighthouseReport } from "./lighthouseBudgets";
 
 const passingReport = (): LighthouseReport => ({
   categories: {
@@ -50,5 +50,18 @@ describe("Lighthouse budgets", () => {
       "cumulative-layout-shift missing exceeds 0.1",
     ]));
     expect(() => assertLighthouseBudgets(report)).toThrow(`Lighthouse budgets failed:\n- ${failures.join("\n- ")}`);
+  });
+
+  it("requires a strict majority of Lighthouse samples to meet every budget", () => {
+    const slowReport = passingReport();
+    slowReport.audits["total-blocking-time"] = { numericValue: 700 };
+    expect(assertLighthouseQuorum([passingReport(), slowReport, passingReport()])).toEqual({
+      passing: 2,
+      required: 2,
+      total: 3,
+    });
+    expect(() => assertLighthouseQuorum([slowReport, passingReport(), slowReport]))
+      .toThrow("Lighthouse budgets passed in 1/3 runs; 2 required.");
+    expect(() => assertLighthouseQuorum([])).toThrow("Lighthouse quorum requires at least one report.");
   });
 });
