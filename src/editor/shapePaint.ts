@@ -1,4 +1,4 @@
-import type { Shape } from "../classes/shape";
+import type { Shape } from "../classes/shape.js";
 
 export type ShapeFill = NonNullable<Shape["fills"]>[number];
 export type ShapeStroke = NonNullable<Shape["strokes"]>[number];

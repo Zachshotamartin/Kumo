@@ -1,14 +1,14 @@
-import { createShapeId, ShapeFunctions, type Shape } from "../classes/shape";
-import { normalizeShape, shapeBounds } from "./geometry";
-import type { Bounds, Point } from "./types";
+import { createShapeId, ShapeFunctions, type Shape } from "../classes/shape.js";
+import { normalizeShape, shapeBounds } from "./geometry.js";
+import type { Bounds, Point } from "./types.js";
 import {
   anchorPoint as resolveAnchorPoint,
   connectorEndpoints as resolveConnectorEndpoints,
   connectorPath as resolveConnectorPath,
   connectorRenderBounds as resolveConnectorRenderBounds,
   routeConnector as resolveConnectorRoute,
-} from "./connectorGeometry";
-import { paintBackgroundLayers } from "./shapePaint";
+} from "./connectorGeometry.js";
+import { paintBackgroundLayers } from "./shapePaint.js";
 
 export type ConnectorAnchor = NonNullable<Shape["connectorStart"]>["anchor"];
 export type ConnectorRoute = "straight" | "curved" | "orthogonal";

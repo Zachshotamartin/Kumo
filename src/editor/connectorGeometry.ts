@@ -1,5 +1,5 @@
-import type { Shape } from "../classes/shape";
-import type { Bounds, Point } from "./types";
+import type { Shape } from "../classes/shape.js";
+import type { Bounds, Point } from "./types.js";
 
 export type ConnectorAnchor = NonNullable<Shape["connectorStart"]>["anchor"];
 export type ConnectorRoute = "straight" | "curved" | "orthogonal";
