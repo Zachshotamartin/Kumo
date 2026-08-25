@@ -4,7 +4,7 @@ const file = process.argv[2];
 if (!file) throw new Error("Pass the Vercel environment file to validate.");
 const requireConcreteValues = process.argv.includes("--require-concrete");
 const localRuntime = process.argv.includes("--local-runtime");
-const requireDelivery = process.argv.includes("--require-delivery");
+const requirePush = process.argv.includes("--require-push");
 
 const values = new Map();
 for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
@@ -34,7 +34,7 @@ const localRequired = [
   "LIVEBLOCKS_SECRET_KEY",
 ];
 const expected = localRuntime ? localRequired : required;
-if (requireDelivery) expected.push("RESEND_API_KEY", "INVITATION_FROM_EMAIL", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT");
+if (requirePush) expected.push("VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT");
 
 const missing = expected.filter((name) => !values.get(name));
 if (missing.length) {
@@ -53,8 +53,6 @@ if (requireConcreteValues) {
     VITE_SUPABASE_PUBLISHABLE_KEY: (value) => value.length >= 32 && !/placeholder|sensitive|encrypted/i.test(value),
     LIVEBLOCKS_SECRET_KEY: (value) => /^sk_[A-Za-z0-9_-]{20,}$/.test(value),
     LIVEBLOCKS_WEBHOOK_SECRET: (value) => value.length >= 20 && !/placeholder|sensitive|encrypted/i.test(value),
-    RESEND_API_KEY: (value) => /^re_[A-Za-z0-9_-]{20,}$/.test(value),
-    INVITATION_FROM_EMAIL: (value) => /^.+<\S+@\S+\.\S+>$|^\S+@\S+\.\S+$/.test(value),
     VAPID_PUBLIC_KEY: (value) => value.length >= 80,
     VAPID_PRIVATE_KEY: (value) => value.length >= 40,
     VAPID_SUBJECT: (value) => /^mailto:\S+@\S+\.\S+$|^https:\/\//.test(value),

@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   inviteFriend: vi.fn(),
   friendships: vi.fn(),
   remove: vi.fn(),
-  updateRole: vi.fn(), transfer: vi.fn(), leave: vi.fn(), cancelInvite: vi.fn(), resendInvite: vi.fn(),
+  updateRole: vi.fn(), transfer: vi.fn(), leave: vi.fn(), cancelInvite: vi.fn(), refreshInvite: vi.fn(),
   createLink: vi.fn(), loadRequests: vi.fn(), loadLinks: vi.fn(), resolveRequest: vi.fn(), revokeLink: vi.fn(),
   loadOpenSessions: vi.fn(), createOpenSession: vi.fn(), revokeOpenSession: vi.fn(),
   clipboard: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("../../services/collaboratorRepository", () => ({
   transferBoardOwnership: mocks.transfer,
   leaveSharedBoard: mocks.leave,
   cancelBoardInvitation: mocks.cancelInvite,
-  resendBoardInvitation: mocks.resendInvite,
+  refreshBoardInvitation: mocks.refreshInvite,
 }));
 vi.mock("../../services/socialRepository", () => ({ listFriendships: mocks.friendships }));
 vi.mock("../../services/productRepository", () => ({
@@ -104,7 +104,7 @@ describe("ShareDialog", () => {
     mocks.transfer.mockResolvedValue({ transferred: true, newOwnerId: "member" });
     mocks.leave.mockResolvedValue({ left: true });
     mocks.cancelInvite.mockResolvedValue({ cancelled: true });
-    mocks.resendInvite.mockResolvedValue({ resent: true, url: "https://kumo.test/?invite=fresh", delivery: "link-only" });
+    mocks.refreshInvite.mockResolvedValue({ refreshed: true, url: "https://kumo.test/?invite=fresh" });
     mocks.loadRequests.mockResolvedValue([]);
     mocks.loadLinks.mockResolvedValue([]);
     mocks.createLink.mockResolvedValue({ token: "secure", url: "https://kumo.test/?share=secure" });
@@ -192,18 +192,17 @@ describe("ShareDialog", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Member is now the owner");
   });
 
-  it("resends, copies, and cancels pending email invitations", async () => {
+  it("refreshes, copies, and cancels pending invitation links", async () => {
     mocks.plan.mockResolvedValueOnce({ plan: linkedPlan, invitations: [
       { id: "invite", email: "pending@example.com", role: "viewer", status: "pending", expires_at: "2026-09-01", last_sent_at: "", created_at: "" },
       { id: "second", email: "editor@example.com", role: "editor", status: "pending", expires_at: "2026-09-01", last_sent_at: "", created_at: "" },
     ] });
-    mocks.resendInvite.mockResolvedValueOnce({ resent: true, url: "https://kumo.test/?invite=fresh", delivery: "sent" });
     renderDialog();
     expect(await screen.findByText("pending@example.com")).toBeVisible();
-    fireEvent.click(screen.getAllByRole("button", { name: "Resend" })[0]!);
-    await waitFor(() => expect(mocks.resendInvite).toHaveBeenCalledWith("board", "invite"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Resend" })[1]!);
-    await waitFor(() => expect(mocks.resendInvite).toHaveBeenCalledWith("board", "second"));
+    fireEvent.click(screen.getAllByRole("button", { name: "Refresh link" })[0]!);
+    await waitFor(() => expect(mocks.refreshInvite).toHaveBeenCalledWith("board", "invite"));
+    fireEvent.click(screen.getAllByRole("button", { name: "Refresh link" })[1]!);
+    await waitFor(() => expect(mocks.refreshInvite).toHaveBeenCalledWith("board", "second"));
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     await waitFor(() => expect(mocks.clipboard).toHaveBeenCalledWith("https://kumo.test/?invite=fresh"));
     fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[0]!);
@@ -326,13 +325,12 @@ describe("ShareDialog", () => {
     });
   });
 
-  it("creates both kinds of pending invitation and exercises viewer/single-board copy", async () => {
+  it("creates pending invitation links and exercises viewer/single-board copy", async () => {
     mocks.plan.mockResolvedValueOnce({ plan: linkedPlan, invitations: [{ id: "pending", email: "old@example.com", role: "editor", status: "pending", expires_at: "2030-01-01", last_sent_at: null, created_at: "now" }] });
     mocks.invite.mockResolvedValueOnce({
       pending: true,
       invitation: { id: "pending", email: "pending@example.com", role: "viewer", status: "pending", expires_at: "2030-01-01", last_sent_at: null, created_at: "now" },
       url: "https://kumo.test/?invite=pending",
-      delivery: "sent",
     });
     renderDialog();
     await screen.findByLabelText("Share linked boards");
@@ -340,7 +338,7 @@ describe("ShareDialog", () => {
     fireEvent.click(screen.getByLabelText("Share linked boards"));
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: " pending@example.com " } });
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Invitation emailed");
+    expect(await screen.findByRole("status")).toHaveTextContent("Copy the secure link");
     expect(screen.getByText("pending@example.com")).toBeVisible();
     cleanup();
 
@@ -348,7 +346,6 @@ describe("ShareDialog", () => {
       pending: true,
       invitation: { id: "pending-link", email: "link@example.com", role: "editor", status: "pending", expires_at: "2030-01-01", last_sent_at: null, created_at: "now" },
       url: "https://kumo.test/?invite=link",
-      delivery: "link-only",
     });
     renderDialog();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "link@example.com" } });
@@ -364,7 +361,7 @@ describe("ShareDialog", () => {
         { id: "second", displayName: "Bea", username: "beatrice", bio: "", avatarUrl: null, relationship: "friend" },
       ], incoming: [], outgoing: [], blocked: [],
     });
-    mocks.inviteFriend.mockResolvedValueOnce({ pending: true, invitation: {}, url: "", delivery: "link-only" });
+    mocks.inviteFriend.mockResolvedValueOnce({ pending: true, invitation: {}, url: "" });
     renderDialog();
     const find = await screen.findByPlaceholderText("Find a friend");
     fireEvent.change(find, { target: { value: " ALEX " } });
@@ -540,11 +537,11 @@ describe("ShareDialog", () => {
 
   it("reports governed-action errors instead of leaking rejected promises", async () => {
     mocks.plan.mockResolvedValueOnce({ plan: linkedPlan, invitations: [{ id: "pending", email: "pending@example.com", role: "viewer", status: "pending", expires_at: "2030-01-01", last_sent_at: null, created_at: "now" }] });
-    mocks.resendInvite.mockRejectedValueOnce(new Error("Resend blocked"));
+    mocks.refreshInvite.mockRejectedValueOnce(new Error("Refresh blocked"));
     mocks.transfer.mockRejectedValueOnce("transfer failed");
     renderDialog();
-    fireEvent.click(await screen.findByRole("button", { name: "Resend" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Resend blocked");
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh link" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Refresh blocked");
     fireEvent.click(screen.getByRole("button", { name: "Make owner" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Ownership transfer failed");
   });

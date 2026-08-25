@@ -48,7 +48,7 @@ describe("platform dashboard views", () => {
     vi.mocked(removeWorkspaceMember).mockResolvedValue({ removed: true });
     vi.mocked(mutateWorkspaceFolder).mockResolvedValue({ folder: overview.folders[0] });
     vi.mocked(createFolder).mockResolvedValue({ folder: overview.folders[0]! });
-    vi.mocked(loadNotificationPreferences).mockResolvedValue({ user_id: "owner", email_enabled: true, browser_enabled: false, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
+    vi.mocked(loadNotificationPreferences).mockResolvedValue({ user_id: "owner", browser_enabled: false, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
     vi.mocked(updateNotificationPreferences).mockImplementation(async (value) => value as Awaited<ReturnType<typeof loadNotificationPreferences>>);
     vi.mocked(loadOperations).mockResolvedValue({ events: [], telemetry: { counts: { ready: 2, lost: 1, failed: 0, restored: 1 }, eventCount: 4, retryCount: 1, recoveryRate: 1, averageRecoveryMs: 220, healthy: true } });
     vi.mocked(loadCommunity).mockResolvedValue([{ board_id: "public", published_by: "owner", slug: "public-board", description: "A useful system", tags: ["design"], remix_allowed: true, remix_count: 3, published_at: "", boards: { title: "Public board" } }]);
@@ -82,11 +82,11 @@ describe("platform dashboard views", () => {
     await waitFor(() => expect(createFolder).toHaveBeenCalledWith("Planning"));
   });
 
-  it("updates notification delivery immediately and reports collaboration health", async () => {
+  it("updates notification cadence immediately and reports collaboration health", async () => {
     render(<SettingsView />);
-    const email = await screen.findByRole("checkbox", { name: "Email notifications" });
-    fireEvent.click(email);
-    await waitFor(() => expect(updateNotificationPreferences).toHaveBeenCalledWith(expect.objectContaining({ email_enabled: false })));
+    const delivery = await screen.findByRole("combobox", { name: "Delivery" });
+    fireEvent.change(delivery, { target: { value: "daily" } });
+    await waitFor(() => expect(updateNotificationPreferences).toHaveBeenCalledWith(expect.objectContaining({ digest: "daily" })));
     expect(screen.getByText("100%")).toBeVisible();
     expect(screen.getByText("Connection telemetry is healthy.")).toBeVisible();
   });
@@ -101,7 +101,7 @@ describe("platform dashboard views", () => {
   });
 
   it("revokes the browser subscription when alerts are disabled", async () => {
-    vi.mocked(loadNotificationPreferences).mockResolvedValueOnce({ user_id: "owner", email_enabled: true, browser_enabled: true, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
+    vi.mocked(loadNotificationPreferences).mockResolvedValueOnce({ user_id: "owner", browser_enabled: true, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
     render(<SettingsView />);
     fireEvent.click(await screen.findByRole("checkbox", { name: "Browser notifications" }));
     await waitFor(() => expect(disableBackgroundPush).toHaveBeenCalledOnce());
@@ -109,7 +109,7 @@ describe("platform dashboard views", () => {
 
   it("updates each notification preference and completes every account security action", async () => {
     render(<SettingsView />);
-    await screen.findByRole("checkbox", { name: "Email notifications" });
+    await screen.findByRole("checkbox", { name: "Browser notifications" });
     fireEvent.click(screen.getByRole("checkbox", { name: "Browser notifications" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Delivery" }), { target: { value: "daily" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Board comments" }), { target: { value: "mentions" } });
@@ -148,14 +148,14 @@ describe("platform dashboard views", () => {
 
     vi.mocked(updateNotificationPreferences).mockRejectedValueOnce(new Error("Save failed"));
     const rejected = render(<SettingsView />);
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Email notifications" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Delivery" }), { target: { value: "daily" } });
     expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
     vi.mocked(updateNotificationPreferences).mockRejectedValueOnce("save failed");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Email notifications" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Delivery" }), { target: { value: "weekly" } });
     expect(await screen.findByRole("alert")).toHaveTextContent("Notification settings could not be saved.");
     rejected.unmount();
 
-    vi.mocked(loadNotificationPreferences).mockResolvedValueOnce({ user_id: "owner", email_enabled: true, browser_enabled: true, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
+    vi.mocked(loadNotificationPreferences).mockResolvedValueOnce({ user_id: "owner", browser_enabled: true, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
     vi.mocked(disableBackgroundPush).mockRejectedValueOnce(new Error("Already removed"));
     vi.mocked(loadOperations).mockResolvedValueOnce({ events: [], telemetry: { counts: { ready: 0, lost: 2, failed: 1, restored: 0 }, eventCount: 3, retryCount: 3, recoveryRate: 0, averageRecoveryMs: 0, healthy: false } });
     render(<SettingsView />);
@@ -165,7 +165,7 @@ describe("platform dashboard views", () => {
   });
 
   it("tests push delivery outcomes and account deletion cancellation and failures", async () => {
-    vi.mocked(loadNotificationPreferences).mockResolvedValue({ user_id: "owner", email_enabled: true, browser_enabled: true, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
+    vi.mocked(loadNotificationPreferences).mockResolvedValue({ user_id: "owner", browser_enabled: true, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true });
     render(<SettingsView />);
     const push = await screen.findByRole("button", { name: "Send test notification" });
     fireEvent.click(push);
@@ -274,16 +274,11 @@ describe("platform dashboard views", () => {
       ],
     };
     vi.mocked(loadWorkspaceAdmin).mockResolvedValue(sparse as unknown as WorkspaceAdminOverview);
-    vi.mocked(inviteWorkspaceMember).mockResolvedValueOnce({ delivery: "sent", role: "guest" });
+    vi.mocked(inviteWorkspaceMember).mockResolvedValueOnce({ url: "https://invite.example/token", role: "guest" });
     const adminView = render(<WorkspaceAdminView />);
     expect(await screen.findAllByText("Kumo user")).toHaveLength(2);
     fireEvent.change(screen.getByLabelText("Workspace invite role"), { target: { value: "guest" } });
-    fireEvent.change(screen.getByLabelText("Workspace invite email"), { target: { value: "sent@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: /Invite/ }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Invitation sent.");
-
-    vi.mocked(inviteWorkspaceMember).mockResolvedValueOnce({ delivery: "link", url: "https://invite.example/token", role: "member" });
-    fireEvent.change(screen.getByLabelText("Workspace invite email"), { target: { value: "link@example.com" } });
+    fireEvent.change(screen.getByLabelText("Workspace invite email"), { target: { value: "guest@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: /Invite/ }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Invitation created: https://invite.example/token"));
     expect(screen.queryByRole("button", { name: /Make owner/ })).not.toBeInTheDocument();
@@ -319,7 +314,7 @@ describe("platform dashboard views", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Invite failed"));
     vi.mocked(inviteWorkspaceMember).mockRejectedValueOnce("invite failed");
     fireEvent.click(screen.getByRole("button", { name: /Invite/ }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Workspace invitation could not be sent."));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Workspace invitation could not be created."));
 
     const unchanged = screen.getByLabelText("Folder name for Research");
     fireEvent.blur(unchanged);

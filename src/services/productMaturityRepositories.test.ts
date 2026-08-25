@@ -16,7 +16,7 @@ import {
 } from "./branchRepository";
 import {
   acceptBoardInvitation, cancelBoardInvitation, getBoardSharePlan, getBoardSharingOverview, inviteBoardCollaborator,
-  inviteBoardFriend, leaveSharedBoard, listBoardCollaborators, removeBoardCollaborator, resendBoardInvitation,
+  inviteBoardFriend, leaveSharedBoard, listBoardCollaborators, refreshBoardInvitation, removeBoardCollaborator,
   transferBoardOwnership, updateBoardCollaboratorRole,
 } from "./collaboratorRepository";
 
@@ -121,13 +121,13 @@ describe("product maturity repositories", () => {
     [
       { collaborators: [] }, { plan: { boards: [], truncated: false } }, { plan: { boards: [], truncated: false }, invitations: [] },
       { uid: "person" }, { uid: "friend" }, undefined, { uid: "person", role: "viewer" }, { transferred: true }, { left: true },
-      { cancelled: true }, { resent: true }, { accepted: true, boardId: "board" },
+      { cancelled: true }, { refreshed: true }, { accepted: true, boardId: "board" },
     ].forEach((value) => vi.mocked(authenticatedFetch).mockResolvedValueOnce(value));
     await listBoardCollaborators("board"); await getBoardSharePlan("board"); await getBoardSharingOverview("board");
     await inviteBoardCollaborator("board", "person@example.com", "editor", true); await inviteBoardFriend("board", "friend", "viewer", false);
     await removeBoardCollaborator("board", "person", true); await updateBoardCollaboratorRole("board", "person", "viewer", false);
     await transferBoardOwnership("board", "person"); await leaveSharedBoard("board"); await cancelBoardInvitation("board", "invite");
-    await resendBoardInvitation("board", "invite"); await acceptBoardInvitation("secret");
+    await refreshBoardInvitation("board", "invite"); await acceptBoardInvitation("secret");
     expect(authenticatedFetch).toHaveBeenCalledWith("/api/share-board", expect.objectContaining({ body: expect.stringContaining("transfer-owner") }));
   });
 });

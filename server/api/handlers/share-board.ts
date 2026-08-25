@@ -3,14 +3,13 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "../_auth.js";
 import { getBoardAccess } from "../_boards.js";
 import { linkedBoardSharePlan, membershipBoardIds } from "../_boardSharing.js";
-import { sendInvitationEmail } from "../_email.js";
 import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { friendshipBetween } from "../_profiles.js";
 import { enforceRateLimit, hashSecret, requestOrigin } from "../_security.js";
 import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 
 type BoardRole = "editor" | "viewer";
-type ShareAction = "invite" | "remove" | "update-role" | "transfer-owner" | "leave" | "accept-invitation" | "cancel-invitation" | "resend-invitation";
+type ShareAction = "invite" | "remove" | "update-role" | "transfer-owner" | "leave" | "accept-invitation" | "cancel-invitation" | "refresh-invitation";
 
 interface ShareRequest {
   boardId?: string;
@@ -97,9 +96,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.status(200).json({ cancelled: true });
     }
 
-    if (body.action === "resend-invitation") {
+    if (body.action === "refresh-invitation") {
       const { data: invitation, error } = await database.from("board_invitations")
-        .select("id, email").eq("id", body.invitationId ?? "").eq("board_id", boardId).eq("status", "pending").maybeSingle();
+        .select("id").eq("id", body.invitationId ?? "").eq("board_id", boardId).eq("status", "pending").maybeSingle();
       if (error) throw error;
       if (!invitation) return response.status(404).json({ error: "Pending invitation not found." });
       const token = randomBytes(32).toString("base64url");
@@ -107,8 +106,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const { error: updateError } = await database.from("board_invitations").update({ token_hash: hashSecret(token), expires_at: expiresAt, last_sent_at: new Date().toISOString() }).eq("id", invitation.id);
       if (updateError) throw updateError;
       const url = invitationLink(request, token);
-      const delivery = await sendInvitationEmail({ to: invitation.email, inviterName: actorProfile.displayName, resourceName: access.board.title, acceptUrl: url, kind: "board" });
-      return response.status(200).json({ resent: true, url, delivery });
+      return response.status(200).json({ refreshed: true, url });
     }
 
     if (body.action === "transfer-owner") {
@@ -139,8 +137,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         });
         if (error) throw error;
         const url = invitationLink(request, token);
-        const delivery = await sendInvitationEmail({ to: email, inviterName: actorProfile.displayName, resourceName: access.board.title, acceptUrl: url, kind: "board" });
-        return response.status(202).json({ pending: true, invitation: pending, url, delivery });
+        return response.status(202).json({ pending: true, invitation: pending, url });
       }
       if (invited.firebase_uid === actor.uid) return response.status(400).json({ error: "You already own this board." });
       relationship ??= await friendshipBetween(actor.uid, invited.firebase_uid);
