@@ -58,3 +58,19 @@ export const inspectTokens = (shape: Shape) => ({
   assets: [shape.assetId, shape.fillStyleId, shape.textStyleId, shape.effectStyleId].filter(Boolean) as string[],
   variables: Object.entries(shape.variableBindings ?? {}).map(([property, id]) => ({ property, id })),
 });
+
+export const shapeStory = (shape: Shape): string => {
+  const componentName = (shape.name ?? shape.type).replace(/[^a-z0-9]/gi, " ").trim().split(/\s+/).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join("") || "KumoLayer";
+  return `import type { Meta, StoryObj } from "@storybook/react";\nimport { ${componentName} } from "./${componentName}";\n\nconst meta = { component: ${componentName}, tags: ["autodocs"] } satisfies Meta<typeof ${componentName}>;\nexport default meta;\ntype Story = StoryObj<typeof meta>;\n\nexport const Default: Story = {};\n`;
+};
+
+export const designTokenExport = (shape: Shape): string => {
+  const tokens = inspectTokens(shape);
+  return JSON.stringify({
+    $schema: "https://design-tokens.github.io/community-group/format/",
+    color: Object.fromEntries(tokens.colors.map((color, index) => [`layer-${index + 1}`, { $type: "color", $value: color }])),
+    typography: tokens.typography ? { layer: { $type: "string", $value: tokens.typography } } : {},
+    assets: Object.fromEntries(tokens.assets.map((asset, index) => [`asset-${index + 1}`, { $type: "asset", $value: asset }])),
+    variables: Object.fromEntries(tokens.variables.map((variable) => [variable.property, { $type: "string", $value: `{${variable.id}}` }])),
+  }, null, 2);
+};

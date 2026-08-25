@@ -11,6 +11,7 @@ import CollaborationBridge from "./CollaborationBridge";
 
 const collaboration = vi.hoisted(() => ({
   nodes: {} as Record<string, Record<string, unknown>>,
+  textCharacters: {} as Record<string, Record<string, unknown>>,
   backgroundColor: "#252629",
   others: [] as Array<Record<string, unknown>>,
   resolveAssetUrl: vi.fn<(assetId: string) => Promise<string>>(),
@@ -23,6 +24,7 @@ vi.mock("@liveblocks/react/suspense", () => ({
 }));
 vi.mock("@liveblocks/react", () => ({
   useEventListener: (listener: (payload: { event: Liveblocks["RoomEvent"] }) => void) => { collaboration.eventListener = listener; },
+  useMutation: () => vi.fn(),
 }));
 
 vi.mock("../services/assetRepository", () => ({
@@ -57,6 +59,7 @@ const makeStore = () => configureStore({
 describe("CollaborationBridge", () => {
   beforeEach(() => {
     collaboration.nodes = {};
+    collaboration.textCharacters = {};
     collaboration.others = [];
     collaboration.resolveAssetUrl.mockReset();
     collaboration.eventListener = undefined;

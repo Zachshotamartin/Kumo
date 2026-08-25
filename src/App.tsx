@@ -11,6 +11,8 @@ import KumoLogo from "./components/brand/KumoLogo";
 const WorkSpace = lazy(() => import("./components/workSpace/workSpace"));
 const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
 const HomePage = lazy(() => import("./components/homepage/homePage"));
+const PrototypeShareView = lazy(() => import("./components/editor/PrototypeShareView"));
+const VersionShareView = lazy(() => import("./history/VersionShareView"));
 export const MINIMUM_LOADING_DURATION_MS = 1800;
 
 const LoadingScreen = () => (
@@ -28,6 +30,9 @@ function App() {
   const whiteBoard = useSelector((state: RootState) => state.whiteBoard);
   const dispatch = useDispatch<AppDispatch>();
   const [loadingAnimationComplete, setLoadingAnimationComplete] = useState(false);
+  const prototypeToken = new URL(window.location.href).searchParams.get("prototype");
+  const versionToken = new URL(window.location.href).searchParams.get("versionToken");
+  const versionId = new URL(window.location.href).searchParams.get("version");
 
   useEffect(() => {
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -70,7 +75,11 @@ function App() {
       <a className="skip-link" href="#main-content">Skip to content</a>
       <div className="App" id="main-content">
         <Suspense fallback={<LoadingScreen />}>
-          {!user.isAuthenticated ? (
+          {versionToken && versionId ? (
+            <VersionShareView versionId={versionId} token={versionToken} />
+          ) : prototypeToken ? (
+            <PrototypeShareView token={prototypeToken} />
+          ) : !user.isAuthenticated ? (
             <HomePage />
           ) : whiteBoard.id !== null ? (
             <WorkSpace />

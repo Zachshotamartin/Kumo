@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import actionsReducer from "../features/actions/actionsSlice";
 import authReducer, { login } from "../features/auth/authSlice";
@@ -153,9 +153,12 @@ describe("live comments", () => {
       hasPointerCapture: vi.fn(() => true),
       releasePointerCapture: vi.fn(),
     });
-    fireEvent.pointerDown(pin, { pointerId: 4, button: 0, clientX: 20, clientY: 30 });
-    fireEvent.pointerMove(pin, { pointerId: 4, clientX: 90, clientY: 110 });
-    fireEvent.pointerUp(pin, { pointerId: 4, clientX: 90, clientY: 110 });
+    await act(async () => {
+      fireEvent.pointerDown(pin, { pointerId: 4, button: 0, clientX: 20, clientY: 30 });
+      fireEvent.pointerMove(pin, { pointerId: 4, clientX: 90, clientY: 110 });
+      fireEvent.pointerUp(pin, { pointerId: 4, clientX: 90, clientY: 110 });
+      await Promise.resolve();
+    });
     expect(liveblocks.editThreadMetadata).toHaveBeenCalledWith({
       threadId: "thread-1",
       metadata: { x: 90, y: 110, shapeId: "" },
@@ -179,6 +182,7 @@ describe("live comments", () => {
     store.dispatch(setRightPanel("comments"));
     render(<Provider store={store}><CommentsPanel /></Provider>);
     await screen.findByText("Review this");
+    await screen.findByRole("option", { name: "Owner" });
     fireEvent.change(screen.getByLabelText("Comment assignee"), { target: { value: "owner" } });
     fireEvent.change(screen.getByLabelText("Comment priority"), { target: { value: "high" } });
     fireEvent.change(screen.getByLabelText("Comment due date"), { target: { value: "2026-08-30" } });

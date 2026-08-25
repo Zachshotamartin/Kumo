@@ -22,6 +22,16 @@ export interface BoardSharePlan {
   truncated: boolean;
 }
 
+export interface PendingBoardInvitation {
+  id: string;
+  email: string;
+  role: "editor" | "viewer";
+  status: "pending";
+  expires_at: string;
+  last_sent_at: string;
+  created_at: string;
+}
+
 export interface ShareBoardResult {
   uid: string;
   email: string;
@@ -31,6 +41,9 @@ export interface ShareBoardResult {
   sharedBoards: LinkedBoardShareItem[];
   unavailableBoards: LinkedBoardShareItem[];
 }
+
+export interface PendingShareResult { pending: true; invitation: PendingBoardInvitation; url: string; delivery: "sent" | "link-only" }
+export type InviteBoardResult = ShareBoardResult | PendingShareResult;
 
 export const listBoardCollaborators = async (boardId: string): Promise<BoardCollaborator[]> => {
   const result = await authenticatedFetch<{ collaborators: BoardCollaborator[] }>(
@@ -46,12 +59,14 @@ export const getBoardSharePlan = async (boardId: string): Promise<BoardSharePlan
   return result.plan;
 };
 
+export const getBoardSharingOverview = (boardId: string) => authenticatedFetch<{ plan: BoardSharePlan; invitations: PendingBoardInvitation[] }>(`/api/share-board?boardId=${encodeURIComponent(boardId)}`);
+
 export const inviteBoardCollaborator = (
   boardId: string,
   email: string,
   role: "editor" | "viewer",
   includeLinkedBoards: boolean
-): Promise<ShareBoardResult> => authenticatedFetch("/api/share-board", {
+): Promise<InviteBoardResult> => authenticatedFetch("/api/share-board", {
   method: "POST",
   body: JSON.stringify({ boardId, action: "invite", email, role, includeLinkedBoards }),
 });
@@ -61,7 +76,7 @@ export const inviteBoardFriend = (
   friendUid: string,
   role: "editor" | "viewer",
   includeLinkedBoards: boolean
-): Promise<ShareBoardResult> => authenticatedFetch("/api/share-board", {
+): Promise<InviteBoardResult> => authenticatedFetch("/api/share-board", {
   method: "POST",
   body: JSON.stringify({ boardId, action: "invite", friendUid, role, includeLinkedBoards }),
 });
@@ -75,3 +90,21 @@ export const removeBoardCollaborator = (
     method: "POST",
     body: JSON.stringify({ boardId, action: "remove", memberUid, includeLinkedBoards }),
   });
+
+export const updateBoardCollaboratorRole = (boardId: string, memberUid: string, role: "editor" | "viewer", includeLinkedBoards: boolean) =>
+  authenticatedFetch<{ uid: string; role: "editor" | "viewer" }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "update-role", memberUid, role, includeLinkedBoards }) });
+
+export const transferBoardOwnership = (boardId: string, memberUid: string) =>
+  authenticatedFetch<{ transferred: true; newOwnerId: string }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "transfer-owner", memberUid }) });
+
+export const leaveSharedBoard = (boardId: string) =>
+  authenticatedFetch<{ left: true }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "leave" }) });
+
+export const cancelBoardInvitation = (boardId: string, invitationId: string) =>
+  authenticatedFetch<{ cancelled: true }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "cancel-invitation", invitationId }) });
+
+export const resendBoardInvitation = (boardId: string, invitationId: string) =>
+  authenticatedFetch<{ resent: true; url: string; delivery: "sent" | "link-only" }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "resend-invitation", invitationId }) });
+
+export const acceptBoardInvitation = (token: string) =>
+  authenticatedFetch<{ accepted: true; boardId: string }>("/api/share-board", { method: "POST", body: JSON.stringify({ action: "accept-invitation", token }) });

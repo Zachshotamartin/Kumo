@@ -1123,6 +1123,28 @@
   border-radius: 6px;
 }
 
+.branchDiffPreview {
+  width: 100%;
+  min-height: 120px;
+  max-height: 220px;
+  border: 1px solid var(--ui-border, #34363a);
+  border-radius: 8px;
+  background: #161719;
+}
+
+.branchDiffPreview rect {
+  fill: color-mix(in srgb, #c06f2d 18%, transparent);
+  stroke: #c06f2d;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.branchDiffPreview rect[data-version="before"] {
+  fill: color-mix(in srgb, #5f8dd3 14%, transparent);
+  stroke: #5f8dd3;
+  stroke-dasharray: 5 3;
+}
+
 .governedShare {
   display: grid;
   gap: 9px;

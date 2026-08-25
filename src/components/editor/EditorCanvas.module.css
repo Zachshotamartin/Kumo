@@ -84,6 +84,21 @@
   border-radius: 3px;
 }
 
+.remoteTextEditors {
+  position: absolute;
+  inset: -22px auto auto 0;
+  z-index: 4;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #6c5ce7;
+  color: white;
+  font: 700 var(--kumo-text-2xs)/20px var(--font-body, sans-serif);
+  letter-spacing: .02em;
+  pointer-events: none;
+}
+
 .textContent {
   display: flex;
   width: 100%;

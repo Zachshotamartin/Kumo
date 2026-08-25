@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Link, LockSimple, MagnifyingGlass, UserPlus, Warning, X } from "@phosphor-icons/react";
+import { Check, Copy, Link, LockSimple, MagnifyingGlass, SignOut, UserPlus, Warning, X } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
-import { removeShare, share } from "../../features/whiteBoard/whiteBoardSlice";
+import { removeShare, setWhiteboardData, share } from "../../features/whiteBoard/whiteBoardSlice";
 import {
-  getBoardSharePlan,
+  cancelBoardInvitation,
+  getBoardSharingOverview,
   inviteBoardCollaborator,
   inviteBoardFriend,
   listBoardCollaborators,
   removeBoardCollaborator,
+  resendBoardInvitation,
+  transferBoardOwnership,
+  updateBoardCollaboratorRole,
+  leaveSharedBoard,
   type BoardCollaborator,
   type BoardSharePlan,
+  type PendingBoardInvitation,
+  type ShareBoardResult,
 } from "../../services/collaboratorRepository";
 import { listFriendships, type SocialProfile } from "../../services/socialRepository";
 import { AppDispatch, RootState } from "../../store";
@@ -52,6 +59,8 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   const [linkExpiryDays, setLinkExpiryDays] = useState("7");
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [shareLinks, setShareLinks] = useState<GovernedShareLink[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<PendingBoardInvitation[]>([]);
+  const [pendingLink, setPendingLink] = useState<string | null>(null);
   const isOwner = board.role === "owner";
 
   useEffect(() => {
@@ -66,11 +75,12 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
     let active = true;
     void Promise.all([
       listBoardCollaborators(board.id),
-      isOwner ? getBoardSharePlan(board.id) : Promise.resolve(null),
-    ]).then(([people, nextPlan]) => {
+      isOwner ? getBoardSharingOverview(board.id) : Promise.resolve(null),
+    ]).then(([people, overview]) => {
       if (!active) return;
       setCollaborators(people);
-      setPlan(nextPlan);
+      setPlan(overview?.plan ?? null);
+      setPendingInvitations(overview?.invitations ?? []);
     }).catch((caught) => {
       if (active) setError(caught instanceof Error ? caught.message : "We couldn't load board access.");
     }).finally(() => {
@@ -120,7 +130,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   }, [collaboratorIds, friendQuery, friends]);
 
   const recordInvite = (
-    result: Awaited<ReturnType<typeof inviteBoardCollaborator>>,
+    result: ShareBoardResult,
     fallbackName: string
   ) => {
     dispatch(share({ uid: result.uid, role: result.role }));
@@ -149,6 +159,13 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
     setMessage(null);
     try {
       const result = await inviteBoardCollaborator(board.id, invitedEmail, role, shareConnectedBoards);
+      if ("pending" in result) {
+        setPendingInvitations((current) => [result.invitation, ...current.filter((item) => item.id !== result.invitation.id)]);
+        setPendingLink(result.url);
+        setEmail("");
+        setMessage(result.delivery === "sent" ? `Invitation emailed to ${invitedEmail}.` : `Invitation created for ${invitedEmail}. Copy the secure link to send it.`);
+        return;
+      }
       recordInvite(result, invitedEmail);
       setEmail("");
       setMessage(inviteMessage(invitedEmail, result.sharedBoards.length, result.unavailableBoards.length));
@@ -166,6 +183,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
     setMessage(null);
     try {
       const result = await inviteBoardFriend(board.id, friend.id, role, shareConnectedBoards);
+      if ("pending" in result) throw new Error("Friend invitations must resolve to an existing profile.");
       recordInvite(result, friend.displayName);
       setMessage(inviteMessage(friend.displayName, result.sharedBoards.length, result.unavailableBoards.length));
     } catch (caught) {
@@ -275,6 +293,8 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
               </label>
             )}
           </form>
+          {pendingInvitations.length > 0 && <section className={styles.governedShare} aria-labelledby="pending-invitations-title"><h3 id="pending-invitations-title">Pending invitations</h3>{pendingInvitations.map((invitation) => <div className={styles.memberRow} key={invitation.id}><ProfileAvatar name={invitation.email} avatarUrl={null} size={30} /><span className={styles.memberIdentity}><strong>{invitation.email}</strong><small>{invitation.role === "editor" ? "Can edit" : "Can view"} · expires {new Date(invitation.expires_at).toLocaleDateString()}</small></span><button type="button" onClick={() => board.id && void resendBoardInvitation(board.id, invitation.id).then((result) => { setPendingLink(result.url); setMessage(result.delivery === "sent" ? "Invitation resent." : "Fresh invitation link created."); })}>Resend</button><button type="button" onClick={() => board.id && void cancelBoardInvitation(board.id, invitation.id).then(() => setPendingInvitations((current) => current.filter((item) => item.id !== invitation.id)))}>Cancel</button></div>)}</section>}
+          {pendingLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Invitation link</b><small>Use this when email delivery is not configured.</small></span><button type="button" onClick={() => void navigator.clipboard.writeText(pendingLink)}>Copy</button></div>}
           <section className={styles.governedShare} aria-labelledby="governed-link-title">
             <h3 id="governed-link-title">Governed share link</h3>
             <p>Create an expiring link, optionally restricted to one email domain.</p>
@@ -294,7 +314,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
           {accessRequests.some((request) => request.status === "pending") && <section className={styles.governedShare}><h3>Access requests</h3>{accessRequests.filter((request) => request.status === "pending").map((request) => <div className={styles.memberRow} key={request.id}><ProfileAvatar name={request.profiles?.display_name ?? request.requester_id} avatarUrl={request.profiles?.avatar_url ?? null} size={30} /><span className={styles.memberIdentity}><strong>{request.profiles?.display_name ?? "Kumo user"}</strong><small>{request.requested_role} · {request.message || "No message"}</small></span><button type="button" onClick={() => void resolveAccessRequest(request.id, "approved").then(() => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "approved" } : item)))}>Approve</button><button type="button" onClick={() => void resolveAccessRequest(request.id, "denied").then(() => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "denied" } : item)))}>Deny</button></div>)}</section>}
           </>
         ) : (
-          <p className={`${ui.notice} ${styles.accessNote}`}>Only the board owner can invite or remove collaborators.</p>
+          <div className={styles.accessNote}><p className={ui.notice}>Only the board owner can invite or remove collaborators.</p><button type="button" className={`${ui.button} ${ui.buttonDanger}`} onClick={() => board.id && void leaveSharedBoard(board.id).then(() => { dispatch(setWhiteboardData({ id: null, roomId: null, shapes: [] })); onClose(); })}><SignOut aria-hidden="true" /> Leave board</button></div>
         )}
 
         {externalPrivateBoards.length > 0 && (
@@ -313,8 +333,12 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
             <div className={styles.memberRow} key={person.id}>
               <ProfileAvatar name={person.name || person.email || "Collaborator"} avatarUrl={person.avatar || null} size={30} />
               <span className={styles.memberIdentity}><strong>{person.name || person.email || "Collaborator"}</strong><small>{person.email || (person.role === "owner" ? "Board owner" : "Member")}</small></span>
-              <span className={styles.memberRole}>{person.role === "owner" ? "Owner" : person.role === "viewer" ? "Can view" : "Can edit"}</span>
-              {isOwner && person.role !== "owner" && <button type="button" disabled={Boolean(removingUid)} aria-label={`Remove ${person.name || person.email}`} onClick={() => removeMember(person.id)}>{removingUid === person.id ? "Removing" : "Remove"}</button>}
+              {isOwner && person.role !== "owner" ? <select className={styles.memberRole} aria-label={`Role for ${person.name || person.email}`} value={person.role} onChange={(event) => {
+                if (!board.id) return;
+                const nextRole = event.target.value as "editor" | "viewer";
+                void updateBoardCollaboratorRole(board.id, person.id, nextRole, shareConnectedBoards).then(() => setCollaborators((current) => current.map((item) => item.id === person.id ? { ...item, role: nextRole } : item))).catch((caught) => setError(caught instanceof Error ? caught.message : "Role update failed."));
+              }}><option value="editor">Can edit</option><option value="viewer">Can view</option></select> : <span className={styles.memberRole}>{person.role === "owner" ? "Owner" : person.role === "viewer" ? "Can view" : "Can edit"}</span>}
+              {isOwner && person.role !== "owner" && <><button type="button" onClick={() => board.id && void transferBoardOwnership(board.id, person.id).then(() => { setMessage(`${person.name || person.email} is now the owner.`); setCollaborators((current) => current.map((item) => item.id === person.id ? { ...item, role: "owner" } : item.role === "owner" ? { ...item, role: "editor" } : item)); })}>Make owner</button><button type="button" disabled={Boolean(removingUid)} aria-label={`Remove ${person.name || person.email}`} onClick={() => removeMember(person.id)}>{removingUid === person.id ? "Removing" : "Remove"}</button></>}
             </div>
           ))}
           {loadingAccess && <div className={styles.memberLoading}><LockSimple aria-hidden="true" />Loading access</div>}

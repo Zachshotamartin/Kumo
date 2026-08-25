@@ -6,6 +6,7 @@ import EditorWorkspace from "../components/editor/EditorWorkspace";
 import CollaborationBridge from "./CollaborationBridge";
 import KumoLogo from "../components/brand/KumoLogo";
 import { ConnectionTelemetryBridge } from "./ConnectionTelemetryBridge";
+import { AutomaticVersionBridge } from "../history/AutomaticVersionBridge";
 
 const RoomLoading = () => (
   <div className="app-loading" role="status">
@@ -32,11 +33,13 @@ const BoardRoom = () => {
         activeShapeIds: [],
         activity: null,
         cursorChat: "",
+        textSelection: null,
       }}
       initialStorage={{
-        schemaVersion: 4,
+        schemaVersion: 5,
         backgroundColor: board.backGroundColor,
         nodes: new LiveMap(),
+        textCharacters: new LiveMap(),
       }}
     >
       <ClientSideSuspense fallback={<RoomLoading />}>
@@ -44,6 +47,7 @@ const BoardRoom = () => {
           <>
             <CollaborationBridge />
             <ConnectionTelemetryBridge />
+            <AutomaticVersionBridge />
             <EditorWorkspace />
           </>
         )}

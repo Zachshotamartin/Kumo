@@ -320,6 +320,12 @@ describe("editor geometry", () => {
     expect(rotated[1]!.y1).toBeCloseTo(50);
   });
 
+  it("rotates embedded legacy children with their parent", () => {
+    const parent = { ...shape("parent", 0, 0, 100, 80), type: "group" as const, shapes: [shape("embedded", 10, 10, 20, 20)] };
+    const rotated = rotateShapesFromBaseline([parent], [parent.id], shapeBounds(parent), { x: 100, y: 40 }, { x: 50, y: 90 });
+    expect(rotated[0]!.shapes?.[0]?.rotation).toBe(90);
+  });
+
   it("snaps the resulting angle instead of only the pointer delta", () => {
     const baseline = [{ ...shape("1", 0, 0, 100, 80), rotation: 7 }];
     const rotated = rotateShapesFromBaseline(

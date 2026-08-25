@@ -375,6 +375,68 @@ export const auditAccessibility = (shapes: Shape[]): AccessibilityFinding[] => s
   return findings;
 });
 
+export const accessibilityFixPatch = (shape: Shape, rule: AccessibilityFinding["rule"]): Partial<Shape> => {
+  if (rule === "image-alt") return { altText: shape.name?.trim() || "Describe this image" };
+  if (rule === "link-name") return shape.type === "text" ? { text: shape.name?.trim() || "Accessible label" } : { name: shape.name?.trim() || "Accessible control" };
+  if (rule === "focus-order") return { focusOrder: 1 };
+  if (rule === "touch-target") return { width: Math.max(44, shape.width), height: Math.max(44, shape.height), x2: shape.x1 + Math.max(44, shape.width), y2: shape.y1 + Math.max(44, shape.height) };
+  if (rule === "contrast") {
+    const background = shape.backgroundColor ?? "#ffffff";
+    const black = contrastRatio("#111111", background) ?? 0;
+    const white = contrastRatio("#ffffff", background) ?? 0;
+    return { color: black >= white ? "#111111" : "#ffffff" };
+  }
+  return {};
+};
+
+export const applyAccessibilityFixes = (shapes: Shape[], findings: AccessibilityFinding[]) => {
+  const rules = new Map<string, AccessibilityFinding["rule"][]>();
+  findings.forEach((finding) => rules.set(finding.shapeId, [...(rules.get(finding.shapeId) ?? []), finding.rule]));
+  return shapes.map((shape) => (rules.get(shape.id) ?? []).reduce((current, rule) => ({ ...current, ...accessibilityFixPatch(current, rule) }), shape));
+};
+
+export interface DocumentPerformanceReport {
+  shapeCount: number;
+  renderedShapeCount: number;
+  imageCount: number;
+  effectCount: number;
+  vectorPointCount: number;
+  estimatedComplexity: number;
+  level: "healthy" | "watch" | "heavy";
+}
+
+export const shapeIntersectsViewport = (shape: Shape, viewport: { x: number; y: number; width: number; height: number }, margin = 400) => {
+  const left = Math.min(shape.x1, shape.x2);
+  const top = Math.min(shape.y1, shape.y2);
+  const right = Math.max(shape.x1, shape.x2);
+  const bottom = Math.max(shape.y1, shape.y2);
+  return right >= viewport.x - margin && left <= viewport.x + viewport.width + margin && bottom >= viewport.y - margin && top <= viewport.y + viewport.height + margin;
+};
+
+export const cullDocumentShapes = (shapes: Shape[], viewport: { x: number; y: number; width: number; height: number }, selectedIds: string[] = []) => {
+  const keep = new Set(selectedIds);
+  shapes.forEach((shape) => {
+    if (shapeIntersectsViewport(shape, viewport) || shape.type === "guide" || shape.type === "page-resource" || shape.type === "resource") {
+      keep.add(shape.id);
+      let parentId = shape.parentId;
+      while (parentId) {
+        keep.add(parentId);
+        parentId = shapes.find((candidate) => candidate.id === parentId)?.parentId ?? null;
+      }
+    }
+  });
+  return shapes.filter((shape) => keep.has(shape.id));
+};
+
+export const analyzeDocumentPerformance = (shapes: Shape[], viewport?: { x: number; y: number; width: number; height: number }): DocumentPerformanceReport => {
+  const rendered = viewport ? cullDocumentShapes(shapes, viewport) : shapes;
+  const imageCount = shapes.filter((shape) => shape.type === "image").length;
+  const effectCount = shapes.reduce((count, shape) => count + (shape.effects?.length ?? 0) + (shape.imageFilters?.blur ? 1 : 0), 0);
+  const vectorPointCount = shapes.reduce((count, shape) => count + (shape.vectorPoints?.length ?? 0), 0);
+  const estimatedComplexity = shapes.length + imageCount * 8 + effectCount * 5 + Math.ceil(vectorPointCount / 10);
+  return { shapeCount: shapes.length, renderedShapeCount: rendered.length, imageCount, effectCount, vectorPointCount, estimatedComplexity, level: estimatedComplexity > 5000 ? "heavy" : estimatedComplexity > 1500 ? "watch" : "healthy" };
+};
+
 export interface DocumentSearchResult {
   shapeId: string;
   pageId: string | null;

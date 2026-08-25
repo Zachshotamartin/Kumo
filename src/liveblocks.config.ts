@@ -10,11 +10,13 @@ declare global {
       activeShapeIds: string[];
       activity: "moving" | "resizing" | "rotating" | "editing" | null;
       cursorChat: string;
+      textSelection: { shapeId: string; start: number; end: number } | null;
     };
     Storage: {
       schemaVersion: number;
       backgroundColor: string;
       nodes: LiveMap<string, LiveObject<LsonObject>>;
+      textCharacters: LiveMap<string, LiveObject<LsonObject>>;
     };
     UserMeta: {
       id: string;

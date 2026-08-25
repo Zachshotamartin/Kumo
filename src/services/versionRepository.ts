@@ -1,4 +1,4 @@
-import { authenticatedFetch } from "./apiClient";
+import { authenticatedFetch, publicFetch } from "./apiClient";
 
 export type VersionKind = "autosave" | "checkpoint" | "before_restore" | "restored";
 
@@ -54,6 +54,41 @@ export const createBoardCheckpoint = async (
     body: JSON.stringify({ action: "checkpoint", boardId, name, description, branchId: branchId ?? undefined }),
   });
   return result.version;
+};
+
+export const createBoardAutosave = async (boardId: string, branchId?: string | null) => {
+  const result = await authenticatedFetch<{ version: BoardVersion | null; skipped: boolean }>("/api/versions", {
+    method: "POST",
+    body: JSON.stringify({ action: "autosave", boardId, branchId: branchId ?? undefined }),
+  });
+  return result;
+};
+
+export const renameBoardVersion = async (boardId: string, versionId: string, name: string, description = "", branchId?: string | null) => {
+  const result = await authenticatedFetch<{ version: BoardVersion }>("/api/versions", {
+    method: "POST", body: JSON.stringify({ action: "rename", boardId, versionId, name, description, branchId: branchId ?? undefined }),
+  });
+  return result.version;
+};
+
+export const compareBoardVersion = (boardId: string, versionId: string, branchId?: string | null) =>
+  authenticatedFetch<{ diff: Array<{ shapeId: string; status: "added" | "changed" | "removed"; name: string; before: Record<string, unknown> | null; after: Record<string, unknown> | null }> }>("/api/versions", {
+    method: "POST", body: JSON.stringify({ action: "compare", boardId, versionId, branchId: branchId ?? undefined }),
+  });
+
+export const duplicateBoardVersion = (boardId: string, versionId: string, name?: string, branchId?: string | null) =>
+  authenticatedFetch<{ boardId: string }>("/api/versions", {
+    method: "POST", body: JSON.stringify({ action: "duplicate", boardId, versionId, name, branchId: branchId ?? undefined }),
+  });
+
+export const shareBoardVersion = (boardId: string, versionId: string, expiresAt?: string, branchId?: string | null) =>
+  authenticatedFetch<{ token: string; url: string }>("/api/versions", {
+    method: "POST", body: JSON.stringify({ action: "share", boardId, versionId, expiresAt, branchId: branchId ?? undefined }),
+  });
+
+export const getSharedBoardVersion = (versionId: string, token: string) => {
+  const params = new URLSearchParams({ versionId, token });
+  return publicFetch<{ version: BoardVersionDetail & { boardTitle: string } }>(`/api/versions?${params.toString()}`).then((result) => result.version);
 };
 
 export const restoreBoardVersion = async (

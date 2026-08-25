@@ -1,0 +1,15 @@
+.page { min-height: 100dvh; color: #e8e5de; background: #111214; }
+.page > header { display: grid; min-height: 58px; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 0 18px; border-bottom: 1px solid #2e3034; }
+.page > header > span { justify-self: end; color: #8f8e89; font-size: 12px; }
+.device { display: grid; min-height: calc(100dvh - 58px); place-items: center; padding: 42px; }
+.stage { position: relative; width: min(1100px, 92vw); overflow: hidden; border-radius: 3px; background: white; box-shadow: 0 26px 90px rgb(0 0 0 / .48); }
+.page[data-device="phone"] .device,
+.page[data-device="tablet"] .device { margin: 30px auto; border: 10px solid #292b2f; border-radius: 36px; background: #090a0b; }
+.page[data-device="phone"] .device { width: min(430px, 94vw); }
+.page[data-device="tablet"] .device { width: min(850px, 94vw); }
+.layer { position: absolute; overflow: hidden; padding: 0; font: inherit; text-align: inherit; border: 0; }
+.password { display: grid; width: min(380px, calc(100% - 32px)); gap: 12px; margin: 18vh auto 0; padding: 24px; border: 1px solid #34363a; border-radius: 12px; background: #1c1d20; }
+.password svg { width: 26px; height: 26px; color: #d4984d; }
+.password h1 { margin: 0; font-size: 24px; }
+.password input { min-height: 42px; padding: 0 10px; color: inherit; background: #252629; border: 1px solid #3a3c40; border-radius: 7px; }
+.error { color: #e49b94; text-align: center; }

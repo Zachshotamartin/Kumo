@@ -13,6 +13,8 @@ import session from "./handlers/session.js";
 import shareBoard from "./handlers/share-board.js";
 import telemetry from "./handlers/telemetry.js";
 import versions from "./handlers/versions.js";
+import platform from "./handlers/platform.js";
+import { applyApiSecurityHeaders } from "./_security.js";
 
 type ApiHandler = (request: VercelRequest, response: VercelResponse) => unknown;
 
@@ -27,6 +29,7 @@ export const apiHandlers: Readonly<Record<string, ApiHandler>> = {
   "migrate-board": migrateBoard,
   profile,
   product,
+  platform,
   session,
   "share-board": shareBoard,
   telemetry,
@@ -37,6 +40,7 @@ export const apiRouteName = (path: string | string[] | undefined): string =>
   Array.isArray(path) ? path.join("/") : path ?? "";
 
 export default function routeApiRequest(request: VercelRequest, response: VercelResponse) {
+  applyApiSecurityHeaders(response);
   const route = apiRouteName(request.query.path);
   const handler = apiHandlers[route];
   if (!handler) return response.status(404).json({ error: "API route not found." });

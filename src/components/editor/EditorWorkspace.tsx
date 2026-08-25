@@ -33,14 +33,14 @@ import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { logout } from "../../features/auth/authSlice";
-import { zoomAtPoint, ZOOM_STEP_FACTOR } from "../../editor/geometry";
+import { shapeBounds, zoomAtPoint, ZOOM_STEP_FACTOR } from "../../editor/geometry";
 import {
   setFollowingUserId,
   setPresentationMode,
   setRightPanel,
   setViewport,
 } from "../../features/editor/editorSlice";
-import { clearSelectedShapes } from "../../features/selected/selectedSlice";
+import { clearSelectedShapes, setSelectedShapes } from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { deleteBoard } from "../../services/boardRepository";
 import { AppDispatch, RootState } from "../../store";
@@ -55,6 +55,7 @@ import CommandPalette from "./CommandPalette";
 import ui from "../ui/Ui.module.css";
 import { OfflineRecoveryBridge } from "../../collaboration/OfflineRecoveryBridge";
 import { loadProductGraph, type ProductGraph } from "../../services/productRepository";
+import { listDesignBranches } from "../../services/branchRepository";
 
 const CommentsPanel = lazy(() => import("../../comments/CommentsPanel").then((module) => ({ default: module.CommentsPanel })));
 const VersionHistoryPanel = lazy(() => import("../../history/VersionHistoryPanel").then((module) => ({ default: module.VersionHistoryPanel })));
@@ -134,6 +135,59 @@ const EditorWorkspace = () => {
     () => typeof window !== "undefined" && window.innerWidth < 960
   );
   const [resizingPanel, setResizingPanel] = useState<PanelSide | null>(null);
+  const deepLinkHandledRef = useRef<string | null>(null);
+  const branchLinkHandledRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!board.id) return;
+    const url = new URL(window.location.href);
+    const branchId = url.searchParams.get("branch");
+    if (!branchId) return;
+    const linkKey = `${board.id}:${branchId}`;
+    if (branchLinkHandledRef.current === linkKey) return;
+    if (board.activeBranchId === branchId) {
+      branchLinkHandledRef.current = linkKey;
+      return;
+    }
+    let active = true;
+    void listDesignBranches(board.id).then((branches) => {
+      if (!active) return;
+      const branch = branches.find((candidate) => candidate.id === branchId && candidate.status === "open");
+      if (!branch) {
+        url.searchParams.delete("branch");
+        window.history.replaceState({}, "", url);
+        setError("This branch is no longer available.");
+        branchLinkHandledRef.current = linkKey;
+        return;
+      }
+      branchLinkHandledRef.current = linkKey;
+      dispatch(setWhiteboardData({
+        roomId: branch.room_id,
+        baseRoomId: board.baseRoomId ?? board.roomId ?? `board:${board.id}`,
+        activeBranchId: branch.id,
+        activeBranchName: branch.name,
+        revision: board.revision + 1,
+        shapes: [],
+      }));
+    }).catch((caught) => {
+      if (active) setError(caught instanceof Error ? caught.message : "This branch could not be opened.");
+    });
+    return () => { active = false; };
+  }, [board.activeBranchId, board.baseRoomId, board.id, board.revision, board.roomId, dispatch]);
+
+  useEffect(() => {
+    if (!board.id) return;
+    const url = new URL(window.location.href);
+    const selectionId = url.searchParams.get("selection");
+    const linkKey = `${board.id}:${selectionId ?? ""}`;
+    if (!selectionId || deepLinkHandledRef.current === linkKey) return;
+    const selected = board.shapes.find((shape) => shape.id === selectionId);
+    if (!selected) return;
+    deepLinkHandledRef.current = linkKey;
+    const bounds = shapeBounds(selected);
+    dispatch(setSelectedShapes([selected.id]));
+    dispatch(setViewport({ x: bounds.x + bounds.width / 2 - 500 / editor.viewport.zoom, y: bounds.y + bounds.height / 2 - 350 / editor.viewport.zoom, zoom: editor.viewport.zoom }));
+  }, [board.id, board.shapes, dispatch, editor.viewport.zoom]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
