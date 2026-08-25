@@ -148,6 +148,9 @@ describe("HomePage authentication", () => {
     const register = screen.getByRole("tab", { name: "Create account" });
     expect(signin).toHaveAttribute("tabindex", "0");
     expect(register).toHaveAttribute("tabindex", "-1");
+    expect(signin).toHaveAttribute("aria-controls", "authentication-panel");
+    expect(register).toHaveAttribute("aria-controls", "authentication-panel");
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "signin-tab");
 
     signin.focus();
     fireEvent.keyDown(signin, { key: "ArrowRight" });
@@ -161,8 +164,27 @@ describe("HomePage authentication", () => {
     fireEvent.keyDown(register, { key: "ArrowLeft" });
     expect(signin).toHaveFocus();
 
+    fireEvent.keyDown(signin, { key: "End" });
+    expect(register).toHaveFocus();
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "register-tab");
+    fireEvent.keyDown(register, { key: "Home" });
+    expect(signin).toHaveFocus();
+
     fireEvent.keyDown(signin, { key: "Enter" });
     expect(signin).toHaveFocus();
+  });
+
+  it("keeps authentication controls inert while Firebase restores the session", () => {
+    render(<HomePage authPending />);
+    expect(screen.getByRole("status")).toHaveTextContent("Checking your existing session");
+    expect(screen.getByRole("form", { name: "Authentication" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("tab", { name: "Sign in" })).toBeDisabled();
+    expect(screen.getByLabelText("Email")).toBeDisabled();
+    expect(screen.getByLabelText("Password")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Forgot password?" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeDisabled();
+    expect(screen.getByLabelText("Animated Kumo mascot")).toHaveAttribute("context", "loading");
   });
 
   it("reports reset and non-Error Google failures", async () => {

@@ -21,7 +21,11 @@ import {
   usesLocalGoogleRedirect,
 } from "../../config/localGoogleRedirect";
 
-const HomePage = () => {
+interface HomePageProps {
+  authPending?: boolean;
+}
+
+const HomePage = ({ authPending = false }: HomePageProps) => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
   const signinTabRef = useRef<HTMLButtonElement>(null);
   const registerTabRef = useRef<HTMLButtonElement>(null);
@@ -43,6 +47,10 @@ const HomePage = () => {
       nextMode = mode === "signin" ? "register" : "signin";
     } else if (event.key === "ArrowLeft") {
       nextMode = mode === "register" ? "signin" : "register";
+    } else if (event.key === "Home") {
+      nextMode = "signin";
+    } else if (event.key === "End") {
+      nextMode = "register";
     } else {
       return;
     }
@@ -144,14 +152,17 @@ const HomePage = () => {
     }
   };
 
-  const logoContext: KumoLogoContext = submitting
+  const logoContext: KumoLogoContext = authPending || submitting
     ? "loading"
     : error
       ? "error"
       : message
         ? "success"
         : "idle";
-  const logoStatus = submitting
+  const controlsDisabled = authPending || submitting;
+  const logoStatus = authPending
+    ? "Checking your existing session"
+    : submitting
     ? "Opening your workspace"
     : error
       ? "Something needs another look."
@@ -164,61 +175,66 @@ const HomePage = () => {
       <section className={styles.intro}>
         <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} />
       </section>
-      <form className={styles.loginForm} onSubmit={handleLogin}>
+      <form className={styles.loginForm} aria-label="Authentication" onSubmit={handleLogin} aria-busy={controlsDisabled}>
         <div className={styles.modeSwitch} role="tablist" aria-label="Authentication mode">
-          <button ref={signinTabRef} type="button" role="tab" aria-selected={mode === "signin"} tabIndex={mode === "signin" ? 0 : -1} disabled={submitting} onClick={() => selectMode("signin")} onKeyDown={handleModeKeyDown}>Sign in</button>
-          <button ref={registerTabRef} type="button" role="tab" aria-selected={mode === "register"} tabIndex={mode === "register" ? 0 : -1} disabled={submitting} onClick={() => selectMode("register")} onKeyDown={handleModeKeyDown}>Create account</button>
+          <button id="signin-tab" aria-controls="authentication-panel" ref={signinTabRef} type="button" role="tab" aria-selected={mode === "signin"} tabIndex={mode === "signin" ? 0 : -1} disabled={controlsDisabled} onClick={() => selectMode("signin")} onKeyDown={handleModeKeyDown}>Sign in</button>
+          <button id="register-tab" aria-controls="authentication-panel" ref={registerTabRef} type="button" role="tab" aria-selected={mode === "register"} tabIndex={mode === "register" ? 0 : -1} disabled={controlsDisabled} onClick={() => selectMode("register")} onKeyDown={handleModeKeyDown}>Create account</button>
         </div>
-        <div>
-          <h2>{mode === "signin" ? "Return to your boards" : "Start with a blank canvas"}</h2>
-          <p className={styles.formIntro}>{mode === "signin" ? "Your connected workspace is ready." : "Make an account, then make the first move."}</p>
-        </div>
-        <div className={styles.loginFormRow}>
-          <div className={styles.inputContainer}>
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              className={`${ui.control} ${styles.input}`}
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+        <div id="authentication-panel" className={styles.authPanel} role="tabpanel" aria-labelledby={`${mode}-tab`}>
+          {authPending && <p className={`${ui.notice} ${styles.feedback}`} role="status">Checking your existing session…</p>}
+          <div>
+            <h2>{mode === "signin" ? "Return to your boards" : "Start with a blank canvas"}</h2>
+            <p className={styles.formIntro}>{mode === "signin" ? "Your connected workspace is ready." : "Make an account, then make the first move."}</p>
           </div>
-          <div className={styles.inputContainer}>
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              className={`${ui.control} ${styles.input}`}
-              type="password"
-              placeholder="At least 6 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={6}
-              required
-            />
+          <div className={styles.loginFormRow}>
+            <div className={styles.inputContainer}>
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                className={`${ui.control} ${styles.input}`}
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={controlsDisabled}
+                required
+              />
+            </div>
+            <div className={styles.inputContainer}>
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                className={`${ui.control} ${styles.input}`}
+                type="password"
+                placeholder="At least 6 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
+                disabled={controlsDisabled}
+                required
+              />
+            </div>
           </div>
+          <div className={styles.loginFormColumn}>
+            <button className={`${ui.button} ${ui.buttonPrimary} ${styles.submit}`} type="submit" disabled={controlsDisabled}>
+              <span>{submitting ? "Please wait" : mode === "signin" ? "Sign in" : "Create account"}</span>
+              {!submitting && <ArrowRight aria-hidden="true" />}
+            </button>
+            {mode === "signin" && <button className={`${ui.buttonLink} ${styles.resetButton}`} type="button" onClick={handleResetPassword} disabled={controlsDisabled}>Forgot password?</button>}
+            <div className={styles.divider}><span>or</span></div>
+            <button
+              className={`${ui.button} ${styles.googleButton}`}
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={controlsDisabled}
+            >
+              <GoogleLogo aria-hidden="true" weight="bold" />
+              <span>Continue with Google</span>
+            </button>
+          </div>
+          {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.feedback}`} role="alert">{error}</p>}
+          {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.feedback}`} role="status">{message}</p>}
         </div>
-        <div className={styles.loginFormColumn}>
-          <button className={`${ui.button} ${ui.buttonPrimary} ${styles.submit}`} type="submit" disabled={submitting}>
-            <span>{submitting ? "Please wait" : mode === "signin" ? "Sign in" : "Create account"}</span>
-            {!submitting && <ArrowRight aria-hidden="true" />}
-          </button>
-          {mode === "signin" && <button className={`${ui.buttonLink} ${styles.resetButton}`} type="button" onClick={handleResetPassword} disabled={submitting}>Forgot password?</button>}
-          <div className={styles.divider}><span>or</span></div>
-          <button
-            className={`${ui.button} ${styles.googleButton}`}
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={submitting}
-          >
-            <GoogleLogo aria-hidden="true" weight="bold" />
-            <span>Continue with Google</span>
-          </button>
-        </div>
-        {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.feedback}`} role="alert">{error}</p>}
-        {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.feedback}`} role="status">{message}</p>}
       </form>
     </main>
   );

@@ -20,11 +20,19 @@ export default defineConfig({
     { name: "mobile-chromium", testMatch: ["**/auth.spec.ts", "**/mobile-editor.spec.ts", "**/accessibility.spec.ts", "**/visual.spec.ts"], use: { ...devices["Pixel 7"] } },
     { name: "mobile-webkit", testMatch: ["**/auth.spec.ts", "**/mobile-editor.spec.ts", "**/accessibility.spec.ts"], use: { ...devices["iPhone 13"] } },
   ],
-  webServer: {
-    command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4177 --strictPort",
-    env: { VITE_E2E: "true" },
-    url: "http://127.0.0.1:4177",
-    reuseExistingServer: false,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4177 --strictPort",
+      env: { VITE_E2E: "true" },
+      url: "http://127.0.0.1:4177",
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
+      command: "node scripts/run-e2e-production-preview.mjs",
+      url: "http://127.0.0.1:4178",
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
 });

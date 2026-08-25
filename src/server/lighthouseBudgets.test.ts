@@ -1,4 +1,4 @@
-import { assertLighthouseBudgets, assertLighthouseQuorum, lighthouseBudgetFailures, type LighthouseReport } from "./lighthouseBudgets";
+import { assertLighthouseBudgets, assertLighthouseQuorum, lighthouseBudgetFailures, selectRepresentativeLighthouseReport, type LighthouseReport } from "./lighthouseBudgets";
 
 const passingReport = (): LighthouseReport => ({
   categories: {
@@ -63,5 +63,20 @@ describe("Lighthouse budgets", () => {
     expect(() => assertLighthouseQuorum([slowReport, passingReport(), slowReport]))
       .toThrow("Lighthouse budgets passed in 1/3 runs; 2 required.");
     expect(() => assertLighthouseQuorum([])).toThrow("Lighthouse quorum requires at least one report.");
+  });
+
+  it("selects a conservative median from passing Lighthouse samples without mutating the input", () => {
+    const lower = passingReport();
+    lower.categories.performance = { score: 0.76 };
+    const upper = passingReport();
+    upper.categories.performance = { score: 0.9 };
+    const failing = passingReport();
+    failing.categories.performance = { score: 0.5 };
+    const reports = [upper, failing, lower];
+
+    expect(selectRepresentativeLighthouseReport(reports)).toBe(lower);
+    expect(reports).toEqual([upper, failing, lower]);
+    expect(() => selectRepresentativeLighthouseReport([failing]))
+      .toThrow("A representative Lighthouse report requires at least one passing sample.");
   });
 });

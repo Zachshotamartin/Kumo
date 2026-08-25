@@ -15,6 +15,7 @@ test("landing page visual baseline", async ({ page }, testInfo) => {
   await page.goto("/");
   await stabilize(page);
   await expect(page.getByRole("heading", { name: /every board can lead somewhere/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
   await expect(page).toHaveScreenshot(`landing-${testInfo.project.name}.png`, {
     animations: "disabled",
     fullPage: true,

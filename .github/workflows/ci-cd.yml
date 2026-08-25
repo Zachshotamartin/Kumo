@@ -212,14 +212,12 @@ jobs:
             exit 1
           fi
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
-      - name: Assign stable preview domain
-        run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_PREVIEW_DOMAIN" --token="$VERCEL_TOKEN"
       - name: Smoke-test deployed preview
-        run: yarn verify:deployment "https://$VERCEL_PREVIEW_DOMAIN"
+        run: yarn verify:deployment "${{ steps.deploy_preview.outputs.url }}"
       - name: Enforce Lighthouse budgets
         run: yarn verify:lighthouse
         env:
-          LHCI_URL: https://${{ env.VERCEL_PREVIEW_DOMAIN }}
+          LHCI_URL: ${{ steps.deploy_preview.outputs.url }}
       - name: Upload Lighthouse report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -227,9 +225,12 @@ jobs:
           name: lighthouse-report
           path: .lighthouseci
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7
       - name: Verify real Supabase and Liveblocks product workflows
-        run: yarn verify:full-stack "https://$VERCEL_PREVIEW_DOMAIN" .vercel/.env.preview.local
+        run: yarn verify:full-stack "${{ steps.deploy_preview.outputs.url }}" .vercel/.env.preview.local
+      - name: Assign stable preview domain
+        run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_PREVIEW_DOMAIN" --token="$VERCEL_TOKEN"
 
   production:
     name: Vercel production

@@ -1,10 +1,13 @@
 import { Provider } from "react-redux";
+import { configureStore } from "@reduxjs/toolkit";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 import store from "./store";
 import { logout } from "./features/auth/authSlice";
+import authReducer from "./features/auth/authSlice";
 import { setWhiteboardData } from "./features/whiteBoard/whiteBoardSlice";
+import whiteBoardReducer from "./features/whiteBoard/whiteBoardSlice";
 
 const mocks = vi.hoisted(() => ({
   observeAuth: vi.fn(),
@@ -20,10 +23,11 @@ vi.mock("./config/firebase", () => ({
 }));
 
 vi.mock("./components/homepage/homePage", () => ({
-  default: () => (
+  default: ({ authPending }: { authPending?: boolean }) => (
     <main>
       <h1>Every board can lead somewhere</h1>
-      <button type="button" role="tab" aria-selected="true">Sign in</button>
+      {authPending && <p role="status">Checking your existing session</p>}
+      <button type="button" role="tab" aria-selected="true" disabled={authPending}>Sign in</button>
     </main>
   ),
 }));
@@ -67,13 +71,17 @@ describe("App", () => {
 
   it("renders the public landing page while Firebase restores the session", async () => {
     mocks.observeAuth.mockImplementationOnce(() => undefined);
+    const pendingStore = configureStore({
+      reducer: { auth: authReducer, whiteBoard: whiteBoardReducer },
+    });
     render(
-      <Provider store={store}>
+      <Provider store={pendingStore}>
         <App />
       </Provider>
     );
     expect(await screen.findByRole("heading", { name: /every board can lead somewhere/i })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Sign in" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Checking your existing session");
   });
 
   it("renders the initialized application without an artificial startup delay", async () => {
@@ -84,6 +92,7 @@ describe("App", () => {
     );
     expect(await screen.findByRole("heading", { name: /every board can lead somewhere/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Sign in" })).toBeEnabled();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 

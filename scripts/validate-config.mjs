@@ -148,13 +148,39 @@ const playwrightConfig = readFileSync("playwright.config.ts", "utf8");
 if (!playwrightConfig.includes("workers: process.env.CI ? 2 : undefined")) {
   throw new Error("CI browser tests must use the validated two-worker configuration.");
 }
+for (const marker of ["run-e2e-production-preview.mjs", 'http://127.0.0.1:4178']) {
+  if (!playwrightConfig.includes(marker)) {
+    throw new Error(`Offline browser checks must exercise a generated production service worker: ${marker}`);
+  }
+}
 const viteConfig = readFileSync("vite.config.ts", "utf8");
-for (const marker of ["sourcemap: false", "perFile: true", "kumo-service-worker-precache"]) {
+for (const marker of ["sourcemap: false", "perFile: true", "kumo-service-worker-precache", '"server/**/*.ts"']) {
   if (!viteConfig.includes(marker)) throw new Error(`Vite hardening is missing: ${marker}`);
 }
 const workerSource = readFileSync("public/sw.js", "utf8");
-for (const marker of ["__KUMO_PRECACHE_MANIFEST__", "cache.put(event.request", "cache.put(\"/\""]) {
+for (const marker of ["__KUMO_PRECACHE_MANIFEST__", "isPrecachedAsset(url)", "isReservedPath(url.pathname)", "cache.put(event.request", "cache.put(\"/\""]) {
   if (!workerSource.includes(marker)) throw new Error(`Offline service-worker hardening is missing: ${marker}`);
+}
+
+const deploymentWorkflow = readFileSync(".github/workflows/ci-cd.yml", "utf8");
+const immutablePreviewChecks = [
+  'yarn verify:deployment "${{ steps.deploy_preview.outputs.url }}"',
+  "LHCI_URL: ${{ steps.deploy_preview.outputs.url }}",
+  'yarn verify:full-stack "${{ steps.deploy_preview.outputs.url }}"',
+  "include-hidden-files: true",
+];
+for (const marker of immutablePreviewChecks) {
+  if (!deploymentWorkflow.includes(marker)) {
+    throw new Error(`Preview validation must target its immutable deployment URL: ${marker}`);
+  }
+}
+const previewWorkflowStart = deploymentWorkflow.indexOf("  preview:");
+const productionWorkflowStart = deploymentWorkflow.indexOf("  production:");
+const previewWorkflow = deploymentWorkflow.slice(previewWorkflowStart, productionWorkflowStart);
+const fullStackCheckIndex = previewWorkflow.indexOf("- name: Verify real Supabase and Liveblocks product workflows");
+const stableAliasIndex = previewWorkflow.indexOf("- name: Assign stable preview domain");
+if (previewWorkflowStart < 0 || productionWorkflowStart < 0 || fullStackCheckIndex < 0 || stableAliasIndex < fullStackCheckIndex) {
+  throw new Error("The stable preview alias must only be promoted after every deployment check passes.");
 }
 
 const workflowFiles = readdirSync(".github/workflows").filter((file) => file.endsWith(".yml"));

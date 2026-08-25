@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { launch } from "chrome-launcher";
 import lighthouse from "lighthouse";
-import { assertLighthouseBudgets, assertLighthouseQuorum, lighthouseBudgetFailures } from "../src/server/lighthouseBudgets.ts";
+import { assertLighthouseBudgets, assertLighthouseQuorum, lighthouseBudgetFailures, selectRepresentativeLighthouseReport } from "../src/server/lighthouseBudgets.ts";
 
 const url = process.env.LHCI_URL || process.argv[2] || "http://127.0.0.1:4177";
 const outputDirectory = ".lighthouseci";
@@ -30,9 +30,7 @@ try {
     console.log(`Lighthouse run ${index + 1}/${runCount}: performance ${result.lhr.categories.performance?.score ?? "missing"}, TBT ${result.lhr.audits["total-blocking-time"]?.numericValue ?? "missing"}ms${failures.length ? `; ${failures.join("; ")}` : "; passed"}.`);
   }
   const quorum = assertLighthouseQuorum(reports);
-  const passingReports = reports.filter((report) => lighthouseBudgetFailures(report).length === 0);
-  passingReports.sort((left, right) => (left.categories.performance?.score ?? 0) - (right.categories.performance?.score ?? 0));
-  const representative = passingReports[Math.floor(passingReports.length / 2)];
+  const representative = selectRepresentativeLighthouseReport(reports);
   await writeFile(`${outputDirectory}/report.json`, JSON.stringify(representative, null, 2));
   const summary = assertLighthouseBudgets(representative);
   console.log(`Lighthouse quorum passed (${quorum.passing}/${quorum.total}): performance ${summary.performance}, accessibility ${summary.accessibility}, best practices ${summary.bestPractices}, SEO ${summary.seo}.`);

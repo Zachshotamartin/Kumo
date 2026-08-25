@@ -83,7 +83,7 @@ The project deliberately remains a React/Vite SPA. A canvas editor is client-hea
 
 GitHub Actions runs static/build checks, per-file coverage, PostgreSQL migration verification, and two-worker browser tests in parallel, then publishes the protected `Quality gates` result. All changes reach the protected `main` branch through pull requests. Pull requests receive Vercel previews with deployment smoke checks, Lighthouse budgets, and real Supabase/Liveblocks workflows. Merging a passing pull request deploys production and runs a disposable authenticated Firebase/Supabase canary whose identity and profile are removed in the same check. Vercel's repository-triggered deployments are disabled so GitHub Actions is the only deployment authority. The pipeline rejects any Vercel token that is not owned by `zachsm@alumni.stanford.edu`.
 
-The production service worker receives a generated precache manifest for every built asset and also caches successful same-origin runtime assets. API responses are never cached. This keeps the client shell available after connectivity loss without allowing stale authenticated API data to masquerade as current data.
+The production service worker receives a generated precache manifest for every built asset and caches only those generated public assets plus successful HTML navigations. API and Firebase authentication helper responses are never intercepted. This keeps the client shell available after connectivity loss without allowing stale authenticated or unrelated data to masquerade as current data.
 
 See [Deployment](docs/deployment.md), [Architecture](docs/architecture.md), and [Review notes](docs/code-review.md) for the full setup and design decisions.
 

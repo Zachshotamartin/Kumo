@@ -57,3 +57,11 @@ export const assertLighthouseQuorum = (reports: readonly LighthouseReport[]) => 
   }
   return { passing, required, total: reports.length };
 };
+
+export const selectRepresentativeLighthouseReport = (reports: readonly LighthouseReport[]) => {
+  const passingReports = reports
+    .filter((report) => lighthouseBudgetFailures(report).length === 0)
+    .sort((left, right) => left.categories.performance!.score! - right.categories.performance!.score!);
+  if (!passingReports.length) throw new Error("A representative Lighthouse report requires at least one passing sample.");
+  return passingReports[Math.floor((passingReports.length - 1) / 2)];
+};

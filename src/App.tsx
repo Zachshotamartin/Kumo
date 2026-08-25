@@ -87,7 +87,7 @@ function App() {
           ) : prototypeToken ? (
             <PrototypeShareView token={prototypeToken} />
           ) : !user.isInitialized || !user.isAuthenticated ? (
-            <HomePage />
+            <HomePage authPending={!user.isInitialized} />
           ) : whiteBoard.id !== null ? (
             <LiveblocksRoot><WorkSpace /></LiveblocksRoot>
           ) : (

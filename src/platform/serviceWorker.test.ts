@@ -8,7 +8,10 @@ type FetchListener = (event: {
 }) => void;
 
 describe("Kumo service worker routing", () => {
-  const source = readFileSync(resolve(process.cwd(), "public/sw.js"), "utf8");
+  const source = readFileSync(resolve(process.cwd(), "public/sw.js"), "utf8").replace(
+    "/* __KUMO_PRECACHE_MANIFEST__ */",
+    ', "/assets/app.js", "/embed/kumo-logo.js"',
+  );
 
   const worker = () => {
     const listeners = new Map<string, (...args: never[]) => void>();
@@ -17,7 +20,7 @@ describe("Kumo service worker routing", () => {
     const addAll = vi.fn().mockResolvedValue(undefined);
     const put = vi.fn().mockResolvedValue(undefined);
     const deleteCache = vi.fn().mockResolvedValue(true);
-    const open = vi.fn().mockResolvedValue({ addAll, put });
+    const open = vi.fn().mockResolvedValue({ addAll, match, put });
     const skipWaiting = vi.fn().mockResolvedValue(undefined);
     const claim = vi.fn().mockResolvedValue(undefined);
     const context = {
@@ -26,7 +29,7 @@ describe("Kumo service worker routing", () => {
         addEventListener: (name: string, listener: (...args: never[]) => void) => listeners.set(name, listener),
         clients: { claim }, registration: {}, skipWaiting,
       },
-      caches: { match, open, keys: vi.fn().mockResolvedValue(["kumo-shell-v2", "kumo-shell-v3", "kumo-offline-inbox-v1"]), delete: deleteCache },
+      caches: { match, open, keys: vi.fn().mockResolvedValue(["kumo-shell-v2", "kumo-shell-v3", "kumo-shell-v4", "kumo-offline-inbox-v1", "firebase-unrelated-cache"]), delete: deleteCache },
       fetch: network,
       Response,
       URL,
@@ -42,29 +45,35 @@ describe("Kumo service worker routing", () => {
     let install: Promise<unknown> | undefined;
     current.listeners.get("install")!({ waitUntil: (promise: Promise<unknown>) => { install = promise; } } as never);
     await install;
-    expect(current.addAll).toHaveBeenCalledWith(["/", "/manifest.json"]);
+    expect(current.addAll).toHaveBeenCalledWith(["/", "/manifest.json", "/assets/app.js", "/embed/kumo-logo.js"]);
     expect(current.skipWaiting).toHaveBeenCalled();
 
     let activation: Promise<unknown> | undefined;
     current.listeners.get("activate")!({ waitUntil: (promise: Promise<unknown>) => { activation = promise; } } as never);
     await activation;
-    expect(current.deleteCache).toHaveBeenCalledTimes(1);
+    expect(current.deleteCache).toHaveBeenCalledTimes(2);
     expect(current.deleteCache).toHaveBeenCalledWith("kumo-shell-v2");
+    expect(current.deleteCache).toHaveBeenCalledWith("kumo-shell-v3");
     expect(current.claim).toHaveBeenCalled();
   });
 
-  it("never intercepts API requests with the application shell", () => {
-    const { listener, network, match } = worker();
-    const respondWith = vi.fn();
-    listener({ request: { method: "GET", url: "https://kumo.test/api/boards", mode: "cors" }, respondWith });
-    expect(respondWith).not.toHaveBeenCalled();
-    expect(network).not.toHaveBeenCalled();
-    expect(match).not.toHaveBeenCalled();
-  });
+  it.each(["/api", "/api/boards", "/__", "/__/auth/handler"])(
+    "never intercepts reserved request %s with the application shell",
+    (pathname) => {
+      const { listener, network, match } = worker();
+      const respondWith = vi.fn();
+      listener({ request: { method: "GET", url: `https://kumo.test${pathname}`, mode: "navigate" }, respondWith });
+      expect(respondWith).not.toHaveBeenCalled();
+      expect(network).not.toHaveBeenCalled();
+      expect(match).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     [{ method: "POST", url: "https://kumo.test/asset", mode: "cors" }],
     [{ method: "GET", url: "https://cdn.example/asset", mode: "cors" }],
+    [{ method: "GET", url: "https://kumo.test/unlisted-runtime.js", mode: "cors" }],
+    [{ method: "GET", url: "https://kumo.test/assets/app.js?version=unbounded", mode: "cors" }],
   ])("does not intercept unsupported requests", (request) => {
     const { listener, network } = worker();
     const respondWith = vi.fn();
@@ -90,7 +99,7 @@ describe("Kumo service worker routing", () => {
     asset.match.mockResolvedValue(undefined);
     let assetResponse: Promise<unknown> | undefined;
     asset.listener({
-      request: { method: "GET", url: "https://kumo.test/assets/editor.js", mode: "cors" },
+      request: { method: "GET", url: "https://kumo.test/assets/app.js", mode: "cors" },
       respondWith: (response) => { assetResponse = response; },
     });
     await expect(assetResponse).resolves.toMatchObject({ type: "error" });
@@ -100,7 +109,7 @@ describe("Kumo service worker routing", () => {
 
   it("refreshes the cached shell after successful navigation", async () => {
     const current = worker();
-    const response = new Response("<main>Kumo</main>");
+    const response = new Response("<main>Kumo</main>", { headers: { "Content-Type": "text/html; charset=utf-8" } });
     current.network.mockResolvedValue(response);
     let handled: Promise<unknown> | undefined;
     current.listener({
@@ -110,6 +119,20 @@ describe("Kumo service worker routing", () => {
     await expect(handled).resolves.toBe(response);
     await Promise.resolve();
     expect(current.put).toHaveBeenCalledWith("/", expect.any(Response));
+  });
+
+  it("does not replace the shell with a successful non-HTML navigation", async () => {
+    const current = worker();
+    const response = new Response('{"name":"Kumo"}', { headers: { "Content-Type": "application/json" } });
+    current.network.mockResolvedValue(response);
+    let handled: Promise<unknown> | undefined;
+    current.listener({
+      request: { method: "GET", url: "https://kumo.test/manifest.json", mode: "navigate" },
+      respondWith: (promise) => { handled = promise; },
+    });
+    await expect(handled).resolves.toBe(response);
+    expect(current.open).not.toHaveBeenCalled();
+    expect(current.put).not.toHaveBeenCalled();
   });
 
   it("serves cached assets first and stores successful network assets", async () => {
@@ -142,7 +165,7 @@ describe("Kumo service worker routing", () => {
     current.network.mockResolvedValue(response);
     let handled: Promise<unknown> | undefined;
     current.listener({
-      request: { method: "GET", url: "https://kumo.test/missing.js", mode: "cors" },
+      request: { method: "GET", url: "https://kumo.test/assets/app.js", mode: "cors" },
       respondWith: (promise) => { handled = promise; },
     });
     await expect(handled).resolves.toBe(response);

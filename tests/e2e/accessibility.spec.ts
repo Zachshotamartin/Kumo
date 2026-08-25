@@ -5,21 +5,22 @@ import { installSocialApiFixture } from "./socialFixture";
 const wcagTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const analyze = (page: Parameters<typeof AxeBuilder>[0]["page"]) => new AxeBuilder({ page }).withTags(wcagTags).analyze();
 
-test("authentication screen has no serious automated accessibility violations", async ({ page }) => {
+test("authentication screen has no WCAG 2.2 A/AA violations", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /every board can lead somewhere/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
   const results = await analyze(page);
   expect(results.violations).toEqual([]);
 });
 
-test("editor shell has no serious automated accessibility violations", async ({ page }) => {
+test("editor shell has no WCAG 2.2 A/AA violations", async ({ page }) => {
   await page.goto("/e2e.html");
   await expect(page.getByTestId("editor-regression-lab")).toBeVisible();
   const results = await analyze(page);
   expect(results.violations).toEqual([]);
 });
 
-test("friends and profile dashboard has no serious automated accessibility violations", async ({ page }) => {
+test("friends and profile dashboard has no WCAG 2.2 A/AA violations", async ({ page }) => {
   await installSocialApiFixture(page);
   await page.goto("/social-e2e.html");
   await page.getByRole("button", { name: "Friends" }).click();
@@ -35,6 +36,7 @@ test("friends and profile dashboard has no serious automated accessibility viola
 
 test("authentication tabs and fields are keyboard operable with visible focus", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
   await page.getByRole("tab", { name: "Sign in" }).focus();
   await expect(page.getByRole("tab", { name: "Sign in" })).toBeFocused();
   await page.keyboard.press("ArrowRight");

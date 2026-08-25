@@ -7,6 +7,7 @@ psql "$database_url" --set ON_ERROR_STOP=1 <<'SQL'
 do $$ begin create role anon noinherit; exception when duplicate_object then null; end $$;
 do $$ begin create role authenticated noinherit; exception when duplicate_object then null; end $$;
 do $$ begin create role service_role noinherit; exception when duplicate_object then null; end $$;
+alter role service_role bypassrls;
 create schema if not exists storage;
 create table if not exists storage.buckets (
   id text primary key,
@@ -28,7 +29,8 @@ psql "$database_url" --set ON_ERROR_STOP=1 <<'SQL'
 do $$
 declare
   disabled_tables text;
-  leaked_tables text;
+  leaked_privileges text;
+  leaked_functions text;
 begin
   select string_agg(format('%I.%I', schemaname, tablename), ', ' order by tablename)
   into disabled_tables
@@ -38,16 +40,37 @@ begin
     raise exception 'RLS is disabled for: %', disabled_tables;
   end if;
 
-  select string_agg(format('%I.%I', schemaname, tablename), ', ' order by tablename)
-  into leaked_tables
+  select string_agg(
+    format('%s can %s on %I.%I', role_name, privilege, schemaname, tablename),
+    ', ' order by role_name, tablename, privilege
+  )
+  into leaked_privileges
   from pg_tables
+  cross join (values ('anon'), ('authenticated')) as roles(role_name)
+  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) as privileges(privilege)
   where schemaname = 'public'
-    and (has_table_privilege('anon', format('%I.%I', schemaname, tablename), 'SELECT')
-      or has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'SELECT'));
-  if leaked_tables is not null then
-    raise exception 'Untrusted roles can read: %', leaked_tables;
+    and has_table_privilege(role_name::name, format('%I.%I', schemaname, tablename), privilege);
+  if leaked_privileges is not null then
+    raise exception 'Untrusted table privileges remain: %', leaked_privileges;
+  end if;
+
+  select string_agg(
+    format('%s can execute %I.%I(%s)', role_name, n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)),
+    ', ' order by role_name, p.proname
+  )
+  into leaked_functions
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  cross join (values ('anon'), ('authenticated')) as roles(role_name)
+  where n.nspname = 'public'
+    and p.prosecdef
+    and has_function_privilege(role_name::name, p.oid, 'EXECUTE');
+  if leaked_functions is not null then
+    raise exception 'Untrusted SECURITY DEFINER execution privileges remain: %', leaked_functions;
   end if;
 end $$;
+
+set role service_role;
 
 insert into public.profiles (firebase_uid, email, display_name, username)
 values ('migration-verifier', 'migration-verifier@example.com', 'Migration verifier', 'migration-verifier')
@@ -74,9 +97,6 @@ begin
   ) then
     raise exception 'Atomic board creation did not create its audit event';
   end if;
-  if (select count(*) from storage.buckets where id in ('board-assets', 'workspace-fonts')) <> 2 then
-    raise exception 'Required private storage buckets are missing';
-  end if;
 end $$;
 
 select public.soft_delete_kumo_board('migration-verifier-board', 'migration-verifier');
@@ -87,6 +107,15 @@ begin
     raise exception 'Soft deletion did not mark the board';
   end if;
 end $$;
+
+reset role;
+
+do $$
+begin
+  if (select count(*) from storage.buckets where id in ('board-assets', 'workspace-fonts')) <> 2 then
+    raise exception 'Required private storage buckets are missing';
+  end if;
+end $$;
 SQL
 
-echo "Database migrations passed clean-apply, idempotency, RLS, privilege, storage, and transactional behavior checks."
+echo "Database migrations passed clean-apply, idempotency, RLS, complete privilege isolation, service-role execution, storage, and transactional behavior checks."
