@@ -163,15 +163,18 @@ for (const marker of ["__KUMO_PRECACHE_MANIFEST__", "isPrecachedAsset(url)", "is
 }
 
 const deploymentWorkflow = readFileSync(".github/workflows/ci-cd.yml", "utf8");
-const immutablePreviewChecks = [
-  'yarn verify:deployment "${{ steps.deploy_preview.outputs.url }}"',
-  "LHCI_URL: ${{ steps.deploy_preview.outputs.url }}",
-  'yarn verify:full-stack "${{ steps.deploy_preview.outputs.url }}"',
+const isolatedPreviewChecks = [
+  'VERCEL_VALIDATION_DOMAIN: kumo-validation-${{ github.run_id }}-${{ github.run_attempt }}.vercel.app',
+  '- name: Assign isolated validation domain',
+  'yarn verify:deployment "https://$VERCEL_VALIDATION_DOMAIN"',
+  "LHCI_URL: https://${{ env.VERCEL_VALIDATION_DOMAIN }}",
+  'yarn verify:full-stack "https://$VERCEL_VALIDATION_DOMAIN"',
+  '- name: Remove isolated validation domain',
   "include-hidden-files: true",
 ];
-for (const marker of immutablePreviewChecks) {
+for (const marker of isolatedPreviewChecks) {
   if (!deploymentWorkflow.includes(marker)) {
-    throw new Error(`Preview validation must target its immutable deployment URL: ${marker}`);
+    throw new Error(`Preview validation must target and clean up its run-isolated alias: ${marker}`);
   }
 }
 const previewWorkflowStart = deploymentWorkflow.indexOf("  preview:");
@@ -179,7 +182,8 @@ const productionWorkflowStart = deploymentWorkflow.indexOf("  production:");
 const previewWorkflow = deploymentWorkflow.slice(previewWorkflowStart, productionWorkflowStart);
 const fullStackCheckIndex = previewWorkflow.indexOf("- name: Verify real Supabase and Liveblocks product workflows");
 const stableAliasIndex = previewWorkflow.indexOf("- name: Assign stable preview domain");
-if (previewWorkflowStart < 0 || productionWorkflowStart < 0 || fullStackCheckIndex < 0 || stableAliasIndex < fullStackCheckIndex) {
+const validationCleanupIndex = previewWorkflow.indexOf("- name: Remove isolated validation domain");
+if (previewWorkflowStart < 0 || productionWorkflowStart < 0 || fullStackCheckIndex < 0 || stableAliasIndex < fullStackCheckIndex || validationCleanupIndex < stableAliasIndex) {
   throw new Error("The stable preview alias must only be promoted after every deployment check passes.");
 }
 

@@ -166,6 +166,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_PREVIEW_DOMAIN: kumo-preview-zach-2267.vercel.app
+      VERCEL_VALIDATION_DOMAIN: kumo-validation-${{ github.run_id }}-${{ github.run_attempt }}.vercel.app
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       LIVEBLOCKS_SECRET_KEY: ${{ secrets.LIVEBLOCKS_SECRET_KEY }}
@@ -212,12 +213,14 @@ jobs:
             exit 1
           fi
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+      - name: Assign isolated validation domain
+        run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_VALIDATION_DOMAIN" --token="$VERCEL_TOKEN"
       - name: Smoke-test deployed preview
-        run: yarn verify:deployment "${{ steps.deploy_preview.outputs.url }}"
+        run: yarn verify:deployment "https://$VERCEL_VALIDATION_DOMAIN"
       - name: Enforce Lighthouse budgets
         run: yarn verify:lighthouse
         env:
-          LHCI_URL: ${{ steps.deploy_preview.outputs.url }}
+          LHCI_URL: https://${{ env.VERCEL_VALIDATION_DOMAIN }}
       - name: Upload Lighthouse report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -228,9 +231,13 @@ jobs:
           include-hidden-files: true
           retention-days: 7
       - name: Verify real Supabase and Liveblocks product workflows
-        run: yarn verify:full-stack "${{ steps.deploy_preview.outputs.url }}" .vercel/.env.preview.local
+        run: yarn verify:full-stack "https://$VERCEL_VALIDATION_DOMAIN" .vercel/.env.preview.local
       - name: Assign stable preview domain
         run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_PREVIEW_DOMAIN" --token="$VERCEL_TOKEN"
+      - name: Remove isolated validation domain
+        if: always()
+        continue-on-error: true
+        run: ./node_modules/.bin/vercel alias rm "$VERCEL_VALIDATION_DOMAIN" --yes --token="$VERCEL_TOKEN"
 
   production:
     name: Vercel production
