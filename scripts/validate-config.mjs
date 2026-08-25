@@ -1,5 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
+import ts from "typescript";
 
 const jsonFiles = new Map();
 for (const file of ["database.rules.json", "firebase.json", "vercel.json", "vercel.dev.json"]) {
@@ -147,14 +149,35 @@ for (const [file, marker] of requiredDataPaths) {
   }
 }
 
-for (const file of readdirSync("api").filter((name) => name.endsWith(".ts"))) {
-  const source = readFileSync(`api/${file}`, "utf8");
-  for (const match of source.matchAll(/\bfrom\s+["'](\.{1,2}\/[^"']+)["']/g)) {
-    if (!match[1].endsWith(".js")) {
+const projectRoot = process.cwd();
+const serverEntries = ["api/router.ts", "api/liveblocks-webhook.ts"].map((file) => resolve(file));
+const pendingServerFiles = [...serverEntries];
+const visitedServerFiles = new Set();
+
+while (pendingServerFiles.length) {
+  const file = pendingServerFiles.pop();
+  if (!file || visitedServerFiles.has(file)) continue;
+  visitedServerFiles.add(file);
+  const source = readFileSync(file, "utf8");
+  const imports = ts.preProcessFile(source, true, true).importedFiles.map(({ fileName }) => fileName);
+  for (const specifier of imports.filter((value) => value.startsWith("."))) {
+    const displayFile = relative(projectRoot, file);
+    if (!specifier.endsWith(".js")) {
       throw new Error(
-        `Vercel ESM import in api/${file} must include its emitted .js extension: ${match[1]}`,
+        `Vercel ESM import in ${displayFile} must include its emitted .js extension: ${specifier}`,
       );
     }
+    const emittedTarget = resolve(dirname(file), specifier);
+    const sourceTarget = [
+      emittedTarget.slice(0, -3) + ".ts",
+      emittedTarget.slice(0, -3) + ".tsx",
+      resolve(emittedTarget.slice(0, -3), "index.ts"),
+      resolve(emittedTarget.slice(0, -3), "index.tsx"),
+    ].find(existsSync);
+    if (!sourceTarget) {
+      throw new Error(`Vercel ESM import in ${displayFile} does not resolve to source: ${specifier}`);
+    }
+    pendingServerFiles.push(sourceTarget);
   }
 }
 

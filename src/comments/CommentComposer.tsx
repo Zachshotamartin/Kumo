@@ -123,7 +123,7 @@ export const CommentComposer = ({
         multiple
         aria-label="Attach files"
         onChange={(event) => {
-          const next = Array.from(event.currentTarget.files ?? []).filter((file) => file.size <= 10 * 1024 * 1024);
+          const next = Array.from(event.currentTarget.files!).filter((file) => file.size <= 10 * 1024 * 1024);
           setFiles((current) => [...current, ...next].slice(0, 5));
           event.currentTarget.value = "";
         }}
@@ -132,7 +132,7 @@ export const CommentComposer = ({
       {error && <p className={styles.composerError} role="alert">{error}</p>}
       <div className={styles.composerActions}>
         {onCancel && <button type="button" onClick={onCancel}>Cancel</button>}
-        <button type="button" className={styles.attachAction} aria-label="Attach files" onClick={() => fileRef.current?.click()}><Paperclip aria-hidden="true" /></button>
+        <button type="button" className={styles.attachAction} aria-label="Attach files" onClick={() => fileRef.current!.click()}><Paperclip aria-hidden="true" /></button>
         <span>Up to 5 files · 10 MB each</span>
         <button type="button" className={styles.primaryAction} disabled={(!value.trim() && !files.length) || submitting} onClick={() => void submit()}>
           {submitting ? "Uploading…" : submitLabel}

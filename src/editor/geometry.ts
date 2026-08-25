@@ -14,6 +14,7 @@ import {
   isEffectivelyHidden,
   isEffectivelyLocked,
 } from "./hierarchy.js";
+import { connectorCurvePoints, routeConnector } from "./connectorGeometry.js";
 
 const EPSILON = 0.0001;
 const WHEEL_ZOOM_SENSITIVITY = 0.0045;
@@ -246,8 +247,60 @@ export const shapeVisualBounds = (shape: Shape): Bounds => {
   return { x: left, y: top, width: right - left, height: bottom - top };
 };
 
-export const pointInShape = (point: Point, shape: Shape): boolean => {
+const distanceToSegment = (point: Point, start: Point, end: Point): number => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared < EPSILON) return Math.hypot(point.x - start.x, point.y - start.y);
+  const position = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (start.x + position * dx), point.y - (start.y + position * dy));
+};
+
+const consecutiveSegments = (points: Point[]): Array<[Point, Point]> =>
+  points.slice(1).map((end, index) => [points[index]!, end]);
+
+const cubicPoint = ([start, controlOne, controlTwo, end]: [Point, Point, Point, Point], position: number): Point => {
+  const inverse = 1 - position;
+  return {
+    x: inverse ** 3 * start.x + 3 * inverse ** 2 * position * controlOne.x + 3 * inverse * position ** 2 * controlTwo.x + position ** 3 * end.x,
+    y: inverse ** 3 * start.y + 3 * inverse ** 2 * position * controlOne.y + 3 * inverse * position ** 2 * controlTwo.y + position ** 3 * end.y,
+  };
+};
+
+const lineShapeSegments = (shape: Shape, shapes: Shape[]): Array<[Point, Point]> => {
+  if (shape.type === "connector") {
+    const route = routeConnector(shapes, shape);
+    if (shape.connectorRouting === "curved" && route.length === 2) {
+      const curve = connectorCurvePoints(route[0]!, route[1]!);
+      return consecutiveSegments(Array.from({ length: 25 }, (_, index) => cubicPoint(curve, index / 24)));
+    }
+    return consecutiveSegments(route);
+  }
+  const points = shape.vectorPoints ?? [];
+  if (!shape.vectorPaths?.length) return consecutiveSegments(points);
+  const byId = new Map(points.map((point) => [point.id, point]));
+  return shape.vectorPaths.flatMap((path) => {
+    const pathPoints = path.pointIds.flatMap((id) => {
+      const point = byId.get(id);
+      return point ? [point] : [];
+    });
+    return consecutiveSegments(path.closed && pathPoints.length > 1 ? [...pathPoints, pathPoints[0]!] : pathPoints);
+  });
+};
+
+const pointNearLineShape = (point: Point, shape: Shape, shapes: Shape[]): boolean => {
+  const segments = lineShapeSegments(shape, shapes);
+  if (!segments.length) return false;
+  const tolerance = Math.max(5, (shape.borderWidth ?? 1) / 2 + 3);
+  return segments.some(([start, end]) => distanceToSegment(point, start, end) <= tolerance);
+};
+
+export const pointInShape = (point: Point, shape: Shape, shapes: Shape[] = [shape]): boolean => {
   if (shape.hidden || shape.locked) return false;
+
+  if (shape.type === "connector" || (shape.type === "vector" && !shape.vectorClosed)) {
+    return pointNearLineShape(point, shape, shapes);
+  }
 
   const bounds = shapeBounds(shape);
   if (bounds.width < EPSILON || bounds.height < EPSILON) return false;
@@ -277,7 +330,7 @@ export const hitTest = (shapes: Shape[], point: Point): Shape | undefined =>
       !isEffectivelyHidden(shapes, shape) &&
       !isEffectivelyLocked(shapes, shape) &&
       !clippedByAncestor(shapes, shape, point) &&
-      pointInShape(point, shape)
+      pointInShape(point, shape, shapes)
     )
     ?.shape;
 

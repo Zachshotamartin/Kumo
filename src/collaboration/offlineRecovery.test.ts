@@ -44,6 +44,8 @@ describe("offline recovery", () => {
     expect(queuedMutations().map((mutation) => mutation.id)).toEqual(["two"]);
     window.localStorage.setItem("kumo:offline-queue", "bad-json");
     expect(queuedMutations()).toEqual([]);
+    window.localStorage.setItem("kumo:offline-queue", JSON.stringify({ invalid: true }));
+    expect(queuedMutations()).toEqual([]);
   });
 
   it("three-way merges independent fields and reports overlapping edits", () => {
@@ -66,6 +68,16 @@ describe("offline recovery", () => {
       { shapeId: "new", fields: ["__shape"] },
     ]));
     expect(result.shapes.some((candidate) => candidate.id === "gone")).toBe(false);
+    const equalAddition = shape("equal");
+    expect(mergeRecoverySnapshot([], [equalAddition], [equalAddition]).conflicts).toEqual([]);
+    expect(mergeRecoverySnapshot([], [], [shape("local-only")]).shapes).toHaveLength(1);
+    expect(mergeRecoverySnapshot([], [shape("remote-only")], []).shapes).toHaveLength(1);
+    expect(mergeRecoverySnapshot([shape("unchanged")], [shape("unchanged")], []).conflicts).toEqual([]);
+    expect(mergeRecoverySnapshot(
+      [shape("independent", { name: "Base", backgroundColor: "#000" })],
+      [shape("independent", { name: "Remote", backgroundColor: "#000" })],
+      [shape("independent", { name: "Base", backgroundColor: "#fff" })]
+    ).conflicts).toEqual([]);
   });
 
   it("replays in order, removes successful work, and retains failures", async () => {
@@ -79,5 +91,17 @@ describe("offline recovery", () => {
     expect(failures).toHaveLength(1);
     expect(failures[0]?.mutation.id).toBe("fail");
     expect(queuedMutations().map((mutation) => mutation.id)).toEqual(["fail"]);
+  });
+
+  it("degrades safely when browser storage is unavailable", () => {
+    vi.stubGlobal("window", undefined);
+    const snapshot = { boardId: "board", savedAt: 1, baseRevision: 0, backgroundColor: "#000", shapes: [] };
+    expect(saveRecoverySnapshot(snapshot)).toBeUndefined();
+    expect(loadRecoverySnapshot("board")).toBeNull();
+    expect(clearRecoverySnapshot("board")).toBeUndefined();
+    expect(queuedMutations()).toEqual([]);
+    expect(queueBoardMutation({ id: "one", boardId: "board", createdAt: 1, kind: "settings", payload: {} })).toBeUndefined();
+    expect(removeQueuedMutation("one")).toBeUndefined();
+    vi.unstubAllGlobals();
   });
 });

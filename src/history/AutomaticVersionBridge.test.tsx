@@ -2,7 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { act, render } from "@testing-library/react";
 import { Provider } from "react-redux";
 import actionsReducer from "../features/actions/actionsSlice";
-import authReducer from "../features/auth/authSlice";
+import authReducer, { login } from "../features/auth/authSlice";
 import editorReducer from "../features/editor/editorSlice";
 import selectedReducer from "../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../features/whiteBoard/whiteBoardSlice";
@@ -11,8 +11,9 @@ import { AutomaticVersionBridge, AUTOSAVE_INTERVAL_MS } from "./AutomaticVersion
 
 vi.mock("../services/versionRepository", () => ({ createBoardAutosave: vi.fn() }));
 
-const renderBridge = (role: "owner" | "viewer" = "owner") => {
+const renderBridge = (role: "owner" | "viewer" = "owner", uid = "owner") => {
   const store = configureStore({ reducer: { auth: authReducer, whiteBoard: whiteBoardReducer, actions: actionsReducer, selected: selectedReducer, editor: editorReducer } });
+  store.dispatch(login({ uid, email: `${uid}@example.com` }));
   store.dispatch(setWhiteboardData({ id: "board", activeBranchId: "branch", role }));
   return render(<Provider store={store}><AutomaticVersionBridge /></Provider>);
 };
@@ -28,10 +29,26 @@ describe("AutomaticVersionBridge", () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
     document.dispatchEvent(new Event("visibilitychange"));
     expect(createBoardAutosave).toHaveBeenCalledTimes(2);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(createBoardAutosave).toHaveBeenCalledTimes(2);
+  });
+
+  it("contains autosave failures so recovery continues", async () => {
+    vi.mocked(createBoardAutosave).mockRejectedValueOnce(new Error("offline"));
+    renderBridge();
+    await act(async () => { await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS); });
+    expect(createBoardAutosave).toHaveBeenCalledOnce();
   });
 
   it("never writes versions for viewers", async () => {
     renderBridge("viewer");
+    await act(async () => { await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS); });
+    expect(createBoardAutosave).not.toHaveBeenCalled();
+  });
+
+  it("does not call authenticated version APIs for temporary guests", async () => {
+    renderBridge("owner", "guest:temporary");
     await act(async () => { await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS); });
     expect(createBoardAutosave).not.toHaveBeenCalled();
   });

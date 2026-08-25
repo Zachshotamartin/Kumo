@@ -89,7 +89,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
       patch.username = username;
     }
     if (body.bio !== undefined) {
-      const bio = typeof body.bio === "string" ? body.bio.trim() : "";
+      if (typeof body.bio !== "string") throw new Error("Biography must be text.");
+      const bio = body.bio.trim();
       if (bio.length > 280) throw new Error("Biography must be 280 characters or fewer.");
       patch.bio = bio;
     }

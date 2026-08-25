@@ -47,8 +47,7 @@ export const CommentPins = () => {
   };
 
   const metadataAtPointer = (clientX: number, clientY: number) => {
-    const rect = layerRef.current?.getBoundingClientRect();
-    if (!rect) return null;
+    const rect = layerRef.current!.getBoundingClientRect();
     const world = screenToWorld({ x: clientX, y: clientY }, rect, editor.viewport);
     const shape = hitTest(board.shapes, world);
     const bounds = shape ? shapeBounds(shape) : null;
@@ -91,7 +90,6 @@ export const CommentPins = () => {
               if (Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY) >= 3) drag.moved = true;
               if (!drag.moved) return;
               const next = metadataAtPointer(event.clientX, event.clientY);
-              if (!next) return;
               drag.metadata = next;
               setPreviewMetadata((current) => ({ ...current, [thread.id]: next }));
             }}

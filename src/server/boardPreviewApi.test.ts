@@ -56,6 +56,43 @@ describe("board preview API", () => {
     expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ id: "board" }), expect.objectContaining({ nodes: expect.any(Object) }));
   });
 
+  it("returns the generated preview without waiting for storage caching", async () => {
+    mocks.update.mockReturnValueOnce(new Promise(() => undefined));
+    const result = response();
+    await expect(handler(
+      { method: "GET", query: { id: "board" }, headers: {} } as unknown as VercelRequest,
+      result as unknown as VercelResponse
+    )).resolves.toBe(result);
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toBe("<svg>actual board</svg>");
+  });
+
+  it("contains asynchronous thumbnail-cache failures", async () => {
+    mocks.update.mockRejectedValueOnce(new Error("cache unavailable"));
+    const result = response();
+    await handler({ method: "GET", query: { id: "board" }, headers: {} } as unknown as VercelRequest, result as unknown as VercelResponse);
+    await Promise.resolve();
+    expect(result.statusCode).toBe(200);
+  });
+
+  it("returns an empty-board preview when Liveblocks storage is not initialized", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.getDocument.mockReturnValueOnce(new Promise(() => undefined));
+      const result = response();
+      const pending = handler(
+        { method: "GET", query: { id: "board" }, headers: {} } as unknown as VercelRequest,
+        result as unknown as VercelResponse
+      );
+      await vi.advanceTimersByTimeAsync(4_000);
+      await pending;
+      expect(result.statusCode).toBe(200);
+      expect(mocks.serialize).toHaveBeenCalledWith({ backgroundColor: "#252629", nodes: {} });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not reveal inaccessible boards", async () => {
     mocks.getBoardAccess.mockResolvedValue(null);
     const result = response();
@@ -76,6 +113,10 @@ describe("board preview API", () => {
     await handler({ method: "GET", query: { id: "board" }, headers: {} } as unknown as VercelRequest, unauthenticated as unknown as VercelResponse);
     expect(unauthenticated.statusCode).toBe(401);
     expect(unauthenticated.body).toEqual({ error: "Authentication required." });
+
+    const unsupported = response();
+    await handler({ method: "POST", query: {}, headers: {} } as unknown as VercelRequest, unsupported as unknown as VercelResponse);
+    expect(unsupported.statusCode).toBe(405);
   });
 
   it("returns a safe server error when Liveblocks cannot provide the document", async () => {

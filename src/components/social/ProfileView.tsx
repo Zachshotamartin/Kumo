@@ -64,6 +64,11 @@ export const ProfileView = ({
     void getProfile(username ?? undefined)
       .then((next) => {
         if (!active) return;
+        if (!next) {
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
         setProfile(next);
         setForm({
           displayName: next.displayName,
@@ -115,17 +120,17 @@ export const ProfileView = ({
   };
 
   const changeRelationship = async (action: FriendshipAction) => {
-    if (!profile || busy) return;
+    const current = profile!;
     if ((action === "block" || action === "remove") && !window.confirm(
       action === "block"
-        ? `Block ${profile.displayName}? They will not be able to find or request you.`
-        : `Remove ${profile.displayName} from your friends? Existing board access will stay unchanged.`
+        ? `Block ${current.displayName}? They will not be able to find or request you.`
+        : `Remove ${current.displayName} from your friends? Existing board access will stay unchanged.`
     )) return;
     setBusy(true);
     setError(null);
     try {
-      const relationship = await mutateFriendship(profile.id, action);
-      setProfile({ ...profile, relationship });
+      const relationship = await mutateFriendship(current.id, action);
+      setProfile({ ...current, relationship });
       onIncomingCountChange();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We couldn't update this friendship.");
@@ -135,11 +140,11 @@ export const ProfileView = ({
   };
 
   const copyProfileLink = async () => {
-    if (!profile) return;
+    const current = profile!;
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete("board");
-      url.searchParams.set("profile", profile.username);
+      url.searchParams.set("profile", current.username);
       url.hash = "";
       await navigator.clipboard.writeText(url.toString());
       setCopied(true);

@@ -106,6 +106,84 @@ describe("linked board access algorithms", () => {
       .resolves.toEqual(new Set(["one"]));
   });
 
+  it("handles empty membership requests, null rows, and membership failures", async () => {
+    await expect(membershipBoardIds("user", [])).resolves.toEqual(new Set());
+    mocks.from.mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) });
+    await expect(membershipBoardIds("user", ["one"])).resolves.toEqual(new Set());
+    mocks.from.mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: new Error("members offline") }) }) }) });
+    await expect(membershipBoardIds("user", ["one"])).rejects.toThrow("members offline");
+  });
+
+  it("surfaces linked-graph, target-board, and final-board query failures", async () => {
+    mocks.from.mockReturnValueOnce({ select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: new Error("links offline") }) }) });
+    await expect(linkedBoardSharePlan("source", "owner")).rejects.toThrow("links offline");
+
+    mocks.from.mockImplementationOnce(() => ({ select: () => ({ in: vi.fn().mockResolvedValue({ data: [{ source_board_id: "source", target_board_id: "target" }], error: null }) }) }))
+      .mockImplementationOnce(() => ({ select: () => ({ in: () => ({ is: vi.fn().mockResolvedValue({ data: null, error: new Error("targets offline") }) }) }) }));
+    await expect(linkedBoardSharePlan("source", "owner")).rejects.toThrow("targets offline");
+
+    mocks.from.mockImplementationOnce(() => ({ select: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: null }) }) }))
+      .mockImplementationOnce(() => ({ select: () => ({ in: () => ({ is: vi.fn().mockResolvedValue({ data: null, error: new Error("boards offline") }) }) }) }));
+    await expect(linkedBoardSharePlan("source", "owner")).rejects.toThrow("boards offline");
+  });
+
+  it("bounds very wide and very deep linked-board graphs", async () => {
+    const targets = Array.from({ length: 101 }, (_, index) => `target-${index}`);
+    let wideBoardQuery = 0;
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "board_links") return { select: () => ({ in: vi.fn().mockResolvedValue({ data: targets.map((target) => ({ source_board_id: "source", target_board_id: target })), error: null }) }) };
+      wideBoardQuery += 1;
+      return { select: () => ({ in: (_column: string, ids: string[]) => ({ is: vi.fn().mockResolvedValue({ data: ids.map((id) => ({ id, title: id, owner_id: "owner", visibility: "private" })), error: null }) }) }) };
+    });
+    const wide = await linkedBoardSharePlan("source", "owner");
+    expect(wide.truncated).toBe(true);
+    expect(wide.boards).toHaveLength(100);
+    expect(wideBoardQuery).toBeGreaterThan(0);
+
+    let depth = 0;
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "board_links") return { select: () => ({ in: vi.fn().mockImplementation(async (_column: string, frontier: string[]) => {
+        depth += 1;
+        return { data: [{ source_board_id: frontier[0], target_board_id: `depth-${depth}` }], error: null };
+      }) }) };
+      return { select: () => ({ in: (_column: string, ids: string[]) => ({ is: vi.fn().mockResolvedValue({ data: ids.map((id) => ({ id, title: id, owner_id: "owner", visibility: "private" })), error: null }) }) }) };
+    });
+    const deep = await linkedBoardSharePlan("source", "owner");
+    expect(deep.truncated).toBe(true);
+    expect(deep.boards).toHaveLength(9);
+  });
+
+  it("defaults missing board rows and unknown depths while sorting equal-depth titles", async () => {
+    let boardCalls = 0;
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "board_links") return { select: () => ({ in: vi.fn().mockResolvedValue({ data: [{ source_board_id: "source", target_board_id: "beta" }, { source_board_id: "source", target_board_id: "alpha" }], error: null }) }) };
+      boardCalls += 1;
+      return { select: () => ({ in: (_column: string, ids: string[]) => ({ is: vi.fn().mockResolvedValue({
+        data: boardCalls === 1 ? ids.map((id) => ({ id, title: id, owner_id: "owner", visibility: "private" })) : [
+          { id: "source", title: "Source", owner_id: "owner", visibility: "private" },
+          { id: "beta", title: "Beta", owner_id: "owner", visibility: "private" },
+          { id: "alpha", title: "Alpha", owner_id: "owner", visibility: "private" },
+          { id: "unexpected", title: "Unexpected", owner_id: "owner", visibility: "private" },
+        ],
+        error: null,
+      }) }) }) };
+    });
+    const plan = await linkedBoardSharePlan("source", "owner");
+    expect(plan.boards.map((item) => item.title)).toEqual(["Source", "Unexpected", "Alpha", "Beta"]);
+    expect(plan.boards.find((item) => item.id === "unexpected")?.depth).toBe(0);
+  });
+
+  it("treats missing target and final board rows as empty", async () => {
+    let boardCalls = 0;
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "board_links") return { select: () => ({ in: vi.fn().mockResolvedValue({ data: [{ source_board_id: "source", target_board_id: "target" }], error: null }) }) };
+      boardCalls += 1;
+      return { select: () => ({ in: () => ({ is: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) };
+    });
+    await expect(linkedBoardSharePlan("source", "owner")).resolves.toEqual({ boards: [], truncated: false });
+    expect(boardCalls).toBe(2);
+  });
+
   it("returns access-aware summaries for direct board links", async () => {
     mocks.from.mockImplementation((table: string) => {
       if (table === "board_links") return {

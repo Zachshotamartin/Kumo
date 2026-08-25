@@ -11,7 +11,7 @@ const inlineElements = (
   const result: CommentBodyInlineElement[] = [];
   let cursor = 0;
   for (const match of line.matchAll(emailMentionPattern)) {
-    const index = match.index ?? 0;
+    const index = match.index!;
     if (index > cursor) result.push({ text: line.slice(cursor, index) });
     const email = match[0].slice(1).toLowerCase();
     const collaborator = byEmail.get(email);

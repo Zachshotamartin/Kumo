@@ -46,7 +46,13 @@ export const dependencyImpact = (boardId: string, graph: BoardGraph) => ({
 
 export type TextRun = NonNullable<Shape["textRuns"]>[number];
 
-const textRunSignature = (run: Omit<TextRun, "id" | "start" | "end">) => JSON.stringify(run);
+const textRunSignature = (run: TextRun) => {
+  const { id, start, end, ...style } = run;
+  void id;
+  void start;
+  void end;
+  return JSON.stringify(style);
+};
 
 export const normalizeTextRuns = (text: string, runs: TextRun[]): TextRun[] => {
   const ordered = runs
@@ -99,7 +105,7 @@ export const textSegments = (shape: Shape): Array<{ text: string; style: Omit<Te
   const runs = normalizeTextRuns(text, shape.textRuns ?? []);
   const boundaries = [...new Set([0, text.length, ...runs.flatMap((run) => [run.start, run.end])])].sort((left, right) => left - right);
   return boundaries.slice(0, -1).map((start, index) => {
-    const end = boundaries[index + 1] ?? text.length;
+    const end = boundaries[index + 1]!;
     const run = runs.find((candidate) => candidate.start <= start && candidate.end >= end);
     if (!run) return { text: text.slice(start, end), style: {} };
     const style = Object.fromEntries(Object.entries(run).filter(([key]) => !["id", "start", "end"].includes(key))) as Omit<TextRun, "id" | "start" | "end">;
@@ -191,12 +197,13 @@ export const applyComponentProperties = (shapes: Shape[], instanceId: string, va
   const root = shapes.find((shape) => shape.id === instanceId && shape.instanceOf);
   const definition = root ? shapes.find((shape) => shape.id === root.instanceOf) : undefined;
   if (!root || !definition?.componentProperties) return shapes;
+  const componentProperties = definition.componentProperties;
   const nextValues = { ...(root.instanceProperties ?? {}), ...values };
   return shapes.map((shape) => {
     if (shape.id === root.id) return { ...shape, instanceProperties: nextValues };
     if (shape.instanceRootId !== root.id || !shape.componentNodeId) return shape;
     let next = shape;
-    Object.entries(definition.componentProperties ?? {}).forEach(([key, property]) => {
+    Object.entries(componentProperties).forEach(([key, property]) => {
       if (property.targetNodeId !== shape.componentNodeId || !(key in nextValues)) return;
       const value = nextValues[key];
       if (property.type === "text") next = { ...next, text: String(value) };
@@ -271,7 +278,7 @@ export const applyLibraryUpdate = (document: Shape[], incoming: Shape[], library
     });
   });
   const bySource = new Map(updates.map((shape) => [shape.librarySourceId!, shape]));
-  return [...retained.filter((shape) => shape.libraryId !== libraryId), ...retained.filter((shape) => shape.libraryId === libraryId).map((shape) => bySource.get(shape.librarySourceId ?? shape.id) ?? shape), ...updates.filter((shape) => !importedBySource.has(shape.librarySourceId!))];
+  return [...retained.filter((shape) => shape.libraryId !== libraryId), ...retained.filter((shape) => shape.libraryId === libraryId).map((shape) => bySource.get(shape.librarySourceId ?? shape.id)!), ...updates.filter((shape) => !importedBySource.has(shape.librarySourceId!))];
 };
 
 export interface VectorNetworkIssue { type: "missing-point" | "short-path" | "duplicate-edge"; pathId: string; detail: string }
@@ -301,7 +308,7 @@ export const splitVectorPath = (shape: Shape, pathId: string, pointId: string): 
   return {
     ...shape,
     vectorPaths: [
-      ...(shape.vectorPaths ?? []).filter((candidate) => candidate.id !== pathId),
+      ...shape.vectorPaths!.filter((candidate) => candidate.id !== pathId),
       { ...path, id: createShapeId(), pointIds: path.pointIds.slice(0, index + 1), closed: false },
       { ...path, id: createShapeId(), pointIds: path.pointIds.slice(index), closed: false },
     ],
@@ -348,7 +355,7 @@ const luminance = (value: string) => {
   const rgb = parseHex(value);
   if (!rgb) return null;
   const channels = rgb.map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-  return (channels[0] ?? 0) * 0.2126 + (channels[1] ?? 0) * 0.7152 + (channels[2] ?? 0) * 0.0722;
+  return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
 };
 
 export const contrastRatio = (foreground: string, background: string) => {
@@ -368,7 +375,7 @@ export const auditAccessibility = (shapes: Shape[]): AccessibilityFinding[] => s
   }
   if (shape.type === "text" && shape.color && shape.backgroundColor) {
     const ratio = contrastRatio(shape.color, shape.backgroundColor);
-    if (ratio !== null && ratio < (shape.fontSize ?? 18 >= 24 ? 3 : 4.5)) findings.push({ shapeId: shape.id, severity: "error", rule: "contrast", message: `Text contrast is ${ratio.toFixed(2)}:1.` });
+    if (ratio !== null && ratio < ((shape.fontSize ?? 18) >= 24 ? 3 : 4.5)) findings.push({ shapeId: shape.id, severity: "error", rule: "contrast", message: `Text contrast is ${ratio.toFixed(2)}:1.` });
   }
   if (shape.focusOrder !== undefined && shape.focusOrder < 1) findings.push({ shapeId: shape.id, severity: "warning", rule: "focus-order", message: "Focus order must be a positive number." });
   if ((shape.semanticRole === "button" || shape.semanticRole === "link") && (shape.width < 44 || shape.height < 44)) findings.push({ shapeId: shape.id, severity: "warning", rule: "touch-target", message: "Interactive targets should be at least 44×44." });

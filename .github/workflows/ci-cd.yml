@@ -105,6 +105,8 @@ jobs:
         run: ./node_modules/.bin/vercel build --target=preview --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Verify preview function imports
+        run: yarn verify:vercel-functions
       - name: Deploy preview artifacts
         id: deploy_preview
         shell: bash
@@ -152,9 +154,11 @@ jobs:
       - name: Pull Vercel production configuration
         run: yarn vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Validate Vercel production runtime
-        run: yarn validate:vercel-env .vercel/.env.production.local
+        run: yarn validate:vercel-env .vercel/.env.production.local --require-delivery
       - name: Build production artifacts
         run: yarn vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Verify production function imports
+        run: yarn verify:vercel-functions
       - name: Deploy production artifacts
         id: deploy_production
         shell: bash

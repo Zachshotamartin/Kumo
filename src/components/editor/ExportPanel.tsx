@@ -109,7 +109,7 @@ const ExportPanel = () => {
               event.currentTarget.value = "";
             }}
           />
-          <button type="button" onClick={() => inputRef.current?.click()}><FileArrowUp aria-hidden="true" /> Add Kumo document to board</button>
+          <button type="button" onClick={() => inputRef.current!.click()}><FileArrowUp aria-hidden="true" /> Add Kumo document to board</button>
         </section>
         {status && <p className={styles.exportStatus} role="status">{status}</p>}
       </div>

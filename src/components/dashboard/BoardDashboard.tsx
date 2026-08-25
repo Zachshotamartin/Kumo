@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Graph,
   Bell,
@@ -41,6 +41,7 @@ import { CommunityView } from "./CommunityView";
 import { acceptBoardInvitation } from "../../services/collaboratorRepository";
 import { acceptWorkspaceInvitation, globalSearch, loadNotificationPreferences, type GlobalSearchResult } from "../../services/platformRepository";
 import { deliverBrowserNotifications } from "../../platform/browserNotifications";
+import { recentBoardVisits, recordBoardVisit } from "../../platform/recentBoards";
 import {
   createFolder,
   instantiateTemplate,
@@ -58,6 +59,25 @@ import {
 } from "../../services/productRepository";
 
 type DashboardView = "boards" | "friends" | "profile" | "inbox" | "templates" | "workspace" | "community" | "settings";
+type BoardSort = "updated" | "title";
+type BoardDensity = "comfortable" | "compact";
+interface SavedBoardView { id: string; name: string; filter: "active" | "favorites" | "archived" | "trash"; sort: BoardSort; density: BoardDensity }
+
+const savedBoardViews = (): SavedBoardView[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("kumo:saved-board-views") ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SavedBoardView => Boolean(item) && typeof item === "object"
+      && typeof item.id === "string" && typeof item.name === "string"
+      && ["active", "favorites", "archived", "trash"].includes(item.filter)
+      && ["updated", "title"].includes(item.sort)
+      && ["comfortable", "compact"].includes(item.density)).slice(-12);
+  }
+  catch { return []; }
+};
+
+const storedBoardSort = (): BoardSort => localStorage.getItem("kumo:board-sort") === "title" ? "title" : "updated";
+const storedBoardDensity = (): BoardDensity => localStorage.getItem("kumo:board-density") === "compact" ? "compact" : "comfortable";
 
 const routeFromLocation = () => {
   const profile = new URL(window.location.href).searchParams.get("profile");
@@ -83,9 +103,14 @@ const BoardDashboard = () => {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
   const [organization, setOrganization] = useState<BoardOrganization[]>([]);
   const [boardFilter, setBoardFilter] = useState<"active" | "favorites" | "archived" | "trash">("active");
+  const [boardSort, setBoardSort] = useState<BoardSort>(storedBoardSort);
+  const [boardDensity, setBoardDensity] = useState<BoardDensity>(storedBoardDensity);
+  const [savedViews, setSavedViews] = useState<SavedBoardView[]>(savedBoardViews);
+  const [savedViewName, setSavedViewName] = useState("");
   const [folderName, setFolderName] = useState("");
   const [requestedBoardId, setRequestedBoardId] = useState<string | null>(null);
   const [globalResults, setGlobalResults] = useState<GlobalSearchResult[]>([]);
+  const [recentVisits, setRecentVisits] = useState(() => recentBoardVisits(user.uid));
   const directLinkHandledRef = useRef(false);
 
   const openBoard = useCallback(async (boardId: string) => {
@@ -97,11 +122,12 @@ const BoardDashboard = () => {
       window.history.replaceState({}, "", url);
       dispatch(clearSelectedShapes());
       dispatch(setWhiteboardData(board));
+      setRecentVisits(recordBoardVisit(user.uid, boardId));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We couldn't open this board.");
       setRequestedBoardId(boardId);
     }
-  }, [dispatch]);
+  }, [dispatch, user.uid]);
 
   const activateNotification = useCallback((notification: AccountNotification) => {
     void markNotificationRead(notification.id).then(() => {
@@ -255,9 +281,18 @@ const BoardDashboard = () => {
     if (boardFilter === "archived") return Boolean(state?.archived_at) && !state?.trashed_at;
     if (boardFilter === "trash") return Boolean(state?.trashed_at);
     return !state?.archived_at && !state?.trashed_at;
-  });
+  }).sort((left, right) => boardSort === "title"
+    ? left.title.localeCompare(right.title)
+    : (right.updatedAt ?? 0) - (left.updatedAt ?? 0));
   const myBoards = visibleBoards.filter((board) => board.ownerId === user.uid);
   const sharedBoards = visibleBoards.filter((board) => board.ownerId !== user.uid);
+  const recentBoards = useMemo(() => {
+    const byId = new Map(boards.map((board) => [board.id, board]));
+    return recentVisits.flatMap((visit) => {
+      const board = byId.get(visit.boardId);
+      return board ? [board] : [];
+    }).slice(0, 4);
+  }, [boards, recentVisits]);
   const publicResults = publicBoards;
 
   const handleCreate = async () => {
@@ -372,6 +407,10 @@ const BoardDashboard = () => {
             <div role="group" aria-label="Board filters">{(["active", "favorites", "archived", "trash"] as const).map((filter) => <button type="button" key={filter} className={`${ui.button} ${ui.buttonGhost} ${boardFilter === filter ? styles.navActive : ""}`} aria-pressed={boardFilter === filter} onClick={() => setBoardFilter(filter)}>{filter}</button>)}</div>
             <form onSubmit={(event) => { event.preventDefault(); if (!folderName.trim()) return; void createFolder(folderName).then(({ folder }) => { setFolders((current) => [...current, folder]); setFolderName(""); }); }}><Folder aria-hidden="true" /><input aria-label="New folder name" placeholder="New folder" value={folderName} onChange={(event) => setFolderName(event.target.value)} /><button type="submit" className={`${ui.button} ${ui.buttonGhost}`}>Add</button></form>
             {folders.length > 0 && <span>{folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
+            <select aria-label="Sort boards" value={boardSort} onChange={(event) => { const next = event.target.value as BoardSort; setBoardSort(next); localStorage.setItem("kumo:board-sort", next); }}><option value="updated">Recently updated</option><option value="title">Title</option></select>
+            <select aria-label="Board card density" value={boardDensity} onChange={(event) => { const next = event.target.value as BoardDensity; setBoardDensity(next); localStorage.setItem("kumo:board-density", next); }}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
+            <form onSubmit={(event) => { event.preventDefault(); const name = savedViewName.trim(); if (!name) return; const view = { id: crypto.randomUUID(), name, filter: boardFilter, sort: boardSort, density: boardDensity }; const next = [...savedViews, view].slice(-12); setSavedViews(next); localStorage.setItem("kumo:saved-board-views", JSON.stringify(next)); setSavedViewName(""); }}><input aria-label="Saved view name" placeholder="Save this view" value={savedViewName} onChange={(event) => setSavedViewName(event.target.value)} /><button type="submit" className={`${ui.button} ${ui.buttonGhost}`}>Save</button></form>
+            {savedViews.length > 0 && <select aria-label="Open saved board view" defaultValue="" onChange={(event) => { const saved = savedViews.find((item) => item.id === event.target.value); if (!saved) return; setBoardFilter(saved.filter); setBoardSort(saved.sort); setBoardDensity(saved.density); }}><option value="" disabled>Saved views</option>{savedViews.map((saved) => <option key={saved.id} value={saved.id}>{saved.name}</option>)}</select>}
           </section>
 
         {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert"><span>{error}</span>{requestedBoardId && <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => void requestBoardAccess(requestedBoardId, "viewer", "Please share this board with me.").then(() => { setError("Access request sent to the board owner."); setRequestedBoardId(null); }).catch((caught) => setError(caught instanceof Error ? caught.message : "Access request failed."))}>Request access</button>}</div>}
@@ -394,6 +433,7 @@ const BoardDashboard = () => {
           </section>
         ) : (
           <>
+            {boardFilter === "active" && boards.length > 4 && recentBoards.length > 0 && <section className={styles.boardSection}><div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h2>Recent boards</h2><span>{recentBoards.length}</span></div><div className={`${styles.boardGrid} ${boardDensity === "compact" ? styles.compactGrid : ""}`}>{recentBoards.map((board) => <BoardCard key={`recent:${board.id}`} board={board} onOpen={() => openBoard(board.id)} organization={organization.find((item) => item.board_id === board.id)} folders={folders} />)}</div></section>}
             <section className={styles.boardSection}>
               <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}>
                 <h2>My boards</h2>
@@ -402,7 +442,7 @@ const BoardDashboard = () => {
               {loading ? (
                 <div className={styles.skeletonGrid} aria-label="Loading boards">{[0, 1, 2].map((value) => <span key={value} />)}</div>
               ) : myBoards.length > 0 ? (
-                <div className={styles.boardGrid}>{myBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} organization={organization.find((item) => item.board_id === board.id)} folders={folders} onOrganize={(action, payload) => void organizeBoard(action, board.id, payload).then(({ organization: next }) => setOrganization((current) => [...current.filter((item) => item.board_id !== board.id), next]))} />)}</div>
+                <div className={`${styles.boardGrid} ${boardDensity === "compact" ? styles.compactGrid : ""}`}>{myBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} organization={organization.find((item) => item.board_id === board.id)} folders={folders} onOrganize={(action, payload) => void organizeBoard(action, board.id, payload).then(({ organization: next }) => setOrganization((current) => [...current.filter((item) => item.board_id !== board.id), next]))} />)}</div>
               ) : (
                 <div className={`${ui.emptyState} ${styles.emptyState}`}>
                   <KumoLogo className={styles.emptyLogo} context="attention" decorative />
@@ -415,7 +455,25 @@ const BoardDashboard = () => {
             {sharedBoards.length > 0 && (
               <section className={styles.boardSection}>
                 <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h2>Shared with me</h2><span>{sharedBoards.length}</span></div>
-                <div className={styles.boardGrid}>{sharedBoards.map((board) => <BoardCard key={board.id} board={board} onOpen={() => openBoard(board.id)} organization={organization.find((item) => item.board_id === board.id)} folders={folders} onOrganize={(action, payload) => void organizeBoard(action, board.id, payload).then(({ organization: next }) => setOrganization((current) => [...current.filter((item) => item.board_id !== board.id), next]))} />)}</div>
+                <div className={`${styles.boardGrid} ${boardDensity === "compact" ? styles.compactGrid : ""}`}>
+                  {sharedBoards.map((board) => (
+                    <BoardCard
+                      key={board.id}
+                      board={board}
+                      onOpen={() => openBoard(board.id)}
+                      organization={organization.find((item) => item.board_id === board.id)}
+                      folders={folders}
+                      onOrganize={(action, payload) => {
+                        void organizeBoard(action, board.id, payload).then(({ organization: next }) => {
+                          setOrganization((current) => [
+                            ...current.filter((item) => item.board_id !== board.id),
+                            next,
+                          ]);
+                        });
+                      }}
+                    />
+                  ))}
+                </div>
               </section>
             )}
           </>

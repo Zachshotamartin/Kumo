@@ -89,10 +89,9 @@ const layoutLine = (
   primaryAlign: Shape["primaryAlign"],
   counterAlign: Shape["counterAlign"]
 ): Shape[] => {
-  if (!children.length) return [];
   const childBounds = children.map(shapeBounds);
   const growing = children.filter((child) => (child.layoutGrow ?? 0) > 0);
-  const totalGrow = growing.reduce((sum, child) => sum + (child.layoutGrow ?? 0), 0);
+  const totalGrow = growing.reduce((sum, child) => sum + child.layoutGrow!, 0);
   const fixedPrimary = children.reduce((sum, child, index) =>
     sum + ((child.layoutGrow ?? 0) > 0 ? 0 : primarySize(childBounds[index]!, horizontal)), 0);
   const availableForGrow = Math.max(0, primaryAvailable - fixedPrimary - gap * Math.max(0, children.length - 1));
@@ -138,8 +137,7 @@ const layoutLine = (
 };
 
 const layoutFrame = (shapes: Shape[], frame: Shape): Shape[] => {
-  const mode = frame.layoutMode ?? "none";
-  if (mode === "none") return shapes;
+  const mode = frame.layoutMode!;
   const direct = shapes
     .filter((shape) => shape.parentId === frame.id && shape.layoutPositioning !== "absolute" && shape.type !== "guide")
     .sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id));
@@ -184,7 +182,7 @@ const layoutFrame = (shapes: Shape[], frame: Shape): Shape[] => {
         used = next;
       }
     });
-    if (line.length) lines.push(line);
+    lines.push(line);
   }
 
   const lineCounterSizes = lines.map((line) => Math.max(1, ...line.map((shape) => counterSize(shapeBounds(shape), horizontal))));
@@ -207,7 +205,7 @@ const layoutFrame = (shapes: Shape[], frame: Shape): Shape[] => {
   });
 
   const contentPrimary = lines.length === 1
-    ? lines[0]!.reduce((sum, shape) => sum + primarySize(shapeBounds(laidOut.find((item) => item.id === shape.id) ?? shape), horizontal), 0) + gap * Math.max(0, lines[0]!.length - 1)
+    ? lines[0]!.reduce((sum, shape) => sum + primarySize(shapeBounds(laidOut.find((item) => item.id === shape.id)!), horizontal), 0) + gap * Math.max(0, lines[0]!.length - 1)
     : Math.max(...lines.map((line) => line.reduce((sum, shape) => sum + primarySize(shapeBounds(shape), horizontal), 0) + gap * Math.max(0, line.length - 1)));
   const contentCounter = lineCounterSizes.reduce((sum, size) => sum + size, 0) + counterGap * Math.max(0, lines.length - 1);
   const nextFrameBounds = {
@@ -221,8 +219,8 @@ const layoutFrame = (shapes: Shape[], frame: Shape): Shape[] => {
   };
   const replacements = new Map(laidOut.map((shape) => [shape.id, shape]));
   laidOut.forEach((shape) => {
-    const source = direct.find((item) => item.id === shape.id);
-    if (!source || source.type !== "frame") return;
+    const source = direct.find((item) => item.id === shape.id)!;
+    if (source.type !== "frame") return;
     const before = shapeBounds(source);
     const after = shapeBounds(shape);
     const offset = { x: after.x - before.x, y: after.y - before.y };
@@ -239,8 +237,7 @@ const layoutFrame = (shapes: Shape[], frame: Shape): Shape[] => {
       changed = descendants.size !== size;
     }
     descendants.forEach((id) => {
-      const descendant = replacements.get(id) ?? shapes.find((item) => item.id === id);
-      if (!descendant) return;
+      const descendant = (replacements.get(id) ?? shapes.find((item) => item.id === id))!;
       replacements.set(id, normalizeShape({
         ...descendant,
         x1: descendant.x1 + offset.x,
@@ -273,8 +270,8 @@ export const applyDocumentLayout = (input: Shape[]): Shape[] => {
     .filter((shape) => shape.type === "frame" && shape.layoutMode && shape.layoutMode !== "none")
     .sort((left, right) => frameDepth(shapes, right) - frameDepth(shapes, left));
   frames.forEach((source) => {
-    const current = shapes.find((shape) => shape.id === source.id);
-    if (current) shapes = layoutFrame(shapes, current);
+    const current = shapes.find((shape) => shape.id === source.id)!;
+    shapes = layoutFrame(shapes, current);
   });
   return shapes.map(normalizeShape);
 };

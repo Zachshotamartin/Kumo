@@ -56,7 +56,7 @@ const CollaborationBridge = () => {
 
   useEffect(() => {
     const collaborative = shapes.filter((shape) => shape.type === "text" && Object.values(textCharacters as ReadonlyJsonObject).some((character) => (character as unknown as CollaborativeTextCharacter).shapeId === shape.id));
-    if (collaborative.length) reconcileText(collaborative.map((shape) => ({ id: shape.id, text: shape.text ?? "" })));
+    if (collaborative.length) reconcileText(collaborative.map((shape) => ({ id: shape.id, text: shape.text! })));
   }, [reconcileText, shapes, textCharacters]);
 
   useEffect(() => {

@@ -7,7 +7,12 @@ import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 import { cloneAssetsToBoard } from "../_assets.js";
 
 const bucket = "board-assets";
-const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
+const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml", "video/mp4", "video/webm"]);
+const maximumBytes = (mimeType: string) => mimeType.startsWith("video/") ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+const mediaDimension = (value: unknown) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 && numeric <= 100_000 ? Math.round(numeric) : null;
+};
 
 const assetUrl = async (storageKey: string) => {
   const { data, error } = await supabaseAdmin().storage.from(bucket).createSignedUrl(storageKey, 60 * 60);
@@ -77,8 +82,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (request.body?.action === "prepare") {
       const mimeType = typeof request.body?.mimeType === "string" ? request.body.mimeType : "";
       const byteSize = Number(request.body?.byteSize);
-      if (!allowedTypes.has(mimeType) || !Number.isFinite(byteSize) || byteSize <= 0 || byteSize > 20 * 1024 * 1024) {
-        return response.status(400).json({ error: "Upload a supported image no larger than 20 MB." });
+      if (!allowedTypes.has(mimeType) || !Number.isFinite(byteSize) || byteSize <= 0 || byteSize > maximumBytes(mimeType)) {
+        return response.status(400).json({ error: "Upload a supported image (20 MB) or video (100 MB)." });
       }
       const originalName = typeof request.body?.fileName === "string" ? request.body.fileName : "image";
       const extension = originalName.split(".").pop()?.replace(/[^a-z0-9]/gi, "").slice(0, 8).toLowerCase();
@@ -106,9 +111,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (!object) return response.status(409).json({ error: "Upload has not completed." });
     const mimeType = typeof object.metadata?.mimetype === "string" ? object.metadata.mimetype : "application/octet-stream";
     const byteSize = Number(object.metadata?.size ?? 0);
-    if (!allowedTypes.has(mimeType) || byteSize > 20 * 1024 * 1024) {
+    if (!allowedTypes.has(mimeType) || !Number.isFinite(byteSize) || byteSize <= 0 || byteSize > maximumBytes(mimeType)) {
       await database.storage.from(bucket).remove([storageKey]);
-      return response.status(400).json({ error: "The uploaded object is not a supported image." });
+      return response.status(400).json({ error: "The uploaded object is not supported media." });
     }
     const { data: asset, error: insertError } = await database.from("assets").insert({
       board_id: boardId,
@@ -116,8 +121,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
       storage_key: storageKey,
       mime_type: mimeType,
       byte_size: byteSize,
-      width: Number.isFinite(Number(request.body?.width)) ? Number(request.body.width) : null,
-      height: Number.isFinite(Number(request.body?.height)) ? Number(request.body.height) : null,
+      width: mediaDimension(request.body?.width),
+      height: mediaDimension(request.body?.height),
     }).select("id, board_id, storage_key, mime_type, byte_size, width, height").single();
     if (insertError) throw insertError;
     return response.status(201).json({ asset: { ...asset, url: await assetUrl(storageKey) } });

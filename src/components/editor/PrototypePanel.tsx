@@ -37,9 +37,9 @@ const PrototypePanel = () => {
   }, [board.id, board.role]);
 
   const add = () => {
-    if (!selected) return;
+    const current = selected!;
     const target = board.shapes.find((shape) => shape.id === destinationId);
-    actions.commitShapes(addPrototypeInteraction(board.shapes, selected.id, {
+    actions.commitShapes(addPrototypeInteraction(board.shapes, current.id, {
       trigger,
       action,
       ...(["navigate", "change-to", "open-overlay", "scroll-to"].includes(action) ? { destinationId } : {}),
@@ -152,11 +152,10 @@ const PrototypePanel = () => {
           <label className={styles.fullField}><span>Device frame</span><select value={deviceFrame} onChange={(event) => setDeviceFrame(event.target.value as PrototypeLink["device_frame"])}><option value="none">None</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="desktop">Desktop</option></select></label>
           <label className={styles.fullField}><span>Optional password</span><input type="password" value={sharePassword} onChange={(event) => setSharePassword(event.target.value)} /></label>
           <button type="button" disabled={!board.id || board.role !== "owner" || !frames.length} onClick={() => {
-            if (!board.id) return;
-            void createPrototypeLink(board.id, { startShapeId: selected?.type === "frame" ? selected.id : frames.find((frame) => frame.prototypeStart)?.id ?? frames[0]?.id, password: sharePassword || undefined, deviceFrame }).then((result) => { setPrototypeLinks((current) => [result.link, ...current]); setShareMessage(result.url); });
+            void createPrototypeLink(board.id!, { startShapeId: selected?.type === "frame" ? selected.id : frames.find((frame) => frame.prototypeStart)?.id ?? frames[0]?.id, password: sharePassword || undefined, deviceFrame }).then((result) => { setPrototypeLinks((current) => [result.link, ...current]); setShareMessage(result.url); });
           }}><Plus aria-hidden="true" /> Create prototype link</button>
           {shareMessage && <button type="button" className={styles.assetApply} onClick={() => void navigator.clipboard.writeText(shareMessage)}><Copy aria-hidden="true" /> Copy prototype link</button>}
-          <div className={styles.assetList}>{prototypeLinks.filter((link) => !link.revoked_at).map((link) => <div className={styles.assetRow} key={link.id}><span>{link.device_frame} presentation<small>{link.expires_at ? `Expires ${new Date(link.expires_at).toLocaleDateString()}` : "No expiry"}</small></span><button type="button" onClick={() => board.id && void revokePrototypeLink(board.id, link.id).then(() => setPrototypeLinks((current) => current.map((item) => item.id === link.id ? { ...item, revoked_at: new Date().toISOString() } : item)))}>Revoke</button></div>)}</div>
+          <div className={styles.assetList}>{prototypeLinks.filter((link) => !link.revoked_at).map((link) => <div className={styles.assetRow} key={link.id}><span>{link.device_frame} presentation<small>{link.expires_at ? `Expires ${new Date(link.expires_at).toLocaleDateString()}` : "No expiry"}</small></span><button type="button" onClick={() => void revokePrototypeLink(board.id!, link.id).then(() => setPrototypeLinks((current) => current.map((item) => item.id === link.id ? { ...item, revoked_at: new Date().toISOString() } : item)))}>Revoke</button></div>)}</div>
         </section>
       </div>
     </aside>

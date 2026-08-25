@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "../_auth.js";
 import { getBoardAccess, listBoardsForUser, provisionBoard, searchPublicBoards } from "../_boards.js";
@@ -7,8 +7,9 @@ import { privilegedAdminAuth } from "../_firebaseAdmin.js";
 import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { liveblocksAdmin } from "../_liveblocks.js";
 import { folderMoveCreatesCycle, hashPassword, sanitizeExtensionManifest, summarizeConnectionTelemetry, verifyPassword } from "../_platform.js";
-import { enforceRateLimit, hashSecret, requestOrigin } from "../_security.js";
+import { enforceRateLimit, hashSecret, openSessionGuestId, requestOrigin, validOpenSessionGuestNonce } from "../_security.js";
 import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
+import { pushConfigured, sendPushToUser } from "../_push.js";
 
 type WorkspaceRole = "owner" | "admin" | "member" | "guest";
 const clean = (value: unknown, fallback = "", limit = 120) => typeof value === "string" ? value.trim().slice(0, limit) || fallback : fallback;
@@ -63,6 +64,34 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const document = await liveblocksAdmin().getStorageDocument(board.liveblocks_room_id, "json");
       return response.status(200).json({ prototype: { boardId: board.id, title: board.title, startShapeId: link.start_shape_id, deviceFrame: link.device_frame, document } });
     }
+    if (request.method === "POST" && action === "redeem-open-session") {
+      if (!(await enforceRateLimit(request, response, action, "anonymous", 20, 60))) return;
+      const database = supabaseAdmin();
+      const token = clean(request.body?.token, "", 256);
+      const guestNonce = clean(request.body?.guestNonce, "", 80);
+      if (!validOpenSessionGuestNonce(guestNonce)) return response.status(400).json({ error: "A valid guest session nonce is required." });
+      const { data: session, error } = await database.from("board_open_sessions")
+        .select("id, board_id, password_hash, role, expires_at, revoked_at, use_count, boards(id, title, liveblocks_room_id, visibility, owner_id, updated_at)")
+        .eq("token_hash", hashSecret(token)).maybeSingle();
+      if (error) throw error;
+      if (!session || session.revoked_at || new Date(session.expires_at).getTime() <= Date.now()) return response.status(404).json({ error: "This open session is unavailable." });
+      if (!verifyPassword(clean(request.body?.password, "", 256), session.password_hash)) return response.status(403).json({ error: "The session password is incorrect." });
+      const relatedBoard = Array.isArray(session.boards) ? session.boards[0] : session.boards;
+      if (!relatedBoard?.liveblocks_room_id) return response.status(404).json({ error: "This board no longer exists." });
+      await database.from("board_open_sessions").update({ last_used_at: new Date().toISOString(), use_count: Number(session.use_count ?? 0) + 1 }).eq("id", session.id);
+      return response.status(200).json({ session: {
+        id: session.id,
+        boardId: relatedBoard.id,
+        title: relatedBoard.title,
+        roomId: relatedBoard.liveblocks_room_id,
+        ownerId: relatedBoard.owner_id,
+        visibility: relatedBoard.visibility,
+        role: session.role,
+        expiresAt: session.expires_at,
+        guestId: openSessionGuestId(token, guestNonce),
+        updatedAt: relatedBoard.updated_at ? new Date(relatedBoard.updated_at).getTime() : null,
+      } });
+    }
     const actor = await requireActor(request);
     const profile = await ensureActorProfile(actor);
     const database = supabaseAdmin();
@@ -100,6 +129,19 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const { data, error } = await database.from("notification_preferences").select("*").eq("user_id", actor.uid).maybeSingle();
         if (error) throw error;
         return response.status(200).json({ preferences: data ?? defaults });
+      }
+      if (scope === "push-config") {
+        return response.status(200).json({ configured: pushConfigured(), publicKey: pushConfigured() ? process.env.VAPID_PUBLIC_KEY!.trim() : "" });
+      }
+      if (scope === "workspace-fonts") {
+        const workspace = await primaryWorkspace(actor.uid, profile.displayName);
+        const { data, error } = await database.from("workspace_fonts").select("id, workspace_id, family, style, weight_min, weight_max, storage_key, mime_type, created_at").eq("workspace_id", workspace.workspace_id).order("family");
+        if (error) throw error;
+        const keys = (data ?? []).map((font) => font.storage_key as string);
+        const signed = keys.length ? await database.storage.from("workspace-fonts").createSignedUrls(keys, 60 * 60) : { data: [], error: null };
+        if (signed.error) throw signed.error;
+        const urls = new Map((signed.data ?? []).map((item) => [item.path, item.signedUrl]));
+        return response.status(200).json({ fonts: (data ?? []).map((font) => ({ ...font, url: urls.get(font.storage_key as string) ?? null })) });
       }
       if (scope === "global-search") {
         const query = clean(stringQuery(request.query.q), "", 120);
@@ -146,6 +188,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const { data, error } = await database.from("prototype_share_links").select("id, board_id, start_shape_id, device_frame, expires_at, revoked_at, created_at").eq("board_id", boardId).order("created_at", { ascending: false });
         if (error) throw error;
         return response.status(200).json({ links: data ?? [] });
+      }
+      if (scope === "open-sessions") {
+        const boardId = stringQuery(request.query.boardId);
+        const access = await getBoardAccess(boardId, actor.uid);
+        if (!access || access.role !== "owner") return response.status(403).json({ error: "Only the owner can manage open sessions." });
+        const { data, error } = await database.from("board_open_sessions").select("id, board_id, role, expires_at, revoked_at, last_used_at, use_count, created_at").eq("board_id", boardId).order("created_at", { ascending: false });
+        if (error) throw error;
+        return response.status(200).json({ sessions: data ?? [] });
       }
       if (scope === "community") {
         const { data, error } = await database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_allowed, remix_count, published_at, boards(title, thumbnail_asset_id)").order("published_at", { ascending: false }).limit(48);
@@ -235,7 +285,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const folderId = clean(request.body?.folderId);
       const { data: folders, error: folderError } = await database.from("workspace_folders").select("id, parent_id").eq("workspace_id", workspaceId);
       if (folderError) throw folderError;
-      if (!(folders ?? []).some((folder) => folder.id === folderId)) return response.status(404).json({ error: "Folder not found." });
+      const folderList = folders ?? [];
+      if (!folderList.some((folder) => folder.id === folderId)) return response.status(404).json({ error: "Folder not found." });
       if (action === "rename-folder") {
         const { data, error } = await database.from("workspace_folders").update({ name: clean(request.body?.name, "Untitled folder") }).eq("id", folderId).eq("workspace_id", workspaceId).select("id, workspace_id, parent_id, name").single();
         if (error) throw error;
@@ -243,12 +294,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }
       if (action === "move-folder") {
         const parentId = clean(request.body?.parentId) || null;
-        if (folderMoveCreatesCycle(folders ?? [], folderId, parentId)) return response.status(409).json({ error: "A folder cannot be moved into itself or one of its descendants." });
+        if (parentId && !folderList.some((folder) => folder.id === parentId)) return response.status(404).json({ error: "Parent folder not found in this workspace." });
+        if (folderMoveCreatesCycle(folderList, folderId, parentId)) return response.status(409).json({ error: "A folder cannot be moved into itself or one of its descendants." });
         const { data, error } = await database.from("workspace_folders").update({ parent_id: parentId }).eq("id", folderId).eq("workspace_id", workspaceId).select("id, workspace_id, parent_id, name").single();
         if (error) throw error;
         return response.status(200).json({ folder: data });
       }
-      const hasChildren = (folders ?? []).some((folder) => folder.parent_id === folderId);
+      const hasChildren = folderList.some((folder) => folder.parent_id === folderId);
       if (hasChildren && request.body?.recursive !== true) return response.status(409).json({ error: "Move or delete nested folders first, or confirm recursive deletion." });
       const { error } = await database.from("workspace_folders").delete().eq("id", folderId).eq("workspace_id", workspaceId);
       if (error) throw error;
@@ -279,7 +331,65 @@ export default async function handler(request: VercelRequest, response: VercelRe
       };
       const { data, error } = await database.from("notification_preferences").upsert(preferences, { onConflict: "user_id" }).select("*").single();
       if (error) throw error;
+      if (!preferences.browser_enabled) {
+        const { error: subscriptionError } = await database.from("push_subscriptions").delete().eq("user_id", actor.uid);
+        if (subscriptionError) throw subscriptionError;
+      }
       return response.status(200).json({ preferences: data });
+    }
+
+    if (["subscribe-push", "unsubscribe-push", "test-push"].includes(action)) {
+      if (action === "test-push") {
+        const result = await sendPushToUser(actor.uid, { title: "Kumo notifications are ready", body: "Background push delivery is connected.", url: "/?view=inbox", tag: "kumo:push-test" });
+        return response.status(200).json(result);
+      }
+      const endpoint = clean(request.body?.endpoint, "", 2048);
+      if (!endpoint.startsWith("https://")) return response.status(400).json({ error: "A secure push endpoint is required." });
+      if (action === "unsubscribe-push") {
+        const { error } = await database.from("push_subscriptions").delete().eq("user_id", actor.uid).eq("endpoint", endpoint);
+        if (error) throw error;
+        return response.status(200).json({ unsubscribed: true });
+      }
+      const p256dh = clean(request.body?.p256dh, "", 512);
+      const auth = clean(request.body?.auth, "", 512);
+      if (!p256dh || !auth) return response.status(400).json({ error: "Push encryption keys are required." });
+      const { data, error } = await database.from("push_subscriptions").upsert({ user_id: actor.uid, endpoint, p256dh, auth, user_agent: clean(request.headers["user-agent"], "", 500), updated_at: new Date().toISOString() }, { onConflict: "endpoint" }).select("id, endpoint, updated_at").single();
+      if (error) throw error;
+      return response.status(201).json({ subscription: data });
+    }
+
+    if (["prepare-font-upload", "complete-font-upload"].includes(action)) {
+      const workspace = await primaryWorkspace(actor.uid, profile.displayName);
+      if (workspace.role === "guest") return response.status(403).json({ error: "Workspace guests cannot upload fonts." });
+      const allowed = new Set(["font/woff", "font/woff2", "font/ttf", "font/otf"]);
+      if (action === "prepare-font-upload") {
+        const mimeType = clean(request.body?.mimeType, "", 80);
+        const byteSize = Number(request.body?.byteSize);
+        if (!allowed.has(mimeType) || !Number.isFinite(byteSize) || byteSize <= 0 || byteSize > 10 * 1024 * 1024) return response.status(400).json({ error: "Upload a WOFF, WOFF2, TTF, or OTF font no larger than 10 MB." });
+        const extension = clean(request.body?.fileName, "font", 240).split(".").pop()?.replace(/[^a-z0-9]/gi, "").slice(0, 8).toLowerCase();
+        const path = `${workspace.workspace_id}/${randomUUID()}${extension ? `.${extension}` : ""}`;
+        const { data, error } = await database.storage.from("workspace-fonts").createSignedUploadUrl(path);
+        if (error) throw error;
+        return response.status(200).json({ upload: data, workspaceId: workspace.workspace_id });
+      }
+      const storageKey = clean(request.body?.storageKey, "", 500);
+      if (!storageKey.startsWith(`${workspace.workspace_id}/`) || storageKey.includes("..")) return response.status(400).json({ error: "Invalid font path." });
+      const folder = storageKey.slice(0, storageKey.lastIndexOf("/"));
+      const fileName = storageKey.slice(storageKey.lastIndexOf("/") + 1);
+      const { data: objects, error: listError } = await database.storage.from("workspace-fonts").list(folder, { search: fileName, limit: 2 });
+      if (listError) throw listError;
+      const object = objects.find((item) => item.name === fileName);
+      const mimeType = typeof object?.metadata?.mimetype === "string" ? object.metadata.mimetype : "";
+      if (!object || !allowed.has(mimeType)) return response.status(409).json({ error: "Font upload has not completed." });
+      const family = clean(request.body?.family, "", 120);
+      if (!family) return response.status(400).json({ error: "A font family name is required." });
+      const weightMin = Math.min(1000, Math.max(1, Number(request.body?.weightMin) || 400));
+      const weightMax = Math.min(1000, Math.max(weightMin, Number(request.body?.weightMax) || weightMin));
+      const { data, error } = await database.from("workspace_fonts").insert({ workspace_id: workspace.workspace_id, family, style: request.body?.style === "italic" ? "italic" : "normal", weight_min: weightMin, weight_max: weightMax, storage_key: storageKey, mime_type: mimeType, uploaded_by: actor.uid }).select("id, workspace_id, family, style, weight_min, weight_max, storage_key, mime_type, created_at").single();
+      if (error) throw error;
+      const { data: signed, error: signedError } = await database.storage.from("workspace-fonts").createSignedUrl(storageKey, 60 * 60);
+      if (signedError) throw signedError;
+      return response.status(201).json({ font: { ...data, url: signed.signedUrl } });
     }
 
     if (["create-prototype-link", "revoke-prototype-link"].includes(action)) {
@@ -302,6 +412,37 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }).select("id, board_id, start_shape_id, device_frame, expires_at, revoked_at, created_at").single();
       if (error) throw error;
       return response.status(201).json({ link: data, token, url: `${requestOrigin(request)}/?prototype=${encodeURIComponent(token)}` });
+    }
+
+    if (["create-open-session", "revoke-open-session"].includes(action)) {
+      const boardId = clean(request.body?.boardId);
+      const access = await getBoardAccess(boardId, actor.uid);
+      if (!access || access.role !== "owner") return response.status(403).json({ error: "Only the owner can manage open sessions." });
+      if (action === "revoke-open-session") {
+        const { error } = await database.from("board_open_sessions").update({ revoked_at: new Date().toISOString() }).eq("id", clean(request.body?.sessionId)).eq("board_id", boardId);
+        if (error) throw error;
+        await database.from("audit_events").insert({ board_id: boardId, actor_id: actor.uid, event_type: "board.open_session_revoked" });
+        return response.status(200).json({ revoked: true });
+      }
+      const role = request.body?.role === "editor" ? "editor" : "viewer";
+      const password = clean(request.body?.password, "", 256);
+      if (role === "editor" && password.length < 8) return response.status(400).json({ error: "Editor sessions require a password of at least 8 characters." });
+      const requestedExpiry = new Date(clean(request.body?.expiresAt, "", 64)).getTime();
+      const minimum = Date.now() + 15 * 60_000;
+      const maximum = Date.now() + 7 * 24 * 60 * 60_000;
+      const expiresAt = new Date(Math.min(maximum, Math.max(minimum, Number.isFinite(requestedExpiry) ? requestedExpiry : Date.now() + 24 * 60 * 60_000))).toISOString();
+      const token = randomBytes(32).toString("base64url");
+      const { data, error } = await database.from("board_open_sessions").insert({
+        board_id: boardId,
+        token_hash: hashSecret(token),
+        password_hash: password ? hashPassword(password) : null,
+        role,
+        expires_at: expiresAt,
+        created_by: actor.uid,
+      }).select("id, board_id, role, expires_at, created_at").single();
+      if (error) throw error;
+      await database.from("audit_events").insert({ board_id: boardId, actor_id: actor.uid, event_type: "board.open_session_created", payload: { role, expiresAt } });
+      return response.status(201).json({ session: data, token, url: `${requestOrigin(request)}/?openSession=${encodeURIComponent(token)}` });
     }
 
     if (["publish-extension", "install-extension", "toggle-extension", "uninstall-extension"].includes(action)) {

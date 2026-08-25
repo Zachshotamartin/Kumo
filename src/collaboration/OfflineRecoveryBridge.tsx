@@ -30,7 +30,7 @@ export const OfflineRecoveryBridge = ({ connectionStatus }: { connectionStatus: 
       await updateBoardSettings(mutation.boardId, mutation.payload);
     }).then((failures) => {
       if (wasOffline.current && failures.length === 0) {
-        window.setTimeout(() => board.id && clearRecoverySnapshot(board.id), 1_500);
+        window.setTimeout(() => clearRecoverySnapshot(board.id!), 1_500);
         wasOffline.current = false;
       }
     });

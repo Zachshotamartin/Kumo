@@ -22,6 +22,8 @@ export interface WhiteBoardState {
     visibility: "private" | "public";
     accessible: boolean;
     role: "owner" | "editor" | "viewer" | null;
+    updatedAt?: number | null;
+    thumbnailUrl?: string | null;
   }>;
   backGroundColor: string;
   lastChangedBy: string | null;

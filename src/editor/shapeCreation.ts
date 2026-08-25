@@ -1,15 +1,19 @@
 import { ShapeFunctions, type Shape } from "../classes/shape";
 import { normalizeShape } from "./geometry";
 import { createVectorShape, updateVectorPoint } from "./graphics";
+import { createAdvancedPrimitive } from "./advancedFeatures";
 import type { EditorTool, Point } from "./types";
 
-export type DrawableEditorTool = Exclude<EditorTool, "pointer" | "hand" | "comment">;
+export type DrawableEditorTool = Exclude<EditorTool, "pointer" | "hand" | "comment" | "eraser">;
 
 export const createDraftShape = (
   tool: DrawableEditorTool,
   point: Point,
   shapes: Shape[]
 ): Shape => {
+  if (["connector", "sticky", "marker", "highlighter", "table", "code", "link"].includes(tool)) {
+    return createAdvancedPrimitive(tool as "connector" | "sticky" | "marker" | "highlighter" | "table" | "code" | "link", point, shapes);
+  }
   if (tool === "pen") {
     return createVectorShape(
       point,
@@ -59,6 +63,17 @@ export const draftAtPoint = (
     const size = Math.max(Math.abs(dx), Math.abs(dy));
     dx = Math.sign(dx || 1) * size;
     dy = Math.sign(dy || 1) * size;
+  }
+  if (draft.type === "connector") {
+    return normalizeShape({
+      ...draft,
+      x1: start.x,
+      y1: start.y,
+      x2: start.x + dx,
+      y2: start.y + dy,
+      connectorStart: { anchor: "auto", x: start.x, y: start.y },
+      connectorEnd: { anchor: "auto", x: start.x + dx, y: start.y + dy },
+    });
   }
   if (draft.type === "vector" && draft.vectorPoints?.length) {
     const last = draft.vectorPoints.at(-1)!;

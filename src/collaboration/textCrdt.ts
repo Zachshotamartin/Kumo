@@ -70,8 +70,8 @@ export const applyCollaborativeTextChange = (
 
   const deleteEnd = before.length - suffix;
   visible.slice(prefix, deleteEnd).forEach((record) => {
-    const target = nextRecords.find((candidate) => candidate.id === record.id);
-    if (target) target.deleted = true;
+    const target = nextRecords.find((candidate) => candidate.id === record.id)!;
+    target.deleted = true;
   });
   let leftId = prefix > 0 ? visible[prefix - 1]?.id ?? null : null;
   const inserted = after.slice(prefix, after.length - suffix);

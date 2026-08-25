@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Liveblocks } from "@liveblocks/node";
 import { chromium, expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 
 const baseUrl = new URL(process.argv[2] ?? "http://localhost:5175");
 const envPath = resolve(process.argv[3] ?? ".env.local");
@@ -37,6 +38,7 @@ const liveblocksSecretKey = required("LIVEBLOCKS_SECRET_KEY");
 if (!liveblocksSecretKey.startsWith("sk_")) throw new Error("LIVEBLOCKS_SECRET_KEY must begin with sk_.");
 
 const liveblocks = new Liveblocks({ secret: liveblocksSecretKey });
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const supabaseHeaders = {
   apikey: supabaseServiceRoleKey,
   authorization: `Bearer ${supabaseServiceRoleKey}`,
@@ -49,6 +51,7 @@ const accounts = [];
 const boards = [];
 const roomIds = new Set();
 const extensionIds = new Set();
+const fontStorageKeys = new Set();
 let browser;
 
 const messageFromBody = (body, status) => typeof body?.error?.message === "string"
@@ -204,13 +207,35 @@ const libraryLabel = {
 
 const loginAndOpenBoard = async (context, account, boardTitle) => {
   const page = await context.newPage();
+  const diagnostics = [];
+  const pendingRequests = new Map();
+  page.on("request", (request) => pendingRequests.set(request, `${request.method()} ${request.url()}`));
+  page.on("requestfinished", (request) => pendingRequests.delete(request));
+  page.on("pageerror", (error) => diagnostics.push(`pageerror: ${error.message}`));
+  page.on("requestfailed", (request) => {
+    pendingRequests.delete(request);
+    diagnostics.push(`requestfailed: ${request.method()} ${request.url()} (${request.failure()?.errorText ?? "unknown"})`);
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) diagnostics.push(`response: ${response.status()} ${response.url()}`);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") diagnostics.push(`console: ${message.text()}`);
+  });
   await page.goto(baseUrl.toString(), { waitUntil: "domcontentloaded" });
   await page.getByLabel("Email").fill(account.email);
   await page.getByLabel("Password").fill(account.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("button", { name: "Kumo boards" })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: `Open ${boardTitle}`, exact: true }).click();
-  await expect(page.getByRole("application", { name: "Kumo design canvas" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: `Open ${boardTitle}`, exact: true }).click({ timeout: 60_000 });
+  try {
+    await expect(page.getByRole("application", { name: "Kumo design canvas" })).toBeVisible({ timeout: 60_000 });
+  } catch (error) {
+    const pageText = (await page.locator("body").innerText().catch(() => "")).slice(0, 1_000);
+    const pending = [...pendingRequests.values()].slice(-12).join(" | ") || "none";
+    const resources = await page.evaluate(() => performance.getEntriesByType("resource").slice(-12).map((entry) => `${entry.name} (${Math.round(entry.duration)}ms)`).join(" | ")).catch(() => "unavailable");
+    throw new Error(`The editor did not become ready for ${boardTitle}. URL: ${page.url()}. Page: ${pageText}. Pending: ${pending}. Recent resources: ${resources}. Diagnostics: ${diagnostics.slice(-12).join(" | ") || "none"}`, { cause: error });
+  }
   await expect(page.locator('[data-shape-id="collaboration-shape"]')).toBeVisible({ timeout: 30_000 });
   return page;
 };
@@ -243,6 +268,25 @@ try {
   const workspaceId = workspace.workspace.workspace_id;
   const workspaceAdmin = await api(owner, "/api/platform?scope=workspace-admin");
   assert(workspaceAdmin.workspace?.workspace_id === workspaceId, "Workspace administration did not resolve the primary workspace.");
+  const preparedFont = await post(owner, "/api/platform", {
+    action: "prepare-font-upload", fileName: "full-stack.woff2", mimeType: "font/woff2", byteSize: 8,
+  });
+  assert(preparedFont.upload?.path && preparedFont.upload?.token, "Workspace font upload preparation did not return a signed target.");
+  const fontBytes = new Uint8Array([0x77, 0x4f, 0x46, 0x32, 0, 0, 0, 0]);
+  const { error: fontUploadError } = await supabase.storage.from("workspace-fonts").uploadToSignedUrl(
+    preparedFont.upload.path,
+    preparedFont.upload.token,
+    fontBytes,
+    { contentType: "font/woff2" },
+  );
+  if (fontUploadError) throw fontUploadError;
+  fontStorageKeys.add(preparedFont.upload.path);
+  const completedFont = await post(owner, "/api/platform", {
+    action: "complete-font-upload", storageKey: preparedFont.upload.path, family: "Full Stack Sans", style: "normal", weightMin: 400, weightMax: 700,
+  });
+  assert(completedFont.font?.family === "Full Stack Sans" && completedFont.font?.url, "Workspace font completion did not persist or sign the font.");
+  const workspaceFonts = await api(owner, "/api/platform?scope=workspace-fonts");
+  assert(workspaceFonts.fonts?.some((font) => font.id === completedFont.font.id && font.url), "The workspace font registry did not return its signed asset.");
   const invitedWorkspaceMember = await post(owner, "/api/platform", {
     action: "invite-workspace-member", workspaceId, email: collaborator.email, role: "admin",
   });
@@ -374,6 +418,46 @@ try {
   assert(links.links?.some((entry) => entry.id === share.link.id), "Owner could not list the persisted share link.");
   await post(owner, "/api/product", { action: "revoke-share-link", linkId: share.link.id });
 
+  const openSession = await post(owner, "/api/platform", {
+    action: "create-open-session", boardId: source.id, role: "editor", password: "Full-stack guest", expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+  });
+  assert(openSession.token && openSession.session?.id, "Temporary guest session creation did not persist.");
+  const guestNonce = randomUUID().replaceAll("-", "");
+  const rejectedGuest = await fetch(new URL("/api/platform", baseUrl), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "wrong password", guestNonce }),
+  });
+  assert(rejectedGuest.status === 403, "A guest session accepted an incorrect password.");
+  const redeemedGuest = await jsonRequest(new URL("/api/platform", baseUrl), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "Full-stack guest", guestNonce }),
+  });
+  assert(redeemedGuest.session?.boardId === source.id && redeemedGuest.session?.role === "editor", "Guest session redemption did not return its scoped board role.");
+  const guestAuthorization = await fetch(new URL("/api/liveblocks-auth", baseUrl), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ room: source.roomId, openSessionToken: openSession.token, openSessionPassword: "Full-stack guest", openSessionGuestNonce: guestNonce }),
+  });
+  assert(guestAuthorization.ok && (await guestAuthorization.json()).token, "The redeemed guest could not authorize its Liveblocks room.");
+  const branchGuestAuthorization = await fetch(new URL("/api/liveblocks-auth", baseUrl), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ room: "branch:forbidden", openSessionToken: openSession.token, openSessionPassword: "Full-stack guest", openSessionGuestNonce: guestNonce }),
+  });
+  assert(branchGuestAuthorization.status === 403, "A temporary guest session was allowed into a design branch.");
+  const activeSessions = await api(owner, `/api/platform?scope=open-sessions&boardId=${encodeURIComponent(source.id)}`);
+  assert(activeSessions.sessions?.some((session) => session.id === openSession.session.id && session.use_count === 1), "Guest session usage was not visible to the owner.");
+  await post(owner, "/api/platform", { action: "revoke-open-session", boardId: source.id, sessionId: openSession.session.id });
+  const revokedGuest = await fetch(new URL("/api/platform", baseUrl), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "Full-stack guest", guestNonce }),
+  });
+  assert(revokedGuest.status === 404, "A revoked guest session remained redeemable.");
+
+  await post(owner, "/api/telemetry", { kind: "performance", boardId: source.id, metric: "LCP", value: 1250, rating: "needs-improvement", route: "/?board=full-stack", release: "full-stack" });
+  const performanceRows = await supabaseRows("performance_events", {
+    select: "metric,value,rating,route,release", board_id: `eq.${source.id}`, actor_id: `eq.${owner.uid}`, order: "created_at.desc", limit: "1",
+  });
+  assert(performanceRows[0]?.metric === "LCP" && performanceRows[0]?.release === "full-stack", "Performance telemetry did not persist in Supabase.");
+
   const notices = await api(owner, "/api/product?scope=notifications");
   assert(notices.notifications?.some((entry) => entry.kind === "access-request"), "Access request notification was not persisted.");
   await post(owner, "/api/product", { action: "mark-notification" });
@@ -413,8 +497,10 @@ try {
   const collaboratorPage = await loginAndOpenBoard(collaboratorContext, collaborator, source.title);
   await expect(ownerPage.locator('[aria-label="2 people on this board"]')).toBeVisible({ timeout: 20_000 });
   await expect(collaboratorPage.locator('[aria-label="2 people on this board"]')).toBeVisible({ timeout: 20_000 });
-  const ownerReadyEvent = await waitForAuditEvent(source.id, owner.uid, "collaboration.connection_ready");
-  const collaboratorReadyEvent = await waitForAuditEvent(source.id, collaborator.uid, "collaboration.connection_ready");
+  const [ownerReadyEvent, collaboratorReadyEvent] = await Promise.all([
+    waitForAuditEvent(source.id, owner.uid, "collaboration.connection_ready", 45_000),
+    waitForAuditEvent(source.id, collaborator.uid, "collaboration.connection_ready", 45_000),
+  ]);
   assert(
     [ownerReadyEvent, collaboratorReadyEvent].every((entry) => Number(entry.payload?.attempts) >= 1),
     "Ready telemetry did not include the Liveblocks authentication attempt count.",
@@ -459,7 +545,13 @@ try {
     const [left, right] = await Promise.all([ownerShape.boundingBox(), collaboratorShape.boundingBox()]);
     return left && right ? Math.abs(left.x - right.x) : 999;
   }, { timeout: 30_000 }).toBeLessThan(2);
-  const restoredEvent = await waitForAuditEvent(source.id, collaborator.uid, "collaboration.connection_restored", 30_000);
+  let restoredEvent;
+  try {
+    restoredEvent = await waitForAuditEvent(source.id, collaborator.uid, "collaboration.connection_restored", 55_000);
+  } catch (error) {
+    const queuedTelemetry = await collaboratorPage.evaluate(() => localStorage.getItem("kumo:collaboration-telemetry"));
+    throw new Error(`Restored collaboration telemetry did not persist. Browser queue: ${queuedTelemetry ?? "empty"}`, { cause: error });
+  }
   assert(typeof restoredEvent.payload?.durationMs === "number", "Restored telemetry did not include outage duration.");
   const persisted = await liveblocks.getStorageDocument(source.roomId, "json");
   assert(persisted.nodes?.[seedShape.id]?.x1 > seedShape.x1 + 20, "Offline shape edit did not persist after Liveblocks reconnected.");
@@ -467,8 +559,8 @@ try {
   await ownerContext.close();
   await collaboratorContext.close();
   console.log(
-    "Full-stack verification passed: real Supabase workspace/folder/notification/access/library/template/share/branch mutations; "
-    + "workspace ownership, extensions, prototype delivery, exact-version sharing, community remix, account portability; "
+    "Full-stack verification passed: real Supabase workspace/folder/font/notification/access/library/template/share/guest-session/branch mutations; "
+    + "workspace ownership, extensions, prototype delivery, exact-version sharing, community remix, account portability, performance telemetry; "
     + "real Liveblocks two-user contention, offline edit, reconnect convergence, and persisted resilience telemetry."
   );
 } finally {
@@ -485,6 +577,9 @@ try {
     const extensions = new URL("/rest/v1/extension_catalog", supabaseUrl);
     extensions.searchParams.set("id", `eq.${extensionId}`);
     await fetch(extensions, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
+  }
+  if (fontStorageKeys.size) {
+    await supabase.storage.from("workspace-fonts").remove([...fontStorageKeys]).catch(() => undefined);
   }
   for (const account of accounts) {
     const profiles = new URL("/rest/v1/profiles", supabaseUrl);

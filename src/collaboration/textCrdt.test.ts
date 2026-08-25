@@ -32,4 +32,25 @@ describe("collaborative text CRDT", () => {
     expect(changed.records.every((record) => Number.isFinite(record.position))).toBe(true);
     expect(pruneCollaborativeText([...changed.records, { ...changed.records[0]!, id: "gone", shapeId: "gone" }], new Set(["text"]))).toHaveLength(changed.records.length);
   });
+
+  it("orders duplicate, sibling, cyclic, and foreign legacy records deterministically", () => {
+    const legacy = [
+      { id: "b", shapeId: "text", leftId: null, value: "B", deleted: false, position: Number.NaN },
+      { id: "a", shapeId: "text", leftId: null, value: "A", deleted: false, position: Number.NaN },
+      { id: "a", shapeId: "text", leftId: null, value: "duplicate", deleted: false, position: Number.NaN },
+      { id: "cycle-b", shapeId: "text", leftId: "cycle-a", value: "Y", deleted: false, position: Number.NaN },
+      { id: "cycle-a", shapeId: "text", leftId: "cycle-b", value: "X", deleted: false, position: Number.NaN },
+      { id: "other", shapeId: "other", leftId: null, value: "ignored", deleted: false, position: Number.NaN },
+    ];
+    expect(orderedTextCharacters(legacy, "text").map((record) => record.id)).toEqual(["a", "b", "cycle-a", "cycle-b"]);
+  });
+
+  it("inserts at the beginning and tolerates stale previous text", () => {
+    const base = applyCollaborativeTextChange([], "text", "AB", "AB", ids());
+    expect(applyCollaborativeTextChange(base.records, "text", "AB", "XAB", ids("x")).text).toBe("XAB");
+    const stale = applyCollaborativeTextChange([], "text", "AB", "A!B", ids("bang"));
+    expect(stale.text).toContain("!");
+    const deleted = [{ id: "gone", shapeId: "text", leftId: null, position: 1, value: "A", deleted: true }];
+    expect(applyCollaborativeTextChange(deleted, "text", "A", "AX", ids("x")).text).toBe("X");
+  });
 });

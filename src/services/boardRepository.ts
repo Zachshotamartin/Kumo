@@ -17,6 +17,32 @@ export interface BoardSummary {
   linkedBoards?: WhiteBoardState["linkedBoards"];
 }
 
+const MAX_CONCURRENT_BOARD_PREVIEWS = 2;
+let activeBoardPreviews = 0;
+const queuedBoardPreviews: Array<() => void> = [];
+
+const scheduleBoardPreview = <T>(operation: () => Promise<T>): Promise<T> => new Promise((resolve, reject) => {
+  const run = () => {
+    activeBoardPreviews += 1;
+    void operation().then(resolve, reject).finally(() => {
+      activeBoardPreviews -= 1;
+      queuedBoardPreviews.shift()?.();
+    });
+  };
+  if (activeBoardPreviews < MAX_CONCURRENT_BOARD_PREVIEWS) run();
+  else queuedBoardPreviews.push(run);
+});
+
+const readWithTransientRetry = async <T>(operation: () => Promise<T>): Promise<T> => {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!(error instanceof Error) || (error.name !== "AbortError" && !(error instanceof TypeError))) throw error;
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 250));
+    return operation();
+  }
+};
+
 const asBoardState = (board: BoardSummary): WhiteBoardState => ({
   id: board.id,
   roomId: board.roomId,
@@ -40,24 +66,34 @@ const asBoardState = (board: BoardSummary): WhiteBoardState => ({
 });
 
 export const listBoards = async (): Promise<BoardSummary[]> => {
-  const result = await authenticatedFetch<{ boards: BoardSummary[] }>("/api/boards");
+  const result = await readWithTransientRetry(() => authenticatedFetch<{ boards: BoardSummary[] }>("/api/boards"));
   return result.boards;
 };
 
-export const loadBoardPreview = async (boardId: string): Promise<string> => {
-  const response = await authenticatedRequest(
-    `/api/board-preview?id=${encodeURIComponent(boardId)}`,
-    { headers: { Accept: "image/svg+xml" } }
-  );
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
-};
+export const loadBoardPreview = (boardId: string, signal?: AbortSignal): Promise<string> => scheduleBoardPreview(async () => {
+  if (signal?.aborted) throw new DOMException("Board preview request aborted.", "AbortError");
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = window.setTimeout(abort, 8_000);
+  try {
+    const response = await authenticatedRequest(
+      `/api/board-preview?id=${encodeURIComponent(boardId)}`,
+      { headers: { Accept: "image/svg+xml" }, signal: controller.signal }
+    );
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } finally {
+    window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
+});
 
 export const searchPublicBoards = async (query: string): Promise<BoardSummary[]> => {
   if (!query.trim()) return [];
-  const result = await authenticatedFetch<{ boards: BoardSummary[] }>(
+  const result = await readWithTransientRetry(() => authenticatedFetch<{ boards: BoardSummary[] }>(
     `/api/boards?scope=public&query=${encodeURIComponent(query)}`
-  );
+  ));
   return result.boards;
 };
 
@@ -68,17 +104,16 @@ const migrateLegacyBoard = (boardId: string) =>
   });
 
 export const getBoard = async (boardId: string): Promise<WhiteBoardState> => {
+  const load = () => readWithTransientRetry(() => authenticatedFetch<{ board: BoardSummary }>(
+    `/api/boards?id=${encodeURIComponent(boardId)}`
+  ));
   try {
-    const result = await authenticatedFetch<{ board: BoardSummary }>(
-      `/api/boards?id=${encodeURIComponent(boardId)}`
-    );
+    const result = await load();
     return asBoardState(result.board);
   } catch (error) {
     if (!(error instanceof Error) || !/not found/i.test(error.message)) throw error;
     await migrateLegacyBoard(boardId);
-    const result = await authenticatedFetch<{ board: BoardSummary }>(
-      `/api/boards?id=${encodeURIComponent(boardId)}`
-    );
+    const result = await load();
     return asBoardState(result.board);
   }
 };

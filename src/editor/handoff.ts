@@ -1,17 +1,19 @@
 import type { Shape } from "../classes/shape";
 import { effectStyles, gradientCss } from "./graphics";
 import { shapeBounds } from "./geometry";
+import { readablePaintBackground } from "./advancedFeatures";
 
 const cssValue = (value: string) => value.includes(" ") ? `'${value.replaceAll("'", "\\'")}'` : value;
 
 export const shapeCss = (shape: Shape): string => {
   const bounds = shapeBounds(shape);
   const effects = effectStyles(shape);
+  const stroke = shape.strokes?.filter((candidate) => candidate.visible && candidate.width > 0).at(-1);
   const declarations: Array<[string, string | number | undefined]> = [
     ["position", "absolute"], ["left", `${bounds.x}px`], ["top", `${bounds.y}px`],
     ["width", `${bounds.width}px`], ["height", `${bounds.height}px`],
-    ["background", gradientCss(shape) ?? shape.backgroundColor],
-    ["color", shape.color], ["border", `${shape.borderWidth ?? 0}px ${shape.borderStyle ?? "solid"} ${shape.borderColor ?? "transparent"}`],
+    ["background", readablePaintBackground(shape) ?? gradientCss(shape) ?? shape.backgroundColor],
+    ["color", shape.color], ["border", `${stroke?.width ?? shape.borderWidth ?? 0}px ${stroke?.style ?? shape.borderStyle ?? "solid"} ${stroke?.color ?? shape.borderColor ?? "transparent"}`],
     ["border-radius", `${shape.borderRadius ?? 0}px`], ["opacity", shape.opacity],
     ["font-family", shape.fontFamily ? cssValue(shape.fontFamily) : undefined], ["font-size", shape.fontSize ? `${shape.fontSize}px` : undefined],
     ["font-weight", shape.fontWeight], ["line-height", shape.lineHeight], ["letter-spacing", shape.letterSpacing ? `${shape.letterSpacing}px` : undefined],
@@ -53,7 +55,12 @@ export const shapeJson = (shape: Shape): string => JSON.stringify({
 }, null, 2);
 
 export const inspectTokens = (shape: Shape) => ({
-  colors: [...new Set([shape.backgroundColor, shape.color, shape.borderColor, ...(shape.gradientStops ?? []).map((stop) => stop.color)].filter(Boolean) as string[])],
+  colors: [...new Set([
+    shape.backgroundColor, shape.color, shape.borderColor,
+    ...(shape.gradientStops ?? []).map((stop) => stop.color),
+    ...(shape.fills ?? []).flatMap((fill) => [fill.color, ...(fill.gradientStops ?? []).map((stop) => stop.color)]),
+    ...(shape.strokes ?? []).map((stroke) => stroke.color),
+  ].filter(Boolean) as string[])],
   typography: shape.type === "text" ? `${shape.fontWeight ?? "normal"} ${shape.fontSize ?? 18}px/${shape.lineHeight ?? 1.2} ${shape.fontFamily ?? "Arial"}` : null,
   assets: [shape.assetId, shape.fillStyleId, shape.textStyleId, shape.effectStyleId].filter(Boolean) as string[],
   variables: Object.entries(shape.variableBindings ?? {}).map(([property, id]) => ({ property, id })),
@@ -74,3 +81,44 @@ export const designTokenExport = (shape: Shape): string => {
     variables: Object.fromEntries(tokens.variables.map((variable) => [variable.property, { $type: "string", $value: `{${variable.id}}` }])),
   }, null, 2);
 };
+
+export const variableAliasTrace = (shapes: Shape[], shape: Shape) => Object.entries(shape.variableBindings ?? {}).map(([property, id]) => {
+  const chain: string[] = [];
+  const visited = new Set<string>();
+  let current = shapes.find((candidate) => candidate.id === id);
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    chain.push(current.resourceName ?? current.id);
+    current = current.variableAliasId ? shapes.find((candidate) => candidate.id === current!.variableAliasId) : undefined;
+  }
+  return { property, id, chain, circular: Boolean(current) };
+});
+
+export const componentPlayground = (shapes: Shape[], shape: Shape) => {
+  const definition = shape.instanceOf ? shapes.find((candidate) => candidate.id === shape.instanceOf) : shape.componentDefinition ? shape : undefined;
+  if (!definition) return null;
+  const variants = definition.componentSetId
+    ? shapes.filter((candidate) => candidate.componentDefinition && candidate.componentSetId === definition.componentSetId)
+    : [definition];
+  return {
+    definition,
+    variants,
+    properties: Object.entries(definition.componentProperties ?? {}).map(([id, property]) => ({ id, ...property, currentValue: shape.instanceProperties?.[id] ?? property.defaultValue })),
+  };
+};
+
+export const compareFrames = (left: Shape, right: Shape) => {
+  const leftBounds = shapeBounds(left);
+  const rightBounds = shapeBounds(right);
+  const fields: Array<keyof Shape> = ["backgroundColor", "borderColor", "borderWidth", "borderRadius", "opacity", "layoutMode", "layoutGap", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"];
+  return {
+    size: { width: rightBounds.width - leftBounds.width, height: rightBounds.height - leftBounds.height },
+    changes: fields.flatMap((field) => left[field] === right[field] ? [] : [{ field, before: left[field], after: right[field] }]),
+  };
+};
+
+export const downloadableAssets = (shape: Shape) => [
+  ...(shape.backgroundImage ? [{ label: shape.name ?? "Layer image", url: shape.backgroundImage }] : []),
+  ...(shape.embedImageUrl ? [{ label: `${shape.name ?? "Layer"} preview`, url: shape.embedImageUrl }] : []),
+  ...(shape.fills ?? []).flatMap((fill) => fill.type === "image" && fill.imageUrl ? [{ label: `${shape.name ?? "Layer"} fill`, url: fill.imageUrl }] : []),
+];

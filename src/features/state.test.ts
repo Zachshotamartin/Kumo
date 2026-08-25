@@ -9,6 +9,7 @@ import editorReducer, {
   setHoveredShapeId,
   setLocalPreviewActive,
   setSaveStatus,
+  setSelectedThreadId,
   setSnapToGrid,
   setViewport,
   undoEditor,
@@ -86,6 +87,8 @@ describe("editor state invariants", () => {
   });
 
   it("updates editor view, interaction, and history state", () => {
+    expect(editorReducer(undefined, undoEditor()).history).toBeNull();
+    expect(editorReducer(undefined, redoEditor()).history).toBeNull();
     let state = editorReducer(undefined, setViewport({ x: 1, y: 2, zoom: 3 }));
     state = editorReducer(state, setHoveredShapeId("a"));
     state = editorReducer(state, setEditingShapeId("a"));
@@ -97,6 +100,10 @@ describe("editor state invariants", () => {
       viewport: { x: 1, y: 2, zoom: 3 }, hoveredShapeId: "a", editingShapeId: "a", snapToGrid: true,
     });
     expect(state.history).not.toBeNull();
+    state = editorReducer(state, setSelectedThreadId("thread"));
+    expect(state).toMatchObject({ selectedThreadId: "thread", rightPanel: "comments" });
+    state = editorReducer(state, setSelectedThreadId(null));
+    expect(state.selectedThreadId).toBeNull();
   });
 
   it("retains multi-selection rotation only while the same selection remains", () => {
@@ -135,6 +142,8 @@ describe("editor state invariants", () => {
     auth = authReducer(auth, setAuthenticatedProfile({ displayName: "User", username: "user", avatarUrl: "https://example.com/avatar.png" }));
     expect(auth.isAuthenticated).toBe(true);
     expect(auth).toMatchObject({ displayName: "User", username: "user", avatarUrl: "https://example.com/avatar.png" });
+    auth = authReducer(auth, login({ uid: "user", email: "updated@example.com" }));
+    expect(auth).toMatchObject({ displayName: "User", username: "user", avatarUrl: "https://example.com/avatar.png", email: "updated@example.com" });
     auth = authReducer(auth, login({ uid: "other", email: "other@example.com" }));
     expect(auth).toMatchObject({ displayName: null, username: null, avatarUrl: null });
     expect(authReducer(auth, logout()).isAuthenticated).toBe(false);

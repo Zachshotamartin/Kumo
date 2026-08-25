@@ -59,6 +59,8 @@ const builtInExtension: ExtensionManifest = {
   ],
 };
 
+const errorMessage = (caught: unknown, fallback: string) => caught instanceof Error ? caught.message : fallback;
+
 const ProductPanel = () => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
@@ -86,8 +88,7 @@ const ProductPanel = () => {
   const [busy, setBusy] = useState(false);
 
   const reloadLibraries = useCallback(async () => {
-    if (!board.id) return;
-    const result = await loadLibraries(board.id);
+    const result = await loadLibraries(board.id!);
     setLibraries(result.libraries);
     setSubscriptions(result.subscriptions);
   }, [board.id]);
@@ -104,7 +105,7 @@ const ProductPanel = () => {
         setTemplates(nextTemplates);
         setExtensions(nextExtensions);
       })
-      .catch((caught) => active && setError(caught instanceof Error ? caught.message : "Product tools could not be loaded."));
+      .catch((caught) => active && setError(errorMessage(caught, "Product tools could not be loaded.")));
     return () => { active = false; };
   }, [board.id]);
 
@@ -116,7 +117,7 @@ const ProductPanel = () => {
   const run = async (operation: () => Promise<void>) => {
     setBusy(true); setError(null); setMessage(null);
     try { await operation(); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : "The operation failed."); }
+    catch (caught) { setError(errorMessage(caught, "The operation failed.")); }
     finally { setBusy(false); }
   };
 
@@ -159,7 +160,7 @@ const ProductPanel = () => {
             <div className={styles.assetList}>
               {graph.nodes.map((node) => {
                 const localShape = board.shapes.find((shape) => shape.type === "board" && shape.boardId === node.id);
-                return <button type="button" className={styles.assetApply} key={node.id} disabled={!localShape} onClick={() => localShape && select(localShape.id)}><Graph aria-hidden="true" /><span>{node.title}<small>{node.accessible ? node.visibility : "Access required"}{node.manageable ? " · manageable" : ""}</small></span></button>;
+                return <button type="button" className={styles.assetApply} key={node.id} disabled={!localShape} onClick={() => select(localShape!.id)}><Graph aria-hidden="true" /><span>{node.title}<small>{node.accessible ? node.visibility : "Access required"}{node.manageable ? " · manageable" : ""}</small></span></button>;
               })}
             </div>
           </>}
@@ -186,11 +187,11 @@ const ProductPanel = () => {
             <h2>Available libraries</h2>
             <div className={styles.assetList}>{libraries.map((library) => {
               const accepted = subscriptions.find((subscription) => subscription.library_id === library.id)?.accepted_version ?? 0;
-              return <div className={styles.assetRow} key={library.id}><span><Package aria-hidden="true" />{library.name}<small>v{library.latest_version} · {accepted === library.latest_version ? "up to date" : `update from v${accepted}`}</small></span><div><button type="button" disabled={busy || !actions.canEdit || library.source_board_id === board.id} onClick={() => void run(async () => { if (!board.id) return; const diff = await loadLibraryDiff(board.id, library.id); const changed = diff.diff.filter((item) => item.status !== "unchanged").length; if (!changed) { setMessage("This library is already current."); return; } await applyLibrary(board.id, library.id); setMessage(`Applied ${changed} reviewed library changes.`); await reloadLibraries(); })}>{accepted ? "Update" : "Add"}</button>{library.owner_id === board.uid && <button type="button" onClick={() => void loadLibraryVersions(library.id).then((result) => setLibraryVersions(result.versions))}>Releases</button>}</div></div>;
+              return <div className={styles.assetRow} key={library.id}><span><Package aria-hidden="true" />{library.name}<small>v{library.latest_version} · {accepted === library.latest_version ? "up to date" : `update from v${accepted}`}</small></span><div><button type="button" disabled={busy || !board.id || !actions.canEdit || library.source_board_id === board.id} onClick={() => void run(async () => { const diff = await loadLibraryDiff(board.id!, library.id); const changed = diff.diff.filter((item) => item.status !== "unchanged").length; if (!changed) { setMessage("This library is already current."); return; } await applyLibrary(board.id!, library.id); setMessage(`Applied ${changed} reviewed library changes.`); await reloadLibraries(); })}>{accepted ? "Update" : "Add"}</button>{library.owner_id === board.uid && <button type="button" onClick={() => void run(async () => { const result = await loadLibraryVersions(library.id); setLibraryVersions(result.versions); })}>Releases</button>}</div></div>;
             })}</div>
-            {libraryVersions.length > 0 && <div className={styles.assetList}>{libraryVersions.map((version) => <div className={styles.assetRow} key={`${version.library_id}:${version.version}`}><span>v{version.semantic_version ?? version.version}<small>{version.release_status} · {version.description || "No release notes"}</small></span><div>{version.release_status === "review" && <button type="button" onClick={() => void governLibraryRelease("approve-library-release", version.library_id, version.version).then(() => setLibraryVersions((current) => current.map((item) => item.version === version.version ? { ...item, release_status: "published" } : item)))}>Approve</button>}{version.release_status !== "deprecated" && <button type="button" onClick={() => void governLibraryRelease("deprecate-library-release", version.library_id, version.version).then(() => setLibraryVersions((current) => current.map((item) => item.version === version.version ? { ...item, release_status: "deprecated" } : item)))}>Deprecate</button>}<button type="button" disabled={version.release_status === "deprecated"} onClick={() => void governLibraryRelease("rollback-library", version.library_id, version.version).then(() => setMessage(`v${version.semantic_version ?? version.version} is current.`))}>Make current</button></div></div>)}</div>}
+            {libraryVersions.length > 0 && <div className={styles.assetList}>{libraryVersions.map((version) => <div className={styles.assetRow} key={`${version.library_id}:${version.version}`}><span>v{version.semantic_version ?? version.version}<small>{version.release_status} · {version.description || "No release notes"}</small></span><div>{version.release_status === "review" && <button type="button" onClick={() => void run(async () => { await governLibraryRelease("approve-library-release", version.library_id, version.version); setLibraryVersions((current) => current.map((item) => item.version === version.version ? { ...item, release_status: "published" } : item)); })}>Approve</button>}{version.release_status !== "deprecated" && <button type="button" onClick={() => void run(async () => { await governLibraryRelease("deprecate-library-release", version.library_id, version.version); setLibraryVersions((current) => current.map((item) => item.version === version.version ? { ...item, release_status: "deprecated" } : item)); })}>Deprecate</button>}<button type="button" disabled={version.release_status === "deprecated"} onClick={() => void run(async () => { await governLibraryRelease("rollback-library", version.library_id, version.version); setMessage(`v${version.semantic_version ?? version.version} is current.`); })}>Make current</button></div></div>)}</div>}
           </section>
-          <section className={styles.inspectorSection}><h2>Templates</h2><button type="button" disabled={busy || !board.id} onClick={() => void run(async () => { if (!board.id) return; const result = await createTemplate(board.id, board.title ?? "Board template", "Reusable board starting point", "private"); setTemplates((current) => [result.template, ...current]); setMessage("Template created."); })}>Save board as template</button><div className={styles.assetList}>{templates.map((template) => <div className={styles.assetRow} key={template.id}><span>{template.name}<small>{template.visibility}</small></span></div>)}</div></section>
+          <section className={styles.inspectorSection}><h2>Templates</h2><button type="button" disabled={busy || !board.id} onClick={() => void run(async () => { const result = await createTemplate(board.id!, board.title ?? "Board template", "Reusable board starting point", "private"); setTemplates((current) => [result.template, ...current]); setMessage("Template created."); })}>Save board as template</button><div className={styles.assetList}>{templates.map((template) => <div className={styles.assetRow} key={template.id}><span>{template.name}<small>{template.visibility}</small></span></div>)}</div></section>
         </>}
 
         {tab === "accessibility" && <section className={styles.inspectorSection}>
@@ -227,7 +228,7 @@ const ProductPanel = () => {
           <p className={styles.fieldHint}>Publish a discoverable, remixable snapshot of this board. Only the owner can update or remove it.</p>
           <label className={styles.fullField}><span>Description</span><textarea value={communityDescription} onChange={(event) => setCommunityDescription(event.target.value)} placeholder="What can the community learn or build from this board?" /></label>
           <label className={styles.fullField}><span>Tags</span><input value={communityTags} onChange={(event) => setCommunityTags(event.target.value)} placeholder="design system, workshop" /></label>
-          <div className={styles.buttonGrid}><button type="button" disabled={busy || board.role !== "owner" || !communityDescription.trim()} onClick={() => void run(async () => { if (!board.id) return; const result = await publishCommunity(board.id, { description: communityDescription, tags: communityTags.split(",").map((tag) => tag.trim()).filter(Boolean), remixAllowed: true }); setMessage(`Published as ${result.publication.slug}.`); })}>Publish board</button><button type="button" disabled={busy || board.role !== "owner"} onClick={() => void run(async () => { if (!board.id) return; await unpublishCommunity(board.id); setMessage("Community publication removed."); })}>Unpublish</button></div>
+          <div className={styles.buttonGrid}><button type="button" disabled={busy || !board.id || board.role !== "owner" || !communityDescription.trim()} onClick={() => void run(async () => { const result = await publishCommunity(board.id!, { description: communityDescription, tags: communityTags.split(",").map((tag) => tag.trim()).filter(Boolean), remixAllowed: true }); setMessage(`Published as ${result.publication.slug}.`); })}>Publish board</button><button type="button" disabled={busy || !board.id || board.role !== "owner"} onClick={() => void run(async () => { await unpublishCommunity(board.id!); setMessage("Community publication removed."); })}>Unpublish</button></div>
         </section>}
 
         {tab === "recovery" && <section className={styles.inspectorSection}>

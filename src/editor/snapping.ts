@@ -39,11 +39,10 @@ const candidateShapes = (shapes: Shape[], selectedIds: readonly string[]): Shape
   const expanded = expandSelectionIds(shapes, selectedIds);
   const roots = rootSelectionIds(shapes, selectedIds);
   const parentId = commonParentId(shapes, roots);
-  const byId = shapeMap(shapes);
   return shapes.filter((shape) =>
     !expanded.has(shape.id) &&
     !isEffectivelyHidden(shapes, shape) &&
-    (shape.parentId === parentId || shape.id === parentId || byId.get(shape.parentId ?? "")?.id === parentId)
+    (shape.parentId === parentId || shape.id === parentId)
   );
 };
 
@@ -67,7 +66,8 @@ const bestAxisSnap = (
       movingPoints.forEach((movingPoint) => {
         const adjustment = candidatePoint - movingPoint;
         const distance = Math.abs(adjustment);
-        if (distance > tolerance || (best && distance >= best.distance)) return;
+        if (distance > tolerance) return;
+        if (best && distance >= best.distance) return;
         best = {
           distance,
           adjustment,

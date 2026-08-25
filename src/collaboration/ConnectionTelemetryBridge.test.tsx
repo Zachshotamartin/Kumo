@@ -62,5 +62,58 @@ describe("ConnectionTelemetryBridge", () => {
     expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ event: "lost" }));
     expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ event: "failed" }));
   });
-});
 
+  it("reports zero-duration failures and contains telemetry transport errors", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mocks.report.mockRejectedValue(new Error("telemetry offline"));
+    render(<Provider store={testStore()}><ConnectionTelemetryBridge /></Provider>);
+    await waitFor(() => expect(mocks.lostListener).toBeTypeOf("function"));
+    act(() => mocks.lostListener?.("failed"));
+    await waitFor(() => expect(warning).toHaveBeenCalledWith(
+      "Kumo could not record collaboration telemetry.",
+      expect.any(Error)
+    ));
+    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ event: "failed", durationMs: 0 }));
+    warning.mockRestore();
+  });
+
+  it("ignores connection events until both a board and room are selected", () => {
+    const store = testStore();
+    store.dispatch(setWhiteboardData({ id: null, roomId: null }));
+    render(<Provider store={store}><ConnectionTelemetryBridge /></Provider>);
+    act(() => mocks.lostListener?.("lost"));
+    expect(mocks.report).not.toHaveBeenCalled();
+  });
+
+  it("records restoration from connection status when the callback is omitted", async () => {
+    const store = testStore();
+    const view = render(<Provider store={store}><ConnectionTelemetryBridge /></Provider>);
+    await waitFor(() => expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ event: "ready" })));
+    mocks.report.mockClear();
+    mocks.status = "reconnecting";
+    view.rerender(<Provider store={store}><ConnectionTelemetryBridge /></Provider>);
+    mocks.status = "connected";
+    view.rerender(<Provider store={store}><ConnectionTelemetryBridge /></Provider>);
+    await waitFor(() => expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ event: "restored" })));
+    act(() => mocks.lostListener?.("restored"));
+    expect(mocks.report).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not attribute a previous room outage to a newly opened board", async () => {
+    const store = testStore();
+    const view = render(<Provider store={store}><ConnectionTelemetryBridge /></Provider>);
+    await waitFor(() => expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ event: "ready" })));
+    mocks.report.mockClear();
+    mocks.status = "reconnecting";
+    view.rerender(<Provider store={store}><ConnectionTelemetryBridge /></Provider>);
+    act(() => {
+      store.dispatch(setWhiteboardData({ id: "next-board", roomId: "board:next-board" }));
+    });
+    mocks.status = "connected";
+    view.rerender(<Provider store={store}><ConnectionTelemetryBridge /></Provider>);
+    await waitFor(() => expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({
+      event: "ready", boardId: "next-board", roomId: "board:next-board",
+    })));
+    expect(mocks.report).not.toHaveBeenCalledWith(expect.objectContaining({ event: "restored" }));
+  });
+});

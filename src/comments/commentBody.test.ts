@@ -42,5 +42,23 @@ describe("comment bodies", () => {
       value: "Hello @zach@example.com  later",
       cursor: 24,
     });
+    expect(insertMention("No mention", collaborators[0]!)).toEqual({ value: "No mention", cursor: 10 });
+  });
+
+  it("renders non-user mentions, collaborator fallbacks, and links", () => {
+    const body = { version: 1, content: [{ type: "paragraph", children: [
+      { type: "mention", kind: "user", id: "email-only" },
+      { type: "mention", kind: "user", id: "missing" },
+      { type: "mention", kind: "group", id: "team" },
+      { type: "link", url: "https://kumo.test", text: "Kumo" },
+      { type: "link", url: "https://fallback.test" },
+    ] }] } as Parameters<typeof commentBodyParts>[0];
+    expect(commentBodyParts(body, [{ ...collaborators[0]!, id: "email-only", name: "" }])[0]).toEqual([
+      { text: "@zach@example.com", mentionId: "email-only" },
+      { text: "@collaborator", mentionId: "missing" },
+      { text: "@collaborator", mentionId: "team" },
+      { text: "Kumo" },
+      { text: "https://fallback.test" },
+    ]);
   });
 });

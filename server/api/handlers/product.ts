@@ -7,6 +7,7 @@ import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { boardDocumentFromJson, liveblocksAdmin } from "../_liveblocks.js";
 import { cleanProductName, diffLibraryPayload, documentNodes, extractLibraryAssets, mergeLibraryPayload } from "../_product.js";
 import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
+import { sendPreferredPushToUser } from "../_push.js";
 
 const editable = (role: string) => role === "owner" || role === "editor";
 const ownerOnly = (role: string) => role === "owner";
@@ -150,10 +151,16 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (action === "create-folder") {
       const workspace = await ensureWorkspace(actor.uid, profile.displayName);
+      const parentId = typeof request.body?.parentId === "string" && request.body.parentId ? request.body.parentId : null;
+      if (parentId) {
+        const { data: parent, error: parentError } = await database.from("workspace_folders").select("id").eq("id", parentId).eq("workspace_id", workspace.workspace_id).maybeSingle();
+        if (parentError) throw parentError;
+        if (!parent) return response.status(404).json({ error: "Parent folder not found in this workspace." });
+      }
       const { data, error } = await database.from("workspace_folders").insert({
         workspace_id: workspace.workspace_id, created_by: actor.uid,
         name: cleanProductName(request.body?.name, "Untitled folder"),
-        parent_id: typeof request.body?.parentId === "string" ? request.body.parentId : null,
+        parent_id: parentId,
       }).select("id, workspace_id, parent_id, name, created_by, created_at, updated_at").single();
       if (error) throw error;
       return response.status(201).json({ folder: data });
@@ -163,7 +170,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const boardId = typeof request.body?.boardId === "string" ? request.body.boardId : "";
       if (!(await getBoardAccess(boardId, actor.uid))) return response.status(404).json({ error: "Board not found." });
       const workspace = await ensureWorkspace(actor.uid, profile.displayName);
-      const patch = action === "move-board" ? { workspace_id: workspace.workspace_id, folder_id: request.body?.folderId ?? null }
+      const folderId = action === "move-board" && typeof request.body?.folderId === "string" && request.body.folderId ? request.body.folderId : null;
+      if (folderId) {
+        const { data: folder, error: folderError } = await database.from("workspace_folders").select("id").eq("id", folderId).eq("workspace_id", workspace.workspace_id).maybeSingle();
+        if (folderError) throw folderError;
+        if (!folder) return response.status(404).json({ error: "Folder not found in this workspace." });
+      }
+      const patch = action === "move-board" ? { workspace_id: workspace.workspace_id, folder_id: folderId }
         : action === "favorite-board" ? { favorite: Boolean(request.body?.favorite) }
         : action === "archive-board" ? { archived_at: new Date().toISOString(), trashed_at: null }
         : action === "trash-board" ? { trashed_at: new Date().toISOString(), archived_at: null }
@@ -236,8 +249,12 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const { data: subscribers, error: subscriberError } = await database.from("design_library_subscriptions").select("subscribed_by, board_id").eq("library_id", libraryId);
       if (subscriberError) throw subscriberError;
       if (subscribers?.length) {
-        const { error: noticeError } = await database.from("account_notifications").insert(subscribers.map((subscriber) => ({ recipient_id: subscriber.subscribed_by, actor_id: actor.uid, board_id: subscriber.board_id, kind: "library", title: `${library.name} release changed`, body: `Version ${version} was ${action === "rollback-library" ? "made current" : action === "approve-library-release" ? "approved" : "deprecated"}.`, action_url: `/?board=${encodeURIComponent(subscriber.board_id)}` })));
+        const notifications = subscribers.map((subscriber) => ({ recipient_id: subscriber.subscribed_by, actor_id: actor.uid, board_id: subscriber.board_id, kind: "library", title: `${library.name} release changed`, body: `Version ${version} was ${action === "rollback-library" ? "made current" : action === "approve-library-release" ? "approved" : "deprecated"}.`, action_url: `/?board=${encodeURIComponent(subscriber.board_id)}` }));
+        const { error: noticeError } = await database.from("account_notifications").insert(notifications);
         if (noticeError) throw noticeError;
+        await Promise.allSettled(notifications.map((notification) => sendPreferredPushToUser(notification.recipient_id, "library_updates", {
+          title: notification.title, body: notification.body, url: notification.action_url, tag: `kumo:library:${libraryId}`,
+        })));
       }
       return response.status(200).json({ updated: true, libraryId, version, action });
     }
@@ -293,7 +310,10 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const role = request.body?.role === "editor" ? "editor" : "viewer";
       const { data, error } = await database.from("board_access_requests").upsert({ board_id: boardId, requester_id: actor.uid, requested_role: role, message: String(request.body?.message ?? "").slice(0, 500), status: "pending" }, { onConflict: "board_id,requester_id,status" }).select("id, status").single();
       if (error) throw error;
-      await database.from("account_notifications").insert({ recipient_id: board.owner_id, actor_id: actor.uid, board_id: boardId, kind: "access-request", title: `Access requested for ${board.title}`, body: `${profile.displayName} requested ${role} access.` });
+      const notification = { recipient_id: board.owner_id, actor_id: actor.uid, board_id: boardId, kind: "access-request", title: `Access requested for ${board.title}`, body: `${profile.displayName} requested ${role} access.`, action_url: `/?board=${encodeURIComponent(boardId)}` };
+      const { error: noticeError } = await database.from("account_notifications").insert(notification);
+      if (noticeError) throw noticeError;
+      await Promise.allSettled([sendPreferredPushToUser(board.owner_id, "access_changes", { title: notification.title, body: notification.body, url: notification.action_url, tag: `kumo:access:${boardId}` })]);
       return response.status(201).json({ request: data });
     }
 
@@ -310,6 +330,10 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }
       const { error: updateError } = await database.from("board_access_requests").update({ status: approved ? "approved" : "denied", resolved_by: actor.uid, resolved_at: new Date().toISOString() }).eq("id", requestId).eq("status", "pending");
       if (updateError) throw updateError;
+      const notification = { recipient_id: accessRequest.requester_id, actor_id: actor.uid, board_id: accessRequest.board_id, kind: "access-request", title: `Board access ${approved ? "approved" : "denied"}`, body: approved ? `You now have ${accessRequest.requested_role} access.` : "Your access request was denied.", action_url: approved ? `/?board=${encodeURIComponent(accessRequest.board_id)}` : "/?view=boards" };
+      const { error: noticeError } = await database.from("account_notifications").insert(notification);
+      if (noticeError) throw noticeError;
+      await Promise.allSettled([sendPreferredPushToUser(accessRequest.requester_id, "access_changes", { title: notification.title, body: notification.body, url: notification.action_url, tag: `kumo:access:${accessRequest.board_id}` })]);
       return response.status(200).json({ resolved: true, status: approved ? "approved" : "denied" });
     }
 

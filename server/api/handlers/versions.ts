@@ -134,7 +134,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
           .eq("kind", "autosave").order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (latestError) throw latestError;
         const recent = latest?.created_at && Date.now() - new Date(latest.created_at as string).getTime() < 30 * 60 * 1000;
-        if (latest?.checksum === documentChecksum || recent) return response.status(200).json({ version: latest ?? null, skipped: true });
+        if (latest && (latest.checksum === documentChecksum || recent)) {
+          return response.status(200).json({ version: latest, skipped: true });
+        }
         const { data, error } = await database.from("document_snapshots").insert({
           board_id: boardId, liveblocks_room_id: roomId, document, checksum: documentChecksum,
           name: "Automatic checkpoint", description: "Periodic recovery snapshot.", created_by: actor.uid, kind: "autosave",

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- logo helpers are part of the public component contract. */
 import { createElement, type CSSProperties, useEffect, useRef, useState } from "react";
 import { KUMO_LOGO_CONFIG, type KumoLogoContext } from "./KumoLogoConfig";
 
@@ -37,7 +38,7 @@ interface KumoLogoElement extends HTMLElement {
   setContext: (context: Exclude<KumoLogoContext, "idle">) => boolean;
 }
 
-const whenLogoIsDefined = () => {
+export const whenLogoIsDefined = () => {
   if (typeof window === "undefined" || !window.customElements) return Promise.resolve();
   return window.customElements.whenDefined("kumo-logo");
 };

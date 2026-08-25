@@ -30,6 +30,8 @@ export interface LinkedBoardAccessSummary {
   visibility: BoardVisibility;
   accessible: boolean;
   role: BoardRole | null;
+  updatedAt: number | null;
+  thumbnailUrl: string | null;
 }
 
 export const boardSummary = (board: BoardRow, role?: BoardRole, thumbnailUrl?: string | null) => ({
@@ -109,7 +111,7 @@ export const linkedBoardsForActor = async (
   const [{ data: boards, error: boardError }, { data: memberships, error: memberError }] = await Promise.all([
     database
       .from("boards")
-      .select("id, title, visibility")
+      .select("id, title, visibility, thumbnail_asset_id, updated_at")
       .in("id", targetIds)
       .is("deleted_at", null),
     database
@@ -124,6 +126,9 @@ export const linkedBoardsForActor = async (
     member.board_id as string,
     member.role as BoardRole,
   ]));
+  const thumbnailUrls = await boardThumbnailUrls((boards ?? []).map((board) => ({
+    thumbnail_asset_id: board.thumbnail_asset_id as string | null,
+  })));
   return Object.fromEntries((boards ?? []).map((board) => {
     const role = roles.get(board.id as string) ?? null;
     const visibility = board.visibility as BoardVisibility;
@@ -134,6 +139,10 @@ export const linkedBoardsForActor = async (
       visibility,
       accessible,
       role: role ?? (visibility === "public" ? "viewer" : null),
+      updatedAt: accessible && board.updated_at ? new Date(board.updated_at as string).getTime() : null,
+      thumbnailUrl: accessible && board.thumbnail_asset_id
+        ? thumbnailUrls.get(board.thumbnail_asset_id as string) ?? null
+        : null,
     } satisfies LinkedBoardAccessSummary];
   }));
 };
@@ -211,7 +220,7 @@ export const provisionBoard = async ({
     });
     if (error) throw error;
     const board = data as BoardRow;
-    await updateBoardThumbnail(
+    void updateBoardThumbnail(
       board,
       document === undefined ? { backgroundColor: "#252629", nodes: {} } : document
     ).catch(() => undefined);

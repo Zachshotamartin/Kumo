@@ -21,7 +21,9 @@
     "firebase-admin": "^14.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-redux": "^9.2.0"
+    "react-redux": "^9.2.0",
+    "web-push": "^3.6.7",
+    "web-vitals": "^6.2.0"
   },
   "scripts": {
     "dev": "vite",
@@ -44,6 +46,7 @@
     "verify:full-stack": "node scripts/verify-product-collaboration.mjs",
     "validate:local-env": "node scripts/validate-vercel-runtime-env.mjs .env.local --require-concrete --local-runtime",
     "validate:vercel-env": "node scripts/validate-vercel-runtime-env.mjs",
+    "verify:vercel-functions": "node scripts/verify-vercel-function-imports.mjs",
     "verify:deployment": "node --experimental-strip-types scripts/verify-deployment-smoke.mjs"
   },
   "devDependencies": {
@@ -57,6 +60,7 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/web-push": "^3.6.4",
     "@vercel/node": "^7.0.0",
     "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.11",

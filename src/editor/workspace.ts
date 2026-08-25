@@ -76,7 +76,7 @@ export const duplicatePage = (shapes: Shape[], pageId: string) => {
     ...shape,
     id: idMap.get(shape.id)!,
     pageId: created.pageId,
-    groupId: shape.groupId ? groupIdMap.get(shape.groupId) ?? null : null,
+    groupId: shape.groupId ? groupIdMap.get(shape.groupId)! : null,
     parentId: internalId(shape.parentId) ?? null,
     sectionId: internalId(shape.sectionId) ?? null,
     instanceRootId: internalId(shape.instanceRootId),
@@ -106,9 +106,10 @@ export const duplicatePage = (shapes: Shape[], pageId: string) => {
 export const deletePage = (shapes: Shape[], pageId: string) => {
   const pages = documentPages(shapes);
   if (pages.length <= 1) return { shapes, nextPageId: pageId };
-  const remaining = pages.filter((page) => page.id !== pageId);
   const removedIndex = pages.findIndex((page) => page.id === pageId);
-  const nextPageId = pages[removedIndex + 1]?.id ?? pages[removedIndex - 1]?.id ?? remaining[0]!.id;
+  const nextPageId = removedIndex >= 0
+    ? pages[removedIndex + 1]?.id ?? pages[removedIndex - 1]!.id
+    : pages[0]!.id;
   return {
     shapes: shapes.filter((shape) => {
       if (shape.type === "page-resource") return shape.id !== pageId;

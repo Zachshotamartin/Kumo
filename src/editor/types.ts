@@ -10,7 +10,15 @@ export type EditorTool =
   | "image"
   | "board"
   | "comment"
-  | "pen";
+  | "pen"
+  | "connector"
+  | "sticky"
+  | "marker"
+  | "highlighter"
+  | "eraser"
+  | "table"
+  | "code"
+  | "link";
 
 export interface Point {
   x: number;
@@ -89,4 +97,4 @@ export interface CommentAnchor {
   shapeId: string;
 }
 
-export type EditorRightPanel = "properties" | "comments" | "history" | "assets" | "prototype" | "export" | "inspect" | "branches" | "platform";
+export type EditorRightPanel = "properties" | "comments" | "history" | "assets" | "prototype" | "export" | "inspect" | "branches" | "platform" | "studio";

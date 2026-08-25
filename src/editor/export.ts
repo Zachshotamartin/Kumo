@@ -1,7 +1,16 @@
 import { createShapeId, type Shape } from "../classes/shape.js";
+import { connectorRenderBounds, routeConnector } from "./advancedFeatures.js";
 import { normalizeShape, selectionBounds, shapeBounds } from "./geometry.js";
 import { shapePathData } from "./graphics.js";
 import { descendantIds } from "./hierarchy.js";
+import {
+  roundedRectPath,
+  strokeDashArray,
+  visibleShapeFills,
+  visibleShapeStrokes,
+  type ShapeFill,
+  type ShapeStroke,
+} from "./shapePaint.js";
 import type { Bounds } from "./types.js";
 
 const escapeXml = (value: unknown) => String(value ?? "")
@@ -16,21 +25,58 @@ const svgId = (prefix: string, shape: Shape) => `${prefix}-${shape.id.replace(/[
 
 const svgPath = (shape: Shape, origin: { x: number; y: number }) => escapeXml(shapePathData(shape, origin));
 
-const svgPaint = (shape: Shape): string => shape.fillType && shape.fillType !== "solid" && shape.gradientStops?.length
-  ? `url(#${svgId("gradient", shape)})`
-  : escapeXml(shape.backgroundColor ?? "transparent");
+const visibleStroke = (shape: Shape) => visibleShapeStrokes(shape).at(-1);
+
+const svgFillId = (shape: Shape, fill: ShapeFill) => svgId(`fill-${fill.id}`, shape);
+
+const svgFillPaint = (shape: Shape, fill: ShapeFill) => {
+  if (fill.type === "solid") return escapeXml(fill.color ?? "transparent");
+  if (fill.type === "image" ? !fill.imageUrl : !fill.gradientStops?.length) return "transparent";
+  return `url(#${svgFillId(shape, fill)})`;
+};
+
+const localShapePath = (shape: Shape, width: number, height: number) => shape.type === "ellipse"
+  ? `M ${width / 2} 0 A ${width / 2} ${height / 2} 0 1 1 ${width / 2} ${height} A ${width / 2} ${height / 2} 0 1 1 ${width / 2} 0 Z`
+  : roundedRectPath(shape, width, height);
+
+const svgPaint = (shape: Shape): string => {
+  return shape.fillType && shape.fillType !== "solid" && shape.gradientStops?.length
+    ? `url(#${svgId("gradient", shape)})`
+    : escapeXml(shape.backgroundColor ?? "transparent");
+};
 
 const svgDefinitions = (shapes: Shape[], origin: { x: number; y: number }): string => shapes.map((shape) => {
   const bounds = shapeBounds(shape);
   const x = bounds.x - origin.x;
   const y = bounds.y - origin.y;
   const definitions: string[] = [];
-  if (shape.fillType && shape.fillType !== "solid" && shape.gradientStops?.length) {
+  const fills = visibleShapeFills(shape);
+  fills.forEach((fill) => {
+    if ((fill.type === "linear-gradient" || fill.type === "radial-gradient") && fill.gradientStops?.length) {
+      const stops = [...fill.gradientStops].sort((left, right) => left.position - right.position)
+        .map((stop) => `<stop offset="${Math.max(0, Math.min(1, stop.position)) * 100}%" stop-color="${escapeXml(stop.color)}" stop-opacity="${Math.max(0, Math.min(1, stop.opacity * fill.opacity))}"/>`).join("");
+      definitions.push(fill.type === "radial-gradient"
+        ? `<radialGradient id="${svgFillId(shape, fill)}">${stops}</radialGradient>`
+        : `<linearGradient id="${svgFillId(shape, fill)}" gradientTransform="rotate(${fill.gradientAngle ?? 90} .5 .5)">${stops}</linearGradient>`);
+    }
+    if (fill.type === "image" && fill.imageUrl) {
+      definitions.push(`<pattern id="${svgFillId(shape, fill)}" width="1" height="1" patternContentUnits="objectBoundingBox"><image href="${escapeXml(fill.imageUrl)}" width="1" height="1" preserveAspectRatio="xMidYMid slice"/></pattern>`);
+    }
+  });
+  if (!fills.length && shape.fillType && shape.fillType !== "solid" && shape.gradientStops?.length) {
     const stops = [...shape.gradientStops].sort((left, right) => left.position - right.position)
       .map((stop) => `<stop offset="${Math.max(0, Math.min(1, stop.position)) * 100}%" stop-color="${escapeXml(stop.color)}" stop-opacity="${Math.max(0, Math.min(1, stop.opacity))}"/>`).join("");
     definitions.push(shape.fillType === "radial-gradient"
       ? `<radialGradient id="${svgId("gradient", shape)}">${stops}</radialGradient>`
       : `<linearGradient id="${svgId("gradient", shape)}" gradientTransform="rotate(${shape.gradientAngle ?? 90} .5 .5)">${stops}</linearGradient>`);
+  }
+  if (shape.type === "connector") {
+    const marker = (kind: Shape["connectorEndCap"], end: boolean) => kind === "arrow"
+      ? `<path d="${end ? "M 0 0 L 10 5 L 0 10 z" : "M 10 0 L 0 5 L 10 10 z"}" fill="context-stroke"/>`
+      : kind === "circle" ? '<circle cx="5" cy="5" r="4" fill="context-stroke"/>'
+      : '<path d="M 5 0 L 10 5 L 5 10 L 0 5 z" fill="context-stroke"/>';
+    if (shape.connectorStartCap && shape.connectorStartCap !== "none") definitions.push(`<marker id="${svgId("start", shape)}" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto-start-reverse" markerUnits="strokeWidth">${marker(shape.connectorStartCap, false)}</marker>`);
+    if (shape.connectorEndCap && shape.connectorEndCap !== "none") definitions.push(`<marker id="${svgId("end", shape)}" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto" markerUnits="strokeWidth">${marker(shape.connectorEndCap, true)}</marker>`);
   }
   if (shape.effects?.some((effect) => effect.visible !== false)) {
     const primitives = shape.effects.filter((effect) => effect.visible !== false).map((effect) => {
@@ -42,11 +88,20 @@ const svgDefinitions = (shapes: Shape[], origin: { x: number; y: number }): stri
     }).join("");
     definitions.push(`<filter id="${svgId("effect", shape)}" x="-50%" y="-50%" width="200%" height="200%">${primitives}</filter>`);
   }
+  const localGeometry = `<path d="${escapeXml(localShapePath(shape, bounds.width, bounds.height))}" transform="translate(${x} ${y})"/>`;
   if (shape.clipContent || shape.backgroundImage) {
-    const geometry = shape.type === "ellipse"
-      ? `<ellipse cx="${x + bounds.width / 2}" cy="${y + bounds.height / 2}" rx="${bounds.width / 2}" ry="${bounds.height / 2}"/>`
-      : `<rect x="${x}" y="${y}" width="${bounds.width}" height="${bounds.height}" rx="${shape.borderRadius ?? 0}"/>`;
+    const geometry = ["vector", "boolean"].includes(shape.type)
+      ? `<path d="${svgPath(shape, origin)}"/>`
+      : localGeometry;
     definitions.push(`<clipPath id="${svgId("clip", shape)}">${geometry}</clipPath>`);
+  }
+  if (visibleShapeStrokes(shape).some((stroke) => stroke.align !== "center")) {
+    const geometry = ["vector", "boolean"].includes(shape.type)
+      ? `<path d="${svgPath(shape, origin)}"/>`
+      : localGeometry;
+    const padding = Math.max(1, ...visibleShapeStrokes(shape).map((stroke) => stroke.width * 2));
+    definitions.push(`<clipPath id="${svgId("stroke-clip", shape)}">${geometry}</clipPath>`);
+    definitions.push(`<mask id="${svgId("stroke-outside", shape)}" maskUnits="userSpaceOnUse" x="${x - padding}" y="${y - padding}" width="${bounds.width + padding * 2}" height="${bounds.height + padding * 2}"><rect x="${x - padding}" y="${y - padding}" width="${bounds.width + padding * 2}" height="${bounds.height + padding * 2}" fill="white"/>${geometry.replace("/>", ' fill="black"/>')}</mask>`);
   }
   if (shape.isMask) definitions.push(`<mask id="${svgId("mask", shape)}"><path d="${svgPath(shape, origin)}" fill="white"/></mask>`);
   if (shape.type === "boolean" && shape.booleanChildren?.length && shape.booleanOperation === "intersect") {
@@ -54,13 +109,62 @@ const svgDefinitions = (shapes: Shape[], origin: { x: number; y: number }): stri
       `<clipPath id="${svgId(`boolean-clip-${index}`, shape)}"><path d="${svgPath(child, origin)}"/></clipPath>`
     ));
   }
-  if (shape.type === "boolean" && shape.booleanChildren?.length && shape.booleanOperation === "subtract") {
-    definitions.push(`<mask id="${svgId("boolean-subtract", shape)}"><rect width="100%" height="100%" fill="black"/><path d="${svgPath(shape.booleanChildren[0]!, origin)}" fill="white"/>${shape.booleanChildren.slice(1).map((child) => `<path d="${svgPath(child, origin)}" fill="black"/>`).join("")}</mask>`);
-  }
   return definitions.join("");
 }).join("");
 
-const svgShape = (shape: Shape, origin: { x: number; y: number }): string => {
+const connectorSvgPath = (shape: Shape, shapes: Shape[], origin: { x: number; y: number }) => {
+  const local = routeConnector(shapes, shape).map((point) => ({ x: point.x - origin.x, y: point.y - origin.y }));
+  if ((shape.connectorRouting ?? "straight") === "curved" && local.length === 2) {
+    const [start, end] = local;
+    const bend = Math.max(24, Math.abs(end!.x - start!.x) * 0.42);
+    return `M ${start!.x} ${start!.y} C ${start!.x + bend} ${start!.y}, ${end!.x - bend} ${end!.y}, ${end!.x} ${end!.y}`;
+  }
+  return local.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+};
+
+const svgMultilineText = (value: string, x: number, y: number, options: {
+  color?: string; family?: string; size: number; weight?: string; lineHeight?: number; maxLines: number;
+}) => {
+  const size = options.size;
+  const lines = value.slice(0, 10_000).split("\n").slice(0, options.maxLines);
+  return `<text xml:space="preserve" x="${x}" y="${y}" fill="${escapeXml(options.color ?? "#17181a")}" font-family="${escapeXml(options.family ?? "Arial")}" font-size="${size}" font-weight="${escapeXml(options.weight ?? "normal")}">${lines.map((line, index) => `<tspan x="${x}" dy="${index ? size * (options.lineHeight ?? 1.25) : 0}">${escapeXml(line)}</tspan>`).join("")}</text>`;
+};
+
+const legacyStroke = (shape: Shape): ShapeStroke | null => {
+  const width = Math.max(0, shape.borderWidth ?? (shape.type === "vector" ? 1 : 0));
+  if (!width) return null;
+  return {
+    id: "legacy",
+    color: shape.borderColor ?? (shape.type === "vector" ? "#fff" : "transparent"),
+    width,
+    opacity: 1,
+    visible: true,
+    style: shape.borderStyle === "dashed" ? "dashed" : shape.borderStyle === "dotted" ? "dotted" : "solid",
+    align: "center",
+  };
+};
+
+const stackedPath = (shape: Shape, path: string, closed: boolean, strokeSuffix = "", fillRule?: "nonzero" | "evenodd"): string => {
+  const fills = visibleShapeFills(shape);
+  const strokes = visibleShapeStrokes(shape);
+  const activeStrokes = strokes.length ? strokes : legacyStroke(shape) ? [legacyStroke(shape)!] : [];
+  const fillMarkup = !closed ? "" : fills.length
+    ? fills.map((fill) => `<path d="${escapeXml(path)}" fill="${svgFillPaint(shape, fill)}" fill-opacity="${fill.type === "linear-gradient" || fill.type === "radial-gradient" ? 1 : Math.max(0, Math.min(1, fill.opacity))}"${fillRule ? ` fill-rule="${fillRule}"` : ""}${fill.blendMode && fill.blendMode !== "normal" ? ` style="mix-blend-mode:${fill.blendMode}"` : ""}/>`).join("")
+    : `<path d="${escapeXml(path)}" fill="${svgPaint(shape)}"${fillRule ? ` fill-rule="${fillRule}"` : ""}/>`;
+  const strokeMarkup = activeStrokes.map((stroke) => {
+    const aligned = closed ? stroke.align : "center";
+    const width = aligned === "center" ? stroke.width : stroke.width * 2;
+    const dashArray = stroke.id === "legacy" && shape.strokeDash?.length ? shape.strokeDash.join(" ") : strokeDashArray(stroke);
+    const dash = dashArray ? ` stroke-dasharray="${dashArray}"` : "";
+    const cap = stroke.style === "dotted" || shape.strokeCap === "round" ? "round" : shape.strokeCap === "square" ? "square" : "butt";
+    const alignment = aligned === "inside" ? ` clip-path="url(#${svgId("stroke-clip", shape)})"`
+      : aligned === "outside" ? ` mask="url(#${svgId("stroke-outside", shape)})"` : "";
+    return `<path d="${escapeXml(path)}" fill="none" stroke="${escapeXml(stroke.color)}" stroke-opacity="${Math.max(0, Math.min(1, stroke.opacity))}" stroke-width="${width}" stroke-linecap="${cap}" stroke-linejoin="${shape.strokeJoin ?? "miter"}"${dash}${alignment}${strokeSuffix}/>`;
+  }).join("");
+  return `${fillMarkup}${strokeMarkup}`;
+};
+
+const svgShape = (shape: Shape, origin: { x: number; y: number }, shapes: Shape[]): string => {
   const bounds = shapeBounds(shape);
   const x = bounds.x - origin.x;
   const y = bounds.y - origin.y;
@@ -71,16 +175,14 @@ const svgShape = (shape: Shape, origin: { x: number; y: number }): string => {
   const centerX = x + bounds.width / 2;
   const centerY = y + bounds.height / 2;
   const common = `opacity="${shape.opacity ?? 1}" transform="translate(${centerX} ${centerY}) rotate(${shape.rotation ?? 0}) scale(${shape.flipX ? -1 : 1} ${shape.flipY ? -1 : 1}) translate(${-centerX} ${-centerY})"${styles ? ` style="${escapeXml(styles)}"` : ""}${shape.effects?.some((effect) => effect.visible !== false) ? ` filter="url(#${svgId("effect", shape)})"` : ""}${shape.maskId ? ` mask="url(#mask-${escapeXml(shape.maskId.replace(/[^a-z0-9_-]/gi, "-"))})"` : ""}`;
-  const fill = svgPaint(shape);
-  const stroke = escapeXml(shape.borderColor ?? "transparent");
-  const strokeWidth = Math.max(0, shape.borderWidth ?? 0);
-  const dash = shape.borderStyle === "dashed" ? ` stroke-dasharray="${strokeWidth * 4} ${strokeWidth * 2}"`
-    : shape.borderStyle === "dotted" ? ` stroke-dasharray="${strokeWidth} ${strokeWidth * 2}" stroke-linecap="round"` : "";
-  const image = shape.backgroundImage
+  const activeStroke = visibleStroke(shape);
+  const stroke = escapeXml(activeStroke?.color ?? shape.borderColor ?? "transparent");
+  const strokeWidth = Math.max(0, activeStroke?.width ?? shape.borderWidth ?? 0);
+  const image = shape.backgroundImage && shape.mediaType !== "video"
     ? `<image href="${escapeXml(shape.backgroundImage)}" x="${x}" y="${y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${svgId("clip", shape)})"/>`
     : "";
   if (shape.type === "ellipse") {
-    return `<g ${common}><ellipse cx="${x + bounds.width / 2}" cy="${y + bounds.height / 2}" rx="${bounds.width / 2}" ry="${bounds.height / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}/>${image}</g>`;
+    return `<g ${common}><g transform="translate(${x} ${y})">${stackedPath(shape, localShapePath(shape, bounds.width, bounds.height), true)}</g>${image}</g>`;
   }
   if (shape.type === "text") {
     const lines = escapeXml(shape.text ?? "").split("\n");
@@ -89,23 +191,63 @@ const svgShape = (shape: Shape, origin: { x: number; y: number }): string => {
     return `<text xml:space="preserve" x="${textX}" y="${y + (shape.fontSize ?? 18)}" fill="${escapeXml(shape.color ?? "#000")}" font-family="${escapeXml(shape.fontFamily ?? "Arial")}" font-size="${shape.fontSize ?? 18}" font-weight="${escapeXml(shape.fontWeight ?? "normal")}" letter-spacing="${shape.letterSpacing ?? 0}" text-anchor="${anchor}" ${common}>${lines.map((line, index) => `<tspan x="${textX}" dy="${index ? (shape.fontSize ?? 18) * (shape.lineHeight ?? 1.2) + (shape.paragraphSpacing ?? 0) : 0}">${line}</tspan>`).join("")}</text>`;
   }
   if (shape.type === "vector") {
-    return `<path d="${svgPath(shape, origin)}" fill="${shape.vectorClosed ? fill : "none"}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash} ${common}/>`;
+    return `<g ${common}>${stackedPath(shape, shapePathData(shape, origin), Boolean(shape.vectorClosed))}</g>`;
+  }
+  if (shape.type === "connector") {
+    const startMarker = shape.connectorStartCap && shape.connectorStartCap !== "none" ? ` marker-start="url(#${svgId("start", shape)})"` : "";
+    const endMarker = shape.connectorEndCap && shape.connectorEndCap !== "none" ? ` marker-end="url(#${svgId("end", shape)})"` : "";
+    return `<g ${common}>${stackedPath(shape, connectorSvgPath(shape, shapes, origin), false, `${startMarker}${endMarker}`)}</g>`;
+  }
+  const baseRect = `<g transform="translate(${x} ${y})">${stackedPath(shape, localShapePath(shape, bounds.width, bounds.height), true)}</g>`;
+  if (shape.type === "sticky") {
+    return `<g ${common}>${baseRect}${svgMultilineText(shape.text || "Write an idea", x + 16, y + 28, { color: shape.color, family: shape.fontFamily, size: shape.fontSize ?? 16, weight: shape.fontWeight, lineHeight: shape.lineHeight, maxLines: 12 })}</g>`;
+  }
+  if (shape.type === "code") {
+    const language = svgMultilineText(shape.codeLanguage ?? "plain text", x + 14, y + 18, { color: shape.color ?? "#686b70", family: shape.fontFamily ?? "ui-monospace", size: 10, weight: "600", maxLines: 1 });
+    const code = svgMultilineText(shape.text ?? "", x + 14, y + 40, { color: shape.color, family: shape.fontFamily ?? "ui-monospace", size: shape.fontSize ?? 14, lineHeight: shape.lineHeight, maxLines: 30 });
+    return `<g ${common}>${baseRect}${language}${code}</g>`;
+  }
+  if (shape.type === "link") {
+    const preview = shape.embedImageUrl ? `<image href="${escapeXml(shape.embedImageUrl)}" x="${x}" y="${y}" width="${Math.min(96, bounds.width)}" height="${bounds.height}" preserveAspectRatio="xMidYMid slice"/>` : "";
+    const textX = x + (preview ? Math.min(96, bounds.width) + 12 : 14);
+    const title = svgMultilineText(shape.embedTitle || "Link preview", textX, y + 28, { color: shape.color, family: shape.fontFamily, size: 15, weight: "600", maxLines: 1 });
+    const description = svgMultilineText(shape.embedDescription || shape.embedUrl || "Paste a link", textX, y + 52, { color: shape.color ?? "#686b70", family: shape.fontFamily, size: 12, maxLines: 3 });
+    return `<g ${common}>${baseRect}${preview}${title}${description}</g>`;
+  }
+  if (shape.type === "table") {
+    const cells = shape.tableCells?.length ? shape.tableCells : [[""]];
+    const rowCount = Math.min(200, Math.max(1, shape.rows ?? cells.length));
+    const columnCount = Math.min(50, Math.max(1, shape.columns ?? Math.max(1, ...cells.map((row) => row.length))));
+    const rowHeight = bounds.height / rowCount;
+    const columnWidth = bounds.width / columnCount;
+    const grid = [
+      ...Array.from({ length: rowCount - 1 }, (_, index) => `<line x1="${x}" y1="${y + rowHeight * (index + 1)}" x2="${x + bounds.width}" y2="${y + rowHeight * (index + 1)}" stroke="${stroke}" stroke-width="${Math.max(1, strokeWidth)}"/>`),
+      ...Array.from({ length: columnCount - 1 }, (_, index) => `<line x1="${x + columnWidth * (index + 1)}" y1="${y}" x2="${x + columnWidth * (index + 1)}" y2="${y + bounds.height}" stroke="${stroke}" stroke-width="${Math.max(1, strokeWidth)}"/>`),
+    ].join("");
+    const labels = cells.slice(0, rowCount).flatMap((row, rowIndex) => row.slice(0, columnCount).map((cell, columnIndex) =>
+      svgMultilineText(cell, x + columnWidth * columnIndex + 8, y + rowHeight * rowIndex + Math.min(20, rowHeight - 4), { color: shape.color, family: shape.fontFamily, size: Math.min(shape.fontSize ?? 13, Math.max(8, rowHeight - 8)), weight: rowIndex === 0 ? "600" : shape.fontWeight, maxLines: 1 })
+    )).join("");
+    return `<g ${common}>${baseRect}${grid}${labels}</g>`;
+  }
+  if (shape.mediaType === "video") {
+    const source = shape.embedUrl || shape.backgroundImage || "Video";
+    return `<g ${common}>${baseRect}${svgMultilineText("Video", x + 14, y + 26, { color: shape.color, family: shape.fontFamily, size: 14, weight: "600", maxLines: 1 })}${svgMultilineText(source, x + 14, y + 48, { color: shape.color ?? "#686b70", family: shape.fontFamily, size: 11, maxLines: 2 })}</g>`;
   }
   if (shape.type === "boolean" && shape.booleanChildren?.length) {
     const paths = shape.booleanChildren.map((child) => svgPath(child, origin));
     if (shape.booleanOperation === "subtract") {
-      return `<rect x="${x}" y="${y}" width="${bounds.width}" height="${bounds.height}" fill="${fill}" mask="url(#${svgId("boolean-subtract", shape)})" ${common}/>`;
+      return `<g ${common}>${stackedPath(shape, paths.join(" "), true, "", "evenodd")}</g>`;
     }
     if (shape.booleanOperation === "intersect") {
       const clipped = paths.slice(1).reduce(
         (content, _path, index) => `<g clip-path="url(#${svgId(`boolean-clip-${index}`, shape)})">${content}</g>`,
-        `<path d="${paths[0]}" fill="${fill}"/>`
+        stackedPath(shape, paths[0]!, true)
       );
       return `<g ${common}>${clipped}</g>`;
     }
-    return `<path d="${paths.join(" ")}" fill="${fill}" fill-rule="${shape.booleanOperation === "union" ? "nonzero" : "evenodd"}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash} ${common}/>`;
+    return `<g ${common}>${stackedPath(shape, paths.join(" "), true, "", shape.booleanOperation === "union" ? "nonzero" : "evenodd")}</g>`;
   }
-  return `<g ${common}><rect x="${x}" y="${y}" width="${bounds.width}" height="${bounds.height}" rx="${shape.borderRadius ?? 0}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}/>${image}</g>`;
+  return `<g ${common}>${baseRect}${image}</g>`;
 };
 
 export const serializeSvg = (
@@ -126,9 +268,16 @@ export const serializeSvg = (
   const directSelection = selectedIds.length
     ? candidates.filter((shape) => selectedIds.includes(shape.id))
     : selection;
-  const bounds = boundsOverride
-    ?? selectionBounds(directSelection, directSelection.map((shape) => shape.id))
-    ?? { x: 0, y: 0, width: 1, height: 1 };
+  const baseBounds = selectionBounds(directSelection, directSelection.map((shape) => shape.id));
+  const connectorBounds = selection.filter((shape) => shape.type === "connector").map((shape) => connectorRenderBounds(candidates, shape));
+  const allBounds = [...(baseBounds ? [baseBounds] : []), ...connectorBounds];
+  const contentBounds = allBounds.length ? {
+    x: Math.min(...allBounds.map((item) => item.x)),
+    y: Math.min(...allBounds.map((item) => item.y)),
+    width: Math.max(...allBounds.map((item) => item.x + item.width)) - Math.min(...allBounds.map((item) => item.x)),
+    height: Math.max(...allBounds.map((item) => item.y + item.height)) - Math.min(...allBounds.map((item) => item.y)),
+  } : { x: 0, y: 0, width: 1, height: 1 };
+  const bounds = boundsOverride ?? contentBounds;
   const byParent = new Map<string | null, Shape[]>();
   selection.forEach((shape) => {
     const parent = shape.parentId && selection.some((candidate) => candidate.id === shape.parentId) ? shape.parentId : null;
@@ -137,9 +286,9 @@ export const serializeSvg = (
   const render = (shape: Shape): string => {
     const children = (byParent.get(shape.id) ?? []).sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id));
     const childMarkup = children.map(render).join("");
-    const content = `${shape.isMask ? "" : svgShape(shape, bounds)}${childMarkup}`;
+    const content = `${shape.isMask ? "" : svgShape(shape, bounds, candidates)}${childMarkup}`;
     return shape.clipContent && childMarkup
-      ? `<g clip-path="url(#${svgId("clip", shape)})">${shape.isMask ? "" : svgShape(shape, bounds)}${childMarkup}</g>`
+      ? `<g clip-path="url(#${svgId("clip", shape)})">${shape.isMask ? "" : svgShape(shape, bounds, candidates)}${childMarkup}</g>`
       : content;
   };
   const roots = (byParent.get(null) ?? []).sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id));

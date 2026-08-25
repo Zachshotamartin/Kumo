@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import { buildLayerUnits } from "../../editor/layers";
@@ -9,7 +9,7 @@ import editorReducer from "../../features/editor/editorSlice";
 import selectedReducer, { setSelectedShapes } from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import InspectorPanel from "./InspectorPanel";
-import LayersPanel from "./LayersPanel";
+import LayersPanel, { layerDisplayName, layerDropClass, layerDropPlacement, layerUnitLabel } from "./LayersPanel";
 
 const actions = vi.hoisted(() => ({
   canEdit: true,
@@ -100,6 +100,31 @@ describe("editor property panels", () => {
     ]);
     expect(units.map((unit) => unit.key)).toEqual(["group:group", "shape:3"]);
     expect(units[0]?.ids).toEqual(["2", "1"]);
+    expect(buildLayerUnits([shape("first"), shape("second")]).map((unit) => unit.ids[0])).toEqual(["second", "first"]);
+  });
+
+  it("derives layer labels, rename drafts, drop placement, and drop styling", () => {
+    const named = shape("named", { name: "Named" });
+    const unnamed = shape("unnamed", { name: undefined, type: "text" });
+    const group = shape("grouped", { groupId: "group", groupName: "Navigation" });
+    const unnamedGroup = shape("unnamed-group", { groupId: "group", groupName: undefined });
+    expect(layerUnitLabel({ key: "shape:named", groupId: null, ids: [named.id], members: [named] })).toBe("Named");
+    expect(layerUnitLabel({ key: "shape:unnamed", groupId: null, ids: [unnamed.id], members: [unnamed] })).toBe("text");
+    expect(layerUnitLabel({ key: "group:group", groupId: "group", ids: [group.id], members: [group] })).toBe("Navigation, 1 layers");
+    expect(layerUnitLabel({ key: "group:group", groupId: "group", ids: [unnamedGroup.id], members: [unnamedGroup] })).toBe("Group, 1 layers");
+    expect(layerDisplayName(true, group)).toBe("Navigation");
+    expect(layerDisplayName(true, unnamedGroup)).toBe("Group");
+    expect(layerDisplayName(false, named)).toBe("Named");
+    expect(layerDisplayName(false, unnamed)).toBe("text");
+    expect(layerDropPlacement(10, { top: 0, height: 100 })).toBe("front");
+    expect(layerDropPlacement(90, { top: 0, height: 100 })).toBe("back");
+    const front = layerDropClass({ key: "target", placement: "front" }, "target");
+    const back = layerDropClass({ key: "target", placement: "back" }, "target");
+    expect(front).not.toBe("");
+    expect(back).not.toBe("");
+    expect(front).not.toBe(back);
+    expect(layerDropClass(null, "target")).toBe("");
+    expect(layerDropClass({ key: "other", placement: "front" }, "target")).toBe("");
   });
 
   it("routes Unlock through the explicit lock patch", () => {
@@ -272,5 +297,144 @@ describe("editor property panels", () => {
     expect(screen.queryByRole("button", { name: "Child" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Expand Frame" }));
     expect(actions.commitShapes).toHaveBeenCalled();
+  });
+
+  it("renders every layer icon and the visible/locked state variants", () => {
+    renderPanel(<LayersPanel />, [
+      shape("text", { type: "text", name: undefined, hidden: true, locked: true }),
+      shape("ellipse", { type: "ellipse" }),
+      shape("image", { type: "image" }),
+      shape("board", { type: "board" }),
+      shape("rectangle", { name: undefined }),
+    ], []);
+    expect(screen.getByRole("button", { name: "text" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "ellipse" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "image" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "board" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Show text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unlock text" }));
+    expect(actions.commitShapes).toHaveBeenCalledTimes(2);
+    fireEvent.doubleClick(screen.getByRole("button", { name: "text" }));
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Rename text" }), { key: "Escape" });
+  });
+
+  it("renames and cancels renames for members inside a logical group", () => {
+    renderPanel(<LayersPanel />, [
+      shape("1", { groupId: "group", groupName: null as unknown as string, name: undefined }),
+      shape("2", { groupId: "group", groupName: null as unknown as string }),
+    ], []);
+    expect(screen.getByRole("button", { name: "Group, 2 layers" })).toBeVisible();
+    fireEvent.doubleClick(screen.getByRole("button", { name: "rectangle" }));
+    const first = screen.getByRole("textbox", { name: "Rename rectangle" });
+    fireEvent.change(first, { target: { value: "   " } });
+    fireEvent.blur(first);
+    const committed = actions.commitShapes.mock.calls.at(-1)?.[0] as Shape[];
+    expect(committed.find((item) => item.id === "1")?.name).toBe("rectangle");
+    fireEvent.click(screen.getByRole("button", { name: "rectangle" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide rectangle" }));
+
+    fireEvent.doubleClick(screen.getByRole("button", { name: "2" }));
+    const second = screen.getByRole("textbox", { name: "Rename 2" });
+    fireEvent.keyDown(second, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "2" })).toBeVisible();
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Group, 2 layers" }));
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Rename Group, 2 layers" }), { key: "Escape" });
+    actions.canEdit = false;
+    fireEvent.doubleClick(screen.getByRole("button", { name: "rectangle" }));
+  });
+
+  it("covers additive selection, viewer drag prevention, and every drag/drop placement", () => {
+    const store = renderPanel(<LayersPanel />, [shape("1", { zIndex: 1 }), shape("2", { zIndex: 2 }), shape("3", { zIndex: 3 })], ["1"]);
+    fireEvent.click(screen.getByRole("button", { name: "2" }), { shiftKey: true });
+    expect(store.getState().selected.selectedShapes).toEqual(["1", "2"]);
+
+    const transfer = { effectAllowed: "none", dropEffect: "none", setData: vi.fn() };
+    const source = screen.getByRole("button", { name: "3" });
+    const sourceItem = source.closest("[role='listitem']")!;
+    const initialTarget = screen.getByRole("button", { name: "1" }).closest("[role='listitem']")!;
+    fireEvent.dragOver(initialTarget, { clientY: 10, dataTransfer: transfer });
+    fireEvent.dragStart(source, { dataTransfer: transfer });
+    fireEvent.dragOver(sourceItem, { clientY: 10, dataTransfer: transfer });
+    const target = screen.getByRole("button", { name: "1" }).closest("[role='listitem']")!;
+    Object.defineProperty(target, "getBoundingClientRect", { configurable: true, value: () => ({ top: 100, height: 100 }) });
+    fireEvent.dragOver(target, { clientY: 10, dataTransfer: transfer });
+    expect(transfer.dropEffect).toBe("move");
+    fireEvent.drop(target, { clientY: 10, dataTransfer: transfer });
+    const backTarget = screen.getByRole("button", { name: "1" }).closest("[role='listitem']")!;
+    Object.defineProperty(backTarget, "getBoundingClientRect", { configurable: true, value: () => ({ top: -100, height: 10 }) });
+    fireEvent.dragStart(screen.getByRole("button", { name: "3" }), { dataTransfer: transfer });
+    fireEvent.dragOver(backTarget, { clientY: 10, dataTransfer: transfer });
+    fireEvent.drop(backTarget, { clientY: 10, dataTransfer: transfer });
+    expect(actions.commitShapes).toHaveBeenCalled();
+    fireEvent.dragEnd(source, { dataTransfer: transfer });
+    fireEvent.click(screen.getByRole("button", { name: "Move 2 forward" }));
+
+    actions.canEdit = false;
+    const prevented = fireEvent.dragStart(source, { dataTransfer: transfer });
+    expect(prevented).toBe(false);
+    fireEvent.doubleClick(source);
+  });
+
+  it("operates nested groups, recursive frames, and their reorder controls", () => {
+    const root = shape("root", { type: "frame", name: "Root", zIndex: 10 });
+    const nested = shape("nested", { type: "section", name: "Nested", parentId: root.id, zIndex: 7 });
+    const grandchild = shape("grandchild", { type: "text", name: "Grandchild", parentId: nested.id, zIndex: 6 });
+    const memberOne = shape("member-one", { name: undefined, groupId: "nested-group", groupName: null as unknown as string, parentId: root.id, hidden: true, locked: true, zIndex: 5 });
+    const memberTwo = shape("member-two", { groupId: "nested-group", groupName: null as unknown as string, parentId: root.id, hidden: true, locked: true, zIndex: 4 });
+    renderPanel(<LayersPanel />, [root, nested, grandchild, memberOne, memberTwo], []);
+
+    expect(screen.getByRole("button", { name: "Group, 2 layers" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Grandchild" })).toBeVisible();
+    const nestedTransfer = { effectAllowed: "none", dropEffect: "none", setData: vi.fn() };
+    const nestedSource = screen.getByRole("button", { name: "Group, 2 layers" });
+    let nestedTarget = screen.getByRole("button", { name: "Nested" }).closest("div[style]")!;
+    Object.defineProperty(nestedTarget, "getBoundingClientRect", { configurable: true, value: () => ({ top: 100, height: 100 }) });
+    fireEvent.dragStart(nestedSource, { dataTransfer: nestedTransfer });
+    nestedTarget = screen.getByRole("button", { name: "Nested" }).closest("div[style]")!;
+    Object.defineProperty(nestedTarget, "getBoundingClientRect", { configurable: true, value: () => ({ top: 100, height: 100 }) });
+    fireEvent.dragOver(nestedTarget, { clientY: 0, dataTransfer: nestedTransfer });
+    fireEvent.drop(nestedTarget, { clientY: 0, dataTransfer: nestedTransfer });
+    fireEvent.dragEnd(nestedSource, { dataTransfer: nestedTransfer });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Group, 2 layers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand Group, 2 layers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show Group, 2 layers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unlock Group, 2 layers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move Group, 2 layers forward" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move Group, 2 layers backward" }));
+
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Group, 2 layers" }));
+    const groupName = screen.getByRole("textbox", { name: "Rename Group, 2 layers" });
+    fireEvent.change(groupName, { target: { value: " " } });
+    fireEvent.blur(groupName);
+    expect((actions.commitShapes.mock.calls.at(-1)?.[0] as Shape[]).filter((item) => item.groupId === "nested-group").every((item) => item.groupName === "Group")).toBe(true);
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Group, 2 layers" }));
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Rename Group, 2 layers" }), { key: "Escape" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Nested" }));
+    expect(screen.queryByRole("button", { name: "Grandchild" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand Nested" }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Nested" }));
+    const nestedName = screen.getByRole("textbox", { name: "Rename Nested" });
+    fireEvent.change(nestedName, { target: { value: " " } });
+    fireEvent.blur(nestedName);
+    actions.canEdit = false;
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Nested" }));
+  });
+
+  it("selects the implicit page and commits explicit page names with Enter", () => {
+    const implicitStore = renderPanel(<LayersPanel />, [shape("content")], ["content"]);
+    fireEvent.click(screen.getByRole("button", { name: "Page 1" }));
+    expect(implicitStore.getState().selected.selectedShapes).toEqual([]);
+    cleanup();
+
+    const page = shape("only-page", { type: "page-resource", name: "Only", pageName: "Only", pageOrder: 0, hidden: true, locked: true });
+    renderPanel(<LayersPanel />, [page], []);
+    const input = screen.getByRole("textbox", { name: "Rename Only" });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Renamed" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.blur(input);
+    expect(actions.renameDocumentPage).toHaveBeenCalledWith("only-page", "Renamed");
+    expect(screen.getByRole("button", { name: "Delete Only" })).toBeDisabled();
   });
 });

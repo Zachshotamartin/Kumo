@@ -14,6 +14,27 @@ import { deleteBoardAsset, uploadBoardImage } from "../../services/assetReposito
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
+const mediaDimensions = async (file: File) => {
+  if (file.type.startsWith("video/")) {
+    const url = URL.createObjectURL(file);
+    try {
+      return await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => resolve({ width: video.videoWidth || 640, height: video.videoHeight || 360 });
+        video.onerror = () => reject(new Error("This video could not be read."));
+        video.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  const bitmap = await createImageBitmap(file);
+  const dimensions = { width: bitmap.width, height: bitmap.height };
+  bitmap.close();
+  return dimensions;
+};
+
 export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
   const selectedTool = useSelector((state: RootState) => state.selected.selectedTool);
@@ -39,12 +60,11 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
     const uploadBoardId = board.id;
     setUploading(true);
     setUploadError(null);
-    let bitmap: ImageBitmap | null = null;
     try {
-      bitmap = await createImageBitmap(file);
+      const dimensions = await mediaDimensions(file);
       const asset = await uploadBoardImage(uploadBoardId, file, {
-        width: bitmap.width,
-        height: bitmap.height,
+        width: dimensions.width,
+        height: dimensions.height,
       });
       if (!activeRef.current || boardIdRef.current !== uploadBoardId) {
         await deleteBoardAsset(asset.id).catch(() => undefined);
@@ -63,6 +83,8 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
         height,
         assetId: asset.id,
         backgroundImage: asset.url,
+        mediaType: file.type.startsWith("video/") ? "video" : file.type === "image/gif" ? "gif" : "image",
+        mediaMuted: file.type.startsWith("video/") ? true : undefined,
         backgroundColor: "transparent",
         pageId: currentPageId,
       });
@@ -74,7 +96,6 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
         setUploadError(error instanceof Error ? error.message : "We couldn't upload this image.");
       }
     } finally {
-      bitmap?.close();
       if (activeRef.current) setUploading(false);
       if (imageInput.current) imageInput.current.value = "";
     }
@@ -95,7 +116,7 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
               title={`${tool.label} - ${tool.shortcut}`}
               disabled={tool.id === "image" && (uploading || !actions.canEdit)}
               onClick={() => tool.id === "image"
-                ? imageInput.current?.click()
+                ? imageInput.current!.click()
                 : dispatch(setSelectedTool(tool.id))}
             >
               <ToolIcon aria-hidden="true" weight={selectedTool === tool.id ? "fill" : "regular"} />
@@ -106,7 +127,7 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
       <input
         ref={imageInput}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm"
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0];

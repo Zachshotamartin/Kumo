@@ -34,4 +34,16 @@ describe("prototype flows", () => {
     const result = setPrototypeStart([shape("one", "frame", { prototypeStart: true }), shape("two", "frame")], "two");
     expect(result.map((item) => item.prototypeStart)).toEqual([false, true]);
   });
+
+  it("falls back to the first frame and handles absent interaction collections", () => {
+    const first = shape("first", "frame");
+    const other = shape("other");
+    expect(startPrototypeFrame([other, first])).toBe(first);
+    expect(interactionForTrigger(other, "hover")).toBeUndefined();
+    const added = addPrototypeInteraction([other, first], other.id, { trigger: "hover", action: "open-url", url: "https://example.com" });
+    expect(added[1]).toBe(first);
+    const removed = removePrototypeInteraction([other, first], other.id, "missing");
+    expect(removed[0]?.prototypeInteractions).toEqual([]);
+    expect(removed[1]).toBe(first);
+  });
 });

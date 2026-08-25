@@ -1,15 +1,22 @@
 import { Shape } from "../classes/shape";
 import {
+  boundsToEdges,
   clampZoom,
+  effectiveGridSize,
   hitTest,
   moveShapesFromBaseline,
-  effectiveGridSize,
+  normalizeDegrees,
+  normalizeShape,
+  panViewport,
+  pointInShape,
   resizeBounds,
   resizeSelectionFromPointer,
   resizeShapesFromBaseline,
+  resizeShapesWithTransform,
   resizeTransform,
   rotatePoint,
   rotateShapesFromBaseline,
+  rotationDeltaForPointer,
   screenToWorld,
   selectionBounds,
   selectionFrame,
@@ -18,6 +25,7 @@ import {
   shapesInMarquee,
   snapPointToGrid,
   worldToScreen,
+  wheelZoomFactor,
   zoomAtPoint,
 } from "./geometry";
 import {
@@ -26,6 +34,7 @@ import {
   deleteShapes,
   distributeShapes,
   duplicateShapes,
+  frameShapes,
   groupShapes,
   mergeShapeChanges,
   moveShapesRelative,
@@ -33,6 +42,7 @@ import {
   pasteShapes,
   patchShapes,
   ungroupShapes,
+  unframeShapes,
 } from "./commands";
 import {
   commitEditorHistory,
@@ -80,6 +90,72 @@ describe("editor geometry", () => {
     const first = { ...shape("1", 0, 0), zIndex: 4 };
     const later = { ...shape("2", 0, 0), zIndex: 4 };
     expect(hitTest([first, later], { x: 50, y: 40 })?.id).toBe("2");
+  });
+
+  it("hit-tests thin vectors and connectors by their visible path", () => {
+    const horizontal = {
+      ...shape("connector", 10, 20, 100, 0),
+      type: "connector",
+      connectorStart: { anchor: "auto" as const, x: 10, y: 20 },
+      connectorEnd: { anchor: "auto" as const, x: 110, y: 20 },
+      borderWidth: 2,
+    };
+    const descending = {
+      ...shape("vector", 0, 0, 100, 100),
+      type: "vector",
+      vectorPoints: [{ id: "a", x: 0, y: 100 }, { id: "b", x: 100, y: 0 }],
+      vectorClosed: false,
+      borderWidth: 2,
+    };
+    expect(hitTest([horizontal], { x: 60, y: 23 })?.id).toBe("connector");
+    expect(hitTest([horizontal], { x: 60, y: 40 })).toBeUndefined();
+    expect(hitTest([descending], { x: 50, y: 51 })?.id).toBe("vector");
+    expect(hitTest([descending], { x: 15, y: 15 })).toBeUndefined();
+  });
+
+  it("hit-tests the routed connector path instead of an invisible midpoint route", () => {
+    const obstacle = { ...shape("obstacle", 40, -20, 40, 140), zIndex: 0 };
+    const connector = {
+      ...shape("connector", 0, 40, 120, 0), type: "connector", zIndex: 2,
+      connectorRouting: "orthogonal" as const, connectorAvoidObstacles: true,
+      connectorStart: { anchor: "auto" as const, x: 0, y: 40 },
+      connectorEnd: { anchor: "auto" as const, x: 120, y: 40 },
+      borderWidth: 2,
+    };
+    expect(hitTest([obstacle, connector], { x: 20, y: -44 })?.id).toBe("connector");
+    expect(hitTest([obstacle, connector], { x: 20, y: 40 })).toBeUndefined();
+  });
+
+  it("hit-tests curved connectors along their rendered cubic", () => {
+    const connector = {
+      ...shape("connector", 0, 0, 100, 100), type: "connector", connectorRouting: "curved" as const,
+      connectorStart: { anchor: "auto" as const, x: 0, y: 0 },
+      connectorEnd: { anchor: "auto" as const, x: 100, y: 100 }, borderWidth: 2,
+    };
+    expect(hitTest([connector], { x: 34, y: 26 })?.id).toBe("connector");
+    expect(hitTest([connector], { x: 34, y: 34 })).toBeUndefined();
+  });
+
+  it("does not invent a hit-test segment between separate vector paths", () => {
+    const vector = {
+      ...shape("vector", 0, 0, 100, 80),
+      type: "vector",
+      vectorClosed: false,
+      vectorPoints: [
+        { id: "a", x: 0, y: 0 },
+        { id: "b", x: 20, y: 0 },
+        { id: "c", x: 80, y: 80 },
+        { id: "d", x: 100, y: 80 },
+      ],
+      vectorPaths: [
+        { id: "first", pointIds: ["a", "b"], closed: false },
+        { id: "second", pointIds: ["c", "d"], closed: false },
+      ],
+    };
+
+    expect(hitTest([vector], { x: 10, y: 1 })?.id).toBe("vector");
+    expect(hitTest([vector], { x: 90, y: 79 })?.id).toBe("vector");
+    expect(hitTest([vector], { x: 50, y: 40 })).toBeUndefined();
   });
 
   it("selects intersecting unlocked shapes and expands logical groups", () => {
@@ -375,6 +451,110 @@ describe("editor geometry", () => {
     expect(resized[0]!.width / baseline[0]!.width)
       .toBeCloseTo(resized[0]!.height / baseline[0]!.height);
   });
+
+  it("bounds wheel zoom, normalizes angles, and pans viewport coordinates", () => {
+    expect(wheelZoomFactor(-10_000)).toBeCloseTo(1.5);
+    expect(wheelZoomFactor(10_000)).toBeCloseTo(1 / 1.5);
+    expect(wheelZoomFactor(0)).toBe(1);
+    expect(normalizeDegrees(360)).toBe(0);
+    expect(normalizeDegrees(190)).toBe(-170);
+    expect(panViewport({ x: 20, y: 30, zoom: 2 }, { x: 10, y: -20 })).toEqual({ x: 15, y: 40, zoom: 2 });
+    expect(boundsToEdges({ x: 1, y: 2, width: 3, height: 4 })).toEqual({ x1: 1, y1: 2, x2: 4, y2: 6 });
+    expect(normalizeShape({ ...shape("nan", 0, 0), zIndex: Number.NaN }).zIndex).toBe(0);
+  });
+
+  it("covers rotated ellipse bounds and degenerate vector-network hit testing", () => {
+    const ellipse = { ...shape("ellipse", 0, 0, 100, 40), type: "ellipse", rotation: 45 };
+    expect(shapeVisualBounds(ellipse).width).toBeGreaterThan(70);
+    const degenerate = { ...shape("degenerate", 0, 0), type: "vector", vectorClosed: false, vectorPoints: [{ id: "a", x: 10, y: 10 }, { id: "b", x: 10, y: 10 }] };
+    expect(pointInShape({ x: 10, y: 10 }, degenerate)).toBe(true);
+    const empty = { ...shape("empty", 0, 0), type: "vector", vectorClosed: false, vectorPoints: [] };
+    expect(pointInShape({ x: 0, y: 0 }, empty)).toBe(false);
+    const missingPoints = { ...shape("missing-points", 0, 0), type: "vector", vectorClosed: false, vectorPoints: undefined };
+    expect(pointInShape({ x: 0, y: 0 }, missingPoints)).toBe(false);
+    const network = {
+      ...shape("network", 0, 0),
+      type: "vector",
+      vectorClosed: false,
+      vectorPoints: [{ id: "a", x: 0, y: 0 }, { id: "b", x: 20, y: 0 }, { id: "c", x: 20, y: 20 }],
+      vectorPaths: [
+        { id: "closed", pointIds: ["a", "missing", "b"], closed: true },
+        { id: "open", pointIds: ["b", "c"], closed: false },
+      ],
+    };
+    expect(pointInShape({ x: 10, y: 0 }, network)).toBe(true);
+    expect(pointInShape({ x: 20, y: 10 }, network)).toBe(true);
+    expect(pointInShape({ x: 5, y: 5 }, { ...shape("hidden", 0, 0), hidden: true })).toBe(false);
+    expect(pointInShape({ x: 5, y: 5 }, { ...shape("locked", 0, 0), locked: true })).toBe(false);
+    expect(pointInShape({ x: 0, y: 0 }, shape("zero", 0, 0, 0, 0))).toBe(false);
+    expect(selectionFrame([{ ...shape("hidden-only", 0, 0), hidden: true }], ["hidden-only"])).toBeNull();
+    expect(selectionFrame([{ ...shape("frame", 0, 0), type: "frame", rotation: undefined }], ["frame"])?.rotation).toBe(0);
+    expect(selectionFrame([shape("one", 0, 0), shape("two", 100, 0)], ["one", "two"], 20)?.rotation).toBe(20);
+  });
+
+  it("locks aspect ratio from horizontal and vertical edge handles", () => {
+    const original = { x: 0, y: 0, width: 100, height: 50 };
+    expect(resizeTransform(original, "e", { x: 200, y: 25 }, { lockAspectRatio: true })).toMatchObject({ scaleX: 2, scaleY: 2, origin: { x: 0, y: 25 } });
+    expect(resizeTransform(original, "s", { x: 50, y: 100 }, { lockAspectRatio: true })).toMatchObject({ scaleX: 2, scaleY: 2, origin: { x: 50, y: 0 } });
+  });
+
+  it("resizes vector handles and nested legacy and boolean content with and without a rotated frame", () => {
+    const complex = {
+      ...shape("complex", 0, 0, 100, 50),
+      type: "vector",
+      rotation: 20,
+      vectorPoints: [
+        { id: "one", x: 0, y: 0, handleIn: { x: -5, y: 0 }, handleOut: { x: 5, y: 0 } },
+        { id: "two", x: 100, y: 50 },
+      ],
+      booleanChildren: [shape("boolean-child", 10, 10, 10, 10)],
+      shapes: [shape("legacy-child", 20, 20, 10, 10)],
+    };
+    const transform = resizeTransform(shapeBounds(complex), "w", { x: 150, y: 25 });
+    const resized = resizeShapesWithTransform([complex], [complex.id], transform)[0]!;
+    expect(resized.flipX).toBe(true);
+    expect(resized.vectorPoints?.[0]?.handleIn).toBeDefined();
+    expect(resized.booleanChildren?.[0]?.width).toBeGreaterThanOrEqual(1);
+    expect(resized.shapes?.[0]?.width).toBeGreaterThanOrEqual(1);
+
+    const frame = { bounds: shapeBounds(complex), rotation: 45 };
+    const rotated = resizeShapesWithTransform([complex], [complex.id], resizeTransform(shapeBounds(complex), "se", { x: 180, y: 120 }), frame)[0]!;
+    expect(rotated.vectorPoints?.[0]?.x).not.toBe(complex.vectorPoints[0]!.x);
+  });
+
+  it("resizes a zero-sized frame baseline and all embedded content", () => {
+    const frame = {
+      ...shape("frame", 0, 0, 0, 0),
+      type: "frame",
+      vectorPoints: [{ id: "point", x: 0, y: 0, handleIn: { x: -1, y: -1 }, handleOut: { x: 1, y: 1 } }],
+      booleanChildren: [shape("boolean", 0, 0, 5, 5)],
+      shapes: [shape("legacy", 0, 0, 5, 5)],
+    };
+    const unrelated = shape("unrelated", 100, 100);
+    const resizedShapes = resizeShapesFromBaseline([frame, unrelated], [frame.id], shapeBounds(frame), { x: 10, y: 20, width: 100, height: 80 });
+    const resized = resizedShapes[0]!;
+    expect(resized).toMatchObject({ x1: 10, y1: 20, width: 1, height: 1 });
+    expect(resized.booleanChildren?.[0]).toBeDefined();
+    expect(resized.shapes?.[0]).toBeDefined();
+    expect(resizedShapes[1]).toBe(unrelated);
+  });
+
+  it("keeps unrelated layers unchanged during rotated resize and rotates frame descendants", () => {
+    const rotatedShape = { ...shape("rotated", 0, 0), rotation: 30 };
+    const unrelated = shape("unrelated", 300, 300);
+    const frame = selectionFrame([rotatedShape, unrelated], [rotatedShape.id])!;
+    expect(resizeSelectionFromPointer([rotatedShape, unrelated], [rotatedShape.id], frame, "se", { x: 180, y: 140 })[1]).toBe(unrelated);
+    expect(resizeSelectionFromPointer([rotatedShape], [rotatedShape.id], frame, "se", { x: -200, y: -200 })[0]).toMatchObject({ flipX: true, flipY: true });
+
+    const parent = { ...shape("frame", 0, 0, 100, 100), type: "frame" };
+    const child = { ...shape("child", 10, 10, 20, 20), parentId: parent.id };
+    const rotated = rotateShapesFromBaseline([parent, child], [parent.id], shapeBounds(parent), { x: 100, y: 50 }, { x: 50, y: 100 });
+    expect(rotated.find((item) => item.id === child.id)?.rotation).not.toBe(child.rotation);
+    expect(rotationDeltaForPointer(shapeBounds(parent), { x: 100, y: 50 }, { x: 50, y: 100 })).toBeCloseTo(90);
+
+    const grouped = { ...shape("grouped", 0, 0), groupId: "group", groupRotation: undefined };
+    expect(rotateShapesFromBaseline([grouped], [grouped.id], shapeBounds(grouped), { x: 100, y: 40 }, { x: 50, y: 90 })[0]?.groupRotation).toBeCloseTo(90);
+  });
 });
 
 describe("editor commands", () => {
@@ -626,6 +806,123 @@ describe("editor commands", () => {
     const local = [shape("1", 25, 0), baseline[1]!, shape("3", 300, 0)];
     const merged = mergeShapeChanges(baseline, local, [baseline[0]!]);
     expect(merged.map((item) => item.id)).toEqual(["1", "3"]);
+    expect(mergeShapeChanges(baseline, [baseline[0]!], baseline).map((item) => item.id)).toEqual(["1"]);
+  });
+
+  it("clones every nested metadata branch and accepts empty clipboards", () => {
+    const embedded = shape("embedded", 2, 3, 5, 5);
+    const booleanChild = shape("boolean-child", 4, 5, 6, 6);
+    const source = {
+      ...shape("source", 0, 0),
+      zIndex: Number.NaN,
+      shapes: [embedded],
+      booleanChildren: [booleanChild],
+      gradientStops: [{ id: "stop", position: 0, color: "#fff", opacity: 1 }],
+      effects: [{ id: "effect", type: "drop-shadow" as const, color: "#000", x: 1, y: 2, blur: 3, spread: 0, visible: true }],
+      vectorPoints: [
+        { id: "one", x: 0, y: 0, handleIn: { x: -1, y: 0 }, handleOut: { x: 1, y: 0 } },
+        { id: "two", x: 10, y: 10 },
+      ],
+      prototypeInteractions: [{ id: "external", trigger: "click" as const, action: "navigate" as const, destinationId: "outside" }],
+    };
+    const duplicated = duplicateShapes([source], [source.id], { x: 5, y: 7 }).duplicated[0]!;
+    expect(duplicated.shapes?.[0]).toMatchObject({ x1: 7, y1: 10 });
+    expect(duplicated.booleanChildren?.[0]).toMatchObject({ x1: 9, y1: 12 });
+    expect(duplicated.gradientStops?.[0]?.id).not.toBe("stop");
+    expect(duplicated.effects?.[0]?.id).not.toBe("effect");
+    expect(duplicated.vectorPoints?.[0]).toMatchObject({ handleIn: { x: 4, y: 7 }, handleOut: { x: 6, y: 7 } });
+    expect(duplicated.vectorPoints?.[1]).toMatchObject({ x: 15, y: 17 });
+    expect(duplicated.prototypeInteractions?.[0]?.destinationId).toBe("outside");
+    expect(pasteShapes([source], [])).toEqual({ shapes: [source], pasted: [], pastedIds: [] });
+  });
+
+  it("patches logical groups and translates embedded legacy children during alignment", () => {
+    const grouped = [
+      { ...shape("1", 20, 20, 20, 20), groupId: "group" },
+      { ...shape("2", 60, 20, 20, 20), groupId: "group" },
+    ];
+    expect(patchShapes(grouped, ["1"], { opacity: 0.5 }).map((item) => item.opacity)).toEqual([0.5, 0.5]);
+    const nested = { ...shape("3", 40, 40, 20, 20), shapes: [shape("child", 42, 42, 5, 5)] };
+    const target = shape("4", 0, 0, 20, 20);
+    const aligned = alignShapes([nested, target], [nested.id, target.id], "left");
+    expect(aligned.find((item) => item.id === nested.id)?.shapes?.[0]?.x1).toBe(2);
+    const hidden = { ...shape("hidden", 0, 0), hidden: true };
+    expect(alignShapes([hidden], [hidden.id], "left")).toEqual([hidden]);
+  });
+
+  it("covers centered paste defaults and every fallback placement", () => {
+    const target = { ...shape("frame", 100, 100, 200, 100), type: "frame" };
+    const copied = shape("copied", 0, 0, 20, 20);
+    expect(pasteShapes([target], [copied], { context: { targetFrameId: target.id } }).pasted[0]).toMatchObject({ x1: 190, y1: 140, parentId: target.id });
+    expect(pasteShapes([target], [copied], { context: { point: { x: 500, y: 500 } } }).pasted[0]?.parentId).toBeNull();
+    expect(pasteShapes([], [copied], { offset: 9, context: {} }).pasted[0]).toMatchObject({ x1: 9, y1: 9 });
+    expect(pasteShapes([], [copied], { context: {} }).pasted[0]).toMatchObject({ x1: 24, y1: 24 });
+    const verticallyOutside = shape("vertical", 0, 500, 20, 20);
+    expect(pasteShapes([target], [verticallyOutside], {
+      context: { targetFrameId: target.id },
+      sourceParentBounds: { x: 0, y: 0, width: 1000, height: 1000 },
+    }).pasted[0]).toMatchObject({ x1: 100, y1: 140 });
+    const orphanFrame = { ...shape("orphan-frame", 0, 0), type: "frame", parentId: "missing-parent" };
+    expect(pasteShapes([target], [orphanFrame], { context: { targetFrameId: target.id } }).pasted[0]?.parentId).toBe("missing-parent");
+  });
+
+  it("rejects invalid reorders and covers no-op relative placement", () => {
+    const firstParent = { ...shape("parent-1", 0, 0), type: "frame" };
+    const secondParent = { ...shape("parent-2", 200, 0), type: "frame" };
+    const first = { ...shape("1", 0, 0), parentId: firstParent.id };
+    const second = { ...shape("2", 200, 0), parentId: secondParent.id };
+    expect(moveShapesRelative([firstParent, secondParent, first, second], [first.id, second.id], second.id, "front")).toEqual([firstParent, secondParent, first, second]);
+    const locked = { ...shape("locked", 0, 0), locked: true };
+    const other = shape("other", 100, 0);
+    expect(orderShapes([locked, other], [locked.id], "front")).toEqual([locked, other]);
+    expect(moveShapesRelative([other, shape("target", 200, 0)], [other.id], "target", "back").map((item) => item.id)).toEqual(["other", "target"]);
+    const moving = shape("moving", 0, 0);
+    const target = { ...shape("target", 100, 0), zIndex: 2 };
+    const unrelated = { ...shape("unrelated", 300, 0), parentId: "different", zIndex: 50 };
+    expect(moveShapesRelative([moving, target, unrelated], [moving.id], target.id, "front").find((item) => item.id === unrelated.id)).toBe(unrelated);
+  });
+
+  it("aligns every center and bottom mode and distributes vertically", () => {
+    const shapes = [
+      shape("1", 0, 0, 20, 20),
+      shape("2", 40, 50, 20, 30),
+      shape("3", 80, 140, 20, 40),
+      shape("outside", 300, 300, 20, 20),
+    ];
+    expect(alignShapes(shapes, ["1", "2"], "horizontal-center")[1]?.x1).toBe(20);
+    expect(alignShapes(shapes, ["1", "2"], "vertical-center")[1]?.y1).toBe(25);
+    expect(alignShapes(shapes, ["1", "2"], "bottom")[0]?.y2).toBe(80);
+    const vertical = distributeShapes(shapes, ["1", "2", "3"], "vertical");
+    expect(vertical.find((item) => item.id === "2")?.y1).toBe(65);
+    expect(vertical.find((item) => item.id === "outside")).toBe(shapes[3]);
+    expect(distributeShapes(shapes, ["1", "2"], "vertical")).toBe(shapes);
+    const child = { ...shape("child", 0, 0), parentId: "parent" };
+    expect(distributeShapes([shapes[0]!, child, shapes[2]!], ["1", child.id, "3"], "horizontal")).toEqual([shapes[0], child, shapes[2]]);
+    expect(alignShapes(shapes, ["1"], "left")).toBe(shapes);
+    const frame = { ...shape("frame", 0, 0, 200, 200), type: "frame" };
+    const frameChild = { ...shape("frame-child", 10, 10, 20, 20), parentId: frame.id };
+    const peer = shape("peer", 300, 0, 20, 20);
+    expect(alignShapes([frame, frameChild, peer], [frame.id, peer.id], "top").find((item) => item.id === frameChild.id)?.y1).toBe(10);
+  });
+
+  it("handles invalid frame and unframe selections", () => {
+    const parentA = { ...shape("parent-a", 0, 0), type: "frame" };
+    const parentB = { ...shape("parent-b", 200, 0), type: "frame" };
+    const childA = { ...shape("child-a", 10, 10), parentId: parentA.id };
+    const childB = { ...shape("child-b", 210, 10), parentId: parentB.id };
+    expect(frameShapes([parentA, parentB, childA, childB], [childA.id, childB.id]).frameId).toBeNull();
+    expect(frameShapes([childA], []).frameId).toBeNull();
+    expect(frameShapes([{ ...childA, locked: true }], [childA.id]).frameId).toBeNull();
+    expect(frameShapes([{ ...childA, hidden: true }], [childA.id]).frameId).toBeNull();
+    const outsideBeforeFraming = shape("outside-before", 400, 0);
+    const topA = shape("top-a", 0, 0);
+    const topB = shape("top-b", 100, 0);
+    expect(frameShapes([topA, topB, outsideBeforeFraming], [topA.id, topB.id]).shapes).toContain(outsideBeforeFraming);
+    expect(unframeShapes([childA], [childA.id])).toEqual({ shapes: [childA], selectedIds: [childA.id] });
+    const frame = { ...parentA, parentId: parentB.id };
+    const outside = shape("outside", 400, 0);
+    const removed = unframeShapes([frame, childA, outside], [frame.id]);
+    expect(removed.shapes.find((item) => item.id === outside.id)).toBe(outside);
   });
 });
 
@@ -638,6 +935,7 @@ describe("board-scoped history", () => {
 
   it("branches after undo and resets when the board changes", () => {
     let history = createEditorHistory(snapshot("a", 0));
+    expect(commitEditorHistory(history, snapshot("a", 0))).toBe(history);
     history = commitEditorHistory(history, snapshot("a", 10));
     history = commitEditorHistory(history, snapshot("a", 20));
     history = undoEditorHistory(history);
@@ -648,5 +946,15 @@ describe("board-scoped history", () => {
     history = commitEditorHistory(history, snapshot("b", 99));
     expect(history.boardId).toBe("b");
     expect(history.past).toHaveLength(0);
+  });
+
+  it("redoes an undone history entry", () => {
+    let history = createEditorHistory(snapshot("a", 0));
+    expect(undoEditorHistory(history)).toBe(history);
+    history = commitEditorHistory(history, snapshot("a", 10));
+    history = undoEditorHistory(history);
+    history = redoEditorHistory(history);
+    expect(history.present.shapes[0]!.x1).toBe(10);
+    expect(history.future).toEqual([]);
   });
 });

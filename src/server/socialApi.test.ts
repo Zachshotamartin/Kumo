@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   updateResult: vi.fn(),
   insert: vi.fn(),
-  searchRows: [] as Array<Record<string, unknown>>,
+  searchRows: [] as Array<Record<string, unknown>> | null,
+  searchErrors: [] as Array<Error | null>,
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
@@ -29,7 +30,7 @@ vi.mock("../../server/api/_supabase", () => ({
       return {
         select: () => ({
           eq: () => ({
-            ilike: () => ({ limit: vi.fn().mockResolvedValue({ data: mocks.searchRows, error: null }) }),
+            ilike: () => ({ limit: vi.fn().mockImplementation(async () => ({ data: mocks.searchRows, error: mocks.searchErrors.shift() ?? null })) }),
           }),
         }),
         update: () => ({
@@ -126,6 +127,7 @@ describe("profile API", () => {
     mocks.publicBoards.mockResolvedValue([{ id: "public", title: "Public board" }]);
     mocks.updateResult.mockResolvedValue({ data: row("actor", "Avery Updated", "avery"), error: null });
     mocks.insert.mockResolvedValue({ error: null });
+    mocks.searchErrors = [];
   });
 
   it("returns editable private settings only for the current profile", async () => {
@@ -188,6 +190,56 @@ describe("profile API", () => {
     await profileHandler(request("GET"), unavailable);
     expect(unavailable.statusCode).toBe(500);
   });
+
+  it("validates every editable profile field and empty patches", async () => {
+    for (const body of [
+      { displayName: "" }, { displayName: "x".repeat(61) }, { displayName: 3 },
+      { username: 3 }, { bio: "x".repeat(281) }, { bio: 3 },
+      { avatarUrl: 3 }, { avatarUrl: "x".repeat(2049) }, { avatarUrl: "not a url" }, { avatarUrl: "http://example.com/avatar" },
+      { discoverable: "yes" }, { friendRequestPolicy: "invalid" }, {},
+    ]) {
+      const reply = response();
+      await profileHandler(request("PATCH", body as Record<string, unknown>), reply);
+      expect(reply.statusCode).toBe(400);
+    }
+    const cleared = response();
+    await profileHandler(request("PATCH", { bio: "", avatarUrl: "" }), cleared);
+    expect(cleared.statusCode).toBe(200);
+    const nullAvatar = response();
+    await profileHandler(request("PATCH", { avatarUrl: null }), nullAvatar);
+    expect(nullAvatar.statusCode).toBe(200);
+    const allPolicies = ["everyone", "none"];
+    for (const friendRequestPolicy of allPolicies) {
+      const reply = response();
+      await profileHandler(request("PATCH", { friendRequestPolicy }), reply);
+      expect(reply.statusCode).toBe(200);
+    }
+  });
+
+  it("handles missing profiles, unsupported methods, auth failures, and generic update errors", async () => {
+    const unsupported = response();
+    await profileHandler(request("POST"), unsupported);
+    expect(unsupported.statusCode).toBe(405);
+    mocks.getProfileById.mockResolvedValueOnce(null);
+    const missing = response();
+    await profileHandler(request("GET"), missing);
+    expect(missing.statusCode).toBe(404);
+    mocks.requireActor.mockRejectedValueOnce(new Error("Authentication required."));
+    const unauthorized = response();
+    await profileHandler(request("GET"), unauthorized);
+    expect(unauthorized.statusCode).toBe(401);
+    mocks.updateResult.mockResolvedValueOnce({ data: null, error: { code: "PGRST000", message: "update failed" } });
+    const database = response();
+    await profileHandler(request("PATCH", { bio: "Updated" }), database);
+    expect(database.statusCode).toBe(500);
+    mocks.ensureProfile.mockRejectedValueOnce("offline");
+    const generic = response();
+    await profileHandler(request("GET"), generic);
+    expect(generic).toMatchObject({ statusCode: 400, body: { error: "We couldn't update this profile." } });
+    const absentBody = response();
+    await profileHandler({ ...request("PATCH"), body: undefined } as VercelRequest, absentBody);
+    expect(absentBody.statusCode).toBe(400);
+  });
 });
 
 describe("friends API", () => {
@@ -212,6 +264,7 @@ describe("friends API", () => {
     ]));
     mocks.friendshipBetween.mockResolvedValue(relation("friend", "accepted", "actor"));
     mocks.searchRows = [row("friend", "Friend"), row("hidden", "Hidden")];
+    mocks.searchErrors = [];
   });
 
   it("groups accepted, incoming, outgoing, and actor-created blocks", async () => {
@@ -256,5 +309,77 @@ describe("friends API", () => {
     await friendsHandler(request("POST", { action: "request", targetUid: "friend" }), reply);
     expect(reply.statusCode).toBe(409);
     expect(reply.body).toEqual({ error: "This profile only accepts requests from friends of friends" });
+  });
+
+  it("handles short, duplicate, null, and failed profile searches", async () => {
+    const short = response();
+    await friendsHandler(request("GET", {}, { query: "x" }), short);
+    expect(short.body).toEqual({ results: [] });
+
+    mocks.searchRows = [row("actor", "Actor"), row("friend", "Zulu"), row("friend", "Alpha")];
+    const deduped = response();
+    await friendsHandler(request("GET", {}, { query: " %fr_ " }), deduped);
+    expect((deduped.body as { results: Array<{ id: string }> }).results.map((item) => item.id)).toEqual(["friend"]);
+
+    mocks.searchRows = null;
+    const empty = response();
+    await friendsHandler(request("GET", {}, { query: "empty" }), empty);
+    expect(empty.body).toEqual({ results: [] });
+    mocks.searchRows = [];
+    mocks.searchErrors = [new Error("username search failed")];
+    const usernameFailure = response();
+    await friendsHandler(request("GET", {}, { query: "fail" }), usernameFailure);
+    expect(usernameFailure.statusCode).toBe(400);
+    mocks.searchErrors = [null, new Error("name search failed")];
+    const nameFailure = response();
+    await friendsHandler(request("GET", {}, { query: "fail" }), nameFailure);
+    expect(nameFailure.statusCode).toBe(400);
+
+    mocks.searchErrors = [];
+    mocks.searchRows = [row("friend", "Zulu"), row("stranger", "Alpha")];
+    const sorted = response();
+    await friendsHandler(request("GET", {}, { query: "people" }), sorted);
+    expect((sorted.body as { results: Array<{ displayName: string }> }).results.map((item) => item.displayName)).toEqual(["Alpha", "Zulu"]);
+  });
+
+  it("skips missing profiles, validates body types, and maps failure classes", async () => {
+    mocks.getProfilesByIds.mockResolvedValueOnce(new Map());
+    const missingProfiles = response();
+    await friendsHandler(request("GET"), missingProfiles);
+    expect(missingProfiles.body).toEqual({ friends: [], incoming: [], outgoing: [], blocked: [] });
+
+    for (const body of [{ action: 4, targetUid: "friend" }, { action: "accept", targetUid: 4 }, { action: "accept" }]) {
+      const invalid = response();
+      await friendsHandler(request("POST", body as Record<string, unknown>), invalid);
+      expect(invalid.statusCode).toBe(400);
+    }
+    const unsupported = response();
+    await friendsHandler(request("PATCH"), unsupported);
+    expect(unsupported.statusCode).toBe(405);
+
+    mocks.rpc.mockResolvedValueOnce({ error: { code: "PGRST000", message: "database offline" } });
+    const database = response();
+    await friendsHandler(request("POST", { action: "accept", targetUid: "friend" }), database);
+    expect(database.statusCode).toBe(500);
+    mocks.rpc.mockResolvedValueOnce({ error: "offline" });
+    const generic = response();
+    await friendsHandler(request("POST", { action: "accept", targetUid: "friend" }), generic);
+    expect(generic.statusCode).toBe(400);
+    mocks.requireActor.mockRejectedValueOnce(new Error("Authentication required."));
+    const auth = response();
+    await friendsHandler(request("GET"), auth);
+    expect(auth.statusCode).toBe(401);
+
+    mocks.friendshipRows.mockResolvedValueOnce([
+      relation("friend", "accepted", "actor"),
+      relation("friend-2", "accepted", "actor"),
+    ]);
+    mocks.getProfilesByIds.mockResolvedValueOnce(new Map([
+      ["friend", row("friend", "Zulu")],
+      ["friend-2", row("friend-2", "Alpha")],
+    ]));
+    const sortedGroups = response();
+    await friendsHandler(request("GET"), sortedGroups);
+    expect((sortedGroups.body as { friends: Array<{ displayName: string }> }).friends.map((item) => item.displayName)).toEqual(["Alpha", "Zulu"]);
   });
 });

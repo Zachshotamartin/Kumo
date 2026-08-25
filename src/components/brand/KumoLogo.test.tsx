@@ -1,5 +1,5 @@
 import { render, waitFor } from "@testing-library/react";
-import KumoLogo from "./KumoLogo";
+import KumoLogo, { whenLogoIsDefined } from "./KumoLogo";
 import { KUMO_LOGO_CONFIG } from "./KumoLogoConfig";
 
 class MockKumoLogoElement extends HTMLElement {
@@ -48,6 +48,20 @@ describe("KumoLogo", () => {
 
     rerender(<KumoLogo startupAnimation="intro" />);
     await waitFor(() => expect(logo.playBreak).toHaveBeenCalledWith("scuttle"));
+  });
+
+  it("uses the generic stretch fallback for other startup animations", async () => {
+    const { container, rerender } = render(<KumoLogo />);
+    const logo = container.querySelector("kumo-logo") as MockKumoLogoElement;
+    logo.playAnimation = undefined;
+    rerender(<KumoLogo startupAnimation="startup" />);
+    await waitFor(() => expect(logo.playBreak).toHaveBeenCalledWith("stretch"));
+  });
+
+  it("does not require the custom-elements registry during server rendering", async () => {
+    vi.stubGlobal("window", undefined);
+    await expect(whenLogoIsDefined()).resolves.toBeUndefined();
+    vi.unstubAllGlobals();
   });
 
   it("plays a scoped startup animation only once across sequential loading mounts", async () => {

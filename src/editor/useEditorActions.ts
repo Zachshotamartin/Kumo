@@ -72,6 +72,7 @@ import {
   duplicatePage,
   renamePage,
 } from "./workspace";
+import { refreshAttachedConnectors } from "./advancedFeatures";
 
 export const useEditorActions = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -121,7 +122,8 @@ export const useEditorActions = () => {
       }
       const synchronized = synchronizeComponentInstances(nextShapes.map(normalizeShape));
       const activeModes = Object.assign({}, ...synchronized.map((shape) => shape.activeVariableModes ?? {}));
-      const normalized = applyDocumentLayout(resolveVariableModes(resolveVariables(synchronized), activeModes));
+      const laidOut = applyDocumentLayout(resolveVariableModes(resolveVariables(synchronized), activeModes));
+      const normalized = refreshAttachedConnectors(laidOut);
       if (JSON.stringify(previousShapes) === JSON.stringify(normalized)) {
         dispatch(setLocalPreviewActive(false));
         return;
@@ -161,7 +163,7 @@ export const useEditorActions = () => {
         void updateBoardSettings(board.id, settings)
           .then(() => dispatch(setSaveStatus({ status: "saved" })))
           .catch((error) => {
-            if (typeof navigator !== "undefined" && !navigator.onLine) {
+            if (!navigator.onLine) {
               queueBoardMutation({
                 id: crypto.randomUUID(), boardId: board.id!, createdAt: Date.now(), kind: "settings", payload: settings,
               });

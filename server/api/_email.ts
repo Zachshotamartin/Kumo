@@ -9,7 +9,10 @@ interface InvitationEmail {
 export const sendInvitationEmail = async (invitation: InvitationEmail): Promise<"sent" | "link-only"> => {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.INVITATION_FROM_EMAIL?.trim();
-  if (!apiKey || !from) return "link-only";
+  if (!apiKey || !from) {
+    if (process.env.VERCEL_ENV === "production") throw new Error("Invitation email delivery is not configured for production.");
+    return "link-only";
+  }
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },

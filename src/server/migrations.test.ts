@@ -98,4 +98,21 @@ describe("production database migrations", () => {
     expect(source).toContain("enable row level security");
     expect(source).toContain("to service_role");
   });
+
+  it("adds guest sessions, push delivery, workspace fonts, and performance telemetry with service-only access", () => {
+    const source = migration("202608250001_advanced_collaboration.sql");
+    for (const table of ["board_open_sessions", "push_subscriptions", "workspace_fonts", "performance_events"]) {
+      expect(source).toContain(`create table if not exists public.${table}`);
+      expect(source).toContain(`alter table public.${table} enable row level security`);
+      expect(source).toContain(`revoke all on public.${table} from anon, authenticated`);
+      expect(source).toContain(`grant all on table public.${table} to service_role`);
+    }
+    expect(source).toContain("token_hash text not null unique");
+    expect(source).toContain("password_hash text");
+    expect(source).toContain("role text not null default 'viewer' check (role in ('viewer', 'editor'))");
+    expect(source).toContain("endpoint text not null unique");
+    expect(source).toContain("workspace-fonts");
+    expect(source).toContain("allowed_mime_types");
+    expect(source).not.toContain("board_id uuid");
+  });
 });
