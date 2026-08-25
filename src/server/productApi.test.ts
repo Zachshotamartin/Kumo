@@ -315,6 +315,11 @@ describe("product API", () => {
     expect(mocks.calls).toContainEqual(expect.objectContaining({
       table: "board_members", operation: "upsert", value: { board_id: "board", user_id: "collaborator", role: "editor" },
     }));
+    expect(mocks.calls).toContainEqual(expect.objectContaining({
+      table: "account_notifications", operation: "insert", value: expect.objectContaining({
+        recipient_id: "collaborator", kind: "access-request", title: "Board access approved",
+      }),
+    }));
     expect(mocks.sendPreferredPush).toHaveBeenCalledWith("collaborator", "access_changes", expect.objectContaining({ title: "Board access approved" }));
   });
 

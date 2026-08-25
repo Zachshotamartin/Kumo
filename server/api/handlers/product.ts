@@ -330,7 +330,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }
       const { error: updateError } = await database.from("board_access_requests").update({ status: approved ? "approved" : "denied", resolved_by: actor.uid, resolved_at: new Date().toISOString() }).eq("id", requestId).eq("status", "pending");
       if (updateError) throw updateError;
-      const notification = { recipient_id: accessRequest.requester_id, actor_id: actor.uid, board_id: accessRequest.board_id, kind: "access-change", title: `Board access ${approved ? "approved" : "denied"}`, body: approved ? `You now have ${accessRequest.requested_role} access.` : "Your access request was denied.", action_url: approved ? `/?board=${encodeURIComponent(accessRequest.board_id)}` : "/?view=boards" };
+      const notification = { recipient_id: accessRequest.requester_id, actor_id: actor.uid, board_id: accessRequest.board_id, kind: "access-request", title: `Board access ${approved ? "approved" : "denied"}`, body: approved ? `You now have ${accessRequest.requested_role} access.` : "Your access request was denied.", action_url: approved ? `/?board=${encodeURIComponent(accessRequest.board_id)}` : "/?view=boards" };
       const { error: noticeError } = await database.from("account_notifications").insert(notification);
       if (noticeError) throw noticeError;
       await Promise.allSettled([sendPreferredPushToUser(accessRequest.requester_id, "access_changes", { title: notification.title, body: notification.body, url: notification.action_url, tag: `kumo:access:${accessRequest.board_id}` })]);
