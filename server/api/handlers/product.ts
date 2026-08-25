@@ -89,6 +89,17 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (subscriptionError) throw subscriptionError;
         return response.status(200).json({ libraries: libraries ?? [], subscriptions: subscriptions ?? [] });
       }
+      if (scope === "library-versions") {
+        const libraryId = stringQuery(request.query.libraryId);
+        const { data: library, error: libraryError } = await database.from("design_libraries").select("id, source_board_id, owner_id, latest_version, name").eq("id", libraryId).maybeSingle();
+        if (libraryError) throw libraryError;
+        if (!library) return response.status(404).json({ error: "Library not found." });
+        const sourceAccess = await getBoardAccess(library.source_board_id as string, actor.uid);
+        if (!sourceAccess && library.owner_id !== actor.uid) return response.status(403).json({ error: "Library access is required." });
+        const { data, error } = await database.from("design_library_versions").select("library_id, version, semantic_version, description, release_status, approved_by, approved_at, changelog, created_by, created_at").eq("library_id", libraryId).order("version", { ascending: false });
+        if (error) throw error;
+        return response.status(200).json({ library, versions: data ?? [] });
+      }
       if (scope === "templates") {
         const { data, error } = await database.from("board_templates")
           .select("id, owner_id, source_board_id, name, description, visibility, created_at, updated_at")
@@ -171,18 +182,64 @@ export default async function handler(request: VercelRequest, response: VercelRe
       if (!assets.length) return response.status(400).json({ error: "Create a component, style, or variable before publishing." });
       const { data: prior, error: priorError } = await database.from("design_libraries").select("id, latest_version").eq("source_board_id", boardId).maybeSingle();
       if (priorError) throw priorError;
-      const version = (prior?.latest_version ?? 0) + 1;
+      const { data: lastRelease, error: lastReleaseError } = prior?.id
+        ? await database.from("design_library_versions").select("version").eq("library_id", prior.id).order("version", { ascending: false }).limit(1).maybeSingle()
+        : { data: null, error: null };
+      if (lastReleaseError) throw lastReleaseError;
+      const version = Number(lastRelease?.version ?? 0) + 1;
       const libraryId = prior?.id ?? randomUUID();
+      const releaseStatus = ["draft", "review", "published"].includes(request.body?.releaseStatus) ? request.body.releaseStatus : "published";
       const { error: libraryError } = await database.from("design_libraries").upsert({
         id: libraryId, source_board_id: boardId, owner_id: actor.uid,
         name: cleanProductName(request.body?.name, access.board.title), description: String(request.body?.description ?? "").slice(0, 500),
         visibility: ["private", "workspace", "public"].includes(request.body?.visibility) ? request.body.visibility : "private",
-        latest_version: version, updated_at: new Date().toISOString(),
+        latest_version: releaseStatus === "published" ? version : prior?.latest_version ?? 0, updated_at: new Date().toISOString(),
       }, { onConflict: "source_board_id" });
       if (libraryError) throw libraryError;
-      const { error: versionError } = await database.from("design_library_versions").insert({ library_id: libraryId, version, description: String(request.body?.versionDescription ?? "").slice(0, 500), assets, created_by: actor.uid });
+      const { error: versionError } = await database.from("design_library_versions").insert({
+        library_id: libraryId, version, semantic_version: cleanProductName(request.body?.semanticVersion, `${version}.0.0`),
+        description: String(request.body?.versionDescription ?? "").slice(0, 500), assets, created_by: actor.uid,
+        release_status: releaseStatus, approved_by: releaseStatus === "published" ? actor.uid : null,
+        approved_at: releaseStatus === "published" ? new Date().toISOString() : null,
+        changelog: Array.isArray(request.body?.changelog) ? request.body.changelog.slice(0, 100) : [],
+      });
       if (versionError) throw versionError;
-      return response.status(201).json({ libraryId, version, assetCount: assets.length });
+      return response.status(201).json({ libraryId, version, assetCount: assets.length, releaseStatus });
+    }
+
+    if (["approve-library-release", "deprecate-library-release", "rollback-library"].includes(action)) {
+      const libraryId = typeof request.body?.libraryId === "string" ? request.body.libraryId : "";
+      const version = Number(request.body?.version);
+      const { data: library, error: libraryError } = await database.from("design_libraries").select("id, source_board_id, owner_id, latest_version, name").eq("id", libraryId).single();
+      if (libraryError) throw libraryError;
+      if (library.owner_id !== actor.uid) return response.status(403).json({ error: "Only the library owner can govern releases." });
+      if (!Number.isInteger(version) || version < 1) return response.status(400).json({ error: "A valid library version is required." });
+      if (action === "rollback-library") {
+        const { data: target, error: targetError } = await database.from("design_library_versions").select("version, release_status").eq("library_id", libraryId).eq("version", version).maybeSingle();
+        if (targetError) throw targetError;
+        if (!target || target.release_status === "deprecated") return response.status(409).json({ error: "Only a non-deprecated release can become current." });
+        const { error } = await database.from("design_libraries").update({ latest_version: version, updated_at: new Date().toISOString() }).eq("id", libraryId);
+        if (error) throw error;
+      } else {
+        const releaseStatus = action === "approve-library-release" ? "published" : "deprecated";
+        const { error } = await database.from("design_library_versions").update({
+          release_status: releaseStatus,
+          approved_by: releaseStatus === "published" ? actor.uid : null,
+          approved_at: releaseStatus === "published" ? new Date().toISOString() : null,
+        }).eq("library_id", libraryId).eq("version", version);
+        if (error) throw error;
+        if (releaseStatus === "published") {
+          const { error: currentError } = await database.from("design_libraries").update({ latest_version: version, updated_at: new Date().toISOString() }).eq("id", libraryId);
+          if (currentError) throw currentError;
+        }
+      }
+      const { data: subscribers, error: subscriberError } = await database.from("design_library_subscriptions").select("subscribed_by, board_id").eq("library_id", libraryId);
+      if (subscriberError) throw subscriberError;
+      if (subscribers?.length) {
+        const { error: noticeError } = await database.from("account_notifications").insert(subscribers.map((subscriber) => ({ recipient_id: subscriber.subscribed_by, actor_id: actor.uid, board_id: subscriber.board_id, kind: "library", title: `${library.name} release changed`, body: `Version ${version} was ${action === "rollback-library" ? "made current" : action === "approve-library-release" ? "approved" : "deprecated"}.`, action_url: `/?board=${encodeURIComponent(subscriber.board_id)}` })));
+        if (noticeError) throw noticeError;
+      }
+      return response.status(200).json({ updated: true, libraryId, version, action });
     }
 
     if (action === "library-diff" || action === "apply-library") {

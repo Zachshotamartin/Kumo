@@ -2,6 +2,14 @@ import { auth } from "../config/firebase";
 
 interface ApiErrorBody {
   error?: string;
+  [key: string]: unknown;
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number, public readonly details: ApiErrorBody | null) {
+    super(message);
+    this.name = "ApiError";
+  }
 }
 
 export const authenticatedRequest = async (
@@ -23,7 +31,7 @@ export const authenticatedRequest = async (
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null) as ApiErrorBody | null;
-    throw new Error(body?.error ?? `Request failed with status ${response.status}.`);
+    throw new ApiError(body?.error ?? `Request failed with status ${response.status}.`, response.status, body);
   }
   return response;
 };
@@ -33,6 +41,19 @@ export const authenticatedFetch = async <T>(
   init: RequestInit = {}
 ): Promise<T> => {
   const response = await authenticatedRequest(input, init);
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+};
+
+export const publicFetch = async <T>(input: string, init: RequestInit = {}): Promise<T> => {
+  const response = await fetch(input, {
+    ...init,
+    headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as ApiErrorBody | null;
+    throw new ApiError(body?.error ?? `Request failed with status ${response.status}.`, response.status, body);
+  }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 };

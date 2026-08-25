@@ -7,6 +7,7 @@ import { replaceStorageDocument, withDocumentLease } from "../_documentMutation.
 import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { boardDocumentFromJson, liveblocksAdmin } from "../_liveblocks.js";
 import { supabaseAdmin } from "../_supabase.js";
+import { branchVisualDiff, threeWayMergeDocuments } from "../_branchMerge.js";
 
 const cleanName = (value: unknown) => typeof value === "string" ? value.trim().slice(0, 120) : "";
 const checksum = (document: unknown) => createHash("sha256").update(JSON.stringify(document)).digest("hex");
@@ -27,15 +28,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (request.method === "GET") {
       const { data, error } = await database.from("document_branches")
-        .select("id, board_id, name, room_id, created_by, status, base_checksum, created_at, updated_at, merged_at, branch_reviews(reviewer_id,status,note,reviewed_checksum,updated_at)")
+        .select("id, board_id, name, room_id, created_by, status, base_checksum, updated_from_main_at, merge_description, created_at, updated_at, merged_at, branch_reviews(reviewer_id,status,note,reviewed_checksum,updated_at)")
         .eq("board_id", boardId)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return response.status(200).json({ branches: data ?? [] });
     }
 
-    if (!editable(access.role)) return response.status(403).json({ error: "Editing access is required to manage branches." });
     const action = typeof request.body?.action === "string" ? request.body.action : "create";
+    if (!editable(access.role) && !["diff", "review"].includes(action)) return response.status(403).json({ error: "Editing access is required to manage branches." });
     const liveblocks = liveblocksAdmin();
 
     if (action === "create") {
@@ -57,6 +58,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
         });
         if (error) throw error;
         if (!data) throw new Error("The branch record could not be created.");
+        const { error: baseError } = await database.from("document_branches").update({ base_document: document }).eq("id", id);
+        if (baseError) throw baseError;
         return response.status(201).json({ branch: data });
       } catch (error) {
         await liveblocks.deleteRoom(roomId).catch(() => undefined);
@@ -66,7 +69,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     const branchId = typeof request.body?.branchId === "string" ? request.body.branchId : "";
     const { data: branch, error: branchError } = await database.from("document_branches")
-      .select("id, board_id, name, room_id, created_by, status, base_checksum, created_at, updated_at, merged_at")
+      .select("id, board_id, name, room_id, created_by, status, base_checksum, base_document, updated_from_main_at, merge_description, created_at, updated_at, merged_at")
       .eq("id", branchId).eq("board_id", boardId).maybeSingle();
     if (branchError) throw branchError;
     if (!branch) return response.status(404).json({ error: "Branch not found." });
@@ -76,18 +79,80 @@ export default async function handler(request: VercelRequest, response: VercelRe
         liveblocks.getStorageDocument(access.board.liveblocks_room_id, "json"),
         liveblocks.getStorageDocument(branch.room_id as string, "json"),
       ]);
-      const mainNodes = mainDocument.nodes && typeof mainDocument.nodes === "object" ? mainDocument.nodes as Record<string, Record<string, unknown>> : {};
-      const branchNodes = branchDocument.nodes && typeof branchDocument.nodes === "object" ? branchDocument.nodes as Record<string, Record<string, unknown>> : {};
-      const ids = new Set([...Object.keys(mainNodes), ...Object.keys(branchNodes)]);
-      const diff: Array<{ shapeId: string; status: "added" | "removed" | "changed"; name: string }> = [];
-      for (const shapeId of ids) {
-        const mainShape = mainNodes[shapeId];
-        const branchShape = branchNodes[shapeId];
-        if (!mainShape) diff.push({ shapeId, status: "added", name: String(branchShape?.name ?? branchShape?.type ?? shapeId) });
-        else if (!branchShape) diff.push({ shapeId, status: "removed", name: String(mainShape.name ?? mainShape.type ?? shapeId) });
-        else if (JSON.stringify(mainShape) !== JSON.stringify(branchShape)) diff.push({ shapeId, status: "changed", name: String(branchShape.name ?? branchShape.type ?? shapeId) });
+      return response.status(200).json({ diff: branchVisualDiff(mainDocument, branchDocument) });
+    }
+
+    if (action === "rename") {
+      const name = cleanName(request.body?.name);
+      if (!name) return response.status(400).json({ error: "A branch name is required." });
+      const { data, error } = await database.from("document_branches")
+        .update({ name, updated_at: new Date().toISOString() }).eq("id", branchId)
+        .select("id, board_id, name, room_id, created_by, status, base_checksum, updated_from_main_at, created_at, updated_at, merged_at").single();
+      if (error) throw error;
+      return response.status(200).json({ branch: data });
+    }
+
+    if (action === "restore") {
+      if (branch.status !== "archived") return response.status(409).json({ error: "Only archived branches can be restored." });
+      const { error } = await database.from("document_branches").update({ status: "open", updated_at: new Date().toISOString() }).eq("id", branchId);
+      if (error) throw error;
+      return response.status(200).json({ restored: true, branchId });
+    }
+
+    if (action === "request-review") {
+      const requested: string[] = Array.isArray(request.body?.reviewers) ? request.body.reviewers.filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 20) : [];
+      if (!requested.length) return response.status(400).json({ error: "Choose at least one reviewer." });
+      const normalized = requested.map((value) => value.trim());
+      const { data: profiles, error: profileError } = await database.from("profiles")
+        .select("firebase_uid, email").or(normalized.map((value) => value.includes("@") ? `email.ilike.${value}` : `firebase_uid.eq.${value}`).join(","));
+      if (profileError) throw profileError;
+      const reviewers = (profiles ?? []).filter((profile) => profile.firebase_uid !== actor.uid);
+      if (!reviewers.length) return response.status(400).json({ error: "No eligible Kumo reviewers were found." });
+      const rows = reviewers.map((reviewer) => ({ branch_id: branchId, reviewer_id: reviewer.firebase_uid, status: "requested", note: String(request.body?.note ?? "").slice(0, 1000), reviewed_checksum: null, updated_at: new Date().toISOString() }));
+      const { error } = await database.from("branch_reviews").upsert(rows, { onConflict: "branch_id,reviewer_id" });
+      if (error) throw error;
+      const notifications = reviewers.map((reviewer) => ({ recipient_id: reviewer.firebase_uid, actor_id: actor.uid, board_id: boardId, kind: "branch", title: `Review requested: ${branch.name}`, body: String(request.body?.note ?? "Please review this branch.").slice(0, 500), action_url: `/?board=${encodeURIComponent(boardId)}&branch=${encodeURIComponent(branchId)}` }));
+      const { error: noticeError } = await database.from("account_notifications").insert(notifications);
+      if (noticeError) throw noticeError;
+      return response.status(200).json({ requested: reviewers.map((reviewer) => reviewer.firebase_uid) });
+    }
+
+    if (action === "update-from-main") {
+      if (branch.status !== "open") return response.status(409).json({ error: "Only open branches can be updated." });
+      const [mainDocument, branchDocument] = await Promise.all([
+        liveblocks.getStorageDocument(access.board.liveblocks_room_id, "json"),
+        liveblocks.getStorageDocument(branch.room_id as string, "json"),
+      ]);
+      const resolutions = request.body?.resolutions && typeof request.body.resolutions === "object"
+        ? request.body.resolutions as Record<string, "main" | "branch">
+        : {};
+      const merged = threeWayMergeDocuments(branch.base_document ?? mainDocument, mainDocument, branchDocument, resolutions);
+      const { error: clearError } = await database.from("branch_conflicts").delete().eq("branch_id", branchId);
+      if (clearError) throw clearError;
+      if (merged.conflicts.length) {
+        const { error: conflictError } = await database.from("branch_conflicts").insert(merged.conflicts.map((conflict) => ({
+          branch_id: branchId, shape_id: conflict.shapeId, base_value: conflict.baseValue ?? null,
+          main_value: conflict.mainValue ?? null, branch_value: conflict.branchValue ?? null,
+        })));
+        if (conflictError) throw conflictError;
+        return response.status(409).json({ error: "Resolve the branch conflicts before updating.", code: "BRANCH_CONFLICTS", conflicts: merged.conflicts });
       }
-      return response.status(200).json({ diff });
+      await replaceStorageDocument({
+        client: liveblocks,
+        roomId: branch.room_id as string,
+        current: boardDocumentFromJson(branchDocument),
+        next: boardDocumentFromJson(merged.document),
+        commit: async () => {
+          const { error } = await database.from("document_branches").update({
+            base_document: mainDocument,
+            base_checksum: checksum(mainDocument),
+            updated_from_main_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }).eq("id", branchId);
+          if (error) throw error;
+        },
+      });
+      return response.status(200).json({ updated: true, branchId, diff: branchVisualDiff(mainDocument, merged.document) });
     }
 
     if (action === "review") {
@@ -120,7 +185,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const current = await liveblocks.getStorageDocument(access.board.liveblocks_room_id, "json");
       if (typeof branch.base_checksum !== "string" || checksum(current) !== branch.base_checksum) {
         return response.status(409).json({
-          error: "Main changed after this branch was created. Create a new branch from the latest main board before merging.",
+          error: "Main changed after this branch was created. Update the branch from main and resolve any conflicts before merging.",
           code: "BRANCH_BASE_DIVERGED",
         });
       }
@@ -137,8 +202,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
       });
       const { data: checkpoint, error: checkpointError } = await database.from("document_snapshots").insert({
         board_id: boardId, liveblocks_room_id: access.board.liveblocks_room_id, document: current,
-        checksum: checksum(current), name: `Before merging ${branch.name}`, description: `Automatic recovery point for branch ${branchId}.`,
-        created_by: actor.uid, kind: "before_restore",
+        checksum: checksum(current), name: `Before merging ${branch.name}`,
+        created_by: actor.uid, kind: "before_restore", description: cleanName(request.body?.description) || `Automatic recovery point for branch ${branchId}.`,
       }).select("id").single();
       if (checkpointError) throw checkpointError;
 
@@ -149,6 +214,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
         next: boardDocumentFromJson(branchDocument),
         commit: async () => {
           await syncBoardLinks(boardId, branchDocument);
+          const mergeDescription = String(request.body?.description ?? "").trim().slice(0, 1000);
+          if (mergeDescription) {
+            const { error: descriptionError } = await database.from("document_branches").update({ merge_description: mergeDescription }).eq("id", branchId);
+            if (descriptionError) throw descriptionError;
+          }
           const { error } = await database.rpc("complete_kumo_branch_merge", {
             p_board_id: boardId,
             p_branch_id: branchId,

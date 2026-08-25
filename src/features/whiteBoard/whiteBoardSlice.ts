@@ -36,6 +36,7 @@ export interface WhiteBoardState {
     activeShapeIds?: string[];
     activity?: "moving" | "resizing" | "rotating" | "editing" | null;
     cursorChat?: string;
+    textSelection?: { shapeId: string; start: number; end: number } | null;
   }[];
   schemaVersion: number;
   revision: number;
@@ -59,7 +60,7 @@ const initialState: WhiteBoardState = {
   backGroundColor: "#313131",
   lastChangedBy: null,
   currentUsers: [],
-  schemaVersion: 4,
+  schemaVersion: 5,
   revision: 0,
   updatedAt: null,
 };

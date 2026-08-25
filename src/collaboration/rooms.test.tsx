@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import actionsReducer from "../features/actions/actionsSlice";
 import authReducer from "../features/auth/authSlice";
@@ -53,7 +53,7 @@ describe("collaboration room providers", () => {
     const appStore = store();
     const { rerender } = render(<Provider store={appStore}><BoardRoom /></Provider>);
     expect(screen.getByRole("status")).toHaveTextContent("Connecting to board");
-    appStore.dispatch(setWhiteboardData({ roomId: "board:one", id: "one" }));
+    act(() => { appStore.dispatch(setWhiteboardData({ roomId: "board:one", id: "one" })); });
     rerender(<Provider store={appStore}><BoardRoom /></Provider>);
     expect(screen.getByText("Bridge")).toBeInTheDocument();
     expect(screen.getByText("Telemetry")).toBeInTheDocument();

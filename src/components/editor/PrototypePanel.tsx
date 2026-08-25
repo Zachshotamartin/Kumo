@@ -1,5 +1,5 @@
-import { FlowArrow, Play, Plus, Trash, X } from "@phosphor-icons/react";
-import { useState } from "react";
+import { Copy, FlowArrow, Link, Play, Plus, Trash, X } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { addPrototypeInteraction, prototypeFrames, removePrototypeInteraction, setPrototypeStart } from "../../editor/prototype";
 import { useEditorActions } from "../../editor/useEditorActions";
@@ -7,6 +7,7 @@ import { setPresentationFrameId, setPresentationMode, setRightPanel } from "../.
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 import type { Shape } from "../../classes/shape";
+import { createPrototypeLink, loadPrototypeLinks, revokePrototypeLink, type PrototypeLink } from "../../services/platformRepository";
 
 const PrototypePanel = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -24,7 +25,16 @@ const PrototypePanel = () => {
   const [variableValue, setVariableValue] = useState("");
   const [triggerKey, setTriggerKey] = useState("Enter");
   const [conditionEnabled, setConditionEnabled] = useState(false);
+  const [prototypeLinks, setPrototypeLinks] = useState<PrototypeLink[]>([]);
+  const [sharePassword, setSharePassword] = useState("");
+  const [deviceFrame, setDeviceFrame] = useState<PrototypeLink["device_frame"]>("none");
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
   const variables = board.shapes.filter((shape) => shape.type === "resource" && shape.resourceKind?.endsWith("variable") && shape.resourceKind !== "variable-collection");
+
+  useEffect(() => {
+    if (!board.id || board.role !== "owner") return;
+    void loadPrototypeLinks(board.id).then(setPrototypeLinks).catch(() => undefined);
+  }, [board.id, board.role]);
 
   const add = () => {
     if (!selected) return;
@@ -134,6 +144,19 @@ const PrototypePanel = () => {
               <button type="button" onClick={add}><Plus aria-hidden="true" /> Add interaction</button>
             </div>
           )}
+        </section>
+
+        <section className={styles.inspectorSection}>
+          <h2><Link aria-hidden="true" /> Prototype delivery</h2>
+          <p className={styles.fieldHint}>Share a presentation-only link without granting access to the editor.</p>
+          <label className={styles.fullField}><span>Device frame</span><select value={deviceFrame} onChange={(event) => setDeviceFrame(event.target.value as PrototypeLink["device_frame"])}><option value="none">None</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="desktop">Desktop</option></select></label>
+          <label className={styles.fullField}><span>Optional password</span><input type="password" value={sharePassword} onChange={(event) => setSharePassword(event.target.value)} /></label>
+          <button type="button" disabled={!board.id || board.role !== "owner" || !frames.length} onClick={() => {
+            if (!board.id) return;
+            void createPrototypeLink(board.id, { startShapeId: selected?.type === "frame" ? selected.id : frames.find((frame) => frame.prototypeStart)?.id ?? frames[0]?.id, password: sharePassword || undefined, deviceFrame }).then((result) => { setPrototypeLinks((current) => [result.link, ...current]); setShareMessage(result.url); });
+          }}><Plus aria-hidden="true" /> Create prototype link</button>
+          {shareMessage && <button type="button" className={styles.assetApply} onClick={() => void navigator.clipboard.writeText(shareMessage)}><Copy aria-hidden="true" /> Copy prototype link</button>}
+          <div className={styles.assetList}>{prototypeLinks.filter((link) => !link.revoked_at).map((link) => <div className={styles.assetRow} key={link.id}><span>{link.device_frame} presentation<small>{link.expires_at ? `Expires ${new Date(link.expires_at).toLocaleDateString()}` : "No expiry"}</small></span><button type="button" onClick={() => board.id && void revokePrototypeLink(board.id, link.id).then(() => setPrototypeLinks((current) => current.map((item) => item.id === link.id ? { ...item, revoked_at: new Date().toISOString() } : item)))}>Revoke</button></div>)}</div>
         </section>
       </div>
     </aside>

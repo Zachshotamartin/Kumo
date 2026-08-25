@@ -52,6 +52,7 @@ describe("design branch API", () => {
       if (table === "document_branches") return {
         select: () => ({ eq: () => ({ order: vi.fn().mockResolvedValue({ data: [inserted], error: null }) }) }),
         insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: inserted, error: null }) }) }),
+        update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
       };
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
@@ -207,9 +208,9 @@ describe("design branch API", () => {
     expect(reply.statusCode).toBe(200);
     expect(reply.body).toEqual({
       diff: expect.arrayContaining([
-        { shapeId: "changed", status: "changed", name: "Updated" },
-        { shapeId: "added", status: "added", name: "ellipse" },
-        { shapeId: "removed", status: "removed", name: "Removed label" },
+        expect.objectContaining({ shapeId: "changed", status: "changed", name: "Updated" }),
+        expect.objectContaining({ shapeId: "added", status: "added", name: "ellipse" }),
+        expect.objectContaining({ shapeId: "removed", status: "removed", name: "Removed label" }),
       ]),
     });
     expect((reply.body as { diff: unknown[] }).diff).toHaveLength(3);

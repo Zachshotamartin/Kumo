@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   organize: vi.fn(),
   redeem: vi.fn(),
   requestAccess: vi.fn(),
+  globalSearch: vi.fn(), acceptWorkspaceInvitation: vi.fn(),
+  notificationPreferences: vi.fn(), deliverBrowserNotifications: vi.fn(),
 }));
 
 vi.mock("../../services/boardRepository", () => ({
@@ -50,6 +52,12 @@ vi.mock("../../services/productRepository", () => ({
   redeemShareLink: mocks.redeem,
   requestBoardAccess: mocks.requestAccess,
 }));
+vi.mock("../../services/platformRepository", () => ({
+  globalSearch: mocks.globalSearch,
+  acceptWorkspaceInvitation: mocks.acceptWorkspaceInvitation,
+  loadNotificationPreferences: mocks.notificationPreferences,
+}));
+vi.mock("../../platform/browserNotifications", () => ({ deliverBrowserNotifications: mocks.deliverBrowserNotifications }));
 vi.mock("../social/FriendsView", () => ({
   FriendsView: ({ onOpenProfile }: { onOpenProfile: (username: string) => void }) => <div>Friends view <button onClick={() => onOpenProfile("alex")}>Open Alex</button></div>,
 }));
@@ -115,6 +123,9 @@ describe("BoardDashboard", () => {
     mocks.organize.mockImplementation(async (_action: string, boardId: string, payload?: Record<string, unknown>) => ({ organization: { board_id: boardId, workspace_id: "workspace", folder_id: payload?.folderId ?? null, favorite: payload?.favorite ?? false, archived_at: null, trashed_at: null } }));
     mocks.redeem.mockResolvedValue({ boardId: "shared-link", role: "viewer" });
     mocks.requestAccess.mockResolvedValue({ id: "request", status: "pending" });
+    mocks.globalSearch.mockResolvedValue([]);
+    mocks.acceptWorkspaceInvitation.mockResolvedValue({ accepted: true, workspaceId: "workspace" });
+    mocks.notificationPreferences.mockResolvedValue({ browser_enabled: false });
   });
 
   it("opens an access-controlled direct board link after authentication", async () => {
@@ -146,6 +157,7 @@ describe("BoardDashboard", () => {
   it("navigates between friends, public profiles, the current profile, and boards", async () => {
     renderDashboard();
     await screen.findByText("My map");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open Shared map" }).querySelector("img")).toHaveAttribute("src", "blob:generated-preview"));
     fireEvent.click(screen.getByRole("button", { name: "Friends" }));
     expect(screen.getByText("Friends view")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open Alex" }));
@@ -155,6 +167,7 @@ describe("BoardDashboard", () => {
     expect(screen.getByText("Profile view self")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Boards" }));
     expect(screen.getByRole("heading", { name: "My boards" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open Shared map" }).querySelector("img")).toHaveAttribute("src", "blob:generated-preview"));
   });
 
   it("searches public boards, copies external results, and signs out", async () => {
@@ -243,5 +256,17 @@ describe("BoardDashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Request access" }));
     await waitFor(() => expect(mocks.requestAccess).toHaveBeenCalledWith("restricted", "viewer", "Please share this board with me."));
     expect(screen.getByRole("alert")).toHaveTextContent("Access request sent");
+  });
+
+  it("delivers permission-enabled browser notifications and opens their board", async () => {
+    const notice = { id: "notice", actor_id: "other", board_id: "mine", kind: "branch", title: "Review requested", body: "Open the branch", action_url: "/?board=mine&branch=branch", read_at: null, created_at: "2026-08-24" };
+    mocks.notificationPreferences.mockResolvedValue({ browser_enabled: true });
+    mocks.notifications.mockResolvedValue([notice]);
+    const store = renderDashboard();
+    await waitFor(() => expect(mocks.deliverBrowserNotifications).toHaveBeenCalledWith([notice], expect.any(Function)));
+    const activate = mocks.deliverBrowserNotifications.mock.calls.at(-1)?.[1] as (item: typeof notice) => void;
+    act(() => activate(notice));
+    await waitFor(() => expect(mocks.markNotification).toHaveBeenCalledWith("notice"));
+    await waitFor(() => expect(store.getState().whiteBoard.id).toBe("mine"));
   });
 });

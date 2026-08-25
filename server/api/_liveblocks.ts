@@ -12,9 +12,13 @@ export const liveblocksAdmin = (): Liveblocks => {
 export const emptyBoardDocument = (backgroundColor = "#252629"): PlainLsonObject => ({
   liveblocksType: "LiveObject",
   data: {
-    schemaVersion: 4,
+    schemaVersion: 5,
     backgroundColor,
     nodes: {
+      liveblocksType: "LiveMap",
+      data: {},
+    },
+    textCharacters: {
       liveblocksType: "LiveMap",
       data: {},
     },
@@ -26,10 +30,13 @@ export const boardDocumentFromJson = (value: unknown): PlainLsonObject => {
   const nodes = source.nodes && typeof source.nodes === "object"
     ? source.nodes as Record<string, unknown>
     : {};
+  const textCharacters = source.textCharacters && typeof source.textCharacters === "object"
+    ? source.textCharacters as Record<string, unknown>
+    : {};
   return {
     liveblocksType: "LiveObject",
     data: {
-      schemaVersion: 4,
+      schemaVersion: 5,
       backgroundColor: typeof source.backgroundColor === "string" ? source.backgroundColor : "#252629",
       nodes: {
         liveblocksType: "LiveMap",
@@ -39,6 +46,18 @@ export const boardDocumentFromJson = (value: unknown): PlainLsonObject => {
             {
               liveblocksType: "LiveObject",
               data: JSON.parse(JSON.stringify(shape ?? {})),
+            },
+          ])
+        ),
+      },
+      textCharacters: {
+        liveblocksType: "LiveMap",
+        data: Object.fromEntries(
+          Object.entries(textCharacters).map(([id, character]) => [
+            id,
+            {
+              liveblocksType: "LiveObject",
+              data: JSON.parse(JSON.stringify(character ?? {})),
             },
           ])
         ),

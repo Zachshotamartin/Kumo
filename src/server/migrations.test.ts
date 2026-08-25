@@ -82,4 +82,20 @@ describe("production database migrations", () => {
     expect(source).toContain("add column if not exists reviewed_checksum text");
     expect(source).toContain("branch_reviews_blocking_idx");
   });
+
+  it("adds transactional invitations, ownership transfers, delivery, extensions, and community governance", () => {
+    const source = migration("202608240004_product_maturity_platform.sql");
+    for (const table of ["board_invitations", "workspace_invitations", "notification_preferences", "branch_conflicts", "prototype_share_links", "extension_catalog", "installed_extensions", "community_publications", "community_reports", "api_rate_limits", "account_deletion_requests"]) {
+      expect(source).toContain(`create table if not exists public.${table}`);
+    }
+    for (const mutation of ["transfer_kumo_board_ownership", "create_or_refresh_kumo_board_invitation", "accept_kumo_board_invitation", "create_or_refresh_kumo_workspace_invitation", "accept_kumo_workspace_invitation", "transfer_kumo_workspace_ownership", "consume_kumo_rate_limit"]) {
+      expect(source).toContain(`function public.${mutation}`);
+      expect(source).toContain(`grant execute on function public.${mutation}`);
+    }
+    expect(source).toContain("for update");
+    expect(source).toContain("pg_advisory_xact_lock");
+    expect(source).toContain("last_sent_at timestamptz not null default now()");
+    expect(source).toContain("enable row level security");
+    expect(source).toContain("to service_role");
+  });
 });

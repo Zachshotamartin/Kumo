@@ -41,6 +41,7 @@ const presence = vi.hoisted(() => ({ update: vi.fn() }));
 
 vi.mock("@liveblocks/react", () => ({
   useUpdateMyPresence: () => presence.update,
+  useMutation: () => vi.fn(),
 }));
 vi.mock("../../comments/CommentPins", () => ({
   CommentPins: () => <div data-testid="comment-pins" />,
@@ -274,7 +275,7 @@ describe("EditorCanvas transform interactions", () => {
       deltaY: -100,
     });
 
-    expect(canvas.dispatchEvent(event)).toBe(false);
+    act(() => { expect(canvas.dispatchEvent(event)).toBe(false); });
     expect(event.defaultPrevented).toBe(true);
     expect(store.getState().editor.viewport.zoom).toBeCloseTo(1.5);
     expect(store.getState().editor.viewport).toMatchObject({
@@ -282,14 +283,16 @@ describe("EditorCanvas transform interactions", () => {
       y: expect.any(Number),
     });
 
-    canvas.dispatchEvent(new WheelEvent("wheel", {
-      bubbles: true,
-      cancelable: true,
-      clientX: 400,
-      clientY: 300,
-      ctrlKey: true,
-      deltaY: 100,
-    }));
+    act(() => {
+      canvas.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 400,
+        clientY: 300,
+        ctrlKey: true,
+        deltaY: 100,
+      }));
+    });
     expect(store.getState().editor.viewport.zoom).toBeCloseTo(1);
   });
 
@@ -302,7 +305,7 @@ describe("EditorCanvas transform interactions", () => {
       deltaY: 40,
     });
 
-    canvas.dispatchEvent(event);
+    act(() => { canvas.dispatchEvent(event); });
 
     expect(event.defaultPrevented).toBe(true);
     expect(store.getState().editor.viewport).toMatchObject({ x: 24, y: 40, zoom: 1 });

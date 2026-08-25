@@ -67,6 +67,7 @@ export interface DesignLibrarySummary {
 }
 
 export interface LibrarySubscription { library_id: string; accepted_version: number }
+export interface DesignLibraryVersion { library_id: string; version: number; semantic_version: string | null; description: string; release_status: "draft" | "review" | "published" | "deprecated"; approved_by: string | null; approved_at: string | null; changelog: string[]; created_by: string; created_at: string }
 
 export interface BoardTemplateSummary {
   id: string;
@@ -114,7 +115,9 @@ export const loadWorkspaceOverview = () => authenticatedFetch<WorkspaceOverview>
 export const loadNotifications = () => authenticatedFetch<{ notifications?: AccountNotification[] }>("/api/product?scope=notifications").then((result) => result.notifications ?? []);
 export const markNotificationRead = (id?: string) => productPost<{ updated: true }>({ action: "mark-notification", id });
 export const loadLibraries = (boardId: string) => authenticatedFetch<{ libraries?: DesignLibrarySummary[]; subscriptions?: LibrarySubscription[] }>(`/api/product?scope=libraries&boardId=${encodeURIComponent(boardId)}`).then((result) => ({ libraries: result.libraries ?? [], subscriptions: result.subscriptions ?? [] }));
-export const publishLibrary = (boardId: string, input: { name: string; description: string; visibility: DesignLibrarySummary["visibility"]; versionDescription: string }) => productPost<{ libraryId: string; version: number; assetCount: number }>({ action: "publish-library", boardId, ...input });
+export const publishLibrary = (boardId: string, input: { name: string; description: string; visibility: DesignLibrarySummary["visibility"]; versionDescription: string; semanticVersion?: string; releaseStatus?: "draft" | "review" | "published"; changelog?: string[] }) => productPost<{ libraryId: string; version: number; assetCount: number; releaseStatus: string }>({ action: "publish-library", boardId, ...input });
+export const loadLibraryVersions = (libraryId: string) => authenticatedFetch<{ library: DesignLibrarySummary; versions: DesignLibraryVersion[] }>(`/api/product?scope=library-versions&libraryId=${encodeURIComponent(libraryId)}`);
+export const governLibraryRelease = (action: "approve-library-release" | "deprecate-library-release" | "rollback-library", libraryId: string, version: number) => productPost<{ updated: true }>({ action, libraryId, version });
 export const loadLibraryDiff = (boardId: string, libraryId: string) => productPost<{ version: number; diff: Array<{ sourceId: string; status: "added" | "changed" | "removed" | "unchanged" }> }>({ action: "library-diff", boardId, libraryId });
 export const applyLibrary = (boardId: string, libraryId: string) => productPost<{ applied: true; version: number; diff: Array<{ sourceId: string; status: string }> }>({ action: "apply-library", boardId, libraryId });
 export const loadTemplates = () => authenticatedFetch<{ templates?: BoardTemplateSummary[] }>("/api/product?scope=templates").then((result) => result.templates ?? []);

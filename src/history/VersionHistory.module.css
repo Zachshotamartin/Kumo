@@ -19,3 +19,8 @@
 .restoreBar { display: flex; min-height: 48px; align-items: center; justify-content: flex-end; gap: 7px; padding: 7px 10px; border-top: 1px solid #35363a; }
 .restoreBar span { margin-right: auto; color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 .error { margin: 0 10px 8px; }
+.message { margin: 0 10px 8px; }
+.versionActions { display: flex; justify-content: flex-end; gap: 4px; margin: -4px 10px 10px; }
+.comparison { display: grid; gap: 4px; max-height: 110px; overflow: auto; margin: 0 10px 8px; padding: 8px; border: 1px solid #35363a; border-radius: 7px; background: #1d1e20; }
+.comparison span { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
+.comparison b { color: #d6a15f; text-transform: capitalize; }

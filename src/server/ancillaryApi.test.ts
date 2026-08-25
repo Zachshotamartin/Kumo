@@ -110,6 +110,9 @@ describe("sharing, session, and Liveblocks API handlers", () => {
           select: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: { board_id: "board", status: "open" }, error: null }) }) }),
         };
       }
+      if (table === "board_invitations") {
+        return { select: () => ({ eq: () => ({ eq: () => ({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) }) };
+      }
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
   });
@@ -140,7 +143,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     }), denied);
     expect(denied.statusCode).toBe(403);
     expect(denied.body).toEqual({ error: "This profile cannot be invited." });
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalledWith("share_kumo_board_set", expect.anything());
   });
 
   it("invites and removes board collaborators", async () => {
@@ -178,7 +181,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     await shareBoardHandler({
       method: "GET", body: {}, query: { boardId: "board" }, headers: { authorization: "Bearer token" },
     } as unknown as VercelRequest, preview);
-    expect(preview.body).toEqual({ plan: expect.objectContaining({ boards: expect.arrayContaining([external]) }) });
+    expect(preview.body).toEqual(expect.objectContaining({ plan: expect.objectContaining({ boards: expect.arrayContaining([external]) }), invitations: [] }));
 
     mocks.sharePlan.mockResolvedValueOnce({
       truncated: false,
@@ -209,7 +212,8 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     mocks.invitedProfile = null;
     const missing = response();
     await shareBoardHandler(request({ boardId: "board", action: "invite", email: "none@example.com" }), missing);
-    expect(missing.body).toEqual({ error: "No Kumo account uses that email." });
+    expect(missing.statusCode).toBe(202);
+    expect(missing.body).toEqual(expect.objectContaining({ pending: true, url: expect.stringContaining("invite=") }));
   });
 
   it("refuses a partial connected-board share when the bounded graph is truncated", async () => {
@@ -225,7 +229,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     }), linked);
     expect(linked.statusCode).toBe(409);
     expect(linked.body).toEqual({ error: expect.stringContaining("safe sharing limit") });
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalledWith("share_kumo_board_set", expect.anything());
 
     const direct = response();
     await shareBoardHandler(request({

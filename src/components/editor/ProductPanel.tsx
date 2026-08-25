@@ -3,6 +3,8 @@ import {
   ArrowClockwise,
   Check,
   Graph,
+  Gauge,
+  Globe,
   MagnifyingGlass,
   Package,
   PuzzlePiece,
@@ -14,6 +16,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { clearRecoverySnapshot, loadRecoverySnapshot } from "../../collaboration/offlineRecovery";
 import {
   auditAccessibility,
+  analyzeDocumentPerformance,
+  applyAccessibilityFixes,
   replaceDocumentText,
   runExtensionCommand,
   searchDocument,
@@ -27,18 +31,22 @@ import {
   loadProductGraph,
   loadTemplates,
   publishLibrary,
+  governLibraryRelease,
+  loadLibraryVersions,
   type BoardTemplateSummary,
   type DesignLibrarySummary,
+  type DesignLibraryVersion,
   type LibrarySubscription,
   type ProductGraph,
 } from "../../services/productRepository";
+import { installExtension, loadExtensions, publishCommunity, publishExtension, toggleExtension, uninstallExtension, unpublishCommunity, type CatalogExtension } from "../../services/platformRepository";
 import { useEditorActions } from "../../editor/useEditorActions";
 import { setRightPanel } from "../../features/editor/editorSlice";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
-type ProductTab = "graph" | "find" | "libraries" | "accessibility" | "extensions" | "recovery";
+type ProductTab = "graph" | "find" | "libraries" | "accessibility" | "extensions" | "performance" | "publish" | "recovery";
 
 const builtInExtension: ExtensionManifest = {
   id: "kumo.quick-edit",
@@ -66,6 +74,13 @@ const ProductPanel = () => {
   const [libraryName, setLibraryName] = useState(board.title ?? "Kumo library");
   const [libraryNote, setLibraryNote] = useState("");
   const [extensionInput, setExtensionInput] = useState("#b87a2e");
+  const [extensions, setExtensions] = useState<CatalogExtension[]>([]);
+  const [extensionManifest, setExtensionManifest] = useState(JSON.stringify(builtInExtension, null, 2));
+  const [libraryVersions, setLibraryVersions] = useState<DesignLibraryVersion[]>([]);
+  const [semanticVersion, setSemanticVersion] = useState("1.0.0");
+  const [releaseStatus, setReleaseStatus] = useState<"draft" | "review" | "published">("published");
+  const [communityDescription, setCommunityDescription] = useState("");
+  const [communityTags, setCommunityTags] = useState("design, collaboration");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,13 +95,14 @@ const ProductPanel = () => {
   useEffect(() => {
     if (!board.id) return;
     let active = true;
-    void Promise.all([loadProductGraph(board.id), loadLibraries(board.id), loadTemplates()])
-      .then(([nextGraph, libraryResult, nextTemplates]) => {
+    void Promise.all([loadProductGraph(board.id), loadLibraries(board.id), loadTemplates(), loadExtensions()])
+      .then(([nextGraph, libraryResult, nextTemplates, nextExtensions]) => {
         if (!active) return;
         setGraph(nextGraph);
         setLibraries(libraryResult.libraries);
         setSubscriptions(libraryResult.subscriptions);
         setTemplates(nextTemplates);
+        setExtensions(nextExtensions);
       })
       .catch((caught) => active && setError(caught instanceof Error ? caught.message : "Product tools could not be loaded."));
     return () => { active = false; };
@@ -94,6 +110,7 @@ const ProductPanel = () => {
 
   const searchResults = useMemo(() => searchDocument(board.shapes, query), [board.shapes, query]);
   const findings = useMemo(() => auditAccessibility(board.shapes), [board.shapes]);
+  const performance = useMemo(() => analyzeDocumentPerformance(board.shapes, { x: 0, y: 0, width: 1920 / 1, height: 1080 / 1 }), [board.shapes]);
   const recovery = board.id ? loadRecoverySnapshot(board.id) : null;
 
   const run = async (operation: () => Promise<void>) => {
@@ -104,12 +121,14 @@ const ProductPanel = () => {
   };
 
   const select = (shapeId: string) => dispatch(setSelectedShapes([shapeId]));
+  const refreshExtensions = async () => setExtensions(await loadExtensions());
+  const catalogManifest = (extension: CatalogExtension) => extension.manifest as ExtensionManifest;
 
   return (
     <aside className={styles.inspectorPanel} aria-label="Product tools">
       <div className={styles.panelHeading}><span>Product tools</span><button type="button" aria-label="Close product tools" onClick={() => dispatch(setRightPanel("properties"))}><X aria-hidden="true" /></button></div>
       <div className={styles.productTabs} role="tablist" aria-label="Product tools">
-        {(["graph", "find", "libraries", "accessibility", "extensions", "recovery"] as ProductTab[]).map((item) => (
+        {(["graph", "find", "libraries", "accessibility", "extensions", "performance", "publish", "recovery"] as ProductTab[]).map((item) => (
           <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>{item}</button>
         ))}
       </div>
@@ -160,14 +179,16 @@ const ProductPanel = () => {
             <h2><Package aria-hidden="true" /> Publish this board</h2>
             <label className={styles.fullField}><span>Library name</span><input value={libraryName} onChange={(event) => setLibraryName(event.target.value)} /></label>
             <label className={styles.fullField}><span>Release notes</span><textarea value={libraryNote} onChange={(event) => setLibraryNote(event.target.value)} /></label>
-            <button type="button" disabled={busy || board.role !== "owner"} onClick={() => void run(async () => { if (!board.id) return; const result = await publishLibrary(board.id, { name: libraryName, description: "Reusable Kumo design assets", visibility: "public", versionDescription: libraryNote }); setMessage(`Published version ${result.version} with ${result.assetCount} assets.`); await reloadLibraries(); })}><RocketLaunch aria-hidden="true" /> Publish update</button>
+            <div className={styles.fieldGrid}><label className={styles.fullField}><span>Semantic version</span><input value={semanticVersion} onChange={(event) => setSemanticVersion(event.target.value)} placeholder="1.0.0" /></label><label className={styles.fullField}><span>Release state</span><select value={releaseStatus} onChange={(event) => setReleaseStatus(event.target.value as typeof releaseStatus)}><option value="draft">Draft</option><option value="review">Request approval</option><option value="published">Publish now</option></select></label></div>
+            <button type="button" disabled={busy || board.role !== "owner"} onClick={() => void run(async () => { if (!board.id) return; const result = await publishLibrary(board.id, { name: libraryName, description: "Reusable Kumo design assets", visibility: "public", versionDescription: libraryNote, semanticVersion, releaseStatus, changelog: libraryNote.split("\n").filter(Boolean) }); setMessage(`${releaseStatus === "published" ? "Published" : "Created"} version ${result.version} with ${result.assetCount} assets.`); await reloadLibraries(); })}><RocketLaunch aria-hidden="true" /> {releaseStatus === "published" ? "Publish update" : "Create release"}</button>
           </section>
           <section className={styles.inspectorSection}>
             <h2>Available libraries</h2>
             <div className={styles.assetList}>{libraries.map((library) => {
               const accepted = subscriptions.find((subscription) => subscription.library_id === library.id)?.accepted_version ?? 0;
-              return <div className={styles.assetRow} key={library.id}><span><Package aria-hidden="true" />{library.name}<small>v{library.latest_version} · {accepted === library.latest_version ? "up to date" : `update from v${accepted}`}</small></span><button type="button" disabled={busy || !actions.canEdit || library.source_board_id === board.id} onClick={() => void run(async () => { if (!board.id) return; const diff = await loadLibraryDiff(board.id, library.id); const changed = diff.diff.filter((item) => item.status !== "unchanged").length; if (!changed) { setMessage("This library is already current."); return; } await applyLibrary(board.id, library.id); setMessage(`Applied ${changed} reviewed library changes.`); await reloadLibraries(); })}>{accepted ? "Update" : "Add"}</button></div>;
+              return <div className={styles.assetRow} key={library.id}><span><Package aria-hidden="true" />{library.name}<small>v{library.latest_version} · {accepted === library.latest_version ? "up to date" : `update from v${accepted}`}</small></span><div><button type="button" disabled={busy || !actions.canEdit || library.source_board_id === board.id} onClick={() => void run(async () => { if (!board.id) return; const diff = await loadLibraryDiff(board.id, library.id); const changed = diff.diff.filter((item) => item.status !== "unchanged").length; if (!changed) { setMessage("This library is already current."); return; } await applyLibrary(board.id, library.id); setMessage(`Applied ${changed} reviewed library changes.`); await reloadLibraries(); })}>{accepted ? "Update" : "Add"}</button>{library.owner_id === board.uid && <button type="button" onClick={() => void loadLibraryVersions(library.id).then((result) => setLibraryVersions(result.versions))}>Releases</button>}</div></div>;
             })}</div>
+            {libraryVersions.length > 0 && <div className={styles.assetList}>{libraryVersions.map((version) => <div className={styles.assetRow} key={`${version.library_id}:${version.version}`}><span>v{version.semantic_version ?? version.version}<small>{version.release_status} · {version.description || "No release notes"}</small></span><div>{version.release_status === "review" && <button type="button" onClick={() => void governLibraryRelease("approve-library-release", version.library_id, version.version).then(() => setLibraryVersions((current) => current.map((item) => item.version === version.version ? { ...item, release_status: "published" } : item)))}>Approve</button>}{version.release_status !== "deprecated" && <button type="button" onClick={() => void governLibraryRelease("deprecate-library-release", version.library_id, version.version).then(() => setLibraryVersions((current) => current.map((item) => item.version === version.version ? { ...item, release_status: "deprecated" } : item)))}>Deprecate</button>}<button type="button" disabled={version.release_status === "deprecated"} onClick={() => void governLibraryRelease("rollback-library", version.library_id, version.version).then(() => setMessage(`v${version.semantic_version ?? version.version} is current.`))}>Make current</button></div></div>)}</div>}
           </section>
           <section className={styles.inspectorSection}><h2>Templates</h2><button type="button" disabled={busy || !board.id} onClick={() => void run(async () => { if (!board.id) return; const result = await createTemplate(board.id, board.title ?? "Board template", "Reusable board starting point", "private"); setTemplates((current) => [result.template, ...current]); setMessage("Template created."); })}>Save board as template</button><div className={styles.assetList}>{templates.map((template) => <div className={styles.assetRow} key={template.id}><span>{template.name}<small>{template.visibility}</small></span></div>)}</div></section>
         </>}
@@ -175,6 +196,7 @@ const ProductPanel = () => {
         {tab === "accessibility" && <section className={styles.inspectorSection}>
           <h2><PersonArmsSpread aria-hidden="true" /> Accessibility audit</h2>
           <p className={styles.fieldHint}>Contrast, alternative text, accessible names, focus order, and touch targets.</p>
+          {!!findings.length && <button type="button" disabled={!actions.canEdit} onClick={() => { actions.commitShapes(applyAccessibilityFixes(board.shapes, findings)); setMessage(`Applied safe fixes for ${findings.length} findings.`); }}>Fix all safe issues</button>}
           {!findings.length && <p className={styles.successLine}><Check aria-hidden="true" /> No accessibility findings.</p>}
           <div className={styles.assetList}>{findings.map((finding, index) => <button type="button" className={styles.assetApply} key={`${finding.shapeId}:${finding.rule}:${index}`} onClick={() => select(finding.shapeId)}><PersonArmsSpread aria-hidden="true" /><span>{finding.message}<small>{finding.severity} · {finding.rule}</small></span></button>)}</div>
         </section>}
@@ -184,6 +206,28 @@ const ProductPanel = () => {
           <p className={styles.fieldHint}>Kumo extensions are declarative and permission-scoped; they cannot execute arbitrary page scripts.</p>
           <label className={styles.fullField}><span>Command value</span><input value={extensionInput} onChange={(event) => setExtensionInput(event.target.value)} /></label>
           <div className={styles.buttonGrid}>{builtInExtension.commands.map((command) => <button type="button" key={command.id} disabled={!actions.canEdit || (command.operation !== "create-rectangle" && !selectedIds.length)} onClick={() => actions.commitShapes(runExtensionCommand(board.shapes, selectedIds, builtInExtension, command.id, extensionInput))}>{command.name}</button>)}</div>
+          <h2>Extension catalog</h2>
+          <div className={styles.assetList}>{extensions.map((extension) => {
+            const installation = extension.installed_extensions?.[0];
+            return <div className={styles.assetRow} key={extension.id}><span><PuzzlePiece aria-hidden="true" />{extension.name}<small>{extension.verified ? "Verified" : "Developer build"} · {extension.description || "No description"}</small></span><div>{installation?.enabled && catalogManifest(extension).commands.map((command) => <button type="button" key={command.id} disabled={!actions.canEdit || (command.operation !== "create-rectangle" && !selectedIds.length)} onClick={() => actions.commitShapes(runExtensionCommand(board.shapes, selectedIds, catalogManifest(extension), command.id, extensionInput))}>{command.name}</button>)}{installation ? <><button type="button" onClick={() => void run(async () => { await toggleExtension(extension.id, !installation.enabled); await refreshExtensions(); })}>{installation.enabled ? "Disable" : "Enable"}</button><button type="button" onClick={() => void run(async () => { await uninstallExtension(extension.id); await refreshExtensions(); })}>Uninstall</button></> : <button type="button" onClick={() => void run(async () => { await installExtension(extension.id, extension.manifest.permissions); await refreshExtensions(); })}>Install</button>}</div></div>;
+          })}</div>
+          <label className={styles.fullField}><span>Publish a declarative manifest</span><textarea rows={10} spellCheck={false} value={extensionManifest} onChange={(event) => setExtensionManifest(event.target.value)} /></label>
+          <button type="button" onClick={() => void run(async () => { const parsed = JSON.parse(extensionManifest) as CatalogExtension["manifest"]; await publishExtension(parsed, `Published from ${board.title ?? "Kumo"}`); await refreshExtensions(); setMessage(`${parsed.name} was added to your developer catalog.`); })}>Publish extension</button>
+        </section>}
+
+        {tab === "performance" && <section className={styles.inspectorSection}>
+          <h2><Gauge aria-hidden="true" /> Document performance</h2>
+          <p className={styles.fieldHint}>The canvas only mounts visible layers plus their parents, while storage retains the entire board.</p>
+          <dl className={styles.inspectGrid}><div><dt>Health</dt><dd>{performance.level}</dd></div><div><dt>Layers</dt><dd>{performance.shapeCount}</dd></div><div><dt>Mounted</dt><dd>{performance.renderedShapeCount}</dd></div><div><dt>Complexity</dt><dd>{performance.estimatedComplexity}</dd></div><div><dt>Images</dt><dd>{performance.imageCount}</dd></div><div><dt>Vector points</dt><dd>{performance.vectorPointCount}</dd></div></dl>
+          <p className={performance.level === "healthy" ? styles.successLine : styles.fieldHint}>{performance.level === "healthy" ? "This board is within the healthy interactive budget." : performance.level === "watch" ? "Consider splitting dense sections into linked boards." : "This board is heavy. Reduce effects and very dense vectors for smoother collaboration."}</p>
+        </section>}
+
+        {tab === "publish" && <section className={styles.inspectorSection}>
+          <h2><Globe aria-hidden="true" /> Publish to community</h2>
+          <p className={styles.fieldHint}>Publish a discoverable, remixable snapshot of this board. Only the owner can update or remove it.</p>
+          <label className={styles.fullField}><span>Description</span><textarea value={communityDescription} onChange={(event) => setCommunityDescription(event.target.value)} placeholder="What can the community learn or build from this board?" /></label>
+          <label className={styles.fullField}><span>Tags</span><input value={communityTags} onChange={(event) => setCommunityTags(event.target.value)} placeholder="design system, workshop" /></label>
+          <div className={styles.buttonGrid}><button type="button" disabled={busy || board.role !== "owner" || !communityDescription.trim()} onClick={() => void run(async () => { if (!board.id) return; const result = await publishCommunity(board.id, { description: communityDescription, tags: communityTags.split(",").map((tag) => tag.trim()).filter(Boolean), remixAllowed: true }); setMessage(`Published as ${result.publication.slug}.`); })}>Publish board</button><button type="button" disabled={busy || board.role !== "owner"} onClick={() => void run(async () => { if (!board.id) return; await unpublishCommunity(board.id); setMessage("Community publication removed."); })}>Unpublish</button></div>
         </section>}
 
         {tab === "recovery" && <section className={styles.inspectorSection}>

@@ -61,6 +61,7 @@ const request = (
 const queryChain = <T,>(result: T) => {
   const chain = {
     eq: vi.fn(() => chain),
+    is: vi.fn(() => chain),
     order: vi.fn(() => chain),
     limit: vi.fn(() => Promise.resolve(result)),
     maybeSingle: vi.fn(() => Promise.resolve(result)),
@@ -150,6 +151,19 @@ describe("collaborator and version APIs", () => {
     const reply = response();
     await versionsHandler(request("GET", {}, { boardId: "board" }), reply);
     expect(reply.body).toEqual({ versions: [expect.objectContaining({ creatorName: "Owner", name: "Ready" })] });
+  });
+
+  it("opens a token-scoped historical version without requiring a Kumo account", async () => {
+    const snapshot = { id: "version", board_id: "board", name: "Launch", description: null, created_at: new Date().toISOString(), document: { nodes: {} }, share_expires_at: null };
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots"
+      ? { select: () => queryChain({ data: snapshot, error: null }) }
+      : { select: () => queryChain({ data: { title: "Board" }, error: null }) });
+    const reply = response();
+    await versionsHandler(request("GET", {}, { versionId: "version", token: "secret" }), reply);
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body).toEqual({ version: expect.objectContaining({ id: "version", boardTitle: "Board", document: { nodes: {} } }) });
+    expect(mocks.requireActor).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("consume_kumo_rate_limit", expect.objectContaining({ p_limit: 30 }));
   });
 
   it("creates a named checkpoint with the current collaborative document", async () => {

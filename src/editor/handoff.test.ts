@@ -1,5 +1,5 @@
 import type { Shape } from "../classes/shape";
-import { inspectTokens, shapeCss, shapeJson, shapeReact, shapeSwiftUI } from "./handoff";
+import { designTokenExport, inspectTokens, shapeCss, shapeJson, shapeReact, shapeStory, shapeSwiftUI } from "./handoff";
 
 const shape: Shape = {
   id: "text", type: "text", name: "Hero title", text: "Build <together>",
@@ -34,5 +34,13 @@ describe("developer handoff", () => {
     expect(JSON.parse(shapeJson(ready))).toMatchObject({
       id: "text", status: "ready", accessibility: { role: "heading", altText: "Hero", focusOrder: 1 },
     });
+  });
+
+  it("generates Storybook metadata and portable design-token JSON", () => {
+    expect(shapeStory(shape)).toContain("export const Default");
+    const tokens = JSON.parse(designTokenExport({ ...shape, assetId: "asset", fillStyleId: "fill" }));
+    expect(tokens.color["layer-1"]).toEqual({ $type: "color", $value: "#252629" });
+    expect(tokens.assets).toEqual(expect.objectContaining({ "asset-1": { $type: "asset", $value: "asset" } }));
+    expect(tokens.variables.color.$value).toBe("{variable}");
   });
 });

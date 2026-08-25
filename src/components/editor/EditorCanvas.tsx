@@ -80,7 +80,8 @@ import { TextEditor } from "./TextEditor";
 import { ShapeVectorGraphic } from "./ShapeGraphic";
 import { shapeAppearanceStyle } from "../../editor/shapeAppearance";
 import { SelectionHighlight } from "./SelectionHighlight";
-import { fontFeatureCss, fontVariationCss, textSegments } from "../../platform/productCapabilities";
+import { cullDocumentShapes, fontFeatureCss, fontVariationCss, textSegments } from "../../platform/productCapabilities";
+import { useCollaborativeText } from "../../collaboration/useCollaborativeText";
 
 type InteractionMode = "draw" | "move" | "resize" | "rotate" | "marquee" | "pan" | "vector-point";
 
@@ -158,9 +159,15 @@ interface EditorCanvasViewProps {
   actions: EditorActions;
   updateMyPresence: (patch: Partial<Liveblocks["Presence"]>) => void;
   showCommentPins?: boolean;
+  applyCollaborativeText?: (shapeId: string, previousText: string, nextText: string) => void;
 }
 
-export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = true }: EditorCanvasViewProps) => {
+export const EditorCanvasView = ({
+  actions,
+  updateMyPresence,
+  showCommentPins = true,
+  applyCollaborativeText = () => undefined,
+}: EditorCanvasViewProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -168,6 +175,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const finishInteractionRef = useRef<(event: CanvasPointerReleaseEvent) => void>(() => undefined);
   const cancelInteractionRef = useRef<(event?: Pick<CanvasPointerReleaseEvent, "currentTarget" | "pointerId">) => void>(() => undefined);
   const textBaselineRef = useRef<Shape[] | null>(null);
+  const textDraftRef = useRef(new Map<string, string>());
   const spacePressedRef = useRef(false);
   const cursorFrameRef = useRef<number | null>(null);
   const latestCursorRef = useRef<Point | null>(null);
@@ -188,6 +196,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   const [cursorChat, setCursorChat] = useState("");
   const [cursorChatAnchor, setCursorChatAnchor] = useState<Point>({ x: 40, y: 40 });
   const [collaborationNotice, setCollaborationNotice] = useState<string | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 1600, height: 1000 });
 
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
@@ -201,6 +210,23 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
     ? editor.currentPageId
     : pages[0]!.id;
   const canvasShapes = useMemo(() => shapesOnPage(board.shapes, activePageId), [activePageId, board.shapes]);
+  const renderedShapes = useMemo(() => cullDocumentShapes(canvasShapes, {
+    x: editor.viewport.x,
+    y: editor.viewport.y,
+    width: canvasSize.width / editor.viewport.zoom,
+    height: canvasSize.height / editor.viewport.zoom,
+  }, selectedIds), [canvasShapes, canvasSize.height, canvasSize.width, editor.viewport.x, editor.viewport.y, editor.viewport.zoom, selectedIds]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const update = () => setCanvasSize({ width: canvas.clientWidth, height: canvas.clientHeight });
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
   const selectedFrame = useMemo(
     () => selectionFrame(canvasShapes, selectedIds, selectionRotation),
     [canvasShapes, selectedIds, selectionRotation]
@@ -238,6 +264,11 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   ) => {
     const activeCollaborator = remoteActivityFor(shapeIds);
     if (activeCollaborator) {
+      if (activity === "editing" && activeCollaborator.activity === "editing") {
+        setCollaborationNotice(`Editing text with ${activeCollaborator.label ?? "a collaborator"}.`);
+        updateMyPresence({ activeShapeIds: shapeIds, activity });
+        return true;
+      }
       setCollaborationNotice(
         `${activeCollaborator.label ?? "A collaborator"} is ${activeCollaborator.activity ?? "editing"} this selection.`
       );
@@ -249,7 +280,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
   }, [remoteActivityFor, updateMyPresence]);
 
   const releaseShapeActivity = useCallback(() => {
-    updateMyPresence({ activeShapeIds: [], activity: null });
+    updateMyPresence({ activeShapeIds: [], activity: null, textSelection: null });
   }, [updateMyPresence]);
 
   const blockIfRemotelyActive = useCallback((shapeIds: string[]) => {
@@ -1254,6 +1285,11 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
 
   const handleTextChange = (shapeId: string, text: string) => {
     if (!textBaselineRef.current) textBaselineRef.current = cloneShapes(board.shapes);
+    const previousText = textDraftRef.current.get(shapeId)
+      ?? board.shapes.find((shape) => shape.id === shapeId)?.text
+      ?? "";
+    applyCollaborativeText(shapeId, previousText, text);
+    textDraftRef.current.set(shapeId, text);
     actions.previewShapes(
       applyDocumentLayout(board.shapes.map((shape) => (shape.id === shapeId
         ? { ...shape, text }
@@ -1269,6 +1305,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       actions.commitShapes(nextShapes, textBaselineRef.current);
       textBaselineRef.current = null;
     }
+    textDraftRef.current.delete(shapeId);
     dispatch(setEditingShapeId(null));
     releaseShapeActivity();
   };
@@ -1375,7 +1412,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
       }}
     >
       <div className={styles.shapeLayer} aria-live="off">
-        {canvasShapes
+        {renderedShapes
           .slice()
           .filter((shape) => shape.type !== "guide")
           .sort((left, right) => left.zIndex - right.zIndex)
@@ -1397,6 +1434,9 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
               ? board.linkedBoards[shape.boardId]
               : undefined;
             const remoteActivity = remoteActivityFor([shape.id]);
+            const remoteTextEditors = shape.type === "text"
+              ? board.currentUsers.filter((presence) => presence.textSelection?.shapeId === shape.id)
+              : [];
             const commonStyle: React.CSSProperties = {
               left: position.x,
               top: position.y,
@@ -1425,6 +1465,7 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                 data-flip-y={shape.flipY ? "true" : "false"}
               >
                 {remoteActivity && <span className={styles.remoteActivityBadge}>{remoteActivity.label ?? "Collaborator"} · {remoteActivity.activity ?? "editing"}</span>}
+                {remoteTextEditors.length > 0 && <span className={styles.remoteTextEditors} aria-label={`${remoteTextEditors.map((person) => person.label ?? "Collaborator").join(", ")} editing text`}>{remoteTextEditors.map((person) => person.label?.slice(0, 1).toUpperCase() ?? "C").join("")}</span>}
                 {(shape.type === "frame" || shape.type === "section") && (
                   <span className={styles.frameLabel}>{shape.name ?? "Frame"}</span>
                 )}
@@ -1448,7 +1489,10 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
                       value={shape.text ?? ""}
                       onChange={(text) => handleTextChange(shape.id, text)}
                       onBlur={(text) => commitText(shape.id, text)}
-                      onSelectionChange={(start, end) => dispatch(setTextSelection({ shapeId: shape.id, start, end }))}
+                      onSelectionChange={(start, end) => {
+                        dispatch(setTextSelection({ shapeId: shape.id, start, end }));
+                        updateMyPresence({ textSelection: { shapeId: shape.id, start, end } });
+                      }}
                     />
                   ) : (
                     <div
@@ -1774,7 +1818,14 @@ export const EditorCanvasView = ({ actions, updateMyPresence, showCommentPins = 
 const EditorCanvas = () => {
   const actions = useEditorActions();
   const updateMyPresence = useUpdateMyPresence();
-  return <EditorCanvasView actions={actions} updateMyPresence={updateMyPresence} />;
+  const applyCollaborativeText = useCollaborativeText();
+  return (
+    <EditorCanvasView
+      actions={actions}
+      updateMyPresence={updateMyPresence}
+      applyCollaborativeText={applyCollaborativeText}
+    />
+  );
 };
 
 export default EditorCanvas;

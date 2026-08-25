@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ClockCounterClockwise, FloppyDisk, X } from "@phosphor-icons/react";
+import { ClockCounterClockwise, Copy, FloppyDisk, GitDiff, PencilSimple, ShareNetwork, X } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import type { Shape } from "../classes/shape";
 import { shapeBounds } from "../editor/geometry";
@@ -9,9 +9,13 @@ import {
   BoardVersion,
   BoardVersionDetail,
   createBoardCheckpoint,
+  compareBoardVersion,
+  duplicateBoardVersion,
   getBoardVersion,
   listBoardVersions,
+  renameBoardVersion,
   restoreBoardVersion,
+  shareBoardVersion,
 } from "../services/versionRepository";
 import type { AppDispatch, RootState } from "../store";
 import ui from "../components/ui/Ui.module.css";
@@ -77,10 +81,15 @@ export const VersionHistoryPanel = () => {
   const [detailState, setDetailState] = useState<{ id: string | null; version: BoardVersionDetail | null }>({ id: null, version: null });
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [metadataName, setMetadataName] = useState("");
+  const [metadataDescription, setMetadataDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [comparison, setComparison] = useState<Array<{ shapeId: string; status: string; name: string }>>([]);
+  const [editingMetadata, setEditingMetadata] = useState(false);
   const canEdit = board.role === "owner" || board.role === "editor";
   const detail = detailState.id === selectedId ? detailState.version : null;
 
@@ -148,6 +157,25 @@ export const VersionHistoryPanel = () => {
     }
   };
 
+  const selected = versions.find((version) => version.id === selectedId) ?? null;
+
+  const runSelectedAction = async (operation: "rename" | "compare" | "duplicate" | "share") => {
+    if (!board.id || !selectedId) return;
+    setError(null); setMessage(null);
+    try {
+      if (operation === "rename") {
+        await renameBoardVersion(board.id, selectedId, metadataName || selected?.name || "Named version", metadataDescription, board.activeBranchId);
+        setEditingMetadata(false); setMetadataName(""); setMetadataDescription(""); await refresh(); setMessage("Version details updated.");
+      } else if (operation === "compare") {
+        const result = await compareBoardVersion(board.id, selectedId, board.activeBranchId); setComparison(result.diff); setMessage(`${result.diff.length} changes from this version to the current board.`);
+      } else if (operation === "duplicate") {
+        const result = await duplicateBoardVersion(board.id, selectedId, `${selected?.name ?? board.title ?? "Board"} copy`, board.activeBranchId); setMessage(`Created a new board from this version (${result.boardId}).`);
+      } else {
+        const result = await shareBoardVersion(board.id, selectedId, undefined, board.activeBranchId); await navigator.clipboard.writeText(result.url); setMessage("Version link copied.");
+      }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "The version action failed."); }
+  };
+
   return (
     <aside className={`${ui.panel} ${styles.panel}`} aria-label="Version history">
       <header className={`${ui.panelHeader} ${styles.header}`}>
@@ -155,7 +183,14 @@ export const VersionHistoryPanel = () => {
         <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${ui.iconButton}`} aria-label="Close version history" onClick={() => dispatch(setRightPanel("properties"))}><X aria-hidden="true" /></button>
       </header>
       <SnapshotPreview version={selectedId ? detail : null} />
-      {canEdit && (
+      {selectedId && <div className={styles.versionActions} aria-label="Selected version actions">
+        <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.iconButton}`} aria-label="Compare selected version" onClick={() => void runSelectedAction("compare")}><GitDiff aria-hidden="true" /></button>
+        <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.iconButton}`} aria-label="Copy selected version link" onClick={() => void runSelectedAction("share")}><ShareNetwork aria-hidden="true" /></button>
+        <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.iconButton}`} aria-label="Duplicate selected version" onClick={() => void runSelectedAction("duplicate")}><Copy aria-hidden="true" /></button>
+        {canEdit && <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.iconButton}`} aria-label="Rename selected version" onClick={() => { setEditingMetadata(true); setMetadataName(selected?.name ?? ""); setMetadataDescription(selected?.description ?? ""); }}><PencilSimple aria-hidden="true" /></button>}
+      </div>}
+      {editingMetadata && <section className={styles.checkpointForm}><label className={ui.field}><span className={ui.fieldLabel}>Version name</span><input className={ui.control} value={metadataName} onChange={(event) => setMetadataName(event.target.value)} /></label><label className={ui.field}><span className={ui.fieldLabel}>Description</span><textarea className={ui.control} value={metadataDescription} onChange={(event) => setMetadataDescription(event.target.value)} /></label><button type="button" className={`${ui.button} ${ui.buttonPrimary}`} onClick={() => void runSelectedAction("rename")}>Save details</button></section>}
+      {canEdit && !editingMetadata && (
         <section className={styles.checkpointForm}>
           <label className={ui.field}><span className={ui.fieldLabel}>Name</span><input className={ui.control} value={name} maxLength={120} placeholder="Ready for review" onChange={(event) => setName(event.target.value)} /></label>
           <label className={ui.field}><span className={ui.fieldLabel}>Description</span><textarea className={ui.control} value={description} maxLength={500} placeholder="What changed?" onChange={(event) => setDescription(event.target.value)} /></label>
@@ -163,6 +198,8 @@ export const VersionHistoryPanel = () => {
         </section>
       )}
       {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.error}`} role="alert">{error}</p>}
+      {message && <p className={`${ui.notice} ${styles.message}`} role="status">{message}</p>}
+      {comparison.length > 0 && <div className={styles.comparison} aria-label="Version comparison">{comparison.map((item) => <span key={item.shapeId}><b>{item.status}</b> {item.name}</span>)}</div>}
       <div className={styles.list}>
         {versions.map((version) => (
           <button type="button" key={version.id} aria-pressed={selectedId === version.id} onClick={() => setSelectedId(version.id)}>

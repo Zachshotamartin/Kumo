@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Graph,
   Bell,
+  Compass,
   Folder,
+  Gear,
   Package,
   MagnifyingGlass,
   Plus,
   SignOut,
   UserCircle,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
@@ -32,6 +35,12 @@ import { ProfileView } from "../social/ProfileView";
 import { BoardCard } from "./BoardCard";
 import styles from "./BoardDashboard.module.css";
 import ui from "../ui/Ui.module.css";
+import { WorkspaceAdminView } from "./WorkspaceAdminView";
+import { SettingsView } from "./SettingsView";
+import { CommunityView } from "./CommunityView";
+import { acceptBoardInvitation } from "../../services/collaboratorRepository";
+import { acceptWorkspaceInvitation, globalSearch, loadNotificationPreferences, type GlobalSearchResult } from "../../services/platformRepository";
+import { deliverBrowserNotifications } from "../../platform/browserNotifications";
 import {
   createFolder,
   instantiateTemplate,
@@ -48,7 +57,7 @@ import {
   type WorkspaceFolder,
 } from "../../services/productRepository";
 
-type DashboardView = "boards" | "friends" | "profile" | "inbox" | "templates";
+type DashboardView = "boards" | "friends" | "profile" | "inbox" | "templates" | "workspace" | "community" | "settings";
 
 const routeFromLocation = () => {
   const profile = new URL(window.location.href).searchParams.get("profile");
@@ -69,12 +78,14 @@ const BoardDashboard = () => {
   const [profileUsername, setProfileUsername] = useState<string | null>(initialRoute.profile);
   const [incomingCount, setIncomingCount] = useState(0);
   const [notifications, setNotifications] = useState<AccountNotification[]>([]);
+  const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
   const [templates, setTemplates] = useState<BoardTemplateSummary[]>([]);
   const [folders, setFolders] = useState<WorkspaceFolder[]>([]);
   const [organization, setOrganization] = useState<BoardOrganization[]>([]);
   const [boardFilter, setBoardFilter] = useState<"active" | "favorites" | "archived" | "trash">("active");
   const [folderName, setFolderName] = useState("");
   const [requestedBoardId, setRequestedBoardId] = useState<string | null>(null);
+  const [globalResults, setGlobalResults] = useState<GlobalSearchResult[]>([]);
   const directLinkHandledRef = useRef(false);
 
   const openBoard = useCallback(async (boardId: string) => {
@@ -91,6 +102,17 @@ const BoardDashboard = () => {
       setRequestedBoardId(boardId);
     }
   }, [dispatch]);
+
+  const activateNotification = useCallback((notification: AccountNotification) => {
+    void markNotificationRead(notification.id).then(() => {
+      setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
+    });
+    if (!notification.action_url) return;
+    const target = new URL(notification.action_url, window.location.origin);
+    const boardId = target.searchParams.get("board");
+    if (boardId) { window.history.pushState({}, "", target); void openBoard(boardId); }
+    else { window.history.pushState({}, "", target); setView("boards"); }
+  }, [openBoard]);
 
   useEffect(() => {
     if (!user.uid) return;
@@ -112,15 +134,32 @@ const BoardDashboard = () => {
   useEffect(() => {
     if (!user.uid) return;
     let active = true;
-    void Promise.all([loadWorkspaceOverview(), loadNotifications(), loadTemplates()]).then(([workspace, nextNotifications, nextTemplates]) => {
+    void Promise.all([loadWorkspaceOverview(), loadNotifications(), loadTemplates(), loadNotificationPreferences()]).then(([workspace, nextNotifications, nextTemplates, preferences]) => {
       if (!active) return;
       setFolders(workspace.folders);
       setOrganization(workspace.organization);
       setNotifications(nextNotifications);
       setTemplates(nextTemplates);
+      setBrowserNotificationsEnabled(preferences.browser_enabled);
     }).catch(() => undefined);
     return () => { active = false; };
   }, [user.uid]);
+
+  useEffect(() => {
+    if (!user.uid || !browserNotificationsEnabled) return;
+    const refresh = () => {
+      if (document.visibilityState === "hidden") return;
+      void loadNotifications().then(setNotifications).catch(() => undefined);
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", refresh); };
+  }, [browserNotificationsEnabled, user.uid]);
+
+  useEffect(() => {
+    if (!browserNotificationsEnabled) return;
+    deliverBrowserNotifications(notifications, activateNotification);
+  }, [activateNotification, browserNotificationsEnabled, notifications]);
 
   useEffect(() => {
     if (!user.uid) return;
@@ -148,15 +187,24 @@ const BoardDashboard = () => {
     if (!normalized) return;
     let active = true;
     const timeout = window.setTimeout(() => {
-      void searchPublicBoards(normalized)
-        .then((results) => active && setPublicBoards(results))
-        .catch(() => active && setPublicBoards([]));
+      void Promise.all([searchPublicBoards(normalized), globalSearch(normalized)])
+        .then(([results, everything]) => { if (active) { setPublicBoards(results); setGlobalResults(everything); } })
+        .catch(() => { if (active) { setPublicBoards([]); setGlobalResults([]); } });
     }, 250);
     return () => {
       active = false;
       window.clearTimeout(timeout);
     };
   }, [query]);
+
+  useEffect(() => {
+    if (!user.uid) return;
+    const url = new URL(window.location.href);
+    const invitation = url.searchParams.get("invite");
+    const workspaceInvitation = url.searchParams.get("workspaceInvite");
+    if (invitation) void acceptBoardInvitation(invitation).then(({ boardId }) => { url.searchParams.delete("invite"); window.history.replaceState({}, "", url); return openBoard(boardId); }).catch((caught) => setError(caught instanceof Error ? caught.message : "Invitation could not be accepted."));
+    if (workspaceInvitation) void acceptWorkspaceInvitation(workspaceInvitation).then(() => { url.searchParams.delete("workspaceInvite"); window.history.replaceState({}, "", url); setView("workspace"); }).catch((caught) => setError(caught instanceof Error ? caught.message : "Workspace invitation could not be accepted."));
+  }, [openBoard, user.uid]);
 
   const refreshIncomingCount = useCallback(() => {
     void listFriendships()
@@ -194,7 +242,7 @@ const BoardDashboard = () => {
     setView("profile");
   };
 
-  const showSimpleView = (next: "inbox" | "templates") => {
+  const showSimpleView = (next: "inbox" | "templates" | "workspace" | "community" | "settings") => {
     const url = new URL(window.location.href);
     url.searchParams.delete("profile");
     window.history.replaceState({}, "", url);
@@ -257,12 +305,15 @@ const BoardDashboard = () => {
           </button>
           <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "inbox" ? styles.navActive : ""}`} aria-current={view === "inbox" ? "page" : undefined} onClick={() => showSimpleView("inbox")}><Bell aria-hidden="true" /> Inbox{notifications.some((notification) => !notification.read_at) && <span className={styles.navBadge} aria-label="Unread notifications">{notifications.filter((notification) => !notification.read_at).length}</span>}</button>
           <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "templates" ? styles.navActive : ""}`} aria-current={view === "templates" ? "page" : undefined} onClick={() => showSimpleView("templates")}><Package aria-hidden="true" /> Templates</button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "workspace" ? styles.navActive : ""}`} aria-current={view === "workspace" ? "page" : undefined} onClick={() => showSimpleView("workspace")}><UsersThree aria-hidden="true" /> Workspace</button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${view === "community" ? styles.navActive : ""}`} aria-current={view === "community" ? "page" : undefined} onClick={() => showSimpleView("community")}><Compass aria-hidden="true" /> Community</button>
         </nav>
         {view === "boards" ? (
           <label className={`${ui.searchControl} ${styles.search}`}>
             <span className="sr-only">Search public boards</span>
             <MagnifyingGlass aria-hidden="true" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search public boards" />
+            {query.trim() && globalResults.length > 0 && <div className={styles.globalSearchResults} role="listbox" aria-label="Search across Kumo">{globalResults.slice(0, 8).map((result) => <a key={`${result.kind}:${result.id}`} href={result.actionUrl} role="option" aria-selected="false"><strong>{result.label}</strong><small>{result.kind} · {result.detail}</small></a>)}</div>}
           </label>
         ) : <span className={styles.headerSpacer} />}
         <div className={styles.account}>
@@ -271,6 +322,7 @@ const BoardDashboard = () => {
             <span>{user.displayName || user.username || user.email}</span>
             <UserCircle aria-hidden="true" />
           </button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} onClick={() => showSimpleView("settings")} aria-label="Open settings"><Gear aria-hidden="true" /></button>
           <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${styles.signOutButton}`} onClick={handleLogout} aria-label="Sign out"><SignOut aria-hidden="true" /><span>Sign out</span></button>
         </div>
       </header>
@@ -285,10 +337,16 @@ const BoardDashboard = () => {
             onOpenBoard={(board) => void openBoard(board.id)}
             onIncomingCountChange={refreshIncomingCount}
           />
+        ) : view === "workspace" ? (
+          <WorkspaceAdminView />
+        ) : view === "community" ? (
+          <CommunityView onOpenBoard={(boardId) => void openBoard(boardId)} />
+        ) : view === "settings" ? (
+          <SettingsView />
         ) : view === "inbox" ? (
           <section className={styles.boardSection}>
             <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h1>Inbox</h1><button type="button" className={`${ui.button} ${ui.buttonGhost}`} onClick={() => void markNotificationRead().then(() => setNotifications((current) => current.map((notification) => ({ ...notification, read_at: notification.read_at ?? new Date().toISOString() }))))}>Mark all read</button></div>
-            <div className={styles.notificationList}>{notifications.map((notification) => <button type="button" key={notification.id} className={!notification.read_at ? styles.unreadNotification : undefined} onClick={() => void markNotificationRead(notification.id).then(() => setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item)))}><Bell aria-hidden="true" /><span><strong>{notification.title}</strong><small>{notification.body}</small></span><time>{new Date(notification.created_at).toLocaleDateString()}</time></button>)}</div>
+            <div className={styles.notificationList}>{notifications.map((notification) => <button type="button" key={notification.id} className={!notification.read_at ? styles.unreadNotification : undefined} onClick={() => activateNotification(notification)}><Bell aria-hidden="true" /><span><strong>{notification.title}</strong><small>{notification.body}</small></span><time>{new Date(notification.created_at).toLocaleDateString()}</time></button>)}</div>
             {!notifications.length && <div className={ui.emptyState}><p>Your inbox is clear.</p></div>}
           </section>
         ) : view === "templates" ? (

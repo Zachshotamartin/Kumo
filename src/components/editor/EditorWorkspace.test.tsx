@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   deleteBoard: vi.fn(),
   signOut: vi.fn(),
   connectionStatus: "connected" as "connected" | "connecting" | "initial" | "reconnecting" | "disconnected",
+  listDesignBranches: vi.fn(),
 }));
 
 vi.mock("@liveblocks/react", () => ({
@@ -28,6 +29,7 @@ vi.mock("../../editor/useEditorActions", () => ({
   useEditorActions: () => ({ commitBoardPatch: mocks.commitBoardPatch }),
 }));
 vi.mock("../../services/boardRepository", () => ({ deleteBoard: mocks.deleteBoard }));
+vi.mock("../../services/branchRepository", () => ({ listDesignBranches: mocks.listDesignBranches }));
 vi.mock("firebase/auth", () => ({ signOut: mocks.signOut }));
 vi.mock("../../config/firebase", () => ({ auth: {} }));
 vi.mock("./EditorCanvas", () => ({ default: () => <div>Canvas</div> }));
@@ -69,9 +71,11 @@ const renderWorkspace = (role: "owner" | "viewer" = "owner") => {
 describe("EditorWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/");
     mocks.connectionStatus = "connected";
     mocks.deleteBoard.mockResolvedValue(undefined);
     mocks.signOut.mockResolvedValue(undefined);
+    mocks.listDesignBranches.mockResolvedValue([]);
   });
 
   it.each([
@@ -182,6 +186,21 @@ describe("EditorWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     expect(store.getState().editor.viewport.zoom).toBeCloseTo(1);
     expect(screen.getByRole("button", { name: "Reset zoom (100%)" })).toBeVisible();
+  });
+
+  it("opens an available branch from a shared branch URL", async () => {
+    window.history.replaceState({}, "", "/?board=board&branch=branch-one");
+    mocks.listDesignBranches.mockResolvedValue([{ id: "branch-one", board_id: "board", name: "Exploration", room_id: "branch:one", created_by: "owner", status: "open", created_at: "", updated_at: "", merged_at: null }]);
+    const store = renderWorkspace();
+    await waitFor(() => expect(store.getState().whiteBoard.activeBranchId).toBe("branch-one"));
+    expect(store.getState().whiteBoard).toEqual(expect.objectContaining({ roomId: "branch:one", baseRoomId: "board:board", activeBranchName: "Exploration" }));
+  });
+
+  it("removes stale branch links and keeps the main board open", async () => {
+    window.history.replaceState({}, "", "/?board=board&branch=missing");
+    renderWorkspace();
+    expect(await screen.findByRole("alert")).toHaveTextContent("This branch is no longer available.");
+    expect(new URL(window.location.href).searchParams.has("branch")).toBe(false);
   });
 
   it("loads each advanced workspace surface only when it is opened", async () => {

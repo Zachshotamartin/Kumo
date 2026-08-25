@@ -48,6 +48,7 @@ const identityUrl = (operation) =>
 const accounts = [];
 const boards = [];
 const roomIds = new Set();
+const extensionIds = new Set();
 let browser;
 
 const messageFromBody = (body, status) => typeof body?.error?.message === "string"
@@ -223,8 +224,10 @@ const center = async (locator) => {
 try {
   const owner = await createAccount("owner");
   const collaborator = await createAccount("collaborator");
+  const communityMember = await createAccount("community");
   await post(owner, "/api/session", {});
   await post(collaborator, "/api/session", {});
+  await post(communityMember, "/api/session", {});
 
   const source = await createBoard(owner, "Full-stack product source");
   const target = await createBoard(owner, "Full-stack library target");
@@ -237,8 +240,27 @@ try {
 
   const workspace = await api(owner, "/api/product?scope=workspace");
   assert(workspace.workspace?.workspace_id, "Workspace creation did not persist in Supabase.");
+  const workspaceId = workspace.workspace.workspace_id;
+  const workspaceAdmin = await api(owner, "/api/platform?scope=workspace-admin");
+  assert(workspaceAdmin.workspace?.workspace_id === workspaceId, "Workspace administration did not resolve the primary workspace.");
+  const invitedWorkspaceMember = await post(owner, "/api/platform", {
+    action: "invite-workspace-member", workspaceId, email: collaborator.email, role: "admin",
+  });
+  assert(invitedWorkspaceMember.added && invitedWorkspaceMember.userId === collaborator.uid, "An existing profile could not be added to the workspace.");
+  const transferredWorkspace = await post(owner, "/api/platform", {
+    action: "transfer-workspace-ownership", workspaceId, userId: collaborator.uid,
+  });
+  assert(transferredWorkspace.transferred && transferredWorkspace.ownerId === collaborator.uid, "Workspace ownership did not transfer transactionally.");
+  const returnedWorkspace = await post(collaborator, "/api/platform", {
+    action: "transfer-workspace-ownership", workspaceId, userId: owner.uid,
+  });
+  assert(returnedWorkspace.transferred && returnedWorkspace.ownerId === owner.uid, "The new workspace owner could not transfer ownership back.");
   const folder = await post(owner, "/api/product", { action: "create-folder", name: "Full-stack research" });
   assert(folder.folder?.id, "Folder creation did not persist in Supabase.");
+  const renamedFolder = await post(owner, "/api/platform", {
+    action: "rename-folder", workspaceId, folderId: folder.folder.id, name: "Full-stack product research",
+  });
+  assert(renamedFolder.folder?.name === "Full-stack product research", "Workspace folder rename did not persist.");
   await post(owner, "/api/product", { action: "move-board", boardId: source.id, folderId: folder.folder.id });
   await post(owner, "/api/product", { action: "favorite-board", boardId: source.id, favorite: true });
   await post(owner, "/api/product", { action: "archive-board", boardId: source.id });
@@ -248,6 +270,61 @@ try {
   const organization = organized.organization?.find((entry) => entry.board_id === source.id);
   assert(organization?.favorite === true && organization?.folder_id === folder.folder.id, "Folder/favorite mutations did not survive subsequent organization updates.");
   assert(!organization.archived_at && !organization.trashed_at, "Restore did not clear archive and trash state.");
+
+  const preferences = await post(owner, "/api/platform", {
+    action: "update-notification-preferences",
+    preferences: { email_enabled: false, browser_enabled: true, digest: "daily", board_comments: "mentions", branch_reviews: true, library_updates: false, access_changes: true },
+  });
+  assert(preferences.preferences?.browser_enabled === true && preferences.preferences?.digest === "daily", "Notification preferences did not persist through the platform API.");
+  const loadedPreferences = await api(owner, "/api/platform?scope=notification-preferences");
+  assert(loadedPreferences.preferences?.board_comments === "mentions", "Persisted notification preferences could not be reloaded.");
+
+  const extensionId = `full-stack.${randomUUID().replaceAll("-", "")}`;
+  extensionIds.add(extensionId);
+  const extension = await post(owner, "/api/platform", {
+    action: "publish-extension",
+    description: "Disposable full-stack extension",
+    manifest: { id: extensionId, name: "Full-stack helper", permissions: ["read-document"], commands: [{ id: "inspect", name: "Inspect", operation: "inspect-selection" }] },
+  });
+  assert(extension.extension?.id === extensionId, "Extension publishing did not persist its sanitized manifest.");
+  const installed = await post(owner, "/api/platform", { action: "install-extension", extensionId, permissions: ["read-document"] });
+  assert(installed.installed && installed.permissions?.[0] === "read-document", "Extension installation did not retain its granted permissions.");
+  const extensions = await api(owner, "/api/platform?scope=extensions");
+  assert(extensions.extensions?.some((item) => item.id === extensionId), "Installed extension was not returned by the catalog.");
+  const disabledExtension = await post(owner, "/api/platform", { action: "toggle-extension", extensionId, enabled: false });
+  assert(disabledExtension.enabled === false, "Extension disable did not persist.");
+  await post(owner, "/api/platform", { action: "uninstall-extension", extensionId });
+
+  const prototypeLink = await post(owner, "/api/platform", {
+    action: "create-prototype-link", boardId: source.id, startShapeId: libraryComponent.id, password: "Full-stack prototype", deviceFrame: "desktop",
+  });
+  assert(prototypeLink.token && prototypeLink.link?.id, "Prototype delivery link was not created.");
+  const redeemedPrototype = await jsonRequest(new URL("/api/platform", baseUrl), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "redeem-prototype", token: prototypeLink.token, password: "Full-stack prototype" }),
+  });
+  assert(redeemedPrototype.prototype?.document?.nodes?.[libraryComponent.id], "Public prototype delivery did not return the exact Liveblocks document.");
+  await post(owner, "/api/platform", { action: "revoke-prototype-link", boardId: source.id, linkId: prototypeLink.link.id });
+
+  const checkpoint = await post(owner, "/api/versions", { action: "checkpoint", boardId: source.id, name: "Full-stack exact version" });
+  assert(checkpoint.version?.id, "Version checkpoint did not persist.");
+  const sharedVersion = await post(owner, "/api/versions", { action: "share", boardId: source.id, versionId: checkpoint.version.id });
+  const redeemedVersion = await jsonRequest(new URL(`/api/versions?versionId=${encodeURIComponent(checkpoint.version.id)}&token=${encodeURIComponent(sharedVersion.token)}`, baseUrl));
+  assert(redeemedVersion.version?.document?.nodes?.[seedShape.id], "Exact-version sharing did not return the immutable checkpoint document.");
+
+  const communitySlug = `full-stack-${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+  const community = await post(owner, "/api/platform", {
+    action: "publish-community", boardId: source.id, slug: communitySlug, description: "Disposable integration publication", tags: ["Integration", "Design"], remixAllowed: true,
+  });
+  assert(community.publication?.slug === communitySlug, "Community publishing did not normalize and persist the publication.");
+  const communityFeed = await api(owner, "/api/platform?scope=community");
+  assert(communityFeed.publications?.some((item) => item.slug === communitySlug), "Community publication did not appear in discovery.");
+  const remixedCommunity = await post(communityMember, "/api/platform", { action: "remix-community", boardId: source.id });
+  const remixBoard = (await api(communityMember, `/api/boards?id=${encodeURIComponent(remixedCommunity.boardId)}`)).board;
+  boards.push(remixBoard);
+  roomIds.add(remixBoard.roomId);
+  const remixDocument = await liveblocks.getStorageDocument(remixBoard.roomId, "json");
+  assert(remixDocument.nodes?.[libraryComponent.id], "Community remix did not copy the source Liveblocks document.");
 
   const template = await post(owner, "/api/product", {
     action: "create-template", boardId: source.id, name: "Full-stack starter",
@@ -302,6 +379,13 @@ try {
   await post(owner, "/api/product", { action: "mark-notification" });
   const readNotices = await api(owner, "/api/product?scope=notifications");
   assert(readNotices.notifications?.filter((entry) => entry.kind === "access-request").every((entry) => entry.read_at), "Notification updates did not persist.");
+
+  const accountExport = await api(owner, "/api/platform?scope=account-export");
+  assert(accountExport.profile?.uid === owner.uid && accountExport.boards?.some((board) => board.id === source.id), "Account export omitted the authenticated profile or owned boards.");
+  const deletion = await post(owner, "/api/platform", { action: "request-account-deletion" });
+  assert(deletion.deletion?.scheduled_for, "Account deletion was not scheduled with a recovery window.");
+  const cancelledDeletion = await post(owner, "/api/platform", { action: "cancel-account-deletion" });
+  assert(cancelledDeletion.cancelled, "Account deletion cancellation did not persist.");
 
   const createdBranch = await post(owner, "/api/branches", {
     action: "create", boardId: source.id, name: "Full-stack review",
@@ -384,6 +468,7 @@ try {
   await collaboratorContext.close();
   console.log(
     "Full-stack verification passed: real Supabase workspace/folder/notification/access/library/template/share/branch mutations; "
+    + "workspace ownership, extensions, prototype delivery, exact-version sharing, community remix, account portability; "
     + "real Liveblocks two-user contention, offline edit, reconnect convergence, and persisted resilience telemetry."
   );
 } finally {
@@ -395,6 +480,11 @@ try {
     const audits = new URL("/rest/v1/audit_events", supabaseUrl);
     audits.searchParams.set("actor_id", `eq.${account.uid}`);
     await fetch(audits, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
+  }
+  for (const extensionId of extensionIds) {
+    const extensions = new URL("/rest/v1/extension_catalog", supabaseUrl);
+    extensions.searchParams.set("id", `eq.${extensionId}`);
+    await fetch(extensions, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
   }
   for (const account of accounts) {
     const profiles = new URL("/rest/v1/profiles", supabaseUrl);
