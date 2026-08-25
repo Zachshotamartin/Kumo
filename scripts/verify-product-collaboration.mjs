@@ -422,24 +422,25 @@ try {
     action: "create-open-session", boardId: source.id, role: "editor", password: "Full-stack guest", expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
   });
   assert(openSession.token && openSession.session?.id, "Temporary guest session creation did not persist.");
+  const guestNonce = randomUUID().replaceAll("-", "");
   const rejectedGuest = await fetch(new URL("/api/platform", baseUrl), {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "wrong password" }),
+    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "wrong password", guestNonce }),
   });
   assert(rejectedGuest.status === 403, "A guest session accepted an incorrect password.");
   const redeemedGuest = await jsonRequest(new URL("/api/platform", baseUrl), {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "Full-stack guest" }),
+    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "Full-stack guest", guestNonce }),
   });
   assert(redeemedGuest.session?.boardId === source.id && redeemedGuest.session?.role === "editor", "Guest session redemption did not return its scoped board role.");
   const guestAuthorization = await fetch(new URL("/api/liveblocks-auth", baseUrl), {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ room: source.roomId, openSessionToken: openSession.token, openSessionPassword: "Full-stack guest" }),
+    body: JSON.stringify({ room: source.roomId, openSessionToken: openSession.token, openSessionPassword: "Full-stack guest", openSessionGuestNonce: guestNonce }),
   });
   assert(guestAuthorization.ok && (await guestAuthorization.json()).token, "The redeemed guest could not authorize its Liveblocks room.");
   const branchGuestAuthorization = await fetch(new URL("/api/liveblocks-auth", baseUrl), {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ room: "branch:forbidden", openSessionToken: openSession.token, openSessionPassword: "Full-stack guest" }),
+    body: JSON.stringify({ room: "branch:forbidden", openSessionToken: openSession.token, openSessionPassword: "Full-stack guest", openSessionGuestNonce: guestNonce }),
   });
   assert(branchGuestAuthorization.status === 403, "A temporary guest session was allowed into a design branch.");
   const activeSessions = await api(owner, `/api/platform?scope=open-sessions&boardId=${encodeURIComponent(source.id)}`);
@@ -447,7 +448,7 @@ try {
   await post(owner, "/api/platform", { action: "revoke-open-session", boardId: source.id, sessionId: openSession.session.id });
   const revokedGuest = await fetch(new URL("/api/platform", baseUrl), {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "Full-stack guest" }),
+    body: JSON.stringify({ action: "redeem-open-session", token: openSession.token, password: "Full-stack guest", guestNonce }),
   });
   assert(revokedGuest.status === 404, "A revoked guest session remained redeemable.");
 
