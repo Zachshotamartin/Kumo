@@ -317,7 +317,7 @@ try {
 
   const preferences = await post(owner, "/api/platform", {
     action: "update-notification-preferences",
-    preferences: { email_enabled: false, browser_enabled: true, digest: "daily", board_comments: "mentions", branch_reviews: true, library_updates: false, access_changes: true },
+    preferences: { browser_enabled: true, digest: "daily", board_comments: "mentions", branch_reviews: true, library_updates: false, access_changes: true },
   });
   assert(preferences.preferences?.browser_enabled === true && preferences.preferences?.digest === "daily", "Notification preferences did not persist through the platform API.");
   const loadedPreferences = await api(owner, "/api/platform?scope=notification-preferences");

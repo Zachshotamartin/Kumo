@@ -18,7 +18,6 @@ export interface WorkspaceAdminOverview {
 
 export interface NotificationPreferences {
   user_id: string;
-  email_enabled: boolean;
   browser_enabled: boolean;
   digest: "instant" | "daily" | "weekly" | "off";
   board_comments: "all" | "mentions" | "off";
@@ -46,7 +45,7 @@ const scope = <T>(name: string, query: Record<string, string> = {}) => {
 
 export const loadWorkspaceAdmin = () => scope<WorkspaceAdminOverview>("workspace-admin");
 export const renameWorkspace = (workspaceId: string, name: string) => post<{ workspace: { id: string; name: string; owner_id: string } }>({ action: "rename-workspace", workspaceId, name });
-export const inviteWorkspaceMember = (workspaceId: string, email: string, role: "admin" | "member" | "guest") => post<{ invitation?: WorkspaceInvitation; added?: boolean; userId?: string; role: string; url?: string; delivery?: string }>({ action: "invite-workspace-member", workspaceId, email, role });
+export const inviteWorkspaceMember = (workspaceId: string, email: string, role: "admin" | "member" | "guest") => post<{ invitation?: WorkspaceInvitation; added?: boolean; userId?: string; role: string; url?: string }>({ action: "invite-workspace-member", workspaceId, email, role });
 export const acceptWorkspaceInvitation = (token: string) => post<{ accepted: true; workspaceId: string }>({ action: "accept-workspace-invitation", token });
 export const cancelWorkspaceInvitation = (workspaceId: string, invitationId: string) => post<{ cancelled: true }>({ action: "cancel-workspace-invitation", workspaceId, invitationId });
 export const updateWorkspaceMember = (workspaceId: string, userId: string, role: "admin" | "member" | "guest") => post<{ updated: true; role: string }>({ action: "update-workspace-member", workspaceId, userId, role });

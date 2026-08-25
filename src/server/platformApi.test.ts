@@ -3,7 +3,7 @@ import handler from "../../server/api/handlers/platform";
 
 const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(), ensureProfile: vi.fn(), from: vi.fn(), rpc: vi.fn(), getAccess: vi.fn(), listBoards: vi.fn(), searchBoards: vi.fn(),
-  provisionBoard: vi.fn(), getDocument: vi.fn(), sendEmail: vi.fn(), revokeTokens: vi.fn(),
+  provisionBoard: vi.fn(), getDocument: vi.fn(), revokeTokens: vi.fn(),
   pushConfigured: vi.fn(), sendPush: vi.fn(), storageFrom: vi.fn(),
   queues: new Map<string, Array<{ data?: unknown; error: unknown }>>(), calls: [] as Array<{ table: string; operation: string; value?: unknown }>,
 }));
@@ -12,7 +12,6 @@ vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
 vi.mock("../../server/api/_supabase", () => ({ ensureActorProfile: mocks.ensureProfile, supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc, storage: { from: mocks.storageFrom } }) }));
 vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess, listBoardsForUser: mocks.listBoards, searchPublicBoards: mocks.searchBoards, provisionBoard: mocks.provisionBoard }));
 vi.mock("../../server/api/_liveblocks", () => ({ liveblocksAdmin: () => ({ getStorageDocument: mocks.getDocument }) }));
-vi.mock("../../server/api/_email", () => ({ sendInvitationEmail: mocks.sendEmail }));
 vi.mock("../../server/api/_firebaseAdmin", () => ({ privilegedAdminAuth: () => ({ revokeRefreshTokens: mocks.revokeTokens }) }));
 vi.mock("../../server/api/_push", () => ({ pushConfigured: mocks.pushConfigured, sendPushToUser: mocks.sendPush }));
 
@@ -38,7 +37,7 @@ describe("product maturity platform API", () => {
     mocks.rpc.mockImplementation(async (name: string) => ({ data: name === "consume_kumo_rate_limit" ? { allowed: true, remaining: 29 } : null, error: null }));
     mocks.getAccess.mockResolvedValue({ role: "owner", board: { id: "board", owner_id: "owner", title: "Board", visibility: "private", liveblocks_room_id: "board:board" } });
     mocks.listBoards.mockResolvedValue([]); mocks.searchBoards.mockResolvedValue([]); mocks.getDocument.mockResolvedValue({ backgroundColor: "#fff", nodes: {} });
-    mocks.provisionBoard.mockResolvedValue({ id: "remix" }); mocks.sendEmail.mockResolvedValue("link-only"); mocks.revokeTokens.mockResolvedValue(undefined);
+    mocks.provisionBoard.mockResolvedValue({ id: "remix" }); mocks.revokeTokens.mockResolvedValue(undefined);
     mocks.pushConfigured.mockReturnValue(true); mocks.sendPush.mockResolvedValue({ delivered: 1, subscriptions: 1 });
     process.env.VAPID_PUBLIC_KEY = "test-public-key";
     mocks.storageFrom.mockReturnValue({
@@ -150,11 +149,12 @@ describe("product maturity platform API", () => {
           : null,
       error: null,
     }));
-    enqueue("workspace_members", { data: { role: "owner" } }, { data: { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Studio", owner_id: "owner" } } });
+    enqueue("workspace_members", { data: { role: "owner" } });
     enqueue("profiles", { data: null });
     const invited = response();
     await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "NEW@example.com", role: "member" }), invited);
     expect(invited.statusCode).toBe(202);
+    expect(invited.body).toEqual(expect.objectContaining({ invitation: expect.objectContaining({ id: "invite" }), url: expect.stringContaining("workspaceInvite=") }));
     expect(mocks.rpc).toHaveBeenCalledWith("create_or_refresh_kumo_workspace_invitation", expect.objectContaining({ p_workspace_id: "workspace", p_email: "new@example.com", p_role: "member", p_invited_by: "owner" }));
 
     enqueue("workspace_members", { data: { role: "owner" } });
@@ -621,7 +621,7 @@ describe("product maturity platform API", () => {
 
     enqueue("notification_preferences", { data: { browser_enabled: false } }); enqueue("push_subscriptions", { error: new Error("unsubscribe all failed") });
     const subscriptionCleanupError = response(); await handler(request("POST", { action: "update-notification-preferences", preferences: {
-      email_enabled: false, browser_enabled: false, digest: "invalid", board_comments: "invalid", branch_reviews: false, library_updates: false, access_changes: false,
+      browser_enabled: false, digest: "invalid", board_comments: "invalid", branch_reviews: false, library_updates: false, access_changes: false,
     } }), subscriptionCleanupError); expect(subscriptionCleanupError.statusCode).toBe(500);
 
     const missingKeys = response(); await handler(request("POST", { action: "subscribe-push", endpoint: "https://push.example/sub", p256dh: 42, auth: "" }), missingKeys); expect(missingKeys.statusCode).toBe(400);

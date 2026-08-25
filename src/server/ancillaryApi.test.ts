@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   sharePlan: vi.fn(),
   membershipBoardIds: vi.fn(),
   friendshipBetween: vi.fn(),
-  sendInvitationEmail: vi.fn(),
   boardInvitation: null as null | Record<string, unknown>,
   boardInvitations: [] as Array<Record<string, unknown>> | null,
   prepareSession: vi.fn(),
@@ -39,7 +38,6 @@ vi.mock("../../server/api/_boardSharing", () => ({
   membershipBoardIds: mocks.membershipBoardIds,
 }));
 vi.mock("../../server/api/_profiles", () => ({ friendshipBetween: mocks.friendshipBetween }));
-vi.mock("../../server/api/_email", () => ({ sendInvitationEmail: mocks.sendInvitationEmail }));
 vi.mock("../../server/api/_liveblocks", () => ({
   liveblocksAdmin: () => ({
     prepareSession: mocks.prepareSession,
@@ -99,7 +97,6 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     mocks.branchResult = { data: { board_id: "board", status: "open" }, error: null };
     mocks.boardInvitation = null;
     mocks.boardInvitations = [];
-    mocks.sendInvitationEmail.mockResolvedValue("link-only");
     mocks.rpc.mockResolvedValue({ error: null });
     mocks.sharePlan.mockResolvedValue({
       truncated: false,
@@ -327,20 +324,19 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     expect(owner.statusCode).toBe(409);
   });
 
-  it("cancels, resends, and transfers pending access safely", async () => {
+  it("cancels, refreshes, and transfers pending access safely", async () => {
     const cancelled = response();
     await shareBoardHandler(request({ boardId: "board", action: "cancel-invitation", invitationId: "invitation" }), cancelled);
     expect(cancelled.body).toEqual({ cancelled: true });
 
     mocks.boardInvitation = { id: "invitation", email: "new@example.com" };
-    const resent = response();
-    await shareBoardHandler(request({ boardId: "board", action: "resend-invitation", invitationId: "invitation" }), resent);
-    expect(resent.body).toEqual(expect.objectContaining({ resent: true, url: expect.stringContaining("invite="), delivery: "link-only" }));
-    expect(mocks.sendInvitationEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "new@example.com", resourceName: "Board", kind: "board" }));
+    const refreshed = response();
+    await shareBoardHandler(request({ boardId: "board", action: "refresh-invitation", invitationId: "invitation" }), refreshed);
+    expect(refreshed.body).toEqual(expect.objectContaining({ refreshed: true, url: expect.stringContaining("invite=") }));
 
     mocks.boardInvitation = null;
     const missing = response();
-    await shareBoardHandler(request({ boardId: "board", action: "resend-invitation", invitationId: "missing" }), missing);
+    await shareBoardHandler(request({ boardId: "board", action: "refresh-invitation", invitationId: "missing" }), missing);
     expect(missing.statusCode).toBe(404);
 
     const self = response();
@@ -363,7 +359,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     await shareBoardHandler(request({ boardId: "board", action: "cancel-invitation", memberUid: "member" }), unknown);
     expect(unknown.statusCode).toBe(200);
     const unsupported = response();
-    await shareBoardHandler(request({ boardId: "board", action: "resend-invitation", memberUid: "member" }), unsupported);
+    await shareBoardHandler(request({ boardId: "board", action: "refresh-invitation", memberUid: "member" }), unsupported);
     expect(unsupported.statusCode).toBe(404);
   });
 
@@ -448,7 +444,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     await shareBoardHandler({ ...request({}, "GET"), query: { boardId: "board" } } as unknown as VercelRequest, list);
     expect(list.statusCode).toBe(404);
 
-    for (const actionName of ["cancel-invitation", "resend-invitation"] as const) {
+    for (const actionName of ["cancel-invitation", "refresh-invitation"] as const) {
       mocks.from.mockImplementation(originalFrom);
       failTable("board_invitations", new Error(`${actionName} failed`));
       const reply = response();
@@ -501,7 +497,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     expect(linkedFailure.statusCode).toBe(400);
   });
 
-  it("normalizes nullable invitation lists and reports resend-update and profile lookup errors", async () => {
+  it("normalizes nullable invitation lists and reports refresh-update and profile lookup errors", async () => {
     mocks.boardInvitations = null;
     const empty = response();
     await shareBoardHandler({ ...request({}, "GET"), query: { boardId: "board" } } as unknown as VercelRequest, empty);
@@ -516,9 +512,9 @@ describe("sharing, session, and Liveblocks API handlers", () => {
         ? fluentQuery({ data: { id: "invitation", email: "new@example.com" }, error: null })
         : fluentQuery({ data: null, error: new Error("update failed") });
     });
-    const resend = response();
-    await shareBoardHandler(request({ boardId: "board", action: "resend-invitation", invitationId: "invitation" }), resend);
-    expect(resend.statusCode).toBe(400);
+    const refresh = response();
+    await shareBoardHandler(request({ boardId: "board", action: "refresh-invitation", invitationId: "invitation" }), refresh);
+    expect(refresh.statusCode).toBe(400);
 
     mocks.from.mockImplementation((table: string) => table === "profiles"
       ? fluentQuery({ data: null, error: new Error("profile lookup failed") })

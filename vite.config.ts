@@ -60,12 +60,6 @@ export default defineConfig(({ mode }) => ({
           functions: 100,
           lines: 100,
         },
-        "server/api/_email.ts": {
-          statements: 100,
-          branches: 100,
-          functions: 100,
-          lines: 100,
-        },
         "src/components/editor/ShapeGraphic.tsx": {
           statements: 100,
           branches: 100,

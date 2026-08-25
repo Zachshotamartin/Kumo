@@ -42,7 +42,7 @@ export interface ShareBoardResult {
   unavailableBoards: LinkedBoardShareItem[];
 }
 
-export interface PendingShareResult { pending: true; invitation: PendingBoardInvitation; url: string; delivery: "sent" | "link-only" }
+export interface PendingShareResult { pending: true; invitation: PendingBoardInvitation; url: string }
 export type InviteBoardResult = ShareBoardResult | PendingShareResult;
 
 export const listBoardCollaborators = async (boardId: string): Promise<BoardCollaborator[]> => {
@@ -103,8 +103,8 @@ export const leaveSharedBoard = (boardId: string) =>
 export const cancelBoardInvitation = (boardId: string, invitationId: string) =>
   authenticatedFetch<{ cancelled: true }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "cancel-invitation", invitationId }) });
 
-export const resendBoardInvitation = (boardId: string, invitationId: string) =>
-  authenticatedFetch<{ resent: true; url: string; delivery: "sent" | "link-only" }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "resend-invitation", invitationId }) });
+export const refreshBoardInvitation = (boardId: string, invitationId: string) =>
+  authenticatedFetch<{ refreshed: true; url: string }>("/api/share-board", { method: "POST", body: JSON.stringify({ boardId, action: "refresh-invitation", invitationId }) });
 
 export const acceptBoardInvitation = (token: string) =>
   authenticatedFetch<{ accepted: true; boardId: string }>("/api/share-board", { method: "POST", body: JSON.stringify({ action: "accept-invitation", token }) });

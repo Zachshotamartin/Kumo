@@ -9,7 +9,7 @@ import {
   inviteBoardFriend,
   listBoardCollaborators,
   removeBoardCollaborator,
-  resendBoardInvitation,
+  refreshBoardInvitation,
   transferBoardOwnership,
   updateBoardCollaboratorRole,
   leaveSharedBoard,
@@ -180,7 +180,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
         setPendingInvitations((current) => [result.invitation, ...current.filter((item) => item.id !== result.invitation.id)]);
         setPendingLink(result.url);
         setEmail("");
-        setMessage(result.delivery === "sent" ? `Invitation emailed to ${invitedEmail}.` : `Invitation created for ${invitedEmail}. Copy the secure link to send it.`);
+        setMessage(`Invitation created for ${invitedEmail}. Copy the secure link to send it.`);
         return;
       }
       recordInvite(result, invitedEmail);
@@ -314,8 +314,8 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
               </label>
             )}
           </form>
-          {pendingInvitations.length > 0 && <section className={styles.governedShare} aria-labelledby="pending-invitations-title"><h3 id="pending-invitations-title">Pending invitations</h3>{pendingInvitations.map((invitation) => <div className={styles.memberRow} key={invitation.id}><ProfileAvatar name={invitation.email} avatarUrl={null} size={30} /><span className={styles.memberIdentity}><strong>{invitation.email}</strong><small>{invitation.role === "editor" ? "Can edit" : "Can view"} · expires {new Date(invitation.expires_at).toLocaleDateString()}</small></span><button type="button" disabled={!board.id} onClick={() => runAction(resendBoardInvitation(board.id!, invitation.id), (result) => { setPendingLink(result.url); setMessage(result.delivery === "sent" ? "Invitation resent." : "Fresh invitation link created."); }, "Invitation resend failed.")}>Resend</button><button type="button" disabled={!board.id} onClick={() => runAction(cancelBoardInvitation(board.id!, invitation.id), () => setPendingInvitations((current) => current.filter((item) => item.id !== invitation.id)), "Invitation cancellation failed.")}>Cancel</button></div>)}</section>}
-          {pendingLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Invitation link</b><small>Use this when email delivery is not configured.</small></span><button type="button" onClick={() => runAction(navigator.clipboard.writeText(pendingLink), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
+          {pendingInvitations.length > 0 && <section className={styles.governedShare} aria-labelledby="pending-invitations-title"><h3 id="pending-invitations-title">Pending invitations</h3>{pendingInvitations.map((invitation) => <div className={styles.memberRow} key={invitation.id}><ProfileAvatar name={invitation.email} avatarUrl={null} size={30} /><span className={styles.memberIdentity}><strong>{invitation.email}</strong><small>{invitation.role === "editor" ? "Can edit" : "Can view"} · expires {new Date(invitation.expires_at).toLocaleDateString()}</small></span><button type="button" disabled={!board.id} onClick={() => runAction(refreshBoardInvitation(board.id!, invitation.id), (result) => { setPendingLink(result.url); setMessage("Fresh invitation link created."); }, "Invitation link refresh failed.")}>Refresh link</button><button type="button" disabled={!board.id} onClick={() => runAction(cancelBoardInvitation(board.id!, invitation.id), () => setPendingInvitations((current) => current.filter((item) => item.id !== invitation.id)), "Invitation cancellation failed.")}>Cancel</button></div>)}</section>}
+          {pendingLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Invitation link</b><small>Copy this secure link and send it to the recipient.</small></span><button type="button" onClick={() => runAction(navigator.clipboard.writeText(pendingLink), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
           <section className={styles.governedShare} aria-labelledby="governed-link-title">
             <h3 id="governed-link-title">Governed share link</h3>
             <p>Create an expiring link, optionally restricted to one email domain.</p>

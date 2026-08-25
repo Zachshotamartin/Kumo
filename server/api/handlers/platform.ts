@@ -2,7 +2,6 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "../_auth.js";
 import { getBoardAccess, listBoardsForUser, provisionBoard, searchPublicBoards } from "../_boards.js";
-import { sendInvitationEmail } from "../_email.js";
 import { privilegedAdminAuth } from "../_firebaseAdmin.js";
 import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { liveblocksAdmin } from "../_liveblocks.js";
@@ -125,7 +124,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return response.status(200).json({ workspace, members: (memberships ?? []).map((membership) => ({ ...membership, profile: byId.get(membership.user_id as string) ?? null })), folders: folders ?? [], invitations: invitations ?? [] });
       }
       if (scope === "notification-preferences") {
-        const defaults = { user_id: actor.uid, email_enabled: true, browser_enabled: false, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true };
+        const defaults = { user_id: actor.uid, browser_enabled: false, digest: "instant", board_comments: "all", branch_reviews: true, library_updates: true, access_changes: true };
         const { data, error } = await database.from("notification_preferences").select("*").eq("user_id", actor.uid).maybeSingle();
         if (error) throw error;
         return response.status(200).json({ preferences: data ?? defaults });
@@ -248,9 +247,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         });
         if (error) throw error;
         const url = `${requestOrigin(request)}/?workspaceInvite=${encodeURIComponent(token)}`;
-        const workspace = await primaryWorkspace(actor.uid, profile.displayName);
-        const delivery = await sendInvitationEmail({ to: email, inviterName: profile.displayName, resourceName: workspace.workspaces.name, acceptUrl: url, kind: "workspace" });
-        return response.status(202).json({ invitation: data, url, delivery });
+        return response.status(202).json({ invitation: data, url });
       }
       if (action === "cancel-workspace-invitation") {
         const { error } = await database.from("workspace_invitations").update({ status: "cancelled" }).eq("workspace_id", workspaceId).eq("id", clean(request.body?.invitationId));
@@ -320,7 +317,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const input = request.body?.preferences && typeof request.body.preferences === "object" ? request.body.preferences as Record<string, unknown> : {};
       const preferences = {
         user_id: actor.uid,
-        email_enabled: input.email_enabled !== false,
         browser_enabled: input.browser_enabled === true,
         digest: ["instant", "daily", "weekly", "off"].includes(String(input.digest)) ? input.digest : "instant",
         board_comments: ["all", "mentions", "off"].includes(String(input.board_comments)) ? input.board_comments : "all",
