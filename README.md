@@ -25,7 +25,7 @@ The interactive logo runtime is self-hosted at `public/embed/kumo-logo.js`, buil
 
 ## Local development
 
-Requirements: Node.js 22 or 24 and Yarn 1.x. The checked-in `.nvmrc` pins the supported Node 22 runtime used by CI.
+Requirements: Node.js 24 and Yarn 1.x. The checked-in `.nvmrc`, package engine, CI jobs, and Vercel project all target the same Node 24 runtime.
 
 ```bash
 nvm use
