@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, GoogleLogo } from "@phosphor-icons/react";
 import styles from "./homePage.module.css";
 import ui from "../ui/Ui.module.css";
@@ -23,11 +23,34 @@ import {
 
 const HomePage = () => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
+  const signinTabRef = useRef<HTMLButtonElement>(null);
+  const registerTabRef = useRef<HTMLButtonElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const selectMode = (nextMode: "signin" | "register") => {
+    setMode(nextMode);
+    setError("");
+    setMessage("");
+  };
+
+  const handleModeKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    let nextMode: "signin" | "register";
+    if (event.key === "ArrowRight") {
+      nextMode = mode === "signin" ? "register" : "signin";
+    } else if (event.key === "ArrowLeft") {
+      nextMode = mode === "register" ? "signin" : "register";
+    } else {
+      return;
+    }
+    event.preventDefault();
+    selectMode(nextMode);
+    if (nextMode === "signin") signinTabRef.current!.focus();
+    else registerTabRef.current!.focus();
+  };
 
   useEffect(() => {
     let active = true;
@@ -143,8 +166,8 @@ const HomePage = () => {
       </section>
       <form className={styles.loginForm} onSubmit={handleLogin}>
         <div className={styles.modeSwitch} role="tablist" aria-label="Authentication mode">
-          <button type="button" role="tab" aria-selected={mode === "signin"} disabled={submitting} onClick={() => { setMode("signin"); setError(""); setMessage(""); }}>Sign in</button>
-          <button type="button" role="tab" aria-selected={mode === "register"} disabled={submitting} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>Create account</button>
+          <button ref={signinTabRef} type="button" role="tab" aria-selected={mode === "signin"} tabIndex={mode === "signin" ? 0 : -1} disabled={submitting} onClick={() => selectMode("signin")} onKeyDown={handleModeKeyDown}>Sign in</button>
+          <button ref={registerTabRef} type="button" role="tab" aria-selected={mode === "register"} tabIndex={mode === "register" ? 0 : -1} disabled={submitting} onClick={() => selectMode("register")} onKeyDown={handleModeKeyDown}>Create account</button>
         </div>
         <div>
           <h2>{mode === "signin" ? "Return to your boards" : "Start with a blank canvas"}</h2>

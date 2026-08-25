@@ -142,6 +142,29 @@ describe("HomePage authentication", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled());
   });
 
+  it("uses a roving tab stop with wrapping arrow-key navigation", () => {
+    render(<HomePage />);
+    const signin = screen.getByRole("tab", { name: "Sign in" });
+    const register = screen.getByRole("tab", { name: "Create account" });
+    expect(signin).toHaveAttribute("tabindex", "0");
+    expect(register).toHaveAttribute("tabindex", "-1");
+
+    signin.focus();
+    fireEvent.keyDown(signin, { key: "ArrowRight" });
+    expect(register).toHaveFocus();
+    expect(register).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(register, { key: "ArrowRight" });
+    expect(signin).toHaveFocus();
+
+    fireEvent.keyDown(signin, { key: "ArrowLeft" });
+    expect(register).toHaveFocus();
+    fireEvent.keyDown(register, { key: "ArrowLeft" });
+    expect(signin).toHaveFocus();
+
+    fireEvent.keyDown(signin, { key: "Enter" });
+    expect(signin).toHaveFocus();
+  });
+
   it("reports reset and non-Error Google failures", async () => {
     mocks.reset.mockRejectedValueOnce(new Error("reset failed"));
     render(<HomePage />);

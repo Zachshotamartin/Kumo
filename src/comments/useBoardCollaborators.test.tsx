@@ -45,8 +45,10 @@ describe("useBoardCollaborators", () => {
     const { result, rerender } = renderHook(({ boardId }) => useBoardCollaborators(boardId), { initialProps: { boardId: "first" as string | null } });
     await waitFor(() => expect(result.current.error).toBe("Offline"));
     rerender({ boardId: "second" });
-    await waitFor(() => expect(result.current.error).toBeNull());
-    expect(result.current.collaborators).toEqual([person("fresh")]);
+    await waitFor(() => {
+      expect(result.current.error).toBeNull();
+      expect(result.current.collaborators).toEqual([person("fresh")]);
+    });
   });
 
   it("uses a safe fallback for non-error failures and ignores stale failures", async () => {

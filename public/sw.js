@@ -1,11 +1,12 @@
 /* global self, caches, fetch, Response, URL */
 
-const CACHE_NAME = "kumo-shell-v2";
+const CACHE_NAME = "kumo-shell-v3";
 const INBOX_CACHE = "kumo-offline-inbox-v1";
 const INBOX_URL = "/__kumo/offline-inbox";
+const PRECACHE_URLS = ["/", "/manifest.json" /* __KUMO_PRECACHE_MANIFEST__ */];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(["/", "/manifest.json"])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -16,10 +17,16 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
   if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then((response) => response || caches.match("/"))));
+    event.respondWith(fetch(event.request).then((response) => {
+      if (!response.ok) return response;
+      return caches.open(CACHE_NAME).then((cache) => cache.put("/", response.clone())).then(() => response);
+    }).catch(() => caches.match(event.request).then((response) => response || caches.match("/"))));
     return;
   }
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then((response) => response || Response.error())));
+  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+    if (!response.ok) return response;
+    return caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone())).then(() => response);
+  }).catch(() => Response.error())));
 });
 
 self.addEventListener("push", (event) => {
