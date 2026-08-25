@@ -14,65 +14,149 @@ concurrency:
 
 env:
   NODE_VERSION: "24"
+  YARN_VERSION: "1.22.22"
   EXPECTED_VERCEL_EMAIL: zachsm@alumni.stanford.edu
 
 jobs:
-  quality:
-    name: Quality gates
+  static:
+    name: Static checks and production build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
-
+      - name: Activate pinned Yarn
+        run: corepack enable && corepack prepare "yarn@$YARN_VERSION" --activate
       - name: Install dependencies
         run: yarn install --frozen-lockfile
-
       - name: Validate configuration
         run: yarn validate:config
-
       - name: Lint
         run: yarn lint
-
       - name: Type-check
         run: yarn typecheck
+      - name: Production build and artifact budgets
+        run: yarn build
 
-      - name: Unit tests and coverage
+  unit:
+    name: Unit tests and per-file coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - name: Activate pinned Yarn
+        run: corepack enable && corepack prepare "yarn@$YARN_VERSION" --activate
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Run unit tests with 100% per-file coverage
         run: yarn test:coverage
-
       - name: Upload coverage report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
           path: coverage
           retention-days: 7
 
-      - name: Production build
-        run: yarn build
+  database:
+    name: Database migrations and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - name: Apply and verify migrations twice
+        run: bash scripts/verify-database-migrations.sh
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
 
-      - name: Install Playwright browsers
-        run: yarn playwright install --with-deps chromium firefox webkit
-
-      - name: Browser smoke tests
+  browser:
+    name: Browser smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - name: Activate pinned Yarn
+        run: corepack enable && corepack prepare "yarn@$YARN_VERSION" --activate
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Restore Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('yarn.lock') }}
+      - name: Install browser system dependencies
+        run: yarn playwright install-deps chromium firefox webkit
+      - name: Download Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: yarn playwright install chromium firefox webkit
+      - name: Run browser suite with two workers
         run: yarn test:e2e
-
       - name: Upload browser report on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-report
-          path: playwright-report
+          path: |
+            playwright-report
+            test-results
           retention-days: 7
+
+  quality:
+    name: Quality gates
+    if: always()
+    needs: [static, unit, database, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Confirm every quality job passed
+        env:
+          STATIC_RESULT: ${{ needs.static.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+          DATABASE_RESULT: ${{ needs.database.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          for result in "$STATIC_RESULT" "$UNIT_RESULT" "$DATABASE_RESULT" "$BROWSER_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A required quality job finished with: $result" >&2
+              exit 1
+            fi
+          done
 
   preview:
     name: Vercel preview
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -80,31 +164,43 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_PREVIEW_DOMAIN: kumo-preview-zach-2267.vercel.app
+      VERCEL_VALIDATION_DOMAIN: kumo-validation-${{ github.run_id }}-${{ github.run_attempt }}.vercel.app
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       LIVEBLOCKS_SECRET_KEY: ${{ secrets.LIVEBLOCKS_SECRET_KEY }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
-      - run: yarn install --frozen-lockfile
+      - name: Activate pinned Yarn
+        run: corepack enable && corepack prepare "yarn@$YARN_VERSION" --activate
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Restore Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('yarn.lock') }}
+      - name: Install Chromium system dependencies
+        run: yarn playwright install-deps chromium
+      - name: Download Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: yarn playwright install chromium
       - name: Verify Vercel account
         run: yarn verify:vercel-account
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Pull Vercel preview configuration
         run: ./node_modules/.bin/vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Validate Vercel preview runtime
         run: yarn validate:vercel-env .vercel/.env.preview.local
       - name: Build preview artifacts
         run: ./node_modules/.bin/vercel build --target=preview --token="$VERCEL_TOKEN"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Verify preview function imports
         run: yarn verify:vercel-functions
       - name: Deploy preview artifacts
@@ -117,53 +213,72 @@ jobs:
             exit 1
           fi
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+      - name: Assign isolated validation domain
+        run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_VALIDATION_DOMAIN" --token="$VERCEL_TOKEN"
+      - name: Smoke-test deployed preview
+        run: yarn verify:deployment "https://$VERCEL_VALIDATION_DOMAIN"
+      - name: Enforce Lighthouse budgets
+        run: yarn verify:lighthouse
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          LHCI_URL: https://${{ env.VERCEL_VALIDATION_DOMAIN }}
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lighthouse-report
+          path: .lighthouseci
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+      - name: Verify real Supabase and Liveblocks product workflows
+        run: yarn verify:full-stack "https://$VERCEL_VALIDATION_DOMAIN" .vercel/.env.preview.local
       - name: Assign stable preview domain
         run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_PREVIEW_DOMAIN" --token="$VERCEL_TOKEN"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      - name: Smoke-test deployed preview
-        run: yarn verify:deployment "https://$VERCEL_PREVIEW_DOMAIN"
-      - name: Install Chromium for authenticated full-stack verification
-        run: yarn playwright install --with-deps chromium
-      - name: Verify real Supabase and Liveblocks product workflows
-        run: yarn verify:full-stack "https://$VERCEL_PREVIEW_DOMAIN" .vercel/.env.preview.local
+      - name: Remove isolated validation domain
+        if: always()
+        continue-on-error: true
+        run: ./node_modules/.bin/vercel alias rm "$VERCEL_VALIDATION_DOMAIN" --yes --token="$VERCEL_TOKEN"
 
   production:
     name: Vercel production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: quality
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment: production
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
-      - run: yarn install --frozen-lockfile
+      - name: Activate pinned Yarn
+        run: corepack enable && corepack prepare "yarn@$YARN_VERSION" --activate
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
       - name: Verify Vercel account
         run: yarn verify:vercel-account
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - name: Pull Vercel production configuration
-        run: yarn vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: yarn vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
       - name: Validate Vercel production runtime
         run: yarn validate:vercel-env .vercel/.env.production.local --require-push
       - name: Build production artifacts
-        run: yarn vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: yarn vercel build --prod --token="$VERCEL_TOKEN"
       - name: Verify production function imports
         run: yarn verify:vercel-functions
       - name: Deploy production artifacts
         id: deploy_production
         shell: bash
         run: |
-          deployment_url="$(yarn --silent vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})"
+          deployment_url="$(yarn --silent vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
           if [[ ! "$deployment_url" =~ ^https://[^[:space:]]+$ ]]; then
             echo "Vercel returned an invalid production URL" >&2
             exit 1
@@ -171,3 +286,5 @@ jobs:
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
       - name: Smoke-test production deployment
         run: yarn verify:deployment "${{ steps.deploy_production.outputs.url }}"
+      - name: Run authenticated production canary
+        run: yarn verify:authenticated-canary "${{ steps.deploy_production.outputs.url }}" .vercel/.env.production.local

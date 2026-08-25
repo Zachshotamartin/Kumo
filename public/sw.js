@@ -1,25 +1,38 @@
 /* global self, caches, fetch, Response, URL */
 
-const CACHE_NAME = "kumo-shell-v2";
+const CACHE_NAME = "kumo-shell-v4";
+const KUMO_CACHE_PREFIX = "kumo-";
 const INBOX_CACHE = "kumo-offline-inbox-v1";
 const INBOX_URL = "/__kumo/offline-inbox";
+const PRECACHE_URLS = ["/", "/manifest.json" /* __KUMO_PRECACHE_MANIFEST__ */];
+const RESERVED_PATH_PREFIXES = ["/api/", "/__/"];
+
+const isReservedPath = (pathname) => RESERVED_PATH_PREFIXES.some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix));
+const isPrecachedAsset = (url) => !url.search && PRECACHE_URLS.includes(url.pathname);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(["/", "/manifest.json"])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => ![CACHE_NAME, INBOX_CACHE].includes(key)).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith(KUMO_CACHE_PREFIX) && ![CACHE_NAME, INBOX_CACHE].includes(key)).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  if (event.request.method !== "GET" || url.origin !== self.location.origin || isReservedPath(url.pathname)) return;
   if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then((response) => response || caches.match("/"))));
+    event.respondWith(fetch(event.request).then((response) => {
+      if (!response.ok || !response.headers.get("content-type")?.includes("text/html")) return response;
+      return caches.open(CACHE_NAME).then((cache) => cache.put("/", response.clone())).then(() => response);
+    }).catch(() => caches.open(CACHE_NAME).then((cache) => cache.match(event.request).then((response) => response || cache.match("/")))));
     return;
   }
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then((response) => response || Response.error())));
+  if (!isPrecachedAsset(url)) return;
+  event.respondWith(caches.open(CACHE_NAME).then((cache) => cache.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+    if (!response.ok) return response;
+    return cache.put(event.request, response.clone()).then(() => response);
+  }).catch(() => Response.error()))));
 });
 
 self.addEventListener("push", (event) => {

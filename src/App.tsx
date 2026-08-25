@@ -1,5 +1,5 @@
 import "./App.css";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./config/firebase";
@@ -21,7 +21,7 @@ const HomePage = lazy(() => import("./components/homepage/homePage"));
 const PrototypeShareView = lazy(() => import("./components/editor/PrototypeShareView"));
 const VersionShareView = lazy(() => import("./history/VersionShareView"));
 const OpenSessionView = lazy(() => import("./components/editor/OpenSessionView"));
-export const MINIMUM_LOADING_DURATION_MS = 1800;
+const LiveblocksRoot = lazy(() => import("./collaboration/LiveblocksRoot").then(({ LiveblocksRoot: Component }) => ({ default: Component })));
 
 const LoadingScreen = () => (
   <div className="app-loading" role="status">
@@ -37,20 +37,10 @@ function App() {
   const user = useSelector((state: RootState) => state.auth);
   const whiteBoard = useSelector((state: RootState) => state.whiteBoard);
   const dispatch = useDispatch<AppDispatch>();
-  const [loadingAnimationComplete, setLoadingAnimationComplete] = useState(false);
   const prototypeToken = new URL(window.location.href).searchParams.get("prototype");
   const versionToken = new URL(window.location.href).searchParams.get("versionToken");
   const versionId = new URL(window.location.href).searchParams.get("version");
   const openSessionToken = new URL(window.location.href).searchParams.get("openSession");
-
-  useEffect(() => {
-    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    const timer = window.setTimeout(
-      () => setLoadingAnimationComplete(true),
-      reducedMotion ? 0 : MINIMUM_LOADING_DURATION_MS
-    );
-    return () => window.clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -85,23 +75,21 @@ function App() {
     return startObservability();
   }, [user.isAuthenticated]);
 
-  if (!user.isInitialized || !loadingAnimationComplete) return <LoadingScreen />;
-
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <div className="App" id="main-content">
         <Suspense fallback={<LoadingScreen />}>
           {openSessionToken ? (
-            <OpenSessionView token={openSessionToken} />
+            <LiveblocksRoot><OpenSessionView token={openSessionToken} /></LiveblocksRoot>
           ) : versionToken && versionId ? (
             <VersionShareView versionId={versionId} token={versionToken} />
           ) : prototypeToken ? (
             <PrototypeShareView token={prototypeToken} />
-          ) : !user.isAuthenticated ? (
-            <HomePage />
+          ) : !user.isInitialized || !user.isAuthenticated ? (
+            <HomePage authPending={!user.isInitialized} />
           ) : whiteBoard.id !== null ? (
-            <WorkSpace />
+            <LiveblocksRoot><WorkSpace /></LiveblocksRoot>
           ) : (
             <MiddlePage />
           )}

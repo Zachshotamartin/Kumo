@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
+
 :root {
   /* Surfaces */
   --kumo-background: #1a1b1d;
@@ -34,7 +42,7 @@
   /* Typography */
   --kumo-radius-control: 7px;
   --kumo-radius-panel: 12px;
-  --kumo-font: "Avenir Next", "Helvetica Neue", "Segoe UI", sans-serif;
+  --kumo-font: "Inter Variable", sans-serif;
   --kumo-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --kumo-text-2xs: 0.6875rem;
   --kumo-text-xs: 0.75rem;

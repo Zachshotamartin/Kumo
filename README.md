@@ -25,7 +25,7 @@ The interactive logo runtime is self-hosted at `public/embed/kumo-logo.js`, buil
 
 ## Local development
 
-Requirements: Node.js 24 and Yarn 1.x. The checked-in `.nvmrc`, package engine, CI jobs, and Vercel project all target the same Node 24 runtime.
+Requirements: Node.js 24 and Yarn 1.22.22. The checked-in `.nvmrc`, package engine, package-manager declaration, Node type definitions, CI jobs, and Vercel project all target the same Node 24 runtime.
 
 ```bash
 nvm use
@@ -52,7 +52,11 @@ yarn test:coverage
 yarn build
 yarn playwright install chromium
 yarn test:e2e
+# With a disposable PostgreSQL 17 instance available:
+yarn verify:database-migrations
 ```
+
+Coverage is enforced at 100% for statements, branches, functions, and lines in every included file. The production build rejects public source maps, incomplete service-worker precaches, and JavaScript/CSS bundles over their gzip budgets. Browser checks use two workers while order-dependent editor cases remain explicitly serial. Visual snapshots cover desktop and mobile Chromium, Axe enforces WCAG 2.2 A/AA, and preview deployments must pass Lighthouse budgets.
 
 ## Editor shortcuts
 
@@ -71,13 +75,15 @@ yarn test:e2e
 
 ## Data migrations
 
-Supabase owns profiles, friendships, board metadata, membership, assets, links, audit events, version snapshots, and design-branch records. Liveblocks owns the current collaborative document, presence, and comment threads. Apply the checked-in migrations in filename order before deploying API code that depends on them. Migrations are idempotent and `document_branches.board_id` intentionally matches the text primary key used by `boards.id`. Connected-board membership changes use the owner-validating `share_kumo_board_set` and `remove_kumo_board_member_set` transactions; the API derives the graph rather than accepting board IDs from the browser. Friendship changes use one canonical pair row and the locked `mutate_kumo_friendship` transaction. Friendship never grants or revokes board access by itself.
+Supabase owns profiles, friendships, board metadata, membership, assets, links, audit events, version snapshots, and design-branch records. Liveblocks owns the current collaborative document, presence, and comment threads. Apply the checked-in migrations in filename order before deploying API code that depends on them. Migrations are idempotent and `document_branches.board_id` intentionally matches the text primary key used by `boards.id`. CI applies every migration twice to clean PostgreSQL 17, verifies RLS and role isolation, and exercises the atomic creation/audit/deletion functions. Connected-board membership changes use the owner-validating `share_kumo_board_set` and `remove_kumo_board_member_set` transactions; the API derives the graph rather than accepting board IDs from the browser. Friendship changes use one canonical pair row and the locked `mutate_kumo_friendship` transaction. Friendship never grants or revokes board access by itself.
 
 ## Deployment
 
 The project deliberately remains a React/Vite SPA. A canvas editor is client-heavy and does not benefit enough from a Next.js migration to justify the added framework complexity. Vercel still provides CDN hosting, preview deployments, and serverless functions for the few privileged operations.
 
-GitHub Actions runs validation, linting, type-checking, unit tests, a production build, and browser smoke tests before it deploys. All changes reach the protected `main` branch through pull requests. Pull requests receive Vercel previews; merging a passing pull request deploys production. Vercel's repository-triggered deployments are disabled so GitHub Actions is the only deployment authority. The pipeline rejects any Vercel token that is not owned by `zachsm@alumni.stanford.edu`.
+GitHub Actions runs static/build checks, per-file coverage, PostgreSQL migration verification, and two-worker browser tests in parallel, then publishes the protected `Quality gates` result. All changes reach the protected `main` branch through pull requests. Pull requests receive Vercel previews with deployment smoke checks, Lighthouse budgets, and real Supabase/Liveblocks workflows. Merging a passing pull request deploys production and runs a disposable authenticated Firebase/Supabase canary whose identity and profile are removed in the same check. Vercel's repository-triggered deployments are disabled so GitHub Actions is the only deployment authority. The pipeline rejects any Vercel token that is not owned by `zachsm@alumni.stanford.edu`.
+
+The production service worker receives a generated precache manifest for every built asset and caches only those generated public assets plus successful HTML navigations. API and Firebase authentication helper responses are never intercepted. This keeps the client shell available after connectivity loss without allowing stale authenticated or unrelated data to masquerade as current data.
 
 See [Deployment](docs/deployment.md), [Architecture](docs/architecture.md), and [Review notes](docs/code-review.md) for the full setup and design decisions.
 
