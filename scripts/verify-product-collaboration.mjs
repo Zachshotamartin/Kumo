@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import { Liveblocks } from "@liveblocks/node";
 import { chromium, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { createVerifiedCanaryAccount, parseFirebaseCanaryServiceAccount } from "../src/server/fullStackFirebaseCanary.ts";
 
 const baseUrl = new URL(process.argv[2] ?? "http://localhost:5175");
 const envPath = resolve(process.argv[3] ?? ".env.local");
@@ -36,9 +39,19 @@ const supabaseUrl = required("SUPABASE_URL");
 const supabaseServiceRoleKey = required("SUPABASE_SERVICE_ROLE_KEY");
 const liveblocksSecretKey = required("LIVEBLOCKS_SECRET_KEY");
 if (!liveblocksSecretKey.startsWith("sk_")) throw new Error("LIVEBLOCKS_SECRET_KEY must begin with sk_.");
+const firebaseServiceAccount = parseFirebaseCanaryServiceAccount(required("FIREBASE_SERVICE_ACCOUNT_JSON"));
 
 const liveblocks = new Liveblocks({ secret: liveblocksSecretKey });
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+const firebaseAdminAppName = "kumo-full-stack-canary";
+const firebaseAdminApp = getApps().find((app) => app.name === firebaseAdminAppName) ?? initializeApp({
+  credential: cert({
+    projectId: firebaseServiceAccount.projectId,
+    clientEmail: firebaseServiceAccount.clientEmail,
+    privateKey: firebaseServiceAccount.privateKey,
+  }),
+}, firebaseAdminAppName);
+const firebaseAdmin = getAuth(firebaseAdminApp);
 const supabaseHeaders = {
   apikey: supabaseServiceRoleKey,
   authorization: `Bearer ${supabaseServiceRoleKey}`,
@@ -70,22 +83,11 @@ const jsonRequest = async (input, init = {}) => {
 };
 
 const createAccount = async (label) => {
-  const account = await jsonRequest(identityUrl("signUp"), {
+  const result = await createVerifiedCanaryAccount(label, firebaseAdmin, (email, password) => jsonRequest(identityUrl("signInWithPassword"), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ returnSecureToken: true }),
-  });
-  if (!account.idToken || !account.refreshToken || !account.localId || !account.expiresIn) {
-    throw new Error(`Firebase returned an incomplete ${label} canary identity.`);
-  }
-  const result = {
-    email: `${account.localId}@firebase.local`,
-    idToken: account.idToken,
-    refreshToken: account.refreshToken,
-    expirationTime: Date.now() + Number(account.expiresIn) * 1_000,
-    uid: account.localId,
-    sessionId: randomUUID(),
-  };
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+  }), randomUUID);
   accounts.push(result);
   return result;
 };
@@ -245,9 +247,17 @@ const loginAndOpenBoard = async (context, account, boardTitle) => {
       fbase_key: `firebase:authUser:${apiKey}:[DEFAULT]`,
       value: {
         uid: firebaseAccount.uid,
-        emailVerified: false,
-        isAnonymous: true,
-        providerData: [],
+        email: firebaseAccount.email,
+        emailVerified: true,
+        isAnonymous: false,
+        providerData: [{
+          providerId: "password",
+          uid: firebaseAccount.email,
+          displayName: null,
+          email: firebaseAccount.email,
+          phoneNumber: null,
+          photoURL: null,
+        }],
         stsTokenManager: {
           refreshToken: firebaseAccount.refreshToken,
           accessToken: firebaseAccount.idToken,
@@ -330,14 +340,7 @@ try {
   const invitedWorkspaceMember = await post(owner, "/api/platform", {
     action: "invite-workspace-member", workspaceId, email: collaborator.email, role: "admin",
   });
-  const workspaceInvitationToken = typeof invitedWorkspaceMember.url === "string"
-    ? new URL(invitedWorkspaceMember.url).searchParams.get("workspaceInvite")
-    : null;
-  assert(invitedWorkspaceMember.invitation?.id && workspaceInvitationToken, "A workspace invitation was not issued for the disposable collaborator.");
-  const acceptedWorkspaceInvitation = await post(collaborator, "/api/platform", {
-    action: "accept-workspace-invitation", token: workspaceInvitationToken,
-  });
-  assert(acceptedWorkspaceInvitation.accepted && acceptedWorkspaceInvitation.workspaceId === workspaceId, "The disposable collaborator could not accept the workspace invitation.");
+  assert(invitedWorkspaceMember.added && invitedWorkspaceMember.userId === collaborator.uid, "The verified disposable collaborator could not be added to the workspace.");
   const transferredWorkspace = await post(owner, "/api/platform", {
     action: "transfer-workspace-ownership", workspaceId, userId: collaborator.uid,
   });
@@ -457,7 +460,7 @@ try {
   assert(collaboratorAccess.board?.role === "editor", "Approved access did not create editor membership.");
 
   const share = await post(owner, "/api/product", {
-    action: "create-share-link", boardId: source.id, role: "editor", allowedDomain: "firebase.local",
+    action: "create-share-link", boardId: source.id, role: "editor", allowedDomain: "example.com",
   });
   const redeemed = await post(collaborator, "/api/product", { action: "redeem-share-link", token: share.token });
   assert(redeemed.boardId === source.id && redeemed.role === "editor", "Governed share link did not grant its configured role.");
@@ -634,10 +637,6 @@ try {
     await fetch(profiles, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
   }
   for (const account of accounts) {
-    await fetch(identityUrl("delete"), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idToken: account.idToken }),
-    }).catch(() => undefined);
+    await firebaseAdmin.deleteUser(account.uid).catch(() => undefined);
   }
 }

@@ -28,12 +28,15 @@ describe("consolidated Vercel API router", () => {
 
   it("keeps the production collaboration canary compatible with verified-email enforcement", () => {
     const canary = readFileSync(join(process.cwd(), "scripts", "verify-product-collaboration.mjs"), "utf8");
-    expect(canary).toContain('body: JSON.stringify({ returnSecureToken: true })');
-    expect(canary).toContain('isAnonymous: true');
+    const workflow = readFileSync(join(process.cwd(), ".github", "workflows", "ci-cd.yml"), "utf8");
+    expect(canary).toContain('createVerifiedCanaryAccount(label, firebaseAdmin');
+    expect(canary).toContain('required("FIREBASE_SERVICE_ACCOUNT_JSON")');
+    expect(canary).toContain('identityUrl("signInWithPassword")');
     expect(canary).toContain('fbase_key: `firebase:authUser:${apiKey}:[DEFAULT]`');
-    expect(canary).toContain('action: "accept-workspace-invitation"');
+    expect(canary).not.toContain('identityUrl("signUp")');
     expect(canary).not.toContain('getByLabel("Email")');
     expect(canary).not.toContain('getByLabel("Password")');
+    expect(workflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}');
   });
 
   it("routes API requests before the single-page-app fallback", () => {
