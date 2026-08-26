@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { FriendRequestPolicy, ProfileRow } from "./_profiles.js";
 
 let client: SupabaseClient | undefined;
+let clientConfiguration = "";
 export const DATABASE_FETCH_TIMEOUT_MS = 15_000;
 
 export const databaseFetch: typeof fetch = async (input, init = {}) => {
@@ -25,16 +26,21 @@ export const supabaseAdmin = (): SupabaseClient => {
   if (!url || !serviceRoleKey) {
     throw new Error("Supabase server environment variables are incomplete.");
   }
-  client ??= createClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { fetch: databaseFetch },
-  });
+  const configuration = `${url}\u0000${serviceRoleKey}`;
+  if (!client || clientConfiguration !== configuration) {
+    client = createClient(url, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: databaseFetch },
+    });
+    clientConfiguration = configuration;
+  }
   return client;
 };
 
 export interface ActorProfile {
   uid: string;
   email: string;
+  emailVerified: boolean;
   displayName: string;
   avatarUrl: string | null;
   username: string;
@@ -46,6 +52,7 @@ export interface ActorProfile {
 export const ensureActorProfile = async (actor: {
   uid: string;
   email?: string;
+  email_verified?: boolean;
   name?: string;
   picture?: string;
 }): Promise<ActorProfile> => {
@@ -54,6 +61,7 @@ export const ensureActorProfile = async (actor: {
   const { data, error } = await supabaseAdmin().rpc("ensure_kumo_profile", {
     p_firebase_uid: actor.uid,
     p_email: email,
+    p_email_verified: actor.email_verified === true,
     p_default_display_name: defaultDisplayName,
     p_default_avatar_url: actor.picture ?? null,
   });
@@ -62,6 +70,7 @@ export const ensureActorProfile = async (actor: {
   return {
     uid: row.firebase_uid,
     email: row.email,
+    emailVerified: row.email_verified,
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     username: row.username,

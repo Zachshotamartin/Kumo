@@ -73,12 +73,15 @@ const createFirebaseAccount = async (label) => {
       returnSecureToken: true,
     }),
   });
-  const result = { email, idToken: account.idToken, firebaseUid: account.localId };
+  const result = { email, idToken: account.idToken, firebaseUid: account.localId, sessionId: randomUUID() };
   accounts.push(result);
   return result;
 };
 
-const authorizationFor = (account) => ({ authorization: `Bearer ${account.idToken}` });
+const authorizationFor = (account) => ({
+  authorization: `Bearer ${account.idToken}`,
+  "x-kumo-session-id": account.sessionId,
+});
 
 const createBoard = async (authorization, title) => {
   const created = await jsonRequest(new URL("/api/boards", baseUrl), {

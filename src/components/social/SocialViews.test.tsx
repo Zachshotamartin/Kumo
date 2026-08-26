@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   getProfile: vi.fn(),
   updateProfile: vi.fn(),
+  uploadProfileAvatar: vi.fn(),
   clipboard: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock("../../services/socialRepository", () => ({
   mutateFriendship: mocks.mutate,
   getProfile: mocks.getProfile,
   updateProfile: mocks.updateProfile,
+  uploadProfileAvatar: mocks.uploadProfileAvatar,
 }));
 
 const person = (id: string, relationship: RelationshipStatus = "friend") => ({
@@ -267,12 +269,11 @@ describe("profile view", () => {
     renderProfile(defaulted as unknown as UserProfile, "old-name");
     expect(await screen.findByText("Add a short note about what you make.")).toBeVisible();
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "NEW.NAME" } });
-    fireEvent.change(screen.getByLabelText("Avatar URL"), { target: { value: "https://images.example/avatar.png" } });
     fireEvent.change(screen.getByLabelText("Friend requests"), { target: { value: "friends_of_friends" } });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() => expect(mocks.updateProfile).toHaveBeenCalledWith(expect.objectContaining({
       username: "new.name",
-      avatarUrl: "https://images.example/avatar.png",
+      avatarUrl: null,
       friendRequestPolicy: "friends_of_friends",
     })));
     expect(window.location.search).toContain("profile=avery");
@@ -296,6 +297,29 @@ describe("profile view", () => {
     mocks.updateProfile.mockRejectedValueOnce("save unavailable");
     fireEvent.submit(form);
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("We couldn't save your profile."));
+  });
+
+  it("uploads cropped avatars and reports upload failures", async () => {
+    let finishUpload!: (url: string) => void;
+    mocks.uploadProfileAvatar.mockImplementationOnce(() => new Promise((resolve) => { finishUpload = resolve; }));
+    const { store } = renderProfile();
+    await screen.findByRole("heading", { name: "Avery Morgan" });
+    const input = screen.getByLabelText("Upload avatar");
+    fireEvent.change(input, { target: { files: [] } });
+    expect(mocks.uploadProfileAvatar).not.toHaveBeenCalled();
+    const file = new File(["avatar"], "avatar.png", { type: "image/png" });
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(screen.getByText("Cropping and uploading…")).toBeVisible();
+    await act(async () => { finishUpload("https://images.example/avatar.png"); await Promise.resolve(); });
+    expect(await screen.findByRole("status")).toHaveTextContent("Avatar cropped and uploaded");
+    expect(store.getState().auth.avatarUrl).toBe("https://images.example/avatar.png");
+
+    mocks.uploadProfileAvatar.mockRejectedValueOnce(new Error("Upload unavailable"));
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Upload unavailable");
+    mocks.uploadProfileAvatar.mockRejectedValueOnce("offline");
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Avatar upload failed."));
   });
 
   it.each([

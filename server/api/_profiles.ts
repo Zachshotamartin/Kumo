@@ -7,6 +7,7 @@ export type RelationshipStatus = "none" | "incoming" | "outgoing" | "friend" | "
 export interface ProfileRow {
   firebase_uid: string;
   email: string;
+  email_verified: boolean;
   display_name: string;
   avatar_url: string | null;
   username: string;
@@ -28,7 +29,7 @@ export interface FriendshipRow {
   responded_at: string | null;
 }
 
-export const PROFILE_COLUMNS = "firebase_uid, email, display_name, avatar_url, username, bio, discoverable, friend_request_policy, created_at, updated_at";
+export const PROFILE_COLUMNS = "firebase_uid, email, email_verified, display_name, avatar_url, username, bio, discoverable, friend_request_policy, created_at, updated_at";
 export const FRIENDSHIP_COLUMNS = "user_low_id, user_high_id, status, requested_by, blocked_by, created_at, updated_at, responded_at";
 
 export const profileSummary = (
@@ -64,6 +65,13 @@ export const friendshipRowsForActor = async (actorUid: string): Promise<Friendsh
   return [...(low.data ?? []), ...(high.data ?? [])] as FriendshipRow[];
 };
 
+export const hiddenProfileIdsForActor = async (actorUid: string): Promise<Set<string>> => {
+  const rows = await friendshipRowsForActor(actorUid);
+  return new Set(rows
+    .filter((row) => row.status === "blocked")
+    .map((row) => otherUserId(row, actorUid)));
+};
+
 export const friendshipBetween = async (
   actorUid: string,
   targetUid: string
@@ -93,6 +101,7 @@ export const getProfilesByIds = async (ids: string[]): Promise<Map<string, Profi
   const { data, error } = await supabaseAdmin()
     .from("profiles")
     .select(PROFILE_COLUMNS)
+    .eq("email_verified", true)
     .in("firebase_uid", unique);
   if (error) throw error;
   return new Map((data ?? []).map((profile) => [
@@ -105,6 +114,7 @@ export const getProfileByUsername = async (username: string): Promise<ProfileRow
   const { data, error } = await supabaseAdmin()
     .from("profiles")
     .select(PROFILE_COLUMNS)
+    .eq("email_verified", true)
     .ilike("username", username)
     .maybeSingle();
   if (error) throw error;

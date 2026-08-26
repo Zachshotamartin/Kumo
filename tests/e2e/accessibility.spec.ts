@@ -47,7 +47,7 @@ test("authentication tabs and fields are keyboard operable with visible focus", 
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Email")).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Password")).toBeFocused();
+  await expect(page.getByLabel("Password", { exact: true })).toBeFocused();
   // WebKit follows the host macOS preference for whether Tab stops on buttons,
   // so exercise the button's browser-independent focus treatment directly.
   await page.getByRole("button", { name: "Sign in", exact: true }).focus();

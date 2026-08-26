@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import actionsReducer from "../features/actions/actionsSlice";
 import authReducer from "../features/auth/authSlice";
@@ -32,11 +32,11 @@ describe("OfflineRecoveryBridge", () => {
     const state = store();
     queueBoardMutation({ id: "settings", boardId: "board", createdAt: 1, kind: "settings", payload: { title: "Offline title" } });
     const view = render(<Provider store={state}><OfflineRecoveryBridge connectionStatus="disconnected" /></Provider>);
-    expect(JSON.parse(window.localStorage.getItem("kumo:recovery:board") ?? "null")).toMatchObject({ boardId: "board", baseRevision: 4 });
+    expect(JSON.parse(window.localStorage.getItem("kumo:recovery:board") ?? "null")).toMatchObject({ boardId: "board", baseRevision: 4, baseShapes: [expect.objectContaining({ id: "one" })] });
     view.rerender(<Provider store={state}><OfflineRecoveryBridge connectionStatus="connected" /></Provider>);
     await vi.waitFor(() => expect(updateBoardSettings).toHaveBeenCalledWith("board", { title: "Offline title" }));
-    await vi.advanceTimersByTimeAsync(1_500);
-    expect(window.localStorage.getItem("kumo:recovery:board")).toBeNull();
+    expect(window.localStorage.getItem("kumo:recovery:board")).not.toBeNull();
+    await vi.waitFor(() => expect(state.getState().editor.rightPanel).toBe("platform"));
     vi.useRealTimers();
   });
 
@@ -55,5 +55,24 @@ describe("OfflineRecoveryBridge", () => {
     view.rerender(<Provider store={state}><OfflineRecoveryBridge connectionStatus="connected" /></Provider>);
     await waitFor(() => expect(updateBoardSettings).toHaveBeenCalled());
     expect(window.localStorage.getItem("kumo:recovery:board")).not.toBeNull();
+  });
+
+  it("opens recovery tools for hydrated work and uses current board data without a connected base", async () => {
+    const state = store();
+    const shapes = state.getState().whiteBoard.shapes;
+    window.localStorage.setItem("kumo:recovery:board", JSON.stringify({
+      boardId: "board", savedAt: 1, baseRevision: 1, baseBackgroundColor: "#000", backgroundColor: "#111111", baseShapes: shapes, shapes,
+    }));
+    const hydrated = render(<Provider store={state}><OfflineRecoveryBridge connectionStatus="connected" /></Provider>);
+    await waitFor(() => expect(state.getState().editor.rightPanel).toBe("platform"));
+    hydrated.unmount();
+
+    state.dispatch(setWhiteboardData({ id: null }));
+    const disconnected = render(<Provider store={state}><OfflineRecoveryBridge connectionStatus="disconnected" /></Provider>);
+    act(() => { state.dispatch(setWhiteboardData({ id: "new-board", revision: 2, backGroundColor: "#222", shapes })); });
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem("kumo:recovery:new-board") ?? "null")).toMatchObject({
+      boardId: "new-board", baseBackgroundColor: "#222", baseShapes: [expect.objectContaining({ id: "one" })],
+    }));
+    disconnected.unmount();
   });
 });

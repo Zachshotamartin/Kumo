@@ -673,6 +673,24 @@
   overflow: hidden;
 }
 
+.minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 68px;
+  z-index: 13000;
+  width: 176px;
+  height: 116px;
+  border: 1px solid #46484d;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.28);
+  cursor: crosshair;
+}
+
+.minimapBackground { fill: rgb(31 32 35 / 0.94); }
+.minimapShape { fill: #777973; stroke: #a4a69e; stroke-width: 0.5; cursor: pointer; }
+.minimapShape:hover { fill: var(--accent); }
+.minimapViewport { fill: rgb(184 122 46 / 0.08); stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+
 .panelToggle {
   position: absolute;
   top: 10px;

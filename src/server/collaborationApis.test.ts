@@ -305,6 +305,44 @@ describe("collaborator and version APIs", () => {
     expect(reply.body).toMatchObject({ restored: true, beforeRestoreId: "before" });
   });
 
+  it("selectively restores, inserts, and deletes requested version layers", async () => {
+    const target = { id: "target", document: { backgroundColor: "#fff", nodes: { parent: { value: "parent", parentId: null }, keep: { value: "old", parentId: "parent" }, added: { value: "added" } }, textCharacters: { keep: { value: "old text" }, added: { value: "added text" } } } };
+    mocks.getDocument.mockResolvedValue({ backgroundColor: "#000", nodes: { keep: { value: "current" }, remove: {}, child: { parentId: "remove" }, retained: {} }, textCharacters: { keep: { value: "current text" }, remove: { value: "removed" }, retained: { value: "retained" } } });
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots" ? {
+      select: () => queryChain({ data: target, error: null }),
+      insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "before" }, error: null }) }) }),
+    } : fluentQuery({ error: null }));
+    const reply = response();
+    await versionsHandler(request("POST", {
+      action: "restore-layers", boardId: "board", versionId: "target",
+      shapeIds: ["keep", "added", "remove", "keep", "", 4],
+    }), reply);
+    expect(reply.statusCode).toBe(200);
+    expect(mocks.initializeDocument).toHaveBeenCalledWith("board:board", { normalized: {
+      backgroundColor: "#000",
+      nodes: { keep: { value: "old", parentId: "parent" }, added: { value: "added" }, child: { parentId: null }, retained: {}, parent: { value: "parent", parentId: null } },
+      textCharacters: { keep: { value: "old text" }, added: { value: "added text" }, retained: { value: "retained" } },
+    } });
+    expect(reply.body).toMatchObject({ restoredShapeIds: ["keep", "added", "remove", "parent"] });
+
+    const invalid = response();
+    await versionsHandler(request("POST", { action: "restore-layers", boardId: "board", versionId: "target", shapeIds: "keep" }), invalid);
+    expect(invalid.statusCode).toBe(400);
+  });
+
+  it("selectively restores against malformed legacy documents using empty node maps", async () => {
+    const target = { id: "target", document: null };
+    mocks.getDocument.mockResolvedValue(null);
+    mocks.from.mockImplementation((table: string) => table === "document_snapshots" ? {
+      select: () => queryChain({ data: target, error: null }),
+      insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "before" }, error: null }) }) }),
+    } : fluentQuery({ error: null }));
+    const reply = response();
+    await versionsHandler(request("POST", { action: "restore-layers", boardId: "board", versionId: "target", shapeIds: ["gone"] }), reply);
+    expect(reply.statusCode).toBe(200);
+    expect(mocks.initializeDocument).toHaveBeenCalledWith("board:board", { normalized: { nodes: {}, textCharacters: {} } });
+  });
+
   it("isolates branch checkpoints and restores from main-board history", async () => {
     const target = { id: "target", document: { backgroundColor: "#fff", nodes: {} } };
     mocks.from.mockImplementation((table: string) => {

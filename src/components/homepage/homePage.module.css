@@ -81,6 +81,10 @@
 .loginFormRow, .loginFormColumn { display: grid; gap: 13px; }
 .inputContainer { display: grid; gap: 7px; }
 .inputContainer label { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); font-weight: var(--kumo-weight-bold); }
+.passwordControl { position: relative; }
+.passwordControl .input { padding-right: 44px; }
+.passwordToggle { position: absolute; top: 50%; right: 10px; display: grid; width: 30px; height: 30px; padding: 0; border: 0; color: var(--kumo-text-muted); background: transparent; place-items: center; transform: translateY(-50%); }
+.passwordToggle svg { width: 18px; height: 18px; }
 
 .input {
   min-height: var(--kumo-control-comfortable);

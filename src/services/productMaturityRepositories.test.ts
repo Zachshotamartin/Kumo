@@ -2,7 +2,8 @@ import { authenticatedFetch, publicFetch } from "./apiClient";
 import {
   acceptWorkspaceInvitation, cancelAccountDeletion, cancelWorkspaceInvitation, createPrototypeLink, exportAccountData, globalSearch, installExtension, inviteWorkspaceMember, leaveWorkspace, loadCommunity,
   loadExtensions, loadNotificationPreferences, loadOperations, loadPrototypeLinks, loadWorkspaceAdmin, mutateWorkspaceFolder,
-  publishCommunity, publishExtension, redeemPrototype, remixCommunity, removeWorkspaceMember, renameWorkspace, reportCommunity,
+  publishCommunity, publishExtension, redeemPrototype, remixCommunity, removeWorkspaceMember, renameWorkspace, reportCommunity, reportCommunityCategory,
+  loadCommunityModeration, moderateCommunity, loadAccountDeletion, loadAccountSessions, revokeAccountSession,
   requestAccountDeletion, revokeAccountSessions, revokePrototypeLink, toggleExtension, uninstallExtension,
   transferWorkspaceOwnership, unpublishCommunity, updateNotificationPreferences, updateWorkspaceMember,
 } from "./platformRepository";
@@ -81,6 +82,21 @@ describe("product maturity repositories", () => {
     await remixCommunity("board");
     await cancelAccountDeletion();
     expect(authenticatedFetch).toHaveBeenCalledWith("/api/platform", expect.objectContaining({ body: expect.stringContaining("transfer-workspace-ownership") }));
+  });
+
+  it("covers categorized moderation and per-device account lifecycle contracts", async () => {
+    [
+      { reported: true }, { reports: [{ id: "report" }] }, { moderated: true, decision: "removed" },
+      { deletion: { requested_at: "now" } }, { sessions: [{ id: "session" }] }, { revoked: true },
+    ].forEach((value) => vi.mocked(authenticatedFetch).mockResolvedValueOnce(value));
+    await reportCommunityCategory("board", "copyright", "Copied");
+    await expect(loadCommunityModeration()).resolves.toEqual([{ id: "report" }]);
+    await moderateCommunity("report", "removed", "Confirmed");
+    await expect(loadAccountDeletion()).resolves.toEqual({ requested_at: "now" });
+    await expect(loadAccountSessions()).resolves.toEqual([{ id: "session" }]);
+    await revokeAccountSession("session");
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(1, "/api/platform", expect.objectContaining({ body: JSON.stringify({ action: "report-community", boardId: "board", category: "copyright", reason: "Copied" }) }));
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(3, "/api/platform", expect.objectContaining({ body: JSON.stringify({ action: "moderate-community", reportId: "report", decision: "removed", note: "Confirmed" }) }));
   });
 
   it("covers all version and branch contracts, including optional branch scoping", async () => {

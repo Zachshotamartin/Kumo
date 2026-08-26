@@ -13,6 +13,7 @@ export interface BoardSummary {
   role: BoardRole;
   updatedAt: number | null;
   thumbnailUrl?: string | null;
+  deletedAt?: number | null;
   members?: Record<string, BoardRole>;
   linkedBoards?: WhiteBoardState["linkedBoards"];
 }
@@ -70,6 +71,10 @@ export const listBoards = async (): Promise<BoardSummary[]> => {
   return result.boards;
 };
 
+export const listDeletedBoards = () => authenticatedFetch<{ boards: BoardSummary[] }>("/api/boards?scope=deleted").then((result) => result.boards);
+
+export const restoreDeletedBoard = (boardId: string) => authenticatedFetch<{ board: BoardSummary }>("/api/boards", { method: "POST", body: JSON.stringify({ action: "restore", boardId }) }).then((result) => result.board);
+
 export const loadBoardPreview = (boardId: string, signal?: AbortSignal): Promise<string> => scheduleBoardPreview(async () => {
   if (signal?.aborted) throw new DOMException("Board preview request aborted.", "AbortError");
   const controller = new AbortController();
@@ -125,6 +130,8 @@ export const createBoard = async (title = "Untitled board"): Promise<string> => 
   });
   return result.board.id;
 };
+
+export const createOnboardingBoard = () => authenticatedFetch<{ board: BoardSummary }>("/api/boards", { method: "POST", body: JSON.stringify({ action: "create-onboarding" }) }).then((result) => result.board.id);
 
 export const duplicateBoard = async (sourceBoardId: string): Promise<string> => {
   const result = await authenticatedFetch<{ board: BoardSummary }>("/api/boards", {

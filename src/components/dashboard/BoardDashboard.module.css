@@ -234,9 +234,32 @@
 }
 
 .boardCard {
+  position: relative;
   min-width: 0;
   animation: board-enter 380ms both ease-out;
 }
+
+.boardSelection {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  font-size: var(--kumo-text-2xs);
+  background: rgb(20 21 24 / 0.88);
+  border-radius: 6px;
+}
+
+.boardContextMenu { position: relative; }
+.boardContextMenu summary { display: grid; width: 32px; height: 32px; cursor: pointer; place-items: center; list-style: none; border-radius: 6px; }
+.boardContextMenu summary::-webkit-details-marker { display: none; }
+.boardContextMenu[open] summary { color: var(--ui-accent); background: var(--ui-surface-raised); }
+.boardContextMenu > div { position: absolute; z-index: 5; top: 36px; right: 0; display: grid; min-width: 150px; padding: 6px; background: var(--ui-surface-raised); border: 1px solid var(--ui-border); border-radius: 8px; box-shadow: 0 18px 40px rgb(0 0 0 / 0.28); }
+.boardContextMenu button { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--ui-text); text-align: left; background: transparent; border: 0; border-radius: 5px; }
+.boardContextMenu button:hover { background: var(--ui-surface-muted); }
 
 .boardPreview {
   position: relative;
@@ -331,6 +354,37 @@
   border-bottom: 1px solid var(--ui-border);
 }
 
+.boardWorkspaceLayout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.boardWorkspaceMain { min-width: 0; }
+
+.folderSidebar {
+  position: sticky;
+  top: 88px;
+  padding: 12px 8px;
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+}
+
+.folderSidebar h2 { margin: 0 8px 9px; font-size: var(--kumo-text-sm); }
+.folderSidebar > div { display: grid; gap: 3px; }
+.folderSidebar button { display: flex; align-items: center; gap: 7px; width: 100%; padding: 8px 10px; overflow: hidden; color: var(--ui-text-muted); text-align: left; text-overflow: ellipsis; white-space: nowrap; background: transparent; border: 0; border-radius: 6px; }
+.folderSidebar button:hover, .folderSidebar .folderActive { color: var(--ui-text); background: var(--ui-surface-raised); }
+
+.workspaceControls .bulkBoardActions {
+  flex-basis: 100%;
+  padding-top: 8px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.workspaceControls { flex-wrap: wrap; }
+
 .workspaceControls > div,
 .workspaceControls form {
   display: flex;
@@ -361,6 +415,13 @@
 
 .workspaceControls form ~ form {
   margin-left: 0;
+}
+
+@media (max-width: 860px) {
+  .boardWorkspaceLayout { grid-template-columns: 1fr; }
+  .folderSidebar { position: static; }
+  .folderSidebar > div { display: flex; overflow-x: auto; }
+  .folderSidebar button { width: auto; min-width: max-content; }
 }
 
 .boardOrganization {
@@ -401,17 +462,32 @@
   gap: 6px;
 }
 
-.notificationList > button {
+.notificationList > article {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+}
+
+.notificationList > article > button {
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: center;
-  padding: 13px;
+  padding: 3px;
   color: var(--ui-text-muted);
   text-align: left;
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
+}
+
+.notificationList > article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 31px;
 }
 
 .notificationList strong,

@@ -53,13 +53,14 @@
     "verify:vercel-account": "node scripts/verify-vercel-account.mjs",
     "validate:config": "node scripts/validate-config.mjs",
     "verify:local-api": "node scripts/verify-local-authenticated-api.mjs",
-    "verify:full-stack": "node scripts/verify-product-collaboration.mjs",
+    "verify:full-stack": "node --experimental-strip-types scripts/verify-product-collaboration.mjs",
     "validate:local-env": "node scripts/validate-vercel-runtime-env.mjs .env.local --require-concrete --local-runtime",
     "validate:vercel-env": "node scripts/validate-vercel-runtime-env.mjs",
     "verify:vercel-functions": "node scripts/verify-vercel-function-imports.mjs",
     "verify:deployment": "node --experimental-strip-types scripts/verify-deployment-smoke.mjs",
     "verify:authenticated-canary": "node --experimental-strip-types scripts/verify-authenticated-canary.mjs",
     "verify:database-migrations": "bash scripts/verify-database-migrations.sh",
+    "verify:remote-schema": "node --experimental-strip-types scripts/verify-remote-supabase-schema.mjs",
     "verify:lighthouse": "node --experimental-strip-types scripts/verify-lighthouse.mjs"
   },
   "devDependencies": {

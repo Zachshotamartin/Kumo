@@ -15,6 +15,7 @@ import {
   listBoardVersions,
   renameBoardVersion,
   restoreBoardVersion,
+  restoreBoardVersionLayers,
   shareBoardVersion,
 } from "../services/versionRepository";
 import type { AppDispatch, RootState } from "../store";
@@ -91,6 +92,7 @@ export const VersionHistoryPanel = () => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [comparison, setComparison] = useState<Array<{ shapeId: string; status: string; name: string }>>([]);
+  const [selectedComparisonIds, setSelectedComparisonIds] = useState<string[]>([]);
   const [editingMetadata, setEditingMetadata] = useState(false);
   const canEdit = board.role === "owner" || board.role === "editor";
   const detail = detailState.id === selectedId ? detailState.version : null;
@@ -165,7 +167,7 @@ export const VersionHistoryPanel = () => {
         await renameBoardVersion(board.id!, selectedId!, metadataName || selected?.name || "Named version", metadataDescription, board.activeBranchId);
         setEditingMetadata(false); setMetadataName(""); setMetadataDescription(""); await refresh(); setMessage("Version details updated.");
       } else if (operation === "compare") {
-        const result = await compareBoardVersion(board.id!, selectedId!, board.activeBranchId); setComparison(result.diff); setMessage(`${result.diff.length} changes from this version to the current board.`);
+        const result = await compareBoardVersion(board.id!, selectedId!, board.activeBranchId); setComparison(result.diff); setSelectedComparisonIds(result.diff.map((item) => item.shapeId)); setMessage(`${result.diff.length} changes from this version to the current board.`);
       } else if (operation === "duplicate") {
         const result = await duplicateBoardVersion(board.id!, selectedId!, `${selected?.name ?? board.title ?? "Board"} copy`, board.activeBranchId); setMessage(`Created a new board from this version (${result.boardId}).`);
       } else {
@@ -197,7 +199,7 @@ export const VersionHistoryPanel = () => {
       )}
       {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.error}`} role="alert">{error}</p>}
       {message && <p className={`${ui.notice} ${styles.message}`} role="status">{message}</p>}
-      {comparison.length > 0 && <div className={styles.comparison} aria-label="Version comparison">{comparison.map((item) => <span key={item.shapeId}><b>{item.status}</b> {item.name}</span>)}</div>}
+      {comparison.length > 0 && <div className={styles.comparison} aria-label="Version comparison">{comparison.map((item) => <label key={item.shapeId}><input type="checkbox" checked={selectedComparisonIds.includes(item.shapeId)} onChange={(event) => setSelectedComparisonIds((current) => event.target.checked ? [...current, item.shapeId] : current.filter((id) => id !== item.shapeId))} /><span><b>{item.status}</b> {item.name}</span></label>)}{canEdit && <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} disabled={!selectedComparisonIds.length || restoring} onClick={() => { setRestoring(true); void restoreBoardVersionLayers(board.id!, selectedId!, selectedComparisonIds, board.activeBranchId).then((result) => { dispatch(setWhiteboardData({ revision: result.revision })); setMessage(`Restored ${result.restoredShapeIds.length} selected layers.`); setComparison([]); }).catch((caught) => setError(errorMessage(caught, "Selected layers could not be restored."))).finally(() => setRestoring(false)); }}>Restore selected layers</button>}</div>}
       <div className={styles.list}>
         {versions.map((version) => (
           <button type="button" key={version.id} aria-pressed={selectedId === version.id} onClick={() => setSelectedId(version.id)}>

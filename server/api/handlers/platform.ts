@@ -2,16 +2,18 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireActor } from "../_auth.js";
 import { getBoardAccess, listBoardsForUser, provisionBoard, searchPublicBoards } from "../_boards.js";
-import { privilegedAdminAuth } from "../_firebaseAdmin.js";
 import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { liveblocksAdmin } from "../_liveblocks.js";
 import { folderMoveCreatesCycle, hashPassword, sanitizeExtensionManifest, summarizeConnectionTelemetry, verifyPassword } from "../_platform.js";
 import { enforceRateLimit, hashSecret, openSessionGuestId, requestOrigin, validOpenSessionGuestNonce } from "../_security.js";
 import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 import { pushConfigured, sendPushToUser } from "../_push.js";
+import { friendshipRowsForActor, otherUserId } from "../_profiles.js";
+import { buildAccountExport } from "../_accountExport.js";
 
 type WorkspaceRole = "owner" | "admin" | "member" | "guest";
 const clean = (value: unknown, fallback = "", limit = 120) => typeof value === "string" ? value.trim().slice(0, limit) || fallback : fallback;
+const isCommunityModerator = (uid: string) => (process.env.KUMO_MODERATOR_UIDS ?? "").split(",").map((id) => id.trim()).filter(Boolean).includes(uid);
 
 const primaryWorkspace = async (uid: string, displayName: string) => {
   const database = supabaseAdmin();
@@ -145,21 +147,26 @@ export default async function handler(request: VercelRequest, response: VercelRe
       if (scope === "global-search") {
         const query = clean(stringQuery(request.query.q), "", 120);
         if (!query) return response.status(200).json({ results: [] });
-        const [ownBoards, publicBoards, profileResult, templateResult, communityResult] = await Promise.all([
-          listBoardsForUser(actor.uid), searchPublicBoards(query),
-          database.from("profiles").select("firebase_uid, username, display_name, avatar_url").eq("discoverable", true).or(`username.ilike.%${query.replace(/[%,]/g, "")}%,display_name.ilike.%${query.replace(/[%,]/g, "")}%`).limit(12),
-          database.from("board_templates").select("id, name, description, visibility").or(`owner_id.eq.${actor.uid},visibility.eq.public`).ilike("name", `%${query.replace(/[%,]/g, "")}%`).limit(12),
-          database.from("community_publications").select("board_id, slug, description, tags, remix_count, boards(title)").ilike("description", `%${query.replace(/[%,]/g, "")}%`).limit(12),
+        const [ownBoards, publicBoards, profileResult, templateResult, communityResult, relationships] = await Promise.all([
+          listBoardsForUser(actor.uid), searchPublicBoards(query, actor.uid),
+          database.from("profiles").select("firebase_uid, username, display_name, avatar_url").eq("discoverable", true).eq("email_verified", true).or(`username.ilike.%${query.replace(/[%,]/g, "")}%,display_name.ilike.%${query.replace(/[%,]/g, "")}%`).limit(12),
+          database.from("board_templates").select("id, owner_id, name, description, visibility").or(`owner_id.eq.${actor.uid},visibility.eq.public`).ilike("name", `%${query.replace(/[%,]/g, "")}%`).limit(12),
+          database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_count, boards(title)").ilike("description", `%${query.replace(/[%,]/g, "")}%`).limit(12),
+          friendshipRowsForActor(actor.uid),
         ]);
         if (profileResult.error) throw profileResult.error;
         if (templateResult.error) throw templateResult.error;
         if (communityResult.error) throw communityResult.error;
         const boardResults = [...new Map([...ownBoards.filter((board) => board.title.toLowerCase().includes(query.toLowerCase())), ...publicBoards].map((board) => [board.id, board])).values()];
+        const hiddenProfileIds = new Set(relationships
+          .filter((row) => row.status === "blocked")
+          .map((row) => otherUserId(row, actor.uid)));
+        const visibleProfiles = (profileResult.data ?? []).filter((item) => item.firebase_uid !== actor.uid && !hiddenProfileIds.has(item.firebase_uid));
         return response.status(200).json({ results: [
           ...boardResults.map((board) => ({ kind: "board", id: board.id, label: board.title, detail: board.role ?? "public", actionUrl: `/?board=${encodeURIComponent(board.id)}` })),
-          ...(profileResult.data ?? []).map((item) => ({ kind: "profile", id: item.firebase_uid, label: item.display_name, detail: `@${item.username}`, actionUrl: `/?profile=${encodeURIComponent(item.username)}` })),
-          ...(templateResult.data ?? []).map((item) => ({ kind: "template", id: item.id, label: item.name, detail: item.description, actionUrl: `/?template=${encodeURIComponent(item.id)}` })),
-          ...(communityResult.data ?? []).map((item) => ({ kind: "community", id: item.board_id, label: (item.boards as { title?: string } | null)?.title ?? item.slug, detail: item.description, actionUrl: `/?community=${encodeURIComponent(item.slug)}` })),
+          ...visibleProfiles.map((item) => ({ kind: "profile", id: item.firebase_uid, label: item.display_name, detail: `@${item.username}`, actionUrl: `/?profile=${encodeURIComponent(item.username)}` })),
+          ...(templateResult.data ?? []).filter((item) => item.owner_id === actor.uid || !hiddenProfileIds.has(item.owner_id)).map((item) => ({ kind: "template", id: item.id, label: item.name, detail: item.description, actionUrl: `/?template=${encodeURIComponent(item.id)}` })),
+          ...(communityResult.data ?? []).filter((item) => !hiddenProfileIds.has(item.published_by)).map((item) => ({ kind: "community", id: item.board_id, label: (item.boards as { title?: string } | null)?.title ?? item.slug, detail: item.description, actionUrl: `/?community=${encodeURIComponent(item.slug)}` })),
         ].slice(0, 40) });
       }
       if (scope === "operations") {
@@ -197,21 +204,41 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return response.status(200).json({ sessions: data ?? [] });
       }
       if (scope === "community") {
-        const { data, error } = await database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_allowed, remix_count, published_at, boards(title, thumbnail_asset_id)").order("published_at", { ascending: false }).limit(48);
+        const [{ data, error }, relationships] = await Promise.all([
+          database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_allowed, remix_count, published_at, boards(title, thumbnail_asset_id)").order("published_at", { ascending: false }).limit(48),
+          friendshipRowsForActor(actor.uid),
+        ]);
         if (error) throw error;
-        return response.status(200).json({ publications: data ?? [] });
+        const hiddenProfileIds = new Set(relationships.filter((row) => row.status === "blocked").map((row) => otherUserId(row, actor.uid)));
+        return response.status(200).json({ publications: (data ?? []).filter((publication) => !hiddenProfileIds.has(publication.published_by)), canModerate: isCommunityModerator(actor.uid) });
+      }
+      if (scope === "community-moderation") {
+        if (!isCommunityModerator(actor.uid)) return response.status(403).json({ error: "Community moderator access is required." });
+        const { data, error } = await database.from("community_reports")
+          .select("id, board_id, reporter_id, category, reason, status, reviewed_by, reviewed_at, review_note, created_at, boards(title), community_publications(slug)")
+          .eq("status", "open")
+          .order("created_at", { ascending: true })
+          .limit(100);
+        if (error) throw error;
+        return response.status(200).json({ reports: data ?? [] });
       }
       if (scope === "account-export") {
-        const [boards, notifications, friendships, audits] = await Promise.all([
-          listBoardsForUser(actor.uid),
-          database.from("account_notifications").select("*").eq("recipient_id", actor.uid).order("created_at", { ascending: false }),
-          database.from("friendships").select("*").or(`user_low_id.eq.${actor.uid},user_high_id.eq.${actor.uid}`),
-          database.from("audit_events").select("*").eq("actor_id", actor.uid).order("created_at", { ascending: false }).limit(1000),
-        ]);
-        if (notifications.error) throw notifications.error;
-        if (friendships.error) throw friendships.error;
-        if (audits.error) throw audits.error;
-        return response.status(200).json({ exportedAt: new Date().toISOString(), profile, boards, notifications: notifications.data ?? [], friendships: friendships.data ?? [], auditEvents: audits.data ?? [] });
+        return response.status(200).json(await buildAccountExport(actor.uid, profile));
+      }
+      if (scope === "account-sessions") {
+        const { data, error } = await database.from("account_sessions").select("id, user_agent, created_at, last_seen_at, revoked_at").eq("user_id", actor.uid).order("last_seen_at", { ascending: false }).limit(20);
+        if (error) throw error;
+        const rawCurrent = request.headers["x-kumo-session-id"];
+        const currentSessionId = (Array.isArray(rawCurrent) ? rawCurrent[0] : rawCurrent) ?? "";
+        return response.status(200).json({ sessions: (data ?? []).map((session) => ({ ...session, current: session.id === currentSessionId })) });
+      }
+      if (scope === "account-deletion") {
+        const { data, error } = await database.from("account_deletion_requests")
+          .select("requested_at, scheduled_for, cancelled_at, processing_started_at, attempt_count, last_error")
+          .eq("user_id", actor.uid)
+          .maybeSingle();
+        if (error) throw error;
+        return response.status(200).json({ deletion: data });
       }
       return response.status(400).json({ error: "Unknown platform scope." });
     }
@@ -230,10 +257,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const email = clean(request.body?.email, "", 320).toLowerCase();
         const memberRole = ["admin", "member", "guest"].includes(request.body?.role) ? request.body.role : "member";
         if (!/^\S+@\S+\.\S+$/.test(email)) return response.status(400).json({ error: "Enter a valid email address." });
-        const { data: existing, error: existingError } = await database.from("profiles").select("firebase_uid, email, display_name").ilike("email", email).maybeSingle();
+        const { data: existing, error: existingError } = await database.from("profiles").select("firebase_uid, email, display_name").eq("email_verified", true).ilike("email", email).maybeSingle();
         if (existingError) throw existingError;
         if (existing) {
-          const { error } = await database.from("workspace_members").upsert({ workspace_id: workspaceId, user_id: existing.firebase_uid, role: memberRole }, { onConflict: "workspace_id,user_id" });
+          const { error } = await database.rpc("upsert_kumo_workspace_member", {
+            p_workspace_id: workspaceId, p_actor_id: actor.uid,
+            p_user_id: existing.firebase_uid, p_role: memberRole,
+          });
           if (error) throw error;
           return response.status(200).json({ added: true, userId: existing.firebase_uid, role: memberRole });
         }
@@ -258,12 +288,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const userId = clean(request.body?.userId);
         if (userId === actor.uid && role === "owner") return response.status(409).json({ error: "The workspace owner cannot remove or demote themselves." });
         if (action === "remove-workspace-member") {
-          const { error } = await database.from("workspace_members").delete().eq("workspace_id", workspaceId).eq("user_id", userId).neq("role", "owner");
+          const { error } = await database.rpc("remove_kumo_workspace_member", { p_workspace_id: workspaceId, p_actor_id: actor.uid, p_user_id: userId });
           if (error) throw error;
           return response.status(200).json({ removed: true });
         }
         const memberRole = ["admin", "member", "guest"].includes(request.body?.role) ? request.body.role : "member";
-        const { error } = await database.from("workspace_members").update({ role: memberRole }).eq("workspace_id", workspaceId).eq("user_id", userId).neq("role", "owner");
+        const { error } = await database.rpc("update_kumo_workspace_member", {
+          p_workspace_id: workspaceId, p_actor_id: actor.uid, p_user_id: userId, p_role: memberRole,
+        });
         if (error) throw error;
         return response.status(200).json({ updated: true, role: memberRole });
       }
@@ -308,7 +340,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const workspaceId = clean(request.body?.workspaceId);
       const role = await workspaceAccess(workspaceId, actor.uid);
       if (role === "owner") return response.status(409).json({ error: "The owner cannot leave without transferring the workspace." });
-      const { error } = await database.from("workspace_members").delete().eq("workspace_id", workspaceId).eq("user_id", actor.uid);
+      const { error } = await database.rpc("leave_kumo_workspace", { p_workspace_id: workspaceId, p_user_id: actor.uid });
       if (error) throw error;
       return response.status(200).json({ left: true });
     }
@@ -470,13 +502,27 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.status(201).json({ installed: true, permissions: requested });
     }
 
+    if (action === "moderate-community") {
+      if (!isCommunityModerator(actor.uid)) return response.status(403).json({ error: "Community moderator access is required." });
+      const reportId = clean(request.body?.reportId);
+      const decision = ["reviewed", "dismissed", "removed"].includes(request.body?.decision) ? request.body.decision as "reviewed" | "dismissed" | "removed" : null;
+      if (!reportId || !decision) return response.status(400).json({ error: "Choose a valid moderation decision." });
+      const { error } = await database.rpc("moderate_kumo_community_report", {
+        p_report_id: reportId, p_actor_id: actor.uid, p_decision: decision,
+        p_note: clean(request.body?.note, "", 500),
+      });
+      if (error) throw error;
+      return response.status(200).json({ moderated: true, decision });
+    }
+
     if (["publish-community", "unpublish-community", "report-community", "remix-community"].includes(action)) {
       const boardId = clean(request.body?.boardId);
       if (action === "report-community") {
         const { data: publication, error: publicationError } = await database.from("community_publications").select("board_id").eq("board_id", boardId).maybeSingle();
         if (publicationError) throw publicationError;
         if (!publication) return response.status(404).json({ error: "Community publication not found." });
-        const { error } = await database.from("community_reports").upsert({ board_id: boardId, reporter_id: actor.uid, reason: clean(request.body?.reason, "", 500) }, { onConflict: "board_id,reporter_id" });
+        const category = ["spam", "harassment", "copyright", "unsafe", "misleading", "other"].includes(request.body?.category) ? request.body.category : "other";
+        const { error } = await database.from("community_reports").upsert({ board_id: boardId, reporter_id: actor.uid, category, reason: clean(request.body?.reason, "Please review this publication.", 500), status: "open", reviewed_by: null, reviewed_at: null, review_note: "" }, { onConflict: "board_id,reporter_id" });
         if (error) throw error;
         return response.status(201).json({ reported: true });
       }
@@ -508,18 +554,32 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.status(201).json({ publication: data });
     }
 
+    if (action === "revoke-account-session") {
+      const sessionId = clean(request.body?.sessionId, "", 100);
+      const rawCurrent = request.headers["x-kumo-session-id"];
+      const currentSessionId = (Array.isArray(rawCurrent) ? rawCurrent[0] : rawCurrent) ?? "";
+      if (!sessionId || sessionId === currentSessionId) return response.status(400).json({ error: "The current session cannot be revoked here." });
+      const { error } = await database.from("account_sessions").update({ revoked_at: new Date().toISOString() }).eq("user_id", actor.uid).eq("id", sessionId);
+      if (error) throw error;
+      return response.status(200).json({ revoked: true });
+    }
     if (action === "revoke-sessions") {
-      await privilegedAdminAuth().revokeRefreshTokens(actor.uid);
+      const rawCurrent = request.headers["x-kumo-session-id"];
+      const currentSessionId = (Array.isArray(rawCurrent) ? rawCurrent[0] : rawCurrent) ?? "";
+      let sessionQuery = database.from("account_sessions").update({ revoked_at: new Date().toISOString() }).eq("user_id", actor.uid).is("revoked_at", null);
+      if (currentSessionId) sessionQuery = sessionQuery.neq("id", currentSessionId);
+      const { error: sessionError } = await sessionQuery;
+      if (sessionError) throw sessionError;
       await database.from("audit_events").insert({ actor_id: actor.uid, event_type: "account.sessions_revoked" });
       return response.status(200).json({ revoked: true });
     }
     if (action === "request-account-deletion") {
-      const { data, error } = await database.from("account_deletion_requests").upsert({ user_id: actor.uid, requested_at: new Date().toISOString(), scheduled_for: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), cancelled_at: null }, { onConflict: "user_id" }).select("requested_at, scheduled_for").single();
+      const { data, error } = await database.rpc("schedule_kumo_account_deletion", { p_user_id: actor.uid });
       if (error) throw error;
-      return response.status(202).json({ deletion: data });
+      return response.status(202).json({ deletion: data?.[0] ?? null });
     }
     if (action === "cancel-account-deletion") {
-      const { error } = await database.from("account_deletion_requests").update({ cancelled_at: new Date().toISOString() }).eq("user_id", actor.uid).is("cancelled_at", null);
+      const { error } = await database.rpc("cancel_kumo_account_deletion", { p_user_id: actor.uid });
       if (error) throw error;
       return response.status(200).json({ cancelled: true });
     }
@@ -529,7 +589,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const status = message === "Authentication required." ? 401
       : error instanceof Error && error.name === "Forbidden" ? 403
       : /not found|prototype link is unavailable|invitation is unavailable|no longer exists/i.test(message) ? 404
-      : /cannot|conflict|before leaving|nested/i.test(message) ? 409
+      : /cannot|conflict|before leaving|nested|already/i.test(message) ? 409
       : /invalid|enter a valid|choose another|required|incorrect|expired|belongs to|exceed|only verified|disabled/i.test(message) ? 400
       : 500;
     return response.status(status).json({ error: status === 500 ? "We couldn't update the Kumo platform." : message });

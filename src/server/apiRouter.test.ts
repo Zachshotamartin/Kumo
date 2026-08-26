@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import vercelConfig from "../../vercel.json";
@@ -18,6 +18,27 @@ describe("consolidated Vercel API router", () => {
     const entries = readdirSync(apiDirectory).filter((entry) => entry.endsWith(".ts")).sort();
     expect(entries).toEqual(["liveblocks-webhook.ts", "router.ts"]);
     expect(entries.length).toBeLessThanOrEqual(12);
+  });
+
+  it("runs lifecycle maintenance on a Hobby-compatible daily cron", () => {
+    expect(vercelConfig.crons).toEqual([
+      { path: "/api/maintenance", schedule: "0 3 * * *" },
+    ]);
+  });
+
+  it("keeps the production collaboration canary compatible with verified-email enforcement", () => {
+    const canary = readFileSync(join(process.cwd(), "scripts", "verify-product-collaboration.mjs"), "utf8");
+    const workflow = readFileSync(join(process.cwd(), ".github", "workflows", "ci-cd.yml"), "utf8");
+    expect(canary).toContain('createVerifiedCanaryAccount(label, firebaseAdmin');
+    expect(canary).toContain('required("FIREBASE_SERVICE_ACCOUNT_JSON")');
+    expect(canary).toContain('identityUrl("signInWithPassword")');
+    expect(canary).toContain('fbase_key: `firebase:authUser:${apiKey}:[DEFAULT]`');
+    expect(canary).not.toContain('identityUrl("signUp")');
+    expect(canary).not.toContain('getByLabel("Email")');
+    expect(canary).not.toContain('getByLabel("Password")');
+    expect(workflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}');
+    expect(workflow.match(/run: yarn verify:remote-schema/g)).toHaveLength(2);
+    expect(workflow.indexOf("run: yarn verify:remote-schema")).toBeLessThan(workflow.indexOf("Build preview artifacts"));
   });
 
   it("routes API requests before the single-page-app fallback", () => {
@@ -41,6 +62,7 @@ describe("consolidated Vercel API router", () => {
       "collaborators",
       "friends",
       "liveblocks-auth",
+      "maintenance",
       "migrate-board",
       "platform",
       "product",

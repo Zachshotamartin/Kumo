@@ -483,6 +483,26 @@ describe("new editor capability panels", () => {
     expect(store.getState().selected.selectedShapes).toEqual([remote.id]);
   });
 
+  it("opens the searchable keyboard reference only from an unmodified canvas question mark", () => {
+    const store = renderWithStore(<CommandPalette />, child.id);
+    const editing = document.createElement("input");
+    document.body.append(editing);
+    fireEvent.keyDown(editing, { key: "?" });
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "?", metaKey: true });
+    fireEvent.keyDown(window, { key: "?", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "?", altKey: true });
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "?" });
+    const input = screen.getByRole("textbox", { name: "Search keyboard shortcuts" });
+    expect(screen.queryByRole("option", { name: /Open assets/ })).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "Draw rectangle" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(store.getState().selected.selectedTool).toBe("rectangle");
+    editing.remove();
+  });
+
   it("navigates, dismisses, and runs every kind of command-palette result", () => {
     const animation = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       callback(0);

@@ -13,7 +13,8 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { clearRecoverySnapshot, loadRecoverySnapshot } from "../../collaboration/offlineRecovery";
+import { clearRecoverySnapshot, loadRecoverySnapshot, mergeRecoverySnapshot, resolveRecoveryConflicts, type RecoveryResolution } from "../../collaboration/offlineRecovery";
+import { readSyncEvents, type OfflineSyncEvent } from "../../collaboration/offlineJournal";
 import {
   auditAccessibility,
   analyzeDocumentPerformance,
@@ -66,7 +67,8 @@ const ProductPanel = () => {
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
   const actions = useEditorActions();
-  const [tab, setTab] = useState<ProductTab>("graph");
+  const [tab, setTab] = useState<ProductTab>(() => board.id && loadRecoverySnapshot(board.id) ? "recovery" : "graph");
+  const [recoveryResolutions, setRecoveryResolutions] = useState<Record<string, RecoveryResolution>>({});
   const [graph, setGraph] = useState<ProductGraph | null>(null);
   const [libraries, setLibraries] = useState<DesignLibrarySummary[]>([]);
   const [subscriptions, setSubscriptions] = useState<LibrarySubscription[]>([]);
@@ -86,6 +88,7 @@ const ProductPanel = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [syncEvents, setSyncEvents] = useState<OfflineSyncEvent[]>([]);
 
   const reloadLibraries = useCallback(async () => {
     const result = await loadLibraries(board.id!);
@@ -109,10 +112,21 @@ const ProductPanel = () => {
     return () => { active = false; };
   }, [board.id]);
 
+  useEffect(() => {
+    if (!board.id || tab !== "recovery") return;
+    let active = true;
+    void readSyncEvents(board.id).then((events) => { if (active) setSyncEvents(events); })
+      .catch(() => { if (active) setSyncEvents([]); });
+    return () => { active = false; };
+  }, [board.id, tab]);
+
   const searchResults = useMemo(() => searchDocument(board.shapes, query), [board.shapes, query]);
   const findings = useMemo(() => auditAccessibility(board.shapes), [board.shapes]);
   const performance = useMemo(() => analyzeDocumentPerformance(board.shapes, { x: 0, y: 0, width: 1920 / 1, height: 1080 / 1 }), [board.shapes]);
   const recovery = board.id ? loadRecoverySnapshot(board.id) : null;
+  const recoveryMerge = useMemo(() => recovery
+    ? mergeRecoverySnapshot(recovery.baseShapes, board.shapes, recovery.shapes)
+    : null, [board.shapes, recovery]);
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true); setError(null); setMessage(null);
@@ -233,7 +247,9 @@ const ProductPanel = () => {
 
         {tab === "recovery" && <section className={styles.inspectorSection}>
           <h2><ArrowClockwise aria-hidden="true" /> Offline recovery</h2>
-          {!recovery ? <p className={styles.fieldHint}>No local recovery snapshot is waiting.</p> : <><p>A local snapshot from {new Date(recovery.savedAt).toLocaleString()} contains {recovery.shapes.length} layers.</p><div className={styles.buttonGrid}><button type="button" disabled={!actions.canEdit} onClick={() => { actions.commitShapes(recovery.shapes); clearRecoverySnapshot(recovery.boardId); setMessage("Recovered local work."); }}>Restore snapshot</button><button type="button" onClick={() => { clearRecoverySnapshot(recovery.boardId); setMessage("Recovery snapshot discarded."); }}>Discard</button></div></>}
+          {!recovery || !recoveryMerge ? <p className={styles.fieldHint}>No local recovery snapshot is waiting.</p> : <><p>A local snapshot from {new Date(recovery.savedAt).toLocaleString()} contains {recovery.shapes.length} layers. Independent edits merge automatically; current collaborative work is kept for unresolved conflicts.</p>{recoveryMerge.conflicts.length > 0 && <div className={styles.assetList}>{recoveryMerge.conflicts.map((conflict) => <div className={styles.assetRow} key={conflict.shapeId}><span>{recovery.shapes.find((shape) => shape.id === conflict.shapeId)?.name ?? board.shapes.find((shape) => shape.id === conflict.shapeId)?.name ?? conflict.shapeId}<small>Conflict: {conflict.fields.join(", ")}</small></span><div><button type="button" aria-pressed={(recoveryResolutions[conflict.shapeId] ?? "remote") === "remote"} onClick={() => setRecoveryResolutions((current) => ({ ...current, [conflict.shapeId]: "remote" }))}>Keep current</button><button type="button" aria-pressed={recoveryResolutions[conflict.shapeId] === "local"} onClick={() => setRecoveryResolutions((current) => ({ ...current, [conflict.shapeId]: "local" }))}>Use offline</button></div></div>)}</div>}<div className={styles.buttonGrid}><button type="button" disabled={!actions.canEdit} onClick={() => { const next = resolveRecoveryConflicts(recoveryMerge, board.shapes, recovery.shapes, recoveryResolutions); actions.commitShapes(next); const localBackgroundChanged = recovery.backgroundColor !== recovery.baseBackgroundColor; const remoteBackgroundChanged = board.backGroundColor !== recovery.baseBackgroundColor; if (localBackgroundChanged && !remoteBackgroundChanged) actions.commitBoardPatch({ backGroundColor: recovery.backgroundColor }); clearRecoverySnapshot(recovery.boardId); setMessage(`Recovered local work${recoveryMerge.conflicts.length ? ` with ${recoveryMerge.conflicts.length} reviewed conflicts` : ""}.`); }}>Merge recovery</button><button type="button" onClick={() => { clearRecoverySnapshot(recovery.boardId); setMessage("Recovery snapshot discarded."); }}>Discard</button></div></>}
+          <h2>Sync history</h2>
+          {!syncEvents.length ? <p className={styles.fieldHint}>No offline sync activity has been recorded.</p> : <div className={styles.assetList}>{syncEvents.map((event, index) => <div className={styles.assetRow} key={`${event.id ?? event.at}:${index}`}><span>{event.status}<small>{new Date(event.at).toLocaleString()}{event.detail ? ` · ${event.detail}` : ""}</small></span></div>)}</div>}
         </section>}
 
         {message && <p className={styles.successLine} role="status"><Check aria-hidden="true" /> {message}</p>}

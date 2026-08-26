@@ -1,6 +1,6 @@
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 import store from "./store";
@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   ensureProfile: vi.fn(),
   startObservability: vi.fn(),
   stopObservability: vi.fn(),
+  signOut: vi.fn(),
+  getBoard: vi.fn(),
 }));
 
 vi.mock("./config/firebase", () => ({
@@ -39,6 +41,7 @@ vi.mock("./history/VersionShareView", () => ({ default: ({ versionId, token }: {
 vi.mock("./components/editor/OpenSessionView", () => ({ default: ({ token }: { token: string }) => <div>Open session {token}</div> }));
 vi.mock("./collaboration/LiveblocksRoot", () => ({ LiveblocksRoot: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("./services/userRepository", () => ({ ensureUserProfile: mocks.ensureProfile }));
+vi.mock("./services/boardRepository", () => ({ getBoard: mocks.getBoard }));
 vi.mock("./platform/observability", () => ({ startObservability: mocks.startObservability }));
 
 vi.mock("firebase/auth", () => ({
@@ -56,6 +59,7 @@ vi.mock("firebase/auth", () => ({
   getRedirectResult: vi.fn().mockResolvedValue(null),
   createUserWithEmailAndPassword: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
+  signOut: mocks.signOut,
 }));
 
 describe("App", () => {
@@ -66,6 +70,7 @@ describe("App", () => {
     mocks.observeAuth.mockImplementation((callback: (user: null) => void) => callback(null));
     mocks.ensureProfile.mockResolvedValue({ displayName: "Ada", username: "ada", avatarUrl: null });
     mocks.startObservability.mockReturnValue(mocks.stopObservability);
+    mocks.getBoard.mockResolvedValue({ id: "loaded", title: "Loaded" });
     window.history.replaceState({}, "", "/");
   });
 
@@ -129,6 +134,14 @@ describe("App", () => {
     expect(consoleError).toHaveBeenCalledWith("Kumo could not initialize the authenticated profile.", error);
   });
 
+  it("signs out an explicitly unverified email identity before loading private UI", async () => {
+    mocks.observeAuth.mockImplementation((callback: (user: { uid: string; email: string; emailVerified: boolean }) => void) => callback({ uid: "claimed", email: "claimed@example.com", emailVerified: false }));
+    render(<Provider store={store}><App /></Provider>);
+    expect(await screen.findByRole("heading", { name: /every board can lead somewhere/i })).toBeVisible();
+    expect(mocks.signOut).toHaveBeenCalledWith({});
+    expect(mocks.ensureProfile).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["/?openSession=session-token", "Open session session-token"],
     ["/?versionToken=share-token&version=version-id", "Version version-id share-token"],
@@ -137,5 +150,47 @@ describe("App", () => {
     window.history.replaceState({}, "", url);
     render(<Provider store={store}><App /></Provider>);
     expect(await screen.findByText(expected)).toBeVisible();
+  });
+
+  it("synchronizes browser back and forward navigation with loaded editor state", async () => {
+    mocks.observeAuth.mockImplementation((callback: (user: { uid: string; email: string }) => void) => callback({ uid: "owner", email: "owner@example.com" }));
+    store.dispatch(setWhiteboardData({ id: "current" }));
+    const rendered = render(<Provider store={store}><App /></Provider>);
+    await screen.findByText("Editor workspace");
+
+    window.history.replaceState({}, "", "/?board=loaded");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => expect(store.getState().whiteBoard.id).toBe("loaded"));
+    expect(mocks.getBoard).toHaveBeenCalledWith("loaded");
+
+    mocks.getBoard.mockClear();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(mocks.getBoard).not.toHaveBeenCalled();
+
+    window.history.replaceState({}, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => expect(store.getState().whiteBoard.id).toBeNull());
+    rendered.unmount();
+  });
+
+  it("repairs failed board history entries and ignores loads after unmount", async () => {
+    mocks.observeAuth.mockImplementation((callback: (user: { uid: string; email: string }) => void) => callback({ uid: "owner", email: "owner@example.com" }));
+    store.dispatch(setWhiteboardData({ id: null }));
+    mocks.getBoard.mockRejectedValueOnce(new Error("missing"));
+    const rendered = render(<Provider store={store}><App /></Provider>);
+    await screen.findByText("Board dashboard");
+    window.history.replaceState({}, "", "/?board=missing");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => expect(new URL(window.location.href).searchParams.has("board")).toBe(false));
+    expect(store.getState().whiteBoard.id).toBeNull();
+
+    let resolveBoard!: (board: { id: string }) => void;
+    mocks.getBoard.mockReturnValueOnce(new Promise((resolve) => { resolveBoard = resolve; }));
+    window.history.replaceState({}, "", "/?board=late");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    rendered.unmount();
+    resolveBoard({ id: "late" });
+    await Promise.resolve();
+    expect(store.getState().whiteBoard.id).toBeNull();
   });
 });

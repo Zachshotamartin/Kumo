@@ -115,4 +115,45 @@ describe("production database migrations", () => {
     expect(source).toContain("allowed_mime_types");
     expect(source).not.toContain("board_id uuid");
   });
+
+  it("ships the reliability release with atomic claims, protected workspace roles, and durable cleanup", () => {
+    const source = migration("202608250002_reliability_release.sql");
+    for (const mutation of [
+      "claim_due_kumo_account_deletions",
+      "claim_kumo_onboarding",
+      "complete_kumo_onboarding",
+      "release_kumo_onboarding",
+      "schedule_kumo_account_deletion",
+      "cancel_kumo_account_deletion",
+      "restore_kumo_board",
+      "claim_expired_kumo_boards",
+      "upsert_kumo_workspace_member",
+      "update_kumo_workspace_member",
+      "moderate_kumo_community_report",
+      "apply_kumo_board_access_change",
+      "create_kumo_board_access_request",
+      "resolve_kumo_board_access_request",
+      "enqueue_kumo_storage_cleanup",
+      "claim_due_kumo_storage_cleanups",
+    ]) {
+      expect(source).toContain(`function public.${mutation}`);
+      expect(source).toContain(`grant execute on function public.${mutation}`);
+    }
+    expect(source).toContain("for update skip locked");
+    expect(source).toContain("Workspace owner role cannot be changed by invitation");
+    expect(source).toContain("The workspace owner cannot be demoted");
+    expect(source).toContain("create table if not exists public.storage_cleanup_jobs");
+    expect(source).toContain("'access-request', 'access-change', 'system'");
+    expect(source).toContain("alter table public.storage_cleanup_jobs enable row level security");
+    expect(source).toContain("on delete set null");
+    expect(source).toMatch(/update public\.boards board\s+set workspace_id = \(\s+select member\.workspace_id[\s\S]*?member\.user_id = board\.owner_id[\s\S]*?\)\s+where board\.workspace_id is null;/);
+    expect(source).not.toContain("from lateral");
+    expect(source).toMatch(/function public\.assign_kumo_board_workspace\(\)[\s\S]*?security definer[\s\S]*?set search_path = ''/);
+    expect(source).toContain("revoke all on function public.assign_kumo_board_workspace() from public, anon, authenticated");
+    expect(source).toContain("grant execute on function public.assign_kumo_board_workspace() to service_role");
+    expect(source).toContain("create table if not exists public.kumo_schema_releases");
+    expect(source).toContain("alter table public.kumo_schema_releases enable row level security");
+    expect(source).toContain("grant select on public.kumo_schema_releases to service_role");
+    expect(source.trimEnd()).toMatch(/values \('202608250002'\)\s+on conflict \(version\) do nothing;$/);
+  });
 });

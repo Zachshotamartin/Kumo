@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import { Liveblocks } from "@liveblocks/node";
 import { chromium, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { createVerifiedCanaryAccount, parseFirebaseCanaryServiceAccount } from "../src/server/fullStackFirebaseCanary.ts";
 
 const baseUrl = new URL(process.argv[2] ?? "http://localhost:5175");
 const envPath = resolve(process.argv[3] ?? ".env.local");
@@ -36,9 +39,19 @@ const supabaseUrl = required("SUPABASE_URL");
 const supabaseServiceRoleKey = required("SUPABASE_SERVICE_ROLE_KEY");
 const liveblocksSecretKey = required("LIVEBLOCKS_SECRET_KEY");
 if (!liveblocksSecretKey.startsWith("sk_")) throw new Error("LIVEBLOCKS_SECRET_KEY must begin with sk_.");
+const firebaseServiceAccount = parseFirebaseCanaryServiceAccount(required("FIREBASE_SERVICE_ACCOUNT_JSON"));
 
 const liveblocks = new Liveblocks({ secret: liveblocksSecretKey });
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+const firebaseAdminAppName = "kumo-full-stack-canary";
+const firebaseAdminApp = getApps().find((app) => app.name === firebaseAdminAppName) ?? initializeApp({
+  credential: cert({
+    projectId: firebaseServiceAccount.projectId,
+    clientEmail: firebaseServiceAccount.clientEmail,
+    privateKey: firebaseServiceAccount.privateKey,
+  }),
+}, firebaseAdminAppName);
+const firebaseAdmin = getAuth(firebaseAdminApp);
 const supabaseHeaders = {
   apikey: supabaseServiceRoleKey,
   authorization: `Bearer ${supabaseServiceRoleKey}`,
@@ -70,24 +83,19 @@ const jsonRequest = async (input, init = {}) => {
 };
 
 const createAccount = async (label) => {
-  const password = `Kumo-${randomUUID()}-A1!`;
-  const email = `kumo-full-stack-${label}-${randomUUID()}@example.com`;
-  const account = await jsonRequest(identityUrl("signUp"), {
+  const result = await createVerifiedCanaryAccount(label, firebaseAdmin, (email, password) => jsonRequest(identityUrl("signInWithPassword"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password, returnSecureToken: true }),
-  });
-  const result = {
-    email,
-    password,
-    idToken: account.idToken,
-    uid: account.localId,
-  };
+  }), randomUUID);
   accounts.push(result);
   return result;
 };
 
-const authHeaders = (account) => ({ authorization: `Bearer ${account.idToken}` });
+const authHeaders = (account) => ({
+  authorization: `Bearer ${account.idToken}`,
+  "x-kumo-session-id": account.sessionId,
+});
 const api = (account, path, init = {}) => jsonRequest(new URL(path, baseUrl), {
   ...init,
   headers: {
@@ -223,9 +231,51 @@ const loginAndOpenBoard = async (context, account, boardTitle) => {
     if (message.type() === "error") diagnostics.push(`console: ${message.text()}`);
   });
   await page.goto(baseUrl.toString(), { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Email").fill(account.email);
-  await page.getByLabel("Password").fill(account.password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.evaluate(async ({ apiKey, account: firebaseAccount }) => {
+    const database = await new Promise((resolveDatabase, rejectDatabase) => {
+      const request = globalThis.indexedDB.open("firebaseLocalStorageDb", 1);
+      request.addEventListener("upgradeneeded", () => {
+        if (!request.result.objectStoreNames.contains("firebaseLocalStorage")) {
+          request.result.createObjectStore("firebaseLocalStorage", { keyPath: "fbase_key" });
+        }
+      });
+      request.addEventListener("success", () => resolveDatabase(request.result));
+      request.addEventListener("error", () => rejectDatabase(request.error));
+    });
+    const transaction = database.transaction("firebaseLocalStorage", "readwrite");
+    transaction.objectStore("firebaseLocalStorage").put({
+      fbase_key: `firebase:authUser:${apiKey}:[DEFAULT]`,
+      value: {
+        uid: firebaseAccount.uid,
+        email: firebaseAccount.email,
+        emailVerified: true,
+        isAnonymous: false,
+        providerData: [{
+          providerId: "password",
+          uid: firebaseAccount.email,
+          displayName: null,
+          email: firebaseAccount.email,
+          phoneNumber: null,
+          photoURL: null,
+        }],
+        stsTokenManager: {
+          refreshToken: firebaseAccount.refreshToken,
+          accessToken: firebaseAccount.idToken,
+          expirationTime: firebaseAccount.expirationTime,
+        },
+        apiKey,
+        appName: "[DEFAULT]",
+      },
+    });
+    await new Promise((resolveTransaction, rejectTransaction) => {
+      transaction.addEventListener("complete", resolveTransaction);
+      transaction.addEventListener("error", () => rejectTransaction(transaction.error));
+      transaction.addEventListener("abort", () => rejectTransaction(transaction.error));
+    });
+    database.close();
+    globalThis.localStorage.setItem("kumo:account-session-id", firebaseAccount.sessionId);
+  }, { apiKey: firebaseApiKey, account });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("button", { name: "Kumo boards" })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Open ${boardTitle}`, exact: true }).click({ timeout: 60_000 });
   try {
@@ -290,7 +340,7 @@ try {
   const invitedWorkspaceMember = await post(owner, "/api/platform", {
     action: "invite-workspace-member", workspaceId, email: collaborator.email, role: "admin",
   });
-  assert(invitedWorkspaceMember.added && invitedWorkspaceMember.userId === collaborator.uid, "An existing profile could not be added to the workspace.");
+  assert(invitedWorkspaceMember.added && invitedWorkspaceMember.userId === collaborator.uid, "The verified disposable collaborator could not be added to the workspace.");
   const transferredWorkspace = await post(owner, "/api/platform", {
     action: "transfer-workspace-ownership", workspaceId, userId: collaborator.uid,
   });
@@ -587,10 +637,6 @@ try {
     await fetch(profiles, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
   }
   for (const account of accounts) {
-    await fetch(identityUrl("delete"), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idToken: account.idToken }),
-    }).catch(() => undefined);
+    await firebaseAdmin.deleteUser(account.uid).catch(() => undefined);
   }
 }

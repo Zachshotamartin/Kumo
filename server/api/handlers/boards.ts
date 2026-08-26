@@ -17,6 +17,8 @@ import {
   rewriteDocumentAssetIds,
 } from "../_assets.js";
 import { syncBoardLinks } from "../_boardLinks.js";
+import { randomUUID } from "node:crypto";
+import { purgeBoardResources } from "../_lifecycle.js";
 
 const cleanTitle = (value: unknown): string =>
   (typeof value === "string" ? value.trim() : "").slice(0, 120) || "Untitled board";
@@ -47,12 +49,68 @@ export default async function handler(request: VercelRequest, response: VercelRe
         });
       }
       if (scope === "public") {
-        return response.status(200).json({ boards: await searchPublicBoards(stringQuery(request.query.query)) });
+        return response.status(200).json({ boards: await searchPublicBoards(stringQuery(request.query.query), actor.uid) });
+      }
+      if (scope === "deleted") {
+        const { data, error } = await supabaseAdmin().from("boards")
+          .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at, workspace_id")
+          .eq("owner_id", actor.uid)
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false });
+        if (error) throw error;
+        return response.status(200).json({ boards: (data ?? []).map((board) => boardSummary(board as never, "owner")) });
       }
       return response.status(200).json({ boards: await listBoardsForUser(actor.uid) });
     }
 
     if (request.method === "POST") {
+      if (request.body?.action === "create-onboarding") {
+        const database = supabaseAdmin();
+        const { data: claimed, error: claimError } = await database.rpc("claim_kumo_onboarding", { p_user_id: actor.uid });
+        if (claimError) throw claimError;
+        if (claimed !== true) return response.status(409).json({ error: "The guided sample is available only before creating your first board." });
+        const created: Array<Awaited<ReturnType<typeof provisionBoard>>> = [];
+        try {
+          const linked = await provisionBoard({ ownerId: actor.uid, title: "Kumo tour · Linked ideas", document: {
+            backgroundColor: "#252629",
+            nodes: {
+              intro: { id: "intro", type: "text", name: "Linked board", text: "This is a separate board. Head back to the tour to follow the live board link.", x1: 120, y1: 120, x2: 760, y2: 220, width: 640, height: 100, level: 0, zIndex: 1, parentId: null },
+            },
+          } });
+          created.push(linked);
+          const tourDocument = {
+            backgroundColor: "#252629",
+            nodes: {
+              welcome: { id: "welcome", type: "text", name: "Welcome", text: "Welcome to Kumo", x1: 100, y1: 80, x2: 620, y2: 160, width: 520, height: 80, level: 0, zIndex: 1, parentId: null },
+              guide: { id: "guide", type: "text", name: "Tour steps", text: "1. Select and move a layer\n2. Open Share to invite someone\n3. Press C to pin a comment\n4. Open Version history from the board menu\n5. Open the linked board below", x1: 100, y1: 190, x2: 700, y2: 410, width: 600, height: 220, level: 0, zIndex: 2, parentId: null },
+              link: { id: "link", type: "board", name: "Live linked board", title: linked.title, boardId: linked.id, x1: 100, y1: 450, x2: 460, y2: 660, width: 360, height: 210, level: 0, zIndex: 3, parentId: null },
+            },
+          };
+          const tour = await provisionBoard({ ownerId: actor.uid, title: "Welcome to Kumo", document: tourDocument });
+          created.push(tour);
+          await syncBoardLinks(tour.id, tourDocument);
+          const { error: snapshotError } = await database.from("document_snapshots").insert({
+            id: randomUUID(), board_id: tour.id, liveblocks_room_id: tour.liveblocks_room_id,
+            document: tourDocument, created_by: actor.uid, kind: "checkpoint",
+            name: "Tour starting point", description: "The original guided sample.",
+          });
+          if (snapshotError) throw snapshotError;
+          const { error: completionError } = await database.rpc("complete_kumo_onboarding", { p_user_id: actor.uid });
+          if (completionError) throw completionError;
+          return response.status(201).json({ board: boardSummary(tour, "owner"), linkedBoardId: linked.id });
+        } catch (error) {
+          for (const board of created.reverse()) await purgeBoardResources(board).catch(() => undefined);
+          await database.rpc("release_kumo_onboarding", { p_user_id: actor.uid });
+          throw error;
+        }
+      }
+      if (request.body?.action === "restore") {
+        const boardId = typeof request.body?.boardId === "string" ? request.body.boardId : "";
+        const { data, error } = await supabaseAdmin().rpc("restore_kumo_board", { p_board_id: boardId, p_actor_id: actor.uid });
+        if (error) throw error;
+        if (!data) return response.status(404).json({ error: "Deleted board not found." });
+        return response.status(200).json({ board: boardSummary(data as never, "owner") });
+      }
       const action = request.body?.action === "duplicate" ? "duplicate" : "create";
       if (action === "duplicate") {
         const sourceId = typeof request.body?.boardId === "string" ? request.body.boardId : "";

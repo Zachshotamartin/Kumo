@@ -7,6 +7,9 @@
   "git": {
     "deploymentEnabled": false
   },
+  "crons": [
+    { "path": "/api/maintenance", "schedule": "0 3 * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

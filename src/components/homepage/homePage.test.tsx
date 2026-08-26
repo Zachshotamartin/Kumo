@@ -2,8 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import HomePage from "./homePage";
 
 const mocks = vi.hoisted(() => ({
-  signIn: vi.fn().mockResolvedValue(undefined),
-  register: vi.fn().mockResolvedValue(undefined),
+  signIn: vi.fn(),
+  register: vi.fn(),
+  verifyEmail: vi.fn().mockResolvedValue(undefined),
+  signOut: vi.fn().mockResolvedValue(undefined),
   googleRedirect: vi.fn().mockResolvedValue(undefined),
   redirectResult: vi.fn().mockResolvedValue(null),
   reset: vi.fn().mockResolvedValue(undefined),
@@ -22,6 +24,8 @@ vi.mock("firebase/auth", () => ({
   signInWithCredential: mocks.credential,
   getRedirectResult: mocks.redirectResult,
   sendPasswordResetEmail: mocks.reset,
+  sendEmailVerification: mocks.verifyEmail,
+  signOut: mocks.signOut,
 }));
 vi.mock("../../config/firebase", () => ({ auth: {}, firebaseApiKey: "public-key", provider: {} }));
 vi.mock("../../services/userRepository", () => ({ ensureUserProfile: mocks.profile }));
@@ -35,8 +39,10 @@ vi.mock("../../config/localGoogleRedirect", () => ({
 describe("HomePage authentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.signIn.mockResolvedValue(undefined);
-    mocks.register.mockResolvedValue(undefined);
+    mocks.signIn.mockResolvedValue({ user: { emailVerified: true } });
+    mocks.register.mockResolvedValue({ user: { emailVerified: false } });
+    mocks.verifyEmail.mockResolvedValue(undefined);
+    mocks.signOut.mockResolvedValue(undefined);
     mocks.googleRedirect.mockResolvedValue(undefined);
     mocks.redirectResult.mockResolvedValue(null);
     mocks.reset.mockResolvedValue(undefined);
@@ -49,9 +55,9 @@ describe("HomePage authentication", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  const fillCredentials = () => {
+  const fillCredentials = (password = "passwordpassword") => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: " user@example.com " } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
   };
 
   it("signs in and provisions the application profile", async () => {
@@ -60,7 +66,7 @@ describe("HomePage authentication", () => {
     expect(screen.getAllByLabelText("Animated Kumo mascot")).toHaveLength(1);
     fillCredentials();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith({}, "user@example.com", "password"));
+    await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith({}, "user@example.com", "passwordpassword"));
     expect(mocks.profile).toHaveBeenCalled();
   });
 
@@ -69,9 +75,49 @@ describe("HomePage authentication", () => {
     render(<HomePage />);
     fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
     fillCredentials();
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "passwordpassword" } });
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("An account already uses this email");
     expect(screen.getByLabelText("Animated Kumo mascot")).toHaveAttribute("context", "error");
+  });
+
+  it("verifies new accounts and refuses unverified sign-ins", async () => {
+    const registeredUser = { emailVerified: false, uid: "new-user" };
+    mocks.register.mockResolvedValueOnce({ user: registeredUser });
+    render(<HomePage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
+    fillCredentials();
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "passwordpassword" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Check your email");
+    expect(mocks.verifyEmail).toHaveBeenCalledWith(registeredUser);
+    expect(mocks.signOut).toHaveBeenCalledWith({});
+    expect(mocks.profile).not.toHaveBeenCalled();
+
+    mocks.signIn.mockResolvedValueOnce({ user: registeredUser });
+    fillCredentials();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Verify your email");
+    expect(mocks.verifyEmail).toHaveBeenCalledTimes(2);
+    expect(mocks.profile).not.toHaveBeenCalled();
+  });
+
+  it("enforces registration confirmation, strength, and password visibility", async () => {
+    render(<HomePage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
+    fillCredentials("short");
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "short" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Authentication" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("at least twelve");
+    fillCredentials();
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "different-password" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Authentication" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Passwords do not match");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Confirm password")).toHaveAttribute("type", "text");
+    fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
   });
 
   it("validates and sends password reset requests", async () => {

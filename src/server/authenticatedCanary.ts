@@ -43,14 +43,17 @@ export const verifyAuthenticatedCanary = async (
   const cleanupErrors: Error[] = [];
 
   try {
+    // Use an anonymous disposable identity. Email/password sign-up tokens are
+    // intentionally unverified and production APIs correctly reject them.
     const signup = await requireResponse(await fetcher(identity("signUp"), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: options.email, password: options.password, returnSecureToken: true }),
+      body: JSON.stringify({ returnSecureToken: true }),
     }), "Firebase canary signup");
     account = await signup.json() as FirebaseAccount;
     if (!account.idToken || !account.localId) throw new Error("Firebase canary signup returned an incomplete account.");
-    const headers = { authorization: `Bearer ${account.idToken}`, "content-type": "application/json" };
+    const sessionId = `canary-${account.localId}`.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 100).padEnd(16, "0");
+    const headers = { authorization: `Bearer ${account.idToken}`, "x-kumo-session-id": sessionId, "content-type": "application/json" };
     const session = await requireResponse(await fetcher(new URL("/api/session", baseUrl), {
       method: "POST",
       headers,
@@ -59,7 +62,7 @@ export const verifyAuthenticatedCanary = async (
     const sessionBody = await session.json() as { profile?: { uid?: string } };
     if (sessionBody.profile?.uid !== account.localId) throw new Error("Authenticated session returned the wrong profile.");
     const boards = await requireResponse(await fetcher(new URL("/api/boards", baseUrl), {
-      headers: { authorization: `Bearer ${account.idToken}` },
+      headers: { authorization: `Bearer ${account.idToken}`, "x-kumo-session-id": sessionId },
     }), "Authenticated boards API");
     const boardsBody = await boards.json() as { boards?: unknown[] };
     if (!Array.isArray(boardsBody.boards)) throw new Error("Authenticated boards API returned an invalid collection.");

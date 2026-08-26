@@ -10,9 +10,10 @@ import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/
 import ProductPanel from "./ProductPanel";
 
 const mocks = vi.hoisted(() => ({
-  actions: { canEdit: true, commitShapes: vi.fn() },
+  actions: { canEdit: true, commitShapes: vi.fn(), commitBoardPatch: vi.fn() },
   graph: vi.fn(), libraries: vi.fn(), templates: vi.fn(), publish: vi.fn(), diff: vi.fn(), apply: vi.fn(), createTemplate: vi.fn(), extensions: vi.fn(),
   libraryVersions: vi.fn(), govern: vi.fn(), installExtension: vi.fn(), publishExtension: vi.fn(), toggleExtension: vi.fn(), uninstallExtension: vi.fn(), publishCommunity: vi.fn(), unpublishCommunity: vi.fn(),
+  syncEvents: vi.fn(),
 }));
 
 vi.mock("../../editor/useEditorActions", () => ({ useEditorActions: () => mocks.actions }));
@@ -31,6 +32,10 @@ vi.mock("../../services/platformRepository", () => ({
   loadExtensions: mocks.extensions,
   installExtension: mocks.installExtension, publishExtension: mocks.publishExtension, toggleExtension: mocks.toggleExtension, uninstallExtension: mocks.uninstallExtension,
   publishCommunity: mocks.publishCommunity, unpublishCommunity: mocks.unpublishCommunity,
+}));
+vi.mock("../../collaboration/offlineJournal", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../collaboration/offlineJournal")>(),
+  readSyncEvents: mocks.syncEvents,
 }));
 
 const shape = (id: string, patch: Partial<Shape> = {}): Shape => ({
@@ -83,6 +88,7 @@ describe("ProductPanel", () => {
     mocks.publishExtension.mockResolvedValue({ extension: { id: "published" } });
     mocks.toggleExtension.mockResolvedValue({ enabled: false });
     mocks.uninstallExtension.mockResolvedValue({ uninstalled: true });
+    mocks.syncEvents.mockResolvedValue([]);
   });
 
   it("renders a permission-aware board graph with broken-link health", async () => {
@@ -147,13 +153,77 @@ describe("ProductPanel", () => {
   });
 
   it("restores or discards an offline snapshot", async () => {
-    window.localStorage.setItem("kumo:recovery:board", JSON.stringify({ boardId: "board", savedAt: Date.now(), baseRevision: 1, backgroundColor: "#000", shapes: [shape("recovered")] }));
+    window.localStorage.setItem("kumo:recovery:board", JSON.stringify({ boardId: "board", savedAt: Date.now(), baseRevision: 1, baseBackgroundColor: "#313131", backgroundColor: "#000", baseShapes: [], shapes: [shape("recovered")] }));
     render(<Provider store={makeStore()}><ProductPanel /></Provider>);
-    await screen.findAllByText("Roadmap");
-    fireEvent.click(screen.getByRole("tab", { name: "recovery" }));
-    fireEvent.click(screen.getByRole("button", { name: "Restore snapshot" }));
-    expect(mocks.actions.commitShapes).toHaveBeenCalledWith([expect.objectContaining({ id: "recovered" })]);
+    expect(await screen.findByRole("heading", { name: /Offline recovery/ })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Merge recovery" }));
+    expect(mocks.actions.commitShapes).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "recovered" })]));
+    expect(mocks.actions.commitBoardPatch).toHaveBeenCalledWith({ backGroundColor: "#000" });
     expect(window.localStorage.getItem("kumo:recovery:board")).toBeNull();
+  });
+
+  it("shows durable offline sync history in the recovery tools", async () => {
+    mocks.syncEvents.mockResolvedValueOnce([
+      { id: 1, boardId: "board", status: "failed", at: 1, detail: "1 queued mutation remains" },
+      { boardId: "board", status: "synced", at: 2 },
+    ]);
+    render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    fireEvent.click(screen.getByRole("tab", { name: "recovery" }));
+    expect(await screen.findByText("Sync history")).toBeVisible();
+    expect(await screen.findByText("failed")).toBeVisible();
+    expect(screen.getByText(/1 queued mutation remains/)).toBeVisible();
+    expect(screen.getByText("synced")).toBeVisible();
+  });
+
+  it("handles active and stale sync-history failures", async () => {
+    mocks.syncEvents.mockRejectedValueOnce(new Error("journal unavailable"));
+    const active = render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    fireEvent.click(screen.getByRole("tab", { name: "recovery" }));
+    expect(await screen.findByText("No offline sync activity has been recorded.")).toBeVisible();
+    active.unmount();
+
+    let rejectSync: (reason: unknown) => void = () => undefined;
+    mocks.syncEvents.mockImplementationOnce(() => new Promise((_, reject) => { rejectSync = reject; }));
+    const stale = render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    fireEvent.click(screen.getByRole("tab", { name: "recovery" }));
+    stale.unmount();
+    await act(async () => { rejectSync(new Error("late")); await Promise.resolve(); });
+  });
+
+  it("reviews named and unnamed recovery conflicts without replacing a remotely changed background", async () => {
+    const base = [
+      shape("named", { name: "Base named" }),
+      shape("board-named", { name: "Base board name" }),
+      shape("unnamed", { name: "Base unnamed" }),
+    ];
+    const remote = [
+      shape("named", { name: "Remote named" }),
+      shape("board-named", { name: "Current board name" }),
+      shape("unnamed", { name: undefined, x1: 5 }),
+    ];
+    const local = [
+      shape("named", { name: "Offline named" }),
+      shape("board-named", { name: undefined }),
+      shape("unnamed", { name: undefined, x1: 10 }),
+    ];
+    window.localStorage.setItem("kumo:recovery:board", JSON.stringify({
+      boardId: "board", savedAt: Date.now(), baseRevision: 1,
+      baseBackgroundColor: "#313131", backgroundColor: "#000000", baseShapes: base, shapes: local,
+    }));
+    render(<Provider store={makeStore({ backGroundColor: "#222222", shapes: remote })}><ProductPanel /></Provider>);
+    expect(await screen.findByText("Offline named")).toBeVisible();
+    expect(screen.getByText("Current board name")).toBeVisible();
+    expect(screen.getByText("unnamed")).toBeVisible();
+    const keepCurrent = screen.getAllByRole("button", { name: "Keep current" });
+    const useOffline = screen.getAllByRole("button", { name: "Use offline" });
+    fireEvent.click(keepCurrent[0]!);
+    fireEvent.click(useOffline[1]!);
+    expect(keepCurrent[0]).toHaveAttribute("aria-pressed", "true");
+    expect(useOffline[1]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Merge recovery" }));
+    expect(mocks.actions.commitShapes).toHaveBeenCalled();
+    expect(mocks.actions.commitBoardPatch).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("with 3 reviewed conflicts");
   });
 
   it("governs semantic library releases through approval, rollback, and deprecation", async () => {
@@ -196,10 +266,10 @@ describe("ProductPanel", () => {
   });
 
   it("unpublishes community work, discards recovery data, closes, and reports invalid extension manifests", async () => {
-    window.localStorage.setItem("kumo:recovery:board", JSON.stringify({ boardId: "board", savedAt: Date.now(), baseRevision: 1, backgroundColor: "#000", shapes: [shape("recovered")] }));
+    window.localStorage.setItem("kumo:recovery:board", JSON.stringify({ boardId: "board", savedAt: Date.now(), baseRevision: 1, baseBackgroundColor: "#313131", backgroundColor: "#000", baseShapes: [], shapes: [shape("recovered")] }));
     const store = makeStore();
     render(<Provider store={store}><ProductPanel /></Provider>);
-    await screen.findAllByText("Roadmap");
+    expect(await screen.findByRole("heading", { name: /Offline recovery/ })).toBeVisible();
     fireEvent.click(screen.getByRole("tab", { name: "publish" }));
     fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
     await waitFor(() => expect(mocks.unpublishCommunity).toHaveBeenCalledWith("board"));

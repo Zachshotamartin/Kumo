@@ -9,6 +9,23 @@ export interface PushPayload {
 }
 
 export type PushPreference = "branch_reviews" | "library_updates" | "access_changes";
+export type CommentPushPreference = "all" | "mentions" | "off";
+
+interface DigestNotification {
+  id: string;
+  title: string;
+  kind: string;
+  board_id: string | null;
+}
+
+const digestCategoryAllowed = (notification: DigestNotification, preference: Record<string, unknown>) => {
+  if (notification.kind === "comment") return preference.board_comments === "all";
+  if (notification.kind === "mention") return preference.board_comments === "all" || preference.board_comments === "mentions";
+  if (notification.kind === "branch") return preference.branch_reviews !== false;
+  if (notification.kind === "library") return preference.library_updates !== false;
+  if (["access-request", "share", "access-change"].includes(notification.kind)) return preference.access_changes !== false;
+  return true;
+};
 
 export const pushConfigured = () => Boolean(
   process.env.VAPID_PUBLIC_KEY?.trim()
@@ -48,9 +65,70 @@ export const sendPushToUser = async (userId: string, payload: PushPayload) => {
 export const sendPreferredPushToUser = async (userId: string, preference: PushPreference, payload: PushPayload) => {
   if (!pushConfigured()) return { delivered: 0, subscriptions: 0, skipped: true };
   const { data, error } = await supabaseAdmin().from("notification_preferences")
-    .select(`browser_enabled, ${preference}`).eq("user_id", userId).maybeSingle();
+    .select(`browser_enabled, digest, ${preference}`).eq("user_id", userId).maybeSingle();
   if (error) throw error;
-  const preferences = data as Record<PushPreference | "browser_enabled", boolean> | null;
+  const preferences = data as (Record<PushPreference | "browser_enabled", boolean> & { digest?: string }) | null;
   if (!preferences?.browser_enabled || preferences[preference] === false) return { delivered: 0, subscriptions: 0, skipped: true };
+  if (preferences.digest !== undefined && preferences.digest !== "instant") return { delivered: 0, subscriptions: 0, skipped: true, queued: preferences.digest === "daily" || preferences.digest === "weekly" };
   return { ...(await sendPushToUser(userId, payload)), skipped: false };
+};
+
+export const sendCommentPushToUser = async (userId: string, mention: boolean, payload: PushPayload) => {
+  if (!pushConfigured()) return { delivered: 0, subscriptions: 0, skipped: true };
+  const { data, error } = await supabaseAdmin().from("notification_preferences")
+    .select("browser_enabled, digest, board_comments").eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  const preferences = data as { browser_enabled?: boolean; digest?: string; board_comments?: CommentPushPreference } | null;
+  const categoryAllowed = preferences?.board_comments === "all" || (preferences?.board_comments === "mentions" && mention);
+  if (!preferences?.browser_enabled || !categoryAllowed) return { delivered: 0, subscriptions: 0, skipped: true };
+  if (preferences.digest !== undefined && preferences.digest !== "instant") return { delivered: 0, subscriptions: 0, skipped: true, queued: preferences.digest === "daily" || preferences.digest === "weekly" };
+  return { ...(await sendPushToUser(userId, payload)), skipped: false };
+};
+
+export const sendDueNotificationDigests = async (now = new Date()) => {
+  if (!pushConfigured()) return { users: 0, delivered: 0 };
+  const database = supabaseAdmin();
+  const { data, error } = await database.from("notification_preferences")
+    .select("user_id, digest, last_digest_at, board_comments, branch_reviews, library_updates, access_changes")
+    .eq("browser_enabled", true)
+    .in("digest", ["daily", "weekly"]);
+  if (error) throw error;
+  let users = 0;
+  let delivered = 0;
+  for (const preference of data ?? []) {
+    const period = preference.digest === "weekly" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const last = preference.last_digest_at ? new Date(preference.last_digest_at as string).getTime() : 0;
+    if (last && now.getTime() - last < period) continue;
+    const since = new Date(Math.max(last, now.getTime() - period)).toISOString();
+    const [{ data: notifications, error: notificationError }, { data: mutes, error: muteError }] = await Promise.all([
+      database.from("account_notifications")
+        .select("id, title, kind, board_id")
+        .eq("recipient_id", preference.user_id)
+        .is("read_at", null)
+        .gt("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      database.from("board_notification_mutes").select("board_id").eq("user_id", preference.user_id),
+    ]);
+    if (notificationError) throw notificationError;
+    if (muteError) throw muteError;
+    const mutedBoardIds = new Set((mutes ?? []).map((mute) => mute.board_id as string));
+    const included = ((notifications ?? []) as DigestNotification[]).filter((notification) =>
+      (!notification.board_id || !mutedBoardIds.has(notification.board_id)) && digestCategoryAllowed(notification, preference));
+    if (included.length) {
+      const result = await sendPushToUser(preference.user_id as string, {
+        title: `${included.length} Kumo update${included.length === 1 ? "" : "s"}`,
+        body: included[0]?.title as string,
+        url: "/?view=inbox",
+        tag: `kumo:${preference.digest}-digest`,
+      });
+      users += 1;
+      delivered += result.delivered;
+    }
+    const { error: updateError } = await database.from("notification_preferences")
+      .update({ last_digest_at: now.toISOString() })
+      .eq("user_id", preference.user_id);
+    if (updateError) throw updateError;
+  }
+  return { users, delivered };
 };

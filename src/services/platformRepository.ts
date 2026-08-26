@@ -36,6 +36,21 @@ export interface OpenBoardSession { id: string; board_id: string; role: "viewer"
 export interface RedeemedOpenSession { id: string; boardId: string; title: string; roomId: string; ownerId: string; visibility: "private" | "public"; role: "viewer" | "editor"; expiresAt: string; guestId: string; updatedAt: number | null }
 export interface CatalogExtension { id: string; name: string; description: string; manifest: { id: string; name: string; permissions: string[]; commands: Array<{ id: string; name: string; operation: string }> }; publisher_id: string | null; verified: boolean; updated_at: string; installed_extensions?: Array<{ user_id: string; granted_permissions: string[]; enabled: boolean }> }
 export interface CommunityPublication { board_id: string; published_by: string; slug: string; description: string; tags: string[]; remix_allowed: boolean; remix_count: number; published_at: string; boards?: { title: string } }
+export interface CommunityReport {
+  id: string;
+  board_id: string;
+  reporter_id: string;
+  category: string;
+  reason: string;
+  status: string;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  created_at: string;
+  boards?: { title?: string };
+  community_publications?: { slug?: string };
+}
+export interface AccountSession { id: string; user_agent: string; created_at: string; last_seen_at: string; revoked_at: string | null; current: boolean }
 
 const post = <T>(body: Record<string, unknown>) => authenticatedFetch<T>("/api/platform", { method: "POST", body: JSON.stringify(body) });
 const scope = <T>(name: string, query: Record<string, string> = {}) => {
@@ -84,8 +99,15 @@ export const publishCommunity = (boardId: string, input: { slug?: string; descri
 export const unpublishCommunity = (boardId: string) => post<{ unpublished: true }>({ action: "unpublish-community", boardId });
 export const remixCommunity = (boardId: string) => post<{ boardId: string }>({ action: "remix-community", boardId });
 export const reportCommunity = (boardId: string, reason: string) => post<{ reported: true }>({ action: "report-community", boardId, reason });
+export const reportCommunityCategory = (boardId: string, category: string, reason: string) => post<{ reported: true }>({ action: "report-community", boardId, category, reason });
+export const loadCommunityModeration = () => scope<{ reports: CommunityReport[] }>("community-moderation").then((result) => result.reports);
+export const moderateCommunity = (reportId: string, decision: "reviewed" | "dismissed" | "removed", note = "") => post<{ moderated: true; decision: string }>({ action: "moderate-community", reportId, decision, note });
 
 export const exportAccountData = () => scope<Record<string, unknown>>("account-export");
+export interface AccountDeletionStatus { requested_at: string; scheduled_for: string; cancelled_at: string | null; processing_started_at: string | null; attempt_count: number; last_error: string | null }
+export const loadAccountDeletion = () => scope<{ deletion: AccountDeletionStatus | null }>("account-deletion").then((result) => result.deletion);
+export const loadAccountSessions = () => scope<{ sessions: AccountSession[] }>("account-sessions").then((result) => result.sessions);
+export const revokeAccountSession = (sessionId: string) => post<{ revoked: true }>({ action: "revoke-account-session", sessionId });
 export const revokeAccountSessions = () => post<{ revoked: true }>({ action: "revoke-sessions" });
 export const requestAccountDeletion = () => post<{ deletion: { requested_at: string; scheduled_for: string } }>({ action: "request-account-deletion" });
 export const cancelAccountDeletion = () => post<{ cancelled: true }>({ action: "cancel-account-deletion" });

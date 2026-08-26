@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Copy,
@@ -15,6 +15,7 @@ import {
   getProfile,
   mutateFriendship,
   updateProfile,
+  uploadProfileAvatar,
   type FriendRequestPolicy,
   type FriendshipAction,
   type UserProfile,
@@ -44,6 +45,7 @@ export const ProfileView = ({
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const profileRef = useRef<UserProfile | null>(null);
   const [form, setForm] = useState({
     displayName: "",
     username: "",
@@ -58,6 +60,11 @@ export const ProfileView = ({
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     let active = true;
@@ -210,9 +217,9 @@ export const ProfileView = ({
                 <small className={ui.fieldHelp}>{form.bio.length}/280 characters</small>
               </label>
               <label className={`${ui.field} ${styles.field} ${styles.fieldWide}`}>
-                <span className={ui.fieldLabel}>Avatar URL</span>
-                <input className={ui.control} aria-label="Avatar URL" type="url" placeholder="https://" value={form.avatarUrl} onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} />
-                <small className={ui.fieldHelp}>Use a secure HTTPS image URL. Leave blank for your initials.</small>
+                <span className={ui.fieldLabel}>Avatar image</span>
+                <input className={ui.control} aria-label="Upload avatar" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingAvatar} onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setUploadingAvatar(true); setError(null); void uploadProfileAvatar(file).then((avatarUrl) => { setForm((current) => ({ ...current, avatarUrl })); const current = profileRef.current!; const next = { ...current, avatarUrl }; profileRef.current = next; setProfile(next); dispatch(setAuthenticatedProfile({ displayName: next.displayName, username: next.username, avatarUrl })); setMessage("Avatar cropped and uploaded."); }).catch((caught) => setError(caught instanceof Error ? caught.message : "Avatar upload failed.")).finally(() => setUploadingAvatar(false)); }} />
+                <small className={ui.fieldHelp}>{uploadingAvatar ? "Cropping and uploading…" : "PNG, JPEG, or WebP. Kumo center-crops to a square and stores the optimized image."}</small>
               </label>
               <label className={`${ui.field} ${styles.field}`}>
                 <span className={ui.fieldLabel}>Friend requests</span>
