@@ -20,6 +20,12 @@ describe("consolidated Vercel API router", () => {
     expect(entries.length).toBeLessThanOrEqual(12);
   });
 
+  it("runs lifecycle maintenance on a Hobby-compatible daily cron", () => {
+    expect(vercelConfig.crons).toEqual([
+      { path: "/api/maintenance", schedule: "0 3 * * *" },
+    ]);
+  });
+
   it("routes API requests before the single-page-app fallback", () => {
     expect(vercelConfig.rewrites[0]).toEqual({
       source: "/api/:path",
