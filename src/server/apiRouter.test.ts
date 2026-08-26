@@ -37,6 +37,12 @@ describe("consolidated Vercel API router", () => {
     expect(canary).not.toContain('getByLabel("Email")');
     expect(canary).not.toContain('getByLabel("Password")');
     expect(workflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}');
+    const previewWorkflow = workflow.slice(workflow.indexOf("  preview:"), workflow.indexOf("  production:"));
+    expect(previewWorkflow).toContain('- name: Run authenticated preview canary');
+    expect(previewWorkflow).toContain('yarn verify:authenticated-canary "https://$VERCEL_VALIDATION_DOMAIN"');
+    const productionWorkflow = workflow.slice(workflow.indexOf("  production:"));
+    expect(productionWorkflow).toContain('- name: Run authenticated production canary');
+    expect(productionWorkflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}');
     expect(workflow.match(/run: yarn verify:remote-schema/g)).toHaveLength(2);
     expect(workflow.indexOf("run: yarn verify:remote-schema")).toBeLessThan(workflow.indexOf("Build preview artifacts"));
   });
