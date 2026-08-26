@@ -197,6 +197,26 @@ for (const workflowFile of workflowFiles) {
   }
 }
 if (!existsSync(".github/dependabot.yml")) throw new Error("Dependabot update automation is required.");
+const dependabotConfig = readFileSync(".github/dependabot.yml", "utf8");
+const nonMajorDependencyGroups = dependabotConfig.match(
+  /update-types:\n\s+- minor\n\s+- patch/g,
+) ?? [];
+if (nonMajorDependencyGroups.length < 2) {
+  throw new Error("Dependabot must keep production and development major updates out of grouped dependency trains.");
+}
+const ignoredMajorDependencies = new Set(
+  [...dependabotConfig.matchAll(
+    /- dependency-name:\s*["']?([^"'\s]+)["']?\s*\n\s+update-types:\s*\n\s+- version-update:semver-major/g,
+  )].map((match) => match[1]),
+);
+for (const dependency of ["@types/node", "@eslint/js", "eslint", "typescript"]) {
+  if (!ignoredMajorDependencies.has(dependency)) {
+    throw new Error(`Dependabot must defer the ${dependency} major upgrade for coordinated compatibility work.`);
+  }
+}
+if (!/codeql-actions:[\s\S]*?github\/codeql-action\/\*/.test(dependabotConfig)) {
+  throw new Error("Dependabot must update the CodeQL init and analyze actions atomically.");
+}
 
 if (readFileSync("src/App.css", "utf8").includes("logo512.png")) {
   throw new Error("The animated Kumo component must not fall back to the legacy logo bitmap.");
