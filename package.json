@@ -60,6 +60,7 @@
     "verify:deployment": "node --experimental-strip-types scripts/verify-deployment-smoke.mjs",
     "verify:authenticated-canary": "node --experimental-strip-types scripts/verify-authenticated-canary.mjs",
     "verify:database-migrations": "bash scripts/verify-database-migrations.sh",
+    "verify:remote-schema": "node --experimental-strip-types scripts/verify-remote-supabase-schema.mjs",
     "verify:lighthouse": "node --experimental-strip-types scripts/verify-lighthouse.mjs"
   },
   "devDependencies": {

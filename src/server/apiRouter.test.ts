@@ -37,6 +37,8 @@ describe("consolidated Vercel API router", () => {
     expect(canary).not.toContain('getByLabel("Email")');
     expect(canary).not.toContain('getByLabel("Password")');
     expect(workflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}');
+    expect(workflow.match(/run: yarn verify:remote-schema/g)).toHaveLength(2);
+    expect(workflow.indexOf("run: yarn verify:remote-schema")).toBeLessThan(workflow.indexOf("Build preview artifacts"));
   });
 
   it("routes API requests before the single-page-app fallback", () => {

@@ -762,3 +762,17 @@ create index if not exists account_sessions_user_seen_idx on public.account_sess
 alter table public.account_sessions enable row level security;
 revoke all on public.account_sessions from anon, authenticated;
 grant all on public.account_sessions to service_role;
+
+-- Keep this marker last. A remote deployment is ready for this release only
+-- after every statement above has completed successfully.
+create table if not exists public.kumo_schema_releases (
+  version text primary key,
+  applied_at timestamptz not null default now()
+);
+alter table public.kumo_schema_releases enable row level security;
+revoke all on public.kumo_schema_releases from anon, authenticated;
+grant select on public.kumo_schema_releases to service_role;
+
+insert into public.kumo_schema_releases(version)
+values ('202608250002')
+on conflict (version) do nothing;

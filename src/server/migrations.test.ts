@@ -151,5 +151,9 @@ describe("production database migrations", () => {
     expect(source).toMatch(/function public\.assign_kumo_board_workspace\(\)[\s\S]*?security definer[\s\S]*?set search_path = ''/);
     expect(source).toContain("revoke all on function public.assign_kumo_board_workspace() from public, anon, authenticated");
     expect(source).toContain("grant execute on function public.assign_kumo_board_workspace() to service_role");
+    expect(source).toContain("create table if not exists public.kumo_schema_releases");
+    expect(source).toContain("alter table public.kumo_schema_releases enable row level security");
+    expect(source).toContain("grant select on public.kumo_schema_releases to service_role");
+    expect(source.trimEnd()).toMatch(/values \('202608250002'\)\s+on conflict \(version\) do nothing;$/);
   });
 });
