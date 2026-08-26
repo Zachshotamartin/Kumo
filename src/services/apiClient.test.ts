@@ -31,12 +31,15 @@ describe("authenticatedFetch", () => {
     }));
   });
 
-  it("creates and reuses a compatible fallback device-session id", () => {
-    vi.stubGlobal("crypto", {});
-    vi.spyOn(Date, "now").mockReturnValue(1234);
-    vi.spyOn(Math, "random").mockReturnValue(0.5);
+  it("creates and reuses a cryptographically secure fallback device-session id", () => {
+    const getRandomValues = vi.fn((bytes: Uint8Array) => {
+      bytes.set(Array.from({ length: bytes.length }, (_, index) => index));
+      return bytes;
+    });
+    vi.stubGlobal("crypto", { getRandomValues });
     const created = clientSessionId();
-    expect(created).toMatch(/^[a-zA-Z0-9-]{16,100}$/);
+    expect(created).toBe("000102030405060708090a0b0c0d0e0f");
+    expect(getRandomValues).toHaveBeenCalledWith(expect.any(Uint8Array));
     expect(clientSessionId()).toBe(created);
   });
 
