@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
   CaretLeft,
@@ -47,6 +47,7 @@ import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { deleteBoard } from "../../services/boardRepository";
 import { AppDispatch, RootState } from "../../store";
 import EditorCanvas from "./EditorCanvas";
+import EditorMinimap from "./EditorMinimap";
 import EditorToolbar from "./EditorToolbar";
 import InspectorPanel from "./InspectorPanel";
 import LayersPanel from "./LayersPanel";
@@ -59,17 +60,16 @@ import { OfflineRecoveryBridge } from "../../collaboration/OfflineRecoveryBridge
 import { loadProductGraph, type ProductGraph } from "../../services/productRepository";
 import { listDesignBranches } from "../../services/branchRepository";
 import { BoardNavigation } from "./BoardNavigation";
-
-const CommentsPanel = lazy(() => import("../../comments/CommentsPanel").then((module) => ({ default: module.CommentsPanel })));
-const VersionHistoryPanel = lazy(() => import("../../history/VersionHistoryPanel").then((module) => ({ default: module.VersionHistoryPanel })));
-const DesignLibraryPanel = lazy(() => import("./DesignLibraryPanel"));
-const PrototypePanel = lazy(() => import("./PrototypePanel"));
-const PresentationView = lazy(() => import("./PresentationView"));
-const ExportPanel = lazy(() => import("./ExportPanel"));
-const InspectPanel = lazy(() => import("./InspectPanel"));
-const BranchesPanel = lazy(() => import("./BranchesPanel"));
-const ProductPanel = lazy(() => import("./ProductPanel"));
-const AdvancedStudioPanel = lazy(() => import("./AdvancedStudioPanel"));
+import { CommentsPanel } from "../../comments/CommentsPanel";
+import { VersionHistoryPanel } from "../../history/VersionHistoryPanel";
+import DesignLibraryPanel from "./DesignLibraryPanel";
+import PrototypePanel from "./PrototypePanel";
+import PresentationView from "./PresentationView";
+import ExportPanel from "./ExportPanel";
+import InspectPanel from "./InspectPanel";
+import BranchesPanel from "./BranchesPanel";
+import ProductPanel from "./ProductPanel";
+import AdvancedStudioPanel from "./AdvancedStudioPanel";
 
 const emptyBoard = {
   shapes: [],
@@ -128,7 +128,7 @@ const EditorWorkspace = () => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteGraph, setDeleteGraph] = useState<ProductGraph | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(() => new URL(window.location.href).searchParams.get("shareDialog") === "1");
   const [error, setError] = useState<string | null>(null);
   const [layersWidth, setLayersWidth] = useState(236);
   const [propertiesWidth, setPropertiesWidth] = useState(268);
@@ -266,7 +266,7 @@ const EditorWorkspace = () => {
   const goHome = () => {
     const url = new URL(window.location.href);
     url.searchParams.delete("board");
-    window.history.replaceState({}, "", url);
+    window.history.pushState({}, "", url);
     dispatch(clearSelectedShapes());
     dispatch(setWhiteboardData(emptyBoard));
   };
@@ -520,6 +520,7 @@ const EditorWorkspace = () => {
         />
         <section ref={canvasRegionRef} className={styles.canvasRegion} aria-label="Design editor">
           <EditorCanvas />
+          <EditorMinimap />
           <EditorToolbar />
           <button
             type="button"
@@ -574,7 +575,7 @@ const EditorWorkspace = () => {
         />
         <div className={styles.panelSlot}>
           {propertiesVisible && (
-            <Suspense fallback={<div className={styles.panelLoading} role="status">Loading panel</div>}>
+            <>
               {editor.rightPanel === "comments"
                 ? <CommentsPanel />
                 : editor.rightPanel === "history"
@@ -594,7 +595,7 @@ const EditorWorkspace = () => {
                               : editor.rightPanel === "studio"
                                 ? <AdvancedStudioPanel />
                             : <InspectorPanel />}
-            </Suspense>
+            </>
           )}
         </div>
       </div>
@@ -616,9 +617,9 @@ const EditorWorkspace = () => {
       {confirmDelete && (
         <div className={styles.dialogBackdrop} onPointerDown={(event) => event.target === event.currentTarget && setConfirmDelete(false)}>
           <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="delete-board-title">
-            <span className={styles.dialogEyebrow}>Permanent action</span>
+            <span className={styles.dialogEyebrow}>30-day recovery</span>
             <h2 id="delete-board-title">Delete “{board.title}”?</h2>
-            <p>This removes the board for every collaborator. This action cannot be undone.</p>
+            <p>This removes the board for every collaborator. You can restore it from Dashboard → Trash for 30 days; after that Kumo permanently purges its canvas, comments, and assets.</p>
             {deleteGraph && <p className={styles.deleteImpact}>{deleteGraph.incoming.length ? `${deleteGraph.incoming.length} incoming board ${deleteGraph.incoming.length === 1 ? "link will" : "links will"} become broken.` : "No other board links to this board."} {deleteGraph.edges.filter((edge) => edge.sourceId === board.id).length ? `${deleteGraph.edges.filter((edge) => edge.sourceId === board.id).length} outgoing links will be removed.` : ""}</p>}
             <div className={styles.dialogActions}>
               <button type="button" className={ui.button} onClick={() => setConfirmDelete(false)}>Cancel</button>
@@ -627,8 +628,8 @@ const EditorWorkspace = () => {
           </div>
         </div>
       )}
-      {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}
-      {editor.presentationMode && <Suspense fallback={null}><PresentationView /></Suspense>}
+      {shareOpen && <ShareDialog onClose={() => { setShareOpen(false); const url = new URL(window.location.href); url.searchParams.delete("shareDialog"); window.history.replaceState({}, "", url); }} />}
+      {editor.presentationMode && <PresentationView />}
     </main>
   );
 };

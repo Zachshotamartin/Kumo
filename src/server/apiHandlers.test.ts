@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   deleteStorageDocument: vi.fn(),
   initializeStorageDocument: vi.fn(),
   deleteRoom: vi.fn(),
+  purgeBoard: vi.fn(),
   database: { from: vi.fn(), rpc: vi.fn(), storage: { from: vi.fn() } },
 }));
 
@@ -39,6 +40,7 @@ vi.mock("../../server/api/_assets", () => ({
   rewriteDocumentAssetIds: (document: unknown) => ({ document, rewritten: true }),
 }));
 vi.mock("../../server/api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
+vi.mock("../../server/api/_lifecycle", () => ({ purgeBoardResources: mocks.purgeBoard }));
 vi.mock("../../server/api/_liveblocks", () => ({
   boardDocumentFromJson: (value: unknown) => value,
   liveblocksAdmin: () => ({
@@ -92,7 +94,12 @@ describe("boards API", () => {
       update: () => ({ eq: () => ({ eq: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: boardRow, error: null }) }) }) }) }),
       delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
     } : { insert: vi.fn().mockResolvedValue({ error: null }) });
-    mocks.database.rpc.mockResolvedValue({ error: null });
+    mocks.purgeBoard.mockResolvedValue(undefined);
+    mocks.database.rpc.mockImplementation((name: string) => Promise.resolve(
+      name === "restore_kumo_board" ? { data: boardRow, error: null }
+        : name === "claim_kumo_onboarding" ? { data: true, error: null }
+          : { data: null, error: null }
+    ));
   });
 
   it("reads board details, lists owned boards, and searches public boards", async () => {
@@ -106,7 +113,7 @@ describe("boards API", () => {
     expect(list.body).toEqual({ boards: [{ id: "mine" }] });
     const search = response();
     await boardsHandler(request("GET", {}, { scope: "public", query: "cloud" }), search);
-    expect(mocks.search).toHaveBeenCalledWith("cloud");
+    expect(mocks.search).toHaveBeenCalledWith("cloud", "actor");
   });
 
   it("creates and duplicates complete board documents with cloned assets", async () => {
@@ -121,6 +128,100 @@ describe("boards API", () => {
     expect(mocks.deleteStorageDocument).toHaveBeenCalled();
     expect(mocks.initializeStorageDocument).toHaveBeenCalled();
     expect(mocks.syncLinks).toHaveBeenCalled();
+  });
+
+  it("creates onboarding boards and lists, restores, and audits trashed boards", async () => {
+    const onboarding = response();
+    await boardsHandler(request("POST", { action: "create-onboarding" }), onboarding);
+    expect(onboarding).toMatchObject({ statusCode: 201, body: { linkedBoardId: "board" } });
+    expect(mocks.provision).toHaveBeenCalledTimes(2);
+    expect(mocks.provision).toHaveBeenCalledWith(expect.objectContaining({ title: "Kumo tour · Linked ideas", document: expect.any(Object) }));
+    expect(mocks.provision).toHaveBeenCalledWith(expect.objectContaining({ title: "Welcome to Kumo", document: expect.any(Object) }));
+    expect(mocks.syncLinks).toHaveBeenCalledWith("board", expect.any(Object));
+    expect(mocks.database.from).toHaveBeenCalledWith("document_snapshots");
+    expect(mocks.database.rpc).toHaveBeenCalledWith("complete_kumo_onboarding", { p_user_id: "actor" });
+
+    mocks.database.from.mockImplementationOnce(() => ({
+      select: () => ({ eq: () => ({ not: () => ({ order: vi.fn().mockResolvedValue({ data: [boardRow], error: null }) }) }) }),
+    }));
+    const deleted = response();
+    await boardsHandler(request("GET", {}, { scope: "deleted" }), deleted);
+    expect(deleted.body).toEqual({ boards: [expect.objectContaining({ id: "board", role: "owner" })] });
+
+    mocks.database.from.mockImplementationOnce(() => ({
+      select: () => ({ eq: () => ({ not: () => ({ order: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }),
+    }));
+    const emptyTrash = response();
+    await boardsHandler(request("GET", {}, { scope: "deleted" }), emptyTrash);
+    expect(emptyTrash.body).toEqual({ boards: [] });
+
+    const restored = response();
+    await boardsHandler(request("POST", { action: "restore", boardId: "board" }), restored);
+    expect(restored).toMatchObject({ statusCode: 200, body: { board: { id: "board" } } });
+
+    mocks.database.rpc.mockResolvedValueOnce({ data: null, error: null });
+    const missing = response();
+    await boardsHandler(request("POST", { action: "restore", boardId: 42 }), missing);
+    expect(missing.statusCode).toBe(404);
+  });
+
+  it("reports trash listing and restore persistence failures", async () => {
+    mocks.database.from.mockImplementationOnce(() => ({
+      select: () => ({ eq: () => ({ not: () => ({ order: vi.fn().mockResolvedValue({ data: null, error: new Error("trash failed") }) }) }) }),
+    }));
+    const trash = response();
+    await boardsHandler(request("GET", {}, { scope: "deleted" }), trash);
+    expect(trash.statusCode).toBe(500);
+
+    mocks.database.rpc.mockResolvedValueOnce({ data: null, error: new Error("restore failed") });
+    const restore = response();
+    await boardsHandler(request("POST", { action: "restore", boardId: "board" }), restore);
+    expect(restore.statusCode).toBe(500);
+  });
+
+  it("enforces first-run onboarding and rolls back every provisioned board when setup fails", async () => {
+    mocks.database.rpc.mockResolvedValueOnce({ data: false, error: null });
+    const existing = response();
+    await boardsHandler(request("POST", { action: "create-onboarding" }), existing);
+    expect(existing.statusCode).toBe(409);
+    expect(mocks.provision).not.toHaveBeenCalled();
+
+    mocks.list.mockResolvedValueOnce([]);
+    mocks.syncLinks.mockRejectedValueOnce(new Error("links failed"));
+    const failed = response();
+    await boardsHandler(request("POST", { action: "create-onboarding" }), failed);
+    expect(failed.statusCode).toBe(500);
+    expect(mocks.purgeBoard).toHaveBeenCalledTimes(2);
+    expect(mocks.database.rpc).toHaveBeenCalledWith("release_kumo_onboarding", { p_user_id: "actor" });
+
+    mocks.list.mockResolvedValueOnce([]);
+    mocks.database.from.mockImplementationOnce(() => ({ insert: vi.fn().mockResolvedValue({ error: new Error("snapshot failed") }) }));
+    const snapshot = response();
+    await boardsHandler(request("POST", { action: "create-onboarding" }), snapshot);
+    expect(snapshot.statusCode).toBe(500);
+  });
+
+  it("surfaces onboarding claim and completion failures without retaining partial boards", async () => {
+    mocks.database.rpc.mockResolvedValueOnce({ data: null, error: new Error("claim failed") });
+    const claim = response();
+    await boardsHandler(request("POST", { action: "create-onboarding" }), claim);
+    expect(claim.statusCode).toBe(500);
+    expect(mocks.provision).not.toHaveBeenCalled();
+
+    mocks.database.rpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error("completion failed") })
+      .mockResolvedValueOnce({ data: null, error: null });
+    const completion = response();
+    await boardsHandler(request("POST", { action: "create-onboarding" }), completion);
+    expect(completion.statusCode).toBe(500);
+    expect(mocks.purgeBoard).toHaveBeenCalledTimes(2);
+
+    mocks.purgeBoard.mockRejectedValue(new Error("cleanup unavailable"));
+    mocks.syncLinks.mockRejectedValueOnce(new Error("setup failed"));
+    const cleanupFailure = response();
+    await boardsHandler(request("POST", { action: "create-onboarding" }), cleanupFailure);
+    expect(cleanupFailure.statusCode).toBe(500);
   });
 
   it("patches and soft-deletes owner boards", async () => {

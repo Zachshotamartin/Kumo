@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, GoogleLogo } from "@phosphor-icons/react";
+import { ArrowRight, Eye, EyeSlash, GoogleLogo } from "@phosphor-icons/react";
 import styles from "./homePage.module.css";
 import ui from "../ui/Ui.module.css";
 import { auth, firebaseApiKey, provider } from "../../config/firebase";
@@ -9,7 +9,9 @@ import {
   signInWithRedirect,
   signInWithCredential,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
+  signOut,
 } from "firebase/auth";
 import { ensureUserProfile } from "../../services/userRepository";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
@@ -31,6 +33,8 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   const registerTabRef = useRef<HTMLButtonElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -89,11 +93,31 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
     setSubmitting(true);
     try {
       if (mode === "signin") {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        if (!credential.user.emailVerified) {
+          await sendEmailVerification(credential.user);
+          await signOut(auth);
+          setMessage("Verify your email before opening Kumo. We sent a fresh verification link.");
+          return;
+        }
+        await ensureUserProfile();
       } else {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        if (password.length < 12) {
+          setError("Use a password with at least twelve characters.");
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError("Passwords do not match.");
+          return;
+        }
+        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await sendEmailVerification(credential.user);
+        await signOut(auth);
+        setPassword("");
+        setConfirmPassword("");
+        setMode("signin");
+        setMessage("Account created. Check your email to verify it before signing in.");
       }
-      await ensureUserProfile();
     } catch (caught: unknown) {
       const code = typeof caught === "object" && caught !== null && "code" in caught
         ? String(caught.code)
@@ -202,18 +226,25 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
             </div>
             <div className={styles.inputContainer}>
               <label htmlFor="password">Password</label>
+              <div className={styles.passwordControl}>
               <input
                 id="password"
                 className={`${ui.control} ${styles.input}`}
-                type="password"
-                placeholder="At least 6 characters"
+                type={showPassword ? "text" : "password"}
+                placeholder={mode === "register" ? "At least 12 characters" : "Your password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
+                minLength={mode === "register" ? 12 : 6}
                 disabled={controlsDisabled}
                 required
               />
+              <button type="button" className={styles.passwordToggle} aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)} disabled={controlsDisabled}>{showPassword ? <EyeSlash aria-hidden="true" /> : <Eye aria-hidden="true" />}</button>
+              </div>
             </div>
+            {mode === "register" && <div className={styles.inputContainer}>
+              <label htmlFor="confirm-password">Confirm password</label>
+              <input id="confirm-password" className={`${ui.control} ${styles.input}`} type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={12} disabled={controlsDisabled} required />
+            </div>}
           </div>
           <div className={styles.loginFormColumn}>
             <button className={`${ui.button} ${ui.buttonPrimary} ${styles.submit}`} type="submit" disabled={controlsDisabled}>

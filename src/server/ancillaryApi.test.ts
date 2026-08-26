@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   openSession: null as null | Record<string, unknown>,
   openSessionError: null as Error | null,
   branchResult: { data: { board_id: "board", status: "open" }, error: null } as { data: Record<string, unknown> | null; error: Error | null },
+  sendPreferredPush: vi.fn(),
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
@@ -38,6 +39,7 @@ vi.mock("../../server/api/_boardSharing", () => ({
   membershipBoardIds: mocks.membershipBoardIds,
 }));
 vi.mock("../../server/api/_profiles", () => ({ friendshipBetween: mocks.friendshipBetween }));
+vi.mock("../../server/api/_push", () => ({ sendPreferredPushToUser: mocks.sendPreferredPush }));
 vi.mock("../../server/api/_liveblocks", () => ({
   liveblocksAdmin: () => ({
     prepareSession: mocks.prepareSession,
@@ -107,24 +109,10 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     });
     mocks.membershipBoardIds.mockResolvedValue(new Set(["board", "linked"]));
     mocks.friendshipBetween.mockResolvedValue({ status: "accepted" });
+    mocks.sendPreferredPush.mockResolvedValue({ delivered: 1, subscriptions: 1, skipped: false });
     mocks.from.mockImplementation((table: string) => {
       if (table === "profiles") {
-        return {
-          select: () => ({
-            eq: () => ({
-              maybeSingle: vi.fn().mockImplementation(async () => ({
-                data: mocks.invitedProfile,
-                error: null,
-              })),
-            }),
-            ilike: () => ({
-              maybeSingle: vi.fn().mockImplementation(async () => ({
-                data: mocks.invitedProfile,
-                error: null,
-              })),
-            }),
-          }),
-        };
+        return fluentQuery({ data: mocks.invitedProfile, error: null });
       }
       if (table === "board_members") {
         return fluentQuery({ error: null });
@@ -174,7 +162,7 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     }), denied);
     expect(denied.statusCode).toBe(403);
     expect(denied.body).toEqual({ error: "This profile cannot be invited." });
-    expect(mocks.rpc).not.toHaveBeenCalledWith("share_kumo_board_set", expect.anything());
+    expect(mocks.rpc).not.toHaveBeenCalledWith("apply_kumo_board_access_change", expect.anything());
   });
 
   it("invites and removes board collaborators", async () => {
@@ -187,16 +175,23 @@ describe("sharing, session, and Liveblocks API handlers", () => {
       sharedBoards: expect.arrayContaining([expect.objectContaining({ id: "board" }), expect.objectContaining({ id: "linked" })]),
       unavailableBoards: [],
     }));
-    expect(mocks.rpc).toHaveBeenCalledWith("share_kumo_board_set", expect.objectContaining({
-      p_board_ids: ["board", "linked"], p_user_id: "member", p_role: "viewer",
+    expect(mocks.rpc).toHaveBeenCalledWith("apply_kumo_board_access_change", expect.objectContaining({
+      p_operation: "share", p_board_ids: ["board", "linked"], p_user_id: "member", p_role: "viewer",
     }));
+    expect(mocks.sendPreferredPush).toHaveBeenCalledWith("member", "access_changes", expect.objectContaining({ tag: "kumo:access:board" }));
 
     const removed = response();
     await shareBoardHandler(request({ boardId: "board", action: "remove", memberUid: "member" }), removed);
     expect(removed.body).toEqual(expect.objectContaining({ uid: "member", removedBoards: expect.any(Array) }));
-    expect(mocks.rpc).toHaveBeenCalledWith("remove_kumo_board_member_set", expect.objectContaining({
-      p_board_ids: ["board", "linked"], p_user_id: "member",
+    expect(mocks.rpc).toHaveBeenCalledWith("apply_kumo_board_access_change", expect.objectContaining({
+      p_operation: "remove", p_board_ids: ["board", "linked"], p_user_id: "member",
     }));
+
+    mocks.sendPreferredPush.mockRejectedValueOnce(new Error("push unavailable"));
+    const pushFailure = response();
+    await shareBoardHandler(request({ boardId: "board", action: "update-role", memberUid: "member", role: "viewer" }), pushFailure);
+    expect(pushFailure.statusCode).toBe(200);
+    await Promise.resolve();
   });
 
   it("previews the linked-board graph and reports destinations another owner must share", async () => {
@@ -260,15 +255,15 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     }), linked);
     expect(linked.statusCode).toBe(409);
     expect(linked.body).toEqual({ error: expect.stringContaining("safe sharing limit") });
-    expect(mocks.rpc).not.toHaveBeenCalledWith("share_kumo_board_set", expect.anything());
+    expect(mocks.rpc).not.toHaveBeenCalledWith("apply_kumo_board_access_change", expect.anything());
 
     const direct = response();
     await shareBoardHandler(request({
       boardId: "board", action: "invite", email: "member@example.com", includeLinkedBoards: false,
     }), direct);
     expect(direct.statusCode).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledWith("share_kumo_board_set", expect.objectContaining({
-      p_board_ids: ["board"],
+    expect(mocks.rpc).toHaveBeenCalledWith("apply_kumo_board_access_change", expect.objectContaining({
+      p_operation: "share", p_board_ids: ["board"],
     }));
   });
 
@@ -345,7 +340,9 @@ describe("sharing, session, and Liveblocks API handlers", () => {
     const transferred = response();
     await shareBoardHandler(request({ boardId: "board", action: "transfer-owner", memberUid: "member" }), transferred);
     expect(transferred.body).toEqual({ transferred: true, newOwnerId: "member" });
-    expect(mocks.rpc).toHaveBeenCalledWith("transfer_kumo_board_ownership", expect.objectContaining({ p_new_owner_id: "member" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("apply_kumo_board_access_change", expect.objectContaining({
+      p_operation: "transfer", p_user_id: "member", p_board_ids: ["board"],
+    }));
   });
 
   it("updates direct roles and rejects invalid collaborator actions", async () => {
@@ -464,13 +461,13 @@ describe("sharing, session, and Liveblocks API handlers", () => {
 
     mocks.boardInvitation = { id: "invitation", board_id: "board", invited_by: "owner", include_linked_boards: false };
     await rpcFailure("accept-invitation", { token: "token" }, "accept_kumo_board_invitation");
-    await rpcFailure("transfer-owner", { memberUid: "member" }, "transfer_kumo_board_ownership");
+    await rpcFailure("transfer-owner", { memberUid: "member" }, "apply_kumo_board_access_change");
     mocks.invitedProfile = null;
     await rpcFailure("invite", { email: "new@example.com" }, "create_or_refresh_kumo_board_invitation");
     mocks.invitedProfile = { firebase_uid: "member", email: "member@example.com" };
-    await rpcFailure("invite", { email: "member@example.com" }, "share_kumo_board_set");
-    await rpcFailure("update-role", { memberUid: "member" }, "share_kumo_board_set");
-    await rpcFailure("remove", { memberUid: "member" }, "remove_kumo_board_member_set");
+    await rpcFailure("invite", { email: "member@example.com" }, "apply_kumo_board_access_change");
+    await rpcFailure("update-role", { memberUid: "member" }, "apply_kumo_board_access_change");
+    await rpcFailure("remove", { memberUid: "member" }, "apply_kumo_board_access_change");
   });
 
   it("uses the persisted profile email and handles linked-share failure on acceptance", async () => {

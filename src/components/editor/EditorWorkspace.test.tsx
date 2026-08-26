@@ -139,7 +139,7 @@ describe("EditorWorkspace", () => {
     const store = renderWorkspace();
     fireEvent.click(screen.getByLabelText("Board menu"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete board" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("Permanent action");
+    expect(screen.getByRole("dialog")).toHaveTextContent("30-day recovery");
     fireEvent.click(screen.getByRole("button", { name: "Delete board" }));
     await waitFor(() => expect(mocks.deleteBoard).toHaveBeenCalledWith("board"));
     expect(store.getState().whiteBoard.id).toBeNull();
@@ -253,7 +253,7 @@ describe("EditorWorkspace", () => {
       ["Studio", "Studio panel"],
     ] as const) {
       fireEvent.click(screen.getByRole("button", { name: button }));
-      expect(await screen.findByText(panel)).toBeVisible();
+      await waitFor(() => expect(screen.getByText(panel)).toBeVisible());
     }
     fireEvent.click(screen.getByLabelText("Board menu"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Version history" }));
@@ -385,7 +385,7 @@ describe("EditorWorkspace", () => {
     expect(screen.queryByText("Layers")).not.toBeInTheDocument();
     expect(screen.queryByText("Inspector")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Comments" }));
-    expect(await screen.findByText("Comments panel")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Comments panel")).toBeVisible());
     fireEvent.click(screen.getByRole("button", { name: "Hide properties panel" }));
     expect(mobile.getState().editor.rightPanel).toBe("properties");
     expect(screen.queryByText("Inspector")).not.toBeInTheDocument();

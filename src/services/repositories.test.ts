@@ -2,11 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import { authenticatedFetch, authenticatedRequest } from "./apiClient";
 import {
   createBoard,
+  createOnboardingBoard,
   deleteBoard,
   duplicateBoard,
   getBoard,
   loadBoardPreview,
   listBoards,
+  listDeletedBoards,
+  restoreDeletedBoard,
   searchPublicBoards,
   updateBoardSettings,
 } from "./boardRepository";
@@ -97,12 +100,15 @@ describe("board repositories", () => {
   });
 
   it("creates, duplicates, updates, and deletes boards", async () => {
-    vi.mocked(authenticatedFetch).mockResolvedValue({ board });
+    vi.mocked(authenticatedFetch).mockResolvedValue({ board, boards: [board] });
     await expect(createBoard("New")).resolves.toBe("board");
+    await expect(createOnboardingBoard()).resolves.toBe("board");
     await expect(duplicateBoard("source")).resolves.toBe("board");
+    await expect(listDeletedBoards()).resolves.toEqual([board]);
+    await expect(restoreDeletedBoard("board")).resolves.toEqual(board);
     await expect(updateBoardSettings("board", { visibility: "public" })).resolves.toBe(board);
     await expect(deleteBoard("board")).resolves.toBeUndefined();
-    expect(authenticatedFetch).toHaveBeenCalledTimes(4);
+    expect(authenticatedFetch).toHaveBeenCalledTimes(7);
   });
 
   it("limits, signs, and completes board preview requests without blocking navigation", async () => {

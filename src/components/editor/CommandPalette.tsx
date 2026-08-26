@@ -15,6 +15,7 @@ interface PaletteItem {
   detail: string;
   keywords: string;
   run: () => void;
+  shortcut?: string;
 }
 
 const CommandPalette = () => {
@@ -26,10 +27,18 @@ const CommandPalette = () => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [referenceMode, setReferenceMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const openPalette = useCallback(() => {
     setQuery("");
     setActive(0);
+    setOpen(true);
+    setReferenceMode(false);
+  }, []);
+  const openReference = useCallback(() => {
+    setQuery("");
+    setActive(0);
+    setReferenceMode(true);
     setOpen(true);
   }, []);
 
@@ -39,10 +48,16 @@ const CommandPalette = () => {
         event.preventDefault();
         openPalette();
       }
+      const target = event.target as HTMLElement | null;
+      const isEditing = typeof target?.closest === "function" && Boolean(target.closest("input, textarea, select, [contenteditable=true]"));
+      if (event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey && !isEditing) {
+        event.preventDefault();
+        openReference();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openPalette]);
+  }, [openPalette, openReference]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,19 +88,19 @@ const CommandPalette = () => {
       })),
       panel("properties", "Open properties"), panel("assets", "Open assets"), panel("prototype", "Open prototype"),
       panel("comments", "Open comments"), panel("history", "Open version history"), panel("export", "Open export"), panel("inspect", "Open developer inspect"), panel("branches", "Open design branches"), panel("platform", "Open product tools"),
-      tool("pointer", "Select"), tool("frame", "Draw frame"), tool("rectangle", "Draw rectangle"),
-      tool("ellipse", "Draw ellipse"), tool("pen", "Draw vector path"), tool("text", "Add text"), tool("image", "Add image"),
-      tool("board", "Link a board"), tool("comment", "Add comment"),
-      { id: "group", label: "Group selection", detail: "Command", keywords: "group selection", run: actions.groupSelected },
-      { id: "frame-selection", label: "Frame selection", detail: "Command", keywords: "frame selection", run: actions.frameSelected },
+      { ...tool("pointer", "Select"), shortcut: "V" }, { ...tool("frame", "Draw frame"), shortcut: "F" }, { ...tool("rectangle", "Draw rectangle"), shortcut: "R" },
+      { ...tool("ellipse", "Draw ellipse"), shortcut: "O" }, { ...tool("pen", "Draw vector path"), shortcut: "P" }, { ...tool("text", "Add text"), shortcut: "T" }, { ...tool("image", "Add image"), shortcut: "⇧⌘K" },
+      { ...tool("board", "Link a board"), shortcut: "B" }, { ...tool("comment", "Add comment"), shortcut: "C" },
+      { id: "group", label: "Group selection", detail: "Command", keywords: "group selection", shortcut: "⌘G", run: actions.groupSelected },
+      { id: "frame-selection", label: "Frame selection", detail: "Command", keywords: "frame selection", shortcut: "⌥⌘G", run: actions.frameSelected },
       { id: "component", label: "Create component", detail: "Command", keywords: "component reusable asset", run: () => actions.createComponentSelected("Component") },
-      { id: "zoom-reset", label: "Reset zoom to 100%", detail: "View", keywords: "zoom reset view", run: () => dispatch(setViewport({ ...editor.viewport, zoom: 1 })) },
+      { id: "zoom-reset", label: "Reset zoom to 100%", detail: "View", keywords: "zoom reset view", shortcut: "⌘0", run: () => dispatch(setViewport({ ...editor.viewport, zoom: 1 })) },
     ];
   }, [actions, board.shapes, dispatch, editor.viewport]);
 
   const normalized = query.trim().toLowerCase();
   const results = items
-    .filter((item) => !normalized || `${item.label} ${item.keywords}`.toLowerCase().includes(normalized))
+    .filter((item) => (!referenceMode || item.shortcut) && (!normalized || `${item.label} ${item.keywords} ${item.shortcut ?? ""}`.toLowerCase().includes(normalized)))
     .slice(0, 30);
 
   const run = (item?: PaletteItem) => {
@@ -101,14 +116,14 @@ const CommandPalette = () => {
       </button>
       {open && (
         <div className={styles.commandBackdrop} onPointerDown={() => setOpen(false)}>
-          <div className={styles.commandPalette} role="dialog" aria-modal="true" aria-label="Search and commands" onPointerDown={(event) => event.stopPropagation()}>
+          <div className={styles.commandPalette} role="dialog" aria-modal="true" aria-label={referenceMode ? "Keyboard shortcuts" : "Search and commands"} onPointerDown={(event) => event.stopPropagation()}>
             <label className={styles.commandSearch}>
               <MagnifyingGlass aria-hidden="true" />
               <input
                 ref={inputRef}
                 value={query}
-                placeholder="Find a layer or run a command"
-                aria-label="Search objects and commands"
+                placeholder={referenceMode ? "Search keyboard shortcuts" : "Find a layer or run a command"}
+                aria-label={referenceMode ? "Search keyboard shortcuts" : "Search objects and commands"}
                 onChange={(event) => { setQuery(event.target.value); setActive(0); }}
                 onKeyDown={(event) => {
                   if (event.key === "Escape") setOpen(false);
@@ -129,7 +144,7 @@ const CommandPalette = () => {
                   onMouseEnter={() => setActive(index)}
                   onClick={() => run(item)}
                 >
-                  <span>{item.label}</span><small>{item.detail}</small>
+                  <span>{item.label}</span><small>{item.shortcut ? <><kbd>{item.shortcut}</kbd> · </> : null}{item.detail}</small>
                 </button>
               ))}
               {!results.length && <p>No matching objects or commands.</p>}

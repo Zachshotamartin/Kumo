@@ -67,7 +67,7 @@ describe("collaboration room providers", () => {
     render(<LiveblocksRoot><div>Child</div></LiveblocksRoot>);
     await expect(mocks.authEndpoint?.("board:one")).resolves.toEqual({ token: "liveblocks" });
     expect(fetch).toHaveBeenCalledWith("/api/liveblocks-auth", expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: "Bearer token" }),
+      headers: expect.objectContaining({ Authorization: "Bearer token", "X-Kumo-Session-Id": expect.any(String) }),
     }));
   });
 

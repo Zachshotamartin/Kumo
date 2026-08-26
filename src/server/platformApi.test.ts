@@ -4,8 +4,9 @@ import handler from "../../server/api/handlers/platform";
 const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(), ensureProfile: vi.fn(), from: vi.fn(), rpc: vi.fn(), getAccess: vi.fn(), listBoards: vi.fn(), searchBoards: vi.fn(),
   provisionBoard: vi.fn(), getDocument: vi.fn(), revokeTokens: vi.fn(),
+  friendshipRows: vi.fn(),
   pushConfigured: vi.fn(), sendPush: vi.fn(), storageFrom: vi.fn(),
-  queues: new Map<string, Array<{ data?: unknown; error: unknown }>>(), calls: [] as Array<{ table: string; operation: string; value?: unknown }>,
+  queues: new Map<string, Array<{ data?: unknown; error: unknown }>>(), calls: [] as Array<{ table: string; operation: string; value?: unknown; args?: unknown[] }>,
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
@@ -14,11 +15,16 @@ vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess, li
 vi.mock("../../server/api/_liveblocks", () => ({ liveblocksAdmin: () => ({ getStorageDocument: mocks.getDocument }) }));
 vi.mock("../../server/api/_firebaseAdmin", () => ({ privilegedAdminAuth: () => ({ revokeRefreshTokens: mocks.revokeTokens }) }));
 vi.mock("../../server/api/_push", () => ({ pushConfigured: mocks.pushConfigured, sendPushToUser: mocks.sendPush }));
+vi.mock("../../server/api/_profiles", () => ({
+  friendshipRowsForActor: mocks.friendshipRows,
+  otherUserId: (row: { user_low_id: string; user_high_id: string }, actorUid: string) => row.user_low_id === actorUid ? row.user_high_id : row.user_low_id,
+  relationshipFor: (row: { status: string; blocked_by: string | null }, actorUid: string) => row.status === "blocked" && row.blocked_by !== actorUid ? "hidden" : "none",
+}));
 
 const next = (table: string) => mocks.queues.get(table)?.shift() ?? { data: null, error: null };
 const query = (table: string) => {
   const builder: Record<string, unknown> = {};
-  const chain = (operation: string) => (...args: unknown[]) => { mocks.calls.push({ table, operation, value: args[0] }); return builder; };
+  const chain = (operation: string) => (...args: unknown[]) => { mocks.calls.push({ table, operation, value: args[0], args }); return builder; };
   ["select", "eq", "ilike", "or", "order", "limit", "in", "is", "neq", "insert", "update", "upsert", "delete"].forEach((operation) => { builder[operation] = chain(operation); });
   builder.single = () => Promise.resolve(next(table));
   builder.maybeSingle = () => Promise.resolve(next(table));
@@ -38,7 +44,9 @@ describe("product maturity platform API", () => {
     mocks.getAccess.mockResolvedValue({ role: "owner", board: { id: "board", owner_id: "owner", title: "Board", visibility: "private", liveblocks_room_id: "board:board" } });
     mocks.listBoards.mockResolvedValue([]); mocks.searchBoards.mockResolvedValue([]); mocks.getDocument.mockResolvedValue({ backgroundColor: "#fff", nodes: {} });
     mocks.provisionBoard.mockResolvedValue({ id: "remix" }); mocks.revokeTokens.mockResolvedValue(undefined);
+    mocks.friendshipRows.mockResolvedValue([]);
     mocks.pushConfigured.mockReturnValue(true); mocks.sendPush.mockResolvedValue({ delivered: 1, subscriptions: 1 });
+    delete process.env.KUMO_MODERATOR_UIDS;
     process.env.VAPID_PUBLIC_KEY = "test-public-key";
     mocks.storageFrom.mockReturnValue({
       createSignedUrls: vi.fn().mockResolvedValue({ data: [], error: null }),
@@ -188,7 +196,7 @@ describe("product maturity platform API", () => {
     enqueue("community_publications", { data: { board_id: "board", slug: "board", description: "Useful" } });
     const published = response(); await handler(request("POST", { action: "publish-community", boardId: "board", description: "Useful", tags: ["Design", "Systems"] }), published);
     expect(published.statusCode).toBe(201); expect(mocks.calls).toContainEqual(expect.objectContaining({ table: "community_publications", operation: "upsert", value: expect.objectContaining({ tags: ["design", "systems"] }) }));
-    enqueue("community_publications", { data: { board_id: "board" } }); enqueue("community_reports", { error: null }); const reported = response(); await handler(request("POST", { action: "report-community", boardId: "board", reason: "Misleading preview" }), reported); expect(reported.body).toEqual({ reported: true });
+    enqueue("community_publications", { data: { board_id: "board" } }); enqueue("community_reports", { error: null }); const reported = response(); await handler(request("POST", { action: "report-community", boardId: "board", category: "spam", reason: "Misleading preview" }), reported); expect(reported.body).toEqual({ reported: true });
     enqueue("community_publications", { data: { remix_allowed: true, remix_count: 2, boards: { title: "Published board", liveblocks_room_id: "board:public" } } }, { error: null });
     mocks.getAccess.mockClear();
     const remixed = response(); await handler(request("POST", { action: "remix-community", boardId: "board" }), remixed); expect(remixed.body).toEqual({ boardId: "remix" });
@@ -196,12 +204,119 @@ describe("product maturity platform API", () => {
     expect(mocks.getDocument).toHaveBeenCalledWith("board:public", "json");
   });
 
+  it("loads and enforces the community moderation queue", async () => {
+    const denied = response();
+    await handler(request("GET", {}, { scope: "community-moderation" }), denied);
+    expect(denied.statusCode).toBe(403);
+
+    process.env.KUMO_MODERATOR_UIDS = " other, owner ";
+    enqueue("community_reports", { data: [{ id: "report", board_id: "board", status: "open" }] });
+    const queue = response();
+    await handler(request("GET", {}, { scope: "community-moderation" }), queue);
+    expect(queue.body).toEqual({ reports: [expect.objectContaining({ id: "report" })] });
+
+    enqueue("community_reports", { data: null });
+    const empty = response();
+    await handler(request("GET", {}, { scope: "community-moderation" }), empty);
+    expect(empty.body).toEqual({ reports: [] });
+
+    enqueue("community_reports", { error: new Error("queue failed") });
+    const failure = response();
+    await handler(request("GET", {}, { scope: "community-moderation" }), failure);
+    expect(failure.statusCode).toBe(500);
+  });
+
+  it("reviews, dismisses, and removes community reports with an auditable decision", async () => {
+    process.env.KUMO_MODERATOR_UIDS = "owner";
+    for (const decision of ["reviewed", "dismissed", "removed"] as const) {
+      const reply = response();
+      await handler(request("POST", { action: "moderate-community", reportId: `report-${decision}`, decision, note: "Checked" }), reply);
+      expect(reply.body).toEqual({ moderated: true, decision });
+      expect(mocks.rpc).toHaveBeenCalledWith("moderate_kumo_community_report", {
+        p_report_id: `report-${decision}`, p_actor_id: "owner", p_decision: decision, p_note: "Checked",
+      });
+    }
+  });
+
+  it("validates moderation state and reports each persistence failure", async () => {
+    const forbidden = response();
+    await handler(request("POST", { action: "moderate-community", reportId: "report", decision: "reviewed" }), forbidden);
+    expect(forbidden.statusCode).toBe(403);
+    process.env.KUMO_MODERATOR_UIDS = "owner";
+
+    for (const body of [{ decision: "reviewed" }, { reportId: "report", decision: "invalid" }]) {
+      const invalid = response(); await handler(request("POST", { action: "moderate-community", ...body }), invalid); expect(invalid.statusCode).toBe(400);
+    }
+    mocks.rpc.mockImplementation(async (name: string) => name === "moderate_kumo_community_report"
+      ? { data: null, error: new Error("moderation transaction failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    const failed = response(); await handler(request("POST", { action: "moderate-community", reportId: "report", decision: "reviewed" }), failed); expect(failed.statusCode).toBe(500);
+    mocks.rpc.mockImplementation(async (name: string) => name === "moderate_kumo_community_report"
+      ? { data: null, error: new Error("This report has already been reviewed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    const stale = response(); await handler(request("POST", { action: "moderate-community", reportId: "report", decision: "reviewed" }), stale); expect(stale.statusCode).toBe(409);
+  });
+
+  it("lists current account devices and selectively revokes other sessions", async () => {
+    enqueue("account_sessions", { data: [{ id: "current" }, { id: "other" }] });
+    const listed = response();
+    await handler({ ...request("GET", {}, { scope: "account-sessions" }), headers: { ...request("GET").headers, "x-kumo-session-id": ["current"] } } as unknown as VercelRequest, listed);
+    expect(listed.body).toEqual({ sessions: [{ id: "current", current: true }, { id: "other", current: false }] });
+
+    enqueue("account_sessions", { data: null });
+    const empty = response(); await handler(request("GET", {}, { scope: "account-sessions" }), empty); expect(empty.body).toEqual({ sessions: [] });
+    enqueue("account_sessions", { error: new Error("sessions failed") });
+    const failure = response(); await handler(request("GET", {}, { scope: "account-sessions" }), failure); expect(failure.statusCode).toBe(500);
+
+    for (const sessionId of ["", "current"]) {
+      const invalid = response();
+      await handler({ ...request("POST", { action: "revoke-account-session", sessionId }), headers: { ...request("POST").headers, "x-kumo-session-id": "current" } } as unknown as VercelRequest, invalid);
+      expect(invalid.statusCode).toBe(400);
+    }
+    enqueue("account_sessions", { error: null });
+    const revoked = response(); await handler(request("POST", { action: "revoke-account-session", sessionId: "other" }), revoked); expect(revoked.body).toEqual({ revoked: true });
+    enqueue("account_sessions", { error: new Error("revoke failed") });
+    const revokeFailure = response(); await handler(request("POST", { action: "revoke-account-session", sessionId: "other" }), revokeFailure); expect(revokeFailure.statusCode).toBe(500);
+
+    enqueue("account_sessions", { error: null });
+    const arrayHeader = response();
+    await handler({ ...request("POST", { action: "revoke-account-session", sessionId: "other" }), headers: { ...request("POST").headers, "x-kumo-session-id": ["current"] } } as unknown as VercelRequest, arrayHeader);
+    expect(arrayHeader.statusCode).toBe(200);
+  });
+
+  it("loads current account-deletion status and reports lookup failures", async () => {
+    enqueue("account_deletion_requests", { data: { scheduled_for: "later", cancelled_at: null } });
+    const loaded = response(); await handler(request("GET", {}, { scope: "account-deletion" }), loaded);
+    expect(loaded.body).toEqual({ deletion: { scheduled_for: "later", cancelled_at: null } });
+    enqueue("account_deletion_requests", { error: new Error("deletion lookup failed") });
+    const failed = response(); await handler(request("GET", {}, { scope: "account-deletion" }), failed);
+    expect(failed.statusCode).toBe(500);
+  });
+
+  it("preserves the current device during global revocation and reports session storage failures", async () => {
+    enqueue("account_sessions", { error: null }); enqueue("audit_events", { error: null });
+    const revoked = response();
+    await handler({ ...request("POST", { action: "revoke-sessions" }), headers: { ...request("POST").headers, "x-kumo-session-id": ["current"] } } as unknown as VercelRequest, revoked);
+    expect(revoked.statusCode).toBe(200);
+    expect(mocks.calls).toContainEqual(expect.objectContaining({ table: "account_sessions", operation: "neq", args: ["id", "current"] }));
+
+    enqueue("account_sessions", { error: new Error("session update failed") });
+    const failure = response(); await handler(request("POST", { action: "revoke-sessions" }), failure); expect(failure.statusCode).toBe(500);
+  });
+
   it("exports account data, revokes sessions, and schedules or cancels deletion", async () => {
     enqueue("account_notifications", { data: [] }); enqueue("friendships", { data: [] }); enqueue("audit_events", { data: [] });
     const exported = response(); await handler(request("GET", {}, { scope: "account-export" }), exported); expect(exported.body).toEqual(expect.objectContaining({ profile: expect.objectContaining({ uid: "owner" }), boards: [] }));
-    enqueue("audit_events", { error: null }); const sessions = response(); await handler(request("POST", { action: "revoke-sessions" }), sessions); expect(sessions.body).toEqual({ revoked: true }); expect(mocks.revokeTokens).toHaveBeenCalledWith("owner");
-    enqueue("account_deletion_requests", { data: { requested_at: "now", scheduled_for: "later" } }); const deletion = response(); await handler(request("POST", { action: "request-account-deletion" }), deletion); expect(deletion.statusCode).toBe(202);
-    enqueue("account_deletion_requests", { error: null }); const cancel = response(); await handler(request("POST", { action: "cancel-account-deletion" }), cancel); expect(cancel.body).toEqual({ cancelled: true });
+    enqueue("audit_events", { error: null }); const sessions = response(); await handler(request("POST", { action: "revoke-sessions" }), sessions); expect(sessions.body).toEqual({ revoked: true }); expect(mocks.revokeTokens).not.toHaveBeenCalled();
+    mocks.rpc.mockImplementation(async (name: string) => name === "schedule_kumo_account_deletion"
+      ? { data: [{ requested_at: "now", scheduled_for: "later" }], error: null }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    const deletion = response(); await handler(request("POST", { action: "request-account-deletion" }), deletion); expect(deletion.body).toEqual({ deletion: { requested_at: "now", scheduled_for: "later" } });
+    mocks.rpc.mockImplementation(async (name: string) => name === "schedule_kumo_account_deletion"
+      ? { data: null, error: null }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    const emptyDeletion = response(); await handler(request("POST", { action: "request-account-deletion" }), emptyDeletion); expect(emptyDeletion.body).toEqual({ deletion: null });
+    const cancel = response(); await handler(request("POST", { action: "cancel-account-deletion" }), cancel); expect(cancel.body).toEqual({ cancelled: true });
   });
 
   it("loads complete workspace administration data and provisions a first workspace", async () => {
@@ -244,6 +359,30 @@ describe("product maturity platform API", () => {
     await handler(request("GET", {}, { scope: "global-search", q: "design" }), search);
     expect((search.body as { results: Array<{ kind: string }> }).results.map((item) => item.kind)).toEqual(["board", "board", "profile", "template", "community"]);
 
+    mocks.friendshipRows.mockResolvedValueOnce([{
+      user_low_id: "owner", user_high_id: "person", status: "blocked", requested_by: null,
+      blocked_by: "person", created_at: "", updated_at: "", responded_at: null,
+    }]);
+    enqueue("profiles", { data: [{ firebase_uid: "owner", username: "owner", display_name: "Owner" }, { firebase_uid: "person", username: "designer", display_name: "Designer" }] });
+    enqueue("board_templates", { data: [] });
+    enqueue("community_publications", { data: [] });
+    const privateSearch = response();
+    await handler(request("GET", {}, { scope: "global-search", q: "design" }), privateSearch);
+    expect((privateSearch.body as { results: Array<{ kind: string }> }).results.every((item) => item.kind !== "profile")).toBe(true);
+
+    mocks.listBoards.mockResolvedValueOnce([]);
+    mocks.searchBoards.mockResolvedValueOnce([]);
+    mocks.friendshipRows.mockResolvedValueOnce([{
+      user_low_id: "owner", user_high_id: "person", status: "blocked", requested_by: null,
+      blocked_by: "owner", created_at: "", updated_at: "", responded_at: null,
+    }]);
+    enqueue("profiles", { data: [{ firebase_uid: "person", username: "designer", display_name: "Designer" }] });
+    enqueue("board_templates", { data: [{ id: "hidden-template", owner_id: "person", name: "Hidden", description: "Design" }] });
+    enqueue("community_publications", { data: [{ board_id: "hidden-community", published_by: "person", slug: "hidden", description: "Design", boards: { title: "Hidden" } }] });
+    const blockedContent = response();
+    await handler(request("GET", {}, { scope: "global-search", q: "design" }), blockedContent);
+    expect(blockedContent.body).toEqual({ results: [] });
+
     enqueue("audit_events", { data: [
       { event_type: "collaboration.connection", payload: { event: "lost", retryCount: 1 }, created_at: "2026-08-24T00:00:00Z" },
       { event_type: "collaboration.connection", payload: { event: "restored", durationMs: 900 }, created_at: "2026-08-24T00:00:01Z" },
@@ -270,7 +409,18 @@ describe("product maturity platform API", () => {
 
     enqueue("community_publications", { data: [{ board_id: "board", slug: "board" }] });
     const community = response(); await handler(request("GET", {}, { scope: "community" }), community);
-    expect(community.body).toEqual({ publications: [{ board_id: "board", slug: "board" }] });
+    expect(community.body).toEqual({ publications: [{ board_id: "board", slug: "board" }], canModerate: false });
+
+    mocks.friendshipRows.mockResolvedValueOnce([{
+      user_low_id: "blocked", user_high_id: "owner", status: "blocked", requested_by: null,
+      blocked_by: "owner", created_at: "", updated_at: "", responded_at: null,
+    }]);
+    enqueue("community_publications", { data: [
+      { board_id: "hidden", published_by: "blocked", slug: "hidden" },
+      { board_id: "visible", published_by: "creator", slug: "visible" },
+    ] });
+    const filtered = response(); await handler(request("GET", {}, { scope: "community" }), filtered);
+    expect(filtered.body).toEqual({ publications: [{ board_id: "visible", published_by: "creator", slug: "visible" }], canModerate: false });
   });
 
   it("renames workspaces and manages existing members and invitations safely", async () => {
@@ -539,7 +689,7 @@ describe("product maturity platform API", () => {
     const sessionError = response(); await handler(request("GET", {}, { scope: "open-sessions", boardId: "board" }), sessionError); expect(sessionError.statusCode).toBe(500);
 
     enqueue("community_publications", { data: null });
-    const emptyCommunity = response(); await handler(request("GET", {}, { scope: "community" }), emptyCommunity); expect(emptyCommunity.body).toEqual({ publications: [] });
+    const emptyCommunity = response(); await handler(request("GET", {}, { scope: "community" }), emptyCommunity); expect(emptyCommunity.body).toEqual({ publications: [], canModerate: false });
     enqueue("community_publications", { error: new Error("community failed") });
     const communityError = response(); await handler(request("GET", {}, { scope: "community" }), communityError); expect(communityError.statusCode).toBe(500);
 
@@ -569,7 +719,10 @@ describe("product maturity platform API", () => {
     const invalidEmail = response(); await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "invalid", role: "invalid" }), invalidEmail); expect(invalidEmail.statusCode).toBe(400);
     enqueue("workspace_members", { data: { role: "owner" } }); enqueue("profiles", { error: new Error("profile lookup failed") });
     const profileError = response(); await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "member@example.com" }), profileError); expect(profileError.statusCode).toBe(500);
-    enqueue("workspace_members", { data: { role: "owner" } }, { error: new Error("member upsert failed") }); enqueue("profiles", { data: { firebase_uid: "member" } });
+    mocks.rpc.mockImplementation(async (name: string) => name === "upsert_kumo_workspace_member"
+      ? { data: null, error: new Error("member upsert failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    enqueue("workspace_members", { data: { role: "owner" } }); enqueue("profiles", { data: { firebase_uid: "member" } });
     const memberError = response(); await handler(request("POST", { action: "invite-workspace-member", workspaceId: "workspace", email: "member@example.com" }), memberError); expect(memberError.statusCode).toBe(500);
 
     mocks.rpc.mockImplementation(async (name: string) => name === "create_or_refresh_kumo_workspace_invitation"
@@ -581,9 +734,15 @@ describe("product maturity platform API", () => {
     enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_invitations", { error: new Error("cancel failed") });
     const cancelError = response(); await handler(request("POST", { action: "cancel-workspace-invitation", workspaceId: "workspace", invitationId: 42 }), cancelError); expect(cancelError.statusCode).toBe(500);
 
-    enqueue("workspace_members", { data: { role: "owner" } }, { error: new Error("remove failed") });
+    mocks.rpc.mockImplementation(async (name: string) => name === "remove_kumo_workspace_member"
+      ? { data: null, error: new Error("remove failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    enqueue("workspace_members", { data: { role: "owner" } });
     const removeError = response(); await handler(request("POST", { action: "remove-workspace-member", workspaceId: "workspace", userId: "member" }), removeError); expect(removeError.statusCode).toBe(500);
-    enqueue("workspace_members", { data: { role: "owner" } }, { error: new Error("update failed") });
+    mocks.rpc.mockImplementation(async (name: string) => name === "update_kumo_workspace_member"
+      ? { data: null, error: new Error("update failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    enqueue("workspace_members", { data: { role: "owner" } });
     const updateError = response(); await handler(request("POST", { action: "update-workspace-member", workspaceId: "workspace", userId: "member", role: "invalid" }), updateError); expect(updateError.statusCode).toBe(500);
 
     enqueue("workspace_members", { data: { role: "owner" } });
@@ -611,7 +770,10 @@ describe("product maturity platform API", () => {
     enqueue("workspace_members", { data: { role: "owner" } }); enqueue("workspace_folders", { data: folders }, { error: new Error("delete failed") });
     const deleteError = response(); await handler(request("POST", { action: "delete-folder", workspaceId: "workspace", folderId: "folder" }), deleteError); expect(deleteError.statusCode).toBe(500);
 
-    enqueue("workspace_members", { data: { role: "member" } }, { error: new Error("leave failed") });
+    mocks.rpc.mockImplementation(async (name: string) => name === "leave_kumo_workspace"
+      ? { data: null, error: new Error("leave failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
+    enqueue("workspace_members", { data: { role: "member" } });
     const leaveError = response(); await handler(request("POST", { action: "leave-workspace", workspaceId: "workspace" }), leaveError); expect(leaveError.statusCode).toBe(500);
   });
 
@@ -738,9 +900,13 @@ describe("product maturity platform API", () => {
   });
 
   it("covers account lifecycle write errors and semantic status mapping", async () => {
-    enqueue("account_deletion_requests", { error: new Error("deletion failed") });
+    mocks.rpc.mockImplementation(async (name: string) => name === "schedule_kumo_account_deletion"
+      ? { data: null, error: new Error("deletion failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
     const deletionError = response(); await handler(request("POST", { action: "request-account-deletion" }), deletionError); expect(deletionError.statusCode).toBe(500);
-    enqueue("account_deletion_requests", { error: new Error("cancel failed") });
+    mocks.rpc.mockImplementation(async (name: string) => name === "cancel_kumo_account_deletion"
+      ? { data: null, error: new Error("cancel failed") }
+      : { data: { allowed: true, remaining: 20 }, error: null });
     const cancelError = response(); await handler(request("POST", { action: "cancel-account-deletion" }), cancelError); expect(cancelError.statusCode).toBe(500);
 
     mocks.requireActor.mockRejectedValueOnce(Object.assign(new Error("Invitation is unavailable."), { name: "NotFound" }));

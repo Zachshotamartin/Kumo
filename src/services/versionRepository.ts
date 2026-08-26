@@ -100,3 +100,6 @@ export const restoreBoardVersion = async (
     method: "POST",
     body: JSON.stringify({ action: "restore", boardId, versionId, branchId: branchId ?? undefined }),
   });
+
+export const restoreBoardVersionLayers = (boardId: string, versionId: string, shapeIds: string[], branchId?: string | null): Promise<{ restored: true; versionId: string; beforeRestoreId: string; revision: number; restoredShapeIds: string[] }> =>
+  authenticatedFetch("/api/versions", { method: "POST", body: JSON.stringify({ action: "restore-layers", boardId, versionId, shapeIds, branchId: branchId ?? undefined }) });

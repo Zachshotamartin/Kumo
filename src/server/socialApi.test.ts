@@ -17,6 +17,13 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   searchRows: [] as Array<Record<string, unknown>> | null,
   searchErrors: [] as Array<Error | null>,
+  removeAvatar: vi.fn(),
+  prepareAvatar: vi.fn(),
+  listAvatars: vi.fn(),
+  publicAvatar: vi.fn(),
+  currentAvatar: null as null | { avatar_storage_key: string | null },
+  currentAvatarError: null as unknown,
+  avatarUpdateError: null as unknown,
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
@@ -25,16 +32,27 @@ vi.mock("../../server/api/_supabase", () => ({
   ensureActorProfile: mocks.ensureProfile,
   supabaseAdmin: () => ({
     rpc: mocks.rpc,
+    storage: { from: () => ({
+      remove: mocks.removeAvatar,
+      createSignedUploadUrl: mocks.prepareAvatar,
+      list: mocks.listAvatars,
+      getPublicUrl: mocks.publicAvatar,
+    }) },
     from: (table: string) => {
       if (table === "audit_events") return { insert: mocks.insert };
       return {
         select: () => ({
           eq: () => ({
-            ilike: () => ({ limit: vi.fn().mockImplementation(async () => ({ data: mocks.searchRows, error: mocks.searchErrors.shift() ?? null })) }),
+            maybeSingle: vi.fn().mockImplementation(async () => ({ data: mocks.currentAvatar, error: mocks.currentAvatarError })),
+            single: vi.fn().mockImplementation(async () => ({ data: mocks.currentAvatar ?? { avatar_storage_key: null }, error: mocks.currentAvatarError })),
+            eq: () => ({
+              ilike: () => ({ limit: vi.fn().mockImplementation(async () => ({ data: mocks.searchRows, error: mocks.searchErrors.shift() ?? null })) }),
+            }),
           }),
         }),
         update: () => ({
           eq: () => ({
+            then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: mocks.avatarUpdateError }).then(resolve),
             select: () => ({ single: mocks.updateResult }),
           }),
         }),
@@ -70,6 +88,7 @@ vi.mock("../../server/api/_profiles", () => ({
 const row = (uid: string, name: string, username = uid) => ({
   firebase_uid: uid,
   email: `${uid}@example.com`,
+  email_verified: true,
   display_name: name,
   avatar_url: null,
   username,
@@ -127,7 +146,15 @@ describe("profile API", () => {
     mocks.publicBoards.mockResolvedValue([{ id: "public", title: "Public board" }]);
     mocks.updateResult.mockResolvedValue({ data: row("actor", "Avery Updated", "avery"), error: null });
     mocks.insert.mockResolvedValue({ error: null });
+    mocks.removeAvatar.mockResolvedValue({ error: null });
+    mocks.prepareAvatar.mockResolvedValue({ data: { path: "actor/avatar.png", token: "token" }, error: null });
+    mocks.listAvatars.mockResolvedValue({ data: [{ name: "avatar.png", metadata: { mimetype: "image/png" } }], error: null });
+    mocks.publicAvatar.mockReturnValue({ data: { publicUrl: "https://cdn.example/actor/avatar.png" } });
+    mocks.currentAvatar = null;
+    mocks.currentAvatarError = null;
+    mocks.avatarUpdateError = null;
     mocks.searchErrors = [];
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
   });
 
   it("returns editable private settings only for the current profile", async () => {
@@ -179,6 +206,114 @@ describe("profile API", () => {
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ event_type: "profile.updated" }));
   });
 
+  it("prepares and completes managed avatar uploads across supported formats", async () => {
+    for (const mimeType of ["image/png", "image/webp", "image/jpeg"]) {
+      const prepared = response();
+      await profileHandler(request("POST", { action: "prepare-avatar-upload", mimeType, byteSize: 1024 }), prepared);
+      expect(prepared).toMatchObject({ statusCode: 200, body: { upload: { token: "token" } } });
+    }
+
+    mocks.currentAvatar = { avatar_storage_key: "actor/old.png" };
+    const completed = response();
+    await profileHandler(request("POST", { action: "complete-avatar-upload", storageKey: "actor/avatar.png" }), completed);
+    expect(completed).toMatchObject({ statusCode: 200, body: { avatarUrl: "https://cdn.example/actor/avatar.png" } });
+    expect(mocks.removeAvatar).toHaveBeenCalledWith(["actor/old.png"]);
+
+    mocks.currentAvatar = { avatar_storage_key: "actor/avatar.png" };
+    mocks.removeAvatar.mockClear();
+    const unchanged = response();
+    await profileHandler(request("POST", { action: "complete-avatar-upload", storageKey: "actor/avatar.png" }), unchanged);
+    expect(unchanged.statusCode).toBe(200);
+    expect(mocks.removeAvatar).not.toHaveBeenCalled();
+  });
+
+  it("validates avatar actions and reports every storage and profile failure", async () => {
+    for (const body of [
+      { action: "prepare-avatar-upload", mimeType: null, byteSize: 1 },
+      { action: "prepare-avatar-upload", mimeType: "image/gif", byteSize: 1 },
+      { action: "prepare-avatar-upload", mimeType: "image/png", byteSize: "nope" },
+      { action: "prepare-avatar-upload", mimeType: "image/png", byteSize: 0 },
+      { action: "prepare-avatar-upload", mimeType: "image/png", byteSize: 6 * 1024 * 1024 },
+      { action: "complete-avatar-upload", storageKey: "other/avatar.png" },
+      { action: "complete-avatar-upload", storageKey: "actor/../avatar.png" },
+      { action: "complete-avatar-upload", storageKey: null },
+      { action: "unknown" },
+    ]) {
+      const reply = response();
+      await profileHandler(request("POST", body), reply);
+      expect(reply.statusCode).toBe(400);
+    }
+
+    mocks.prepareAvatar.mockResolvedValueOnce({ data: null, error: { code: "STORAGE", message: "prepare failed" } });
+    const prepare = response();
+    await profileHandler(request("POST", { action: "prepare-avatar-upload", mimeType: "image/png", byteSize: 1 }), prepare);
+    expect(prepare.statusCode).toBe(500);
+
+    mocks.listAvatars.mockResolvedValueOnce({ data: null, error: { code: "STORAGE", message: "list failed" } });
+    const list = response();
+    await profileHandler(request("POST", { action: "complete-avatar-upload", storageKey: "actor/avatar.png" }), list);
+    expect(list.statusCode).toBe(500);
+
+    for (const objects of [null, [], [{ name: "avatar.png", metadata: {} }], [{ name: "avatar.png", metadata: { mimetype: "image/gif" } }]]) {
+      mocks.listAvatars.mockResolvedValueOnce({ data: objects, error: null });
+      const incomplete = response();
+      await profileHandler(request("POST", { action: "complete-avatar-upload", storageKey: "actor/avatar.png" }), incomplete);
+      expect(incomplete.statusCode).toBe(409);
+    }
+
+    mocks.currentAvatarError = { code: "PGRST000", message: "current failed" };
+    const current = response();
+    await profileHandler(request("POST", { action: "complete-avatar-upload", storageKey: "actor/avatar.png" }), current);
+    expect(current.statusCode).toBe(500);
+    mocks.currentAvatarError = null;
+
+    mocks.avatarUpdateError = { code: "PGRST000", message: "update failed" };
+    const update = response();
+    await profileHandler(request("POST", { action: "complete-avatar-upload", storageKey: "actor/avatar.png" }), update);
+    expect(update.statusCode).toBe(500);
+    mocks.avatarUpdateError = null;
+
+    mocks.currentAvatar = { avatar_storage_key: "actor/old.png" };
+    mocks.removeAvatar.mockResolvedValueOnce({ error: { code: "STORAGE", message: "remove failed" } });
+    const remove = response();
+    await profileHandler(request("POST", { action: "complete-avatar-upload", storageKey: "actor/avatar.png" }), remove);
+    expect(remove.statusCode).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("enqueue_kumo_storage_cleanup", expect.objectContaining({
+      p_bucket: "profile-avatars", p_storage_key: "actor/old.png",
+    }));
+  });
+
+  it("cleans up replaced managed avatars and queues or audits post-commit cleanup failures", async () => {
+    mocks.currentAvatar = { avatar_storage_key: "actor/managed.png" };
+    const replaced = response();
+    await profileHandler(request("PATCH", { avatarUrl: "https://images.example/new.png" }), replaced);
+    expect(replaced.statusCode).toBe(200);
+    expect(mocks.removeAvatar).toHaveBeenCalledWith(["actor/managed.png"]);
+
+    mocks.currentAvatarError = { code: "PGRST000", message: "lookup failed" };
+    const lookup = response();
+    await profileHandler(request("PATCH", { avatarUrl: null }), lookup);
+    expect(lookup.statusCode).toBe(500);
+    mocks.currentAvatarError = null;
+
+    mocks.removeAvatar.mockResolvedValueOnce({ error: { code: "STORAGE", message: "cleanup failed" } });
+    mocks.rpc.mockResolvedValueOnce({ error: { code: "PGRST000", message: "queue failed" } });
+    const cleanup = response();
+    await profileHandler(request("PATCH", { avatarUrl: null }), cleanup);
+    expect(cleanup.statusCode).toBe(200);
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ event_type: "profile.avatar_cleanup_unqueued" }));
+
+    mocks.removeAvatar.mockResolvedValueOnce({ error: { code: "STORAGE", message: "cleanup failed again" } });
+    mocks.rpc.mockRejectedValueOnce(new Error("queue unavailable"));
+    const rejectedQueue = response();
+    await profileHandler(request("PATCH", { avatarUrl: null }), rejectedQueue);
+    expect(rejectedQueue.statusCode).toBe(200);
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      event_type: "profile.avatar_cleanup_unqueued",
+      payload: expect.objectContaining({ message: "queue unavailable" }),
+    }));
+  });
+
   it("reports username conflicts and database failures with distinct statuses", async () => {
     mocks.updateResult.mockResolvedValueOnce({ data: null, error: { code: "23505", message: "duplicate" } });
     const conflict = response();
@@ -218,7 +353,7 @@ describe("profile API", () => {
 
   it("handles missing profiles, unsupported methods, auth failures, and generic update errors", async () => {
     const unsupported = response();
-    await profileHandler(request("POST"), unsupported);
+    await profileHandler(request("PUT"), unsupported);
     expect(unsupported.statusCode).toBe(405);
     mocks.getProfileById.mockResolvedValueOnce(null);
     const missing = response();

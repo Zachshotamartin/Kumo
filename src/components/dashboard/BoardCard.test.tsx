@@ -87,4 +87,30 @@ describe("BoardCard", () => {
     expect(onOrganize).toHaveBeenCalledWith("trash-board");
     expect(onOrganize).toHaveBeenCalledWith("move-board", { folderId: "folder" });
   });
+
+  it("supports selection and every contextual board action", () => {
+    const callbacks = { selection: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), share: vi.fn(), remove: vi.fn(), organize: vi.fn() };
+    render(<BoardCard board={board()} onOpen={vi.fn()} selected onSelectionChange={callbacks.selection} onRename={callbacks.rename} onDuplicate={callbacks.duplicate} onShare={callbacks.share} onDelete={callbacks.remove} onOrganize={callbacks.organize} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Project map" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Share" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(callbacks.selection).toHaveBeenCalledWith(false);
+    expect(callbacks.rename).toHaveBeenCalled();
+    expect(callbacks.duplicate).toHaveBeenCalled();
+    expect(callbacks.share).toHaveBeenCalled();
+    expect(callbacks.organize).toHaveBeenCalledWith("archive-board");
+    expect(callbacks.remove).toHaveBeenCalled();
+  });
+
+  it("offers only restoration controls for a server-deleted board", () => {
+    const onOrganize = vi.fn();
+    render(<BoardCard board={{ ...board(), deletedAt: Date.now() }} onOpen={vi.fn()} organization={{ board_id: "board", workspace_id: null, folder_id: null, favorite: false, archived_at: null, trashed_at: "now" }} folders={[]} onOrganize={onOrganize} />);
+    fireEvent.click(screen.getByRole("button", { name: "Restore Project map" }));
+    expect(onOrganize).toHaveBeenCalledWith("restore-board");
+    expect(screen.queryByLabelText("Folder for Project map")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /favorite/i })).not.toBeInTheDocument();
+  });
 });

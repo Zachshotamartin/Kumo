@@ -521,18 +521,18 @@ describe("ShareDialog", () => {
     await screen.findByText("Member");
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "broken@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("couldn't invite this person");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("couldn't invite this person"));
     fireEvent.click(screen.getByRole("button", { name: "Remove Member" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Removal blocked");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Removal blocked"));
     fireEvent.change(screen.getByLabelText("Role for Member"), { target: { value: "editor" } });
-    expect(await screen.findByRole("alert")).toHaveTextContent("Role blocked");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Role blocked"));
     fireEvent.click(screen.getByRole("button", { name: "Create secure link" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Link blocked");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Link blocked"));
     mocks.createLink.mockRejectedValueOnce("link failed");
     fireEvent.click(screen.getByRole("button", { name: "Create secure link" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Share link creation failed");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Share link creation failed"));
     fireEvent.click(screen.getByRole("button", { name: "Create open session" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Open session creation failed");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Open session creation failed"));
   });
 
   it("reports governed-action errors instead of leaking rejected promises", async () => {

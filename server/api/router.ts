@@ -14,6 +14,7 @@ import shareBoard from "./handlers/share-board.js";
 import telemetry from "./handlers/telemetry.js";
 import versions from "./handlers/versions.js";
 import platform from "./handlers/platform.js";
+import maintenance from "./handlers/maintenance.js";
 import { applyApiSecurityHeaders } from "./_security.js";
 
 type ApiHandler = (request: VercelRequest, response: VercelResponse) => unknown;
@@ -27,6 +28,7 @@ export const apiHandlers: Readonly<Record<string, ApiHandler>> = {
   friends,
   "liveblocks-auth": liveblocksAuth,
   "migrate-board": migrateBoard,
+  maintenance,
   profile,
   product,
   platform,

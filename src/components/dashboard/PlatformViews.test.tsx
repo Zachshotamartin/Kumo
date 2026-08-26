@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { createFolder } from "../../services/productRepository";
 import {
   cancelAccountDeletion, cancelWorkspaceInvitation, exportAccountData, inviteWorkspaceMember, loadCommunity, loadNotificationPreferences, loadOperations, loadWorkspaceAdmin,
+  loadAccountDeletion, loadAccountSessions, loadCommunityModeration, moderateCommunity, reportCommunityCategory, revokeAccountSession,
   mutateWorkspaceFolder, remixCommunity, removeWorkspaceMember, renameWorkspace, reportCommunity, requestAccountDeletion, revokeAccountSessions,
   transferWorkspaceOwnership, updateNotificationPreferences, updateWorkspaceMember,
   loadPushConfig, subscribePush, testPush,
@@ -13,7 +14,14 @@ import { downloadBlob } from "../../editor/export";
 import { disableBackgroundPush, enableBackgroundPush } from "../../platform/browserNotifications";
 import type { WorkspaceAdminOverview } from "../../services/platformRepository";
 
+const authMocks = vi.hoisted(() => ({
+  auth: { currentUser: null as null | { email: string; emailVerified: boolean } },
+  sendPasswordReset: vi.fn(),
+}));
+
 vi.mock("../../services/productRepository", () => ({ createFolder: vi.fn() }));
+vi.mock("../../config/firebase", () => ({ auth: authMocks.auth }));
+vi.mock("firebase/auth", () => ({ sendPasswordResetEmail: authMocks.sendPasswordReset }));
 vi.mock("../../editor/export", () => ({ downloadBlob: vi.fn() }));
 vi.mock("../../platform/browserNotifications", () => ({ disableBackgroundPush: vi.fn(), enableBackgroundPush: vi.fn() }));
 vi.mock("../../services/platformRepository", () => ({
@@ -23,6 +31,9 @@ vi.mock("../../services/platformRepository", () => ({
   loadNotificationPreferences: vi.fn(), updateNotificationPreferences: vi.fn(), loadOperations: vi.fn(),
   cancelAccountDeletion: vi.fn(), exportAccountData: vi.fn(), requestAccountDeletion: vi.fn(), revokeAccountSessions: vi.fn(),
   loadCommunity: vi.fn(), remixCommunity: vi.fn(), reportCommunity: vi.fn(),
+  loadCommunityModeration: vi.fn(), moderateCommunity: vi.fn(), reportCommunityCategory: vi.fn(),
+  loadAccountDeletion: vi.fn(),
+  loadAccountSessions: vi.fn(), revokeAccountSession: vi.fn(),
   loadPushConfig: vi.fn(), subscribePush: vi.fn(), testPush: vi.fn(),
 }));
 
@@ -52,17 +63,25 @@ describe("platform dashboard views", () => {
     vi.mocked(updateNotificationPreferences).mockImplementation(async (value) => value as Awaited<ReturnType<typeof loadNotificationPreferences>>);
     vi.mocked(loadOperations).mockResolvedValue({ events: [], telemetry: { counts: { ready: 2, lost: 1, failed: 0, restored: 1 }, eventCount: 4, retryCount: 1, recoveryRate: 1, averageRecoveryMs: 220, healthy: true } });
     vi.mocked(loadCommunity).mockResolvedValue([{ board_id: "public", published_by: "owner", slug: "public-board", description: "A useful system", tags: ["design"], remix_allowed: true, remix_count: 3, published_at: "", boards: { title: "Public board" } }]);
+    vi.mocked(loadCommunityModeration).mockResolvedValue([]);
+    vi.mocked(moderateCommunity).mockResolvedValue({ moderated: true, decision: "reviewed" });
+    vi.mocked(reportCommunityCategory).mockResolvedValue({ reported: true });
     vi.mocked(remixCommunity).mockResolvedValue({ boardId: "remix" });
     vi.mocked(reportCommunity).mockResolvedValue({ reported: true });
     vi.mocked(exportAccountData).mockResolvedValue({ profile: { id: "owner" } });
     vi.mocked(revokeAccountSessions).mockResolvedValue({ revoked: true });
     vi.mocked(requestAccountDeletion).mockResolvedValue({ deletion: { requested_at: "2026-08-24", scheduled_for: "2026-08-31" } });
     vi.mocked(cancelAccountDeletion).mockResolvedValue({ cancelled: true });
+    vi.mocked(loadAccountDeletion).mockResolvedValue(null);
+    vi.mocked(loadAccountSessions).mockResolvedValue([]);
+    vi.mocked(revokeAccountSession).mockResolvedValue({ revoked: true });
     vi.mocked(loadPushConfig).mockResolvedValue({ configured: true, publicKey: "test-public-key" });
     vi.mocked(subscribePush).mockResolvedValue({ subscription: { id: "push", endpoint: "https://push.example/subscription", updated_at: "2026-08-25" } });
     vi.mocked(testPush).mockResolvedValue({ delivered: 1, subscriptions: 1 });
     vi.mocked(enableBackgroundPush).mockResolvedValue({} as PushSubscription);
     vi.mocked(disableBackgroundPush).mockResolvedValue(true);
+    authMocks.auth.currentUser = null;
+    authMocks.sendPasswordReset.mockResolvedValue(undefined);
   });
 
   it("manages workspace invitations, member roles, and folders", async () => {
@@ -85,6 +104,7 @@ describe("platform dashboard views", () => {
   it("updates notification cadence immediately and reports collaboration health", async () => {
     render(<SettingsView />);
     const delivery = await screen.findByRole("combobox", { name: "Delivery" });
+    expect(screen.getByRole("region", { name: "Recent sessions" })).toBeVisible();
     fireEvent.change(delivery, { target: { value: "daily" } });
     await waitFor(() => expect(updateNotificationPreferences).toHaveBeenCalledWith(expect.objectContaining({ digest: "daily" })));
     expect(screen.getByText("100%")).toBeVisible();
@@ -115,7 +135,8 @@ describe("platform dashboard views", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Board comments" }), { target: { value: "mentions" } });
     fireEvent.click(screen.getByRole("checkbox", { name: "Branch reviews" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Library updates" }));
-    await waitFor(() => expect(updateNotificationPreferences).toHaveBeenCalledTimes(5));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Access changes" }));
+    await waitFor(() => expect(updateNotificationPreferences).toHaveBeenCalledTimes(6));
     fireEvent.click(screen.getByRole("button", { name: /Export data/ }));
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), "kumo-account-export.json"));
     fireEvent.click(screen.getByRole("button", { name: /Revoke sessions/ }));
@@ -126,6 +147,42 @@ describe("platform dashboard views", () => {
     await waitFor(() => expect(requestAccountDeletion).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: /Cancel deletion/ }));
     await waitFor(() => expect(cancelAccountDeletion).toHaveBeenCalled());
+  });
+
+  it("shows verification state, sends password resets, and revokes individual devices", async () => {
+    authMocks.auth.currentUser = { email: "owner@example.com", emailVerified: true };
+    vi.mocked(loadAccountSessions).mockResolvedValueOnce([
+      { id: "current", user_agent: "Current browser", created_at: "2026-08-25", last_seen_at: "2026-08-25", revoked_at: null, current: true },
+      { id: "other", user_agent: "", created_at: "2026-08-24", last_seen_at: "2026-08-24", revoked_at: null, current: false },
+      { id: "revoked", user_agent: "Old browser", created_at: "2026-08-23", last_seen_at: "2026-08-23", revoked_at: "2026-08-24", current: false },
+    ]);
+    render(<SettingsView />);
+    expect(await screen.findByText("Verified")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Send password reset" }));
+    await waitFor(() => expect(authMocks.sendPasswordReset).toHaveBeenCalledWith(authMocks.auth, "owner@example.com"));
+    expect(await screen.findByRole("status")).toHaveTextContent("Password reset email sent");
+    const revokeButtons = screen.getAllByRole("button", { name: "Revoke" });
+    expect(revokeButtons[0]).toBeDisabled();
+    fireEvent.click(revokeButtons[1]!);
+    await waitFor(() => expect(revokeAccountSession).toHaveBeenCalledWith("other"));
+    expect(screen.getByText("Unknown browser")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Revoked" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Revoked" })[0]).toBeDisabled();
+  });
+
+  it("reports password-reset failures and pending verification", async () => {
+    authMocks.auth.currentUser = { email: "owner@example.com", emailVerified: false };
+    authMocks.sendPasswordReset.mockRejectedValueOnce(new Error("Reset failed"));
+    const first = render(<SettingsView />);
+    expect(await screen.findByText("Pending verification")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Send password reset" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Reset failed");
+    first.unmount();
+
+    authMocks.sendPasswordReset.mockRejectedValueOnce("offline");
+    render(<SettingsView />);
+    fireEvent.click(await screen.findByRole("button", { name: "Send password reset" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Password reset could not be sent");
   });
 
   it("reports settings load failures from Error and non-Error rejections", async () => {
@@ -195,6 +252,23 @@ describe("platform dashboard views", () => {
     fireEvent.click(screen.getByRole("button", { name: /Schedule deletion/ }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm deletion" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Account deletion could not be scheduled."));
+  });
+
+  it("shows deletion processing and preserves the current device during bulk session revocation", async () => {
+    vi.mocked(loadAccountDeletion).mockResolvedValueOnce({
+      requested_at: "2026-08-24", scheduled_for: "2026-08-31", cancelled_at: null,
+      processing_started_at: "2026-08-31", attempt_count: 1, last_error: null,
+    });
+    vi.mocked(loadAccountSessions).mockResolvedValueOnce([
+      { id: "current", user_agent: "Current", created_at: "2026-08-25", last_seen_at: "2026-08-25", revoked_at: null, current: true },
+      { id: "other", user_agent: "Other", created_at: "2026-08-24", last_seen_at: "2026-08-24", revoked_at: null, current: false },
+    ]);
+    render(<SettingsView />);
+    expect(await screen.findByText(/secure cleanup in progress/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /Revoke sessions/ }));
+    await waitFor(() => expect(revokeAccountSessions).toHaveBeenCalled());
+    expect(screen.getByText("This device").closest("article")).toHaveTextContent("Revoke");
+    expect(screen.getByText("Other").closest("article")).toHaveTextContent("Revoked");
   });
 
   it("renames the workspace and manages pending invitations, members, and nested folders", async () => {
@@ -397,7 +471,10 @@ describe("platform dashboard views", () => {
     fireEvent.click(screen.getByRole("button", { name: /Remix/ }));
     await waitFor(() => expect(open).toHaveBeenCalledWith("remix"));
     fireEvent.click(screen.getByRole("button", { name: "Report Public board" }));
-    await waitFor(() => expect(reportCommunity).toHaveBeenCalledWith("public", expect.stringContaining("moderation review")));
+    fireEvent.change(screen.getByRole("combobox", { name: "Report reason" }), { target: { value: "unsafe" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Report details" }), { target: { value: "Needs moderator review" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send report" }));
+    await waitFor(() => expect(reportCommunityCategory).toHaveBeenCalledWith("public", "unsafe", "Needs moderator review"));
     expect(screen.getByRole("status")).toHaveTextContent("Report sent");
   });
 
@@ -413,5 +490,69 @@ describe("platform dashboard views", () => {
     expect(screen.queryByRole("button", { name: /Remix/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(open).toHaveBeenCalledWith("legacy");
+  });
+
+  it.each([
+    ["Mark reviewed", "reviewed"],
+    ["Dismiss", "dismissed"],
+    ["Remove publication", "removed"],
+  ] as const)("processes the moderation decision %s", async (button, decision) => {
+    vi.mocked(loadCommunityModeration).mockResolvedValueOnce([{ id: "report", board_id: "public", reporter_id: "reporter", category: "spam", reason: "Review", status: "open", reviewed_by: null, reviewed_at: null, review_note: "", created_at: "", boards: { title: "Public board" } }]);
+    render(<CommunityView onOpenBoard={vi.fn()} selectedSlug="public-board" />);
+    const action = await screen.findByRole("button", { name: button });
+    expect(screen.getByRole("button", { name: "Open" })).toHaveAttribute("aria-current", "true");
+    fireEvent.click(action);
+    await waitFor(() => expect(moderateCommunity).toHaveBeenCalledWith("report", decision));
+    expect(screen.getByRole("status")).toHaveTextContent(`Report ${decision}`);
+    expect(screen.queryByLabelText("Community moderation queue")).not.toBeInTheDocument();
+    if (decision === "removed") expect(screen.queryByText("Public board")).not.toBeInTheDocument();
+  });
+
+  it("uses identifiers when community titles are unavailable", async () => {
+    vi.mocked(loadCommunity).mockResolvedValueOnce([{ board_id: "untitled", published_by: "owner", slug: "untitled-slug", description: "", tags: [], remix_allowed: false, remix_count: 0, published_at: "", boards: undefined }]);
+    vi.mocked(loadCommunityModeration).mockResolvedValueOnce([{ id: "report", board_id: "untitled", reporter_id: "reporter", category: "spam", reason: "Review", status: "open", created_at: "", boards: undefined }]);
+    render(<CommunityView onOpenBoard={vi.fn()} />);
+    expect(await screen.findByLabelText("Community moderation queue")).toHaveTextContent("untitled");
+    fireEvent.click(screen.getByRole("button", { name: "Report untitled-slug" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Report untitled-slug");
+  });
+
+  it("handles an unavailable moderation queue, empty community, report cancellation, and default report detail", async () => {
+    vi.mocked(loadCommunity).mockResolvedValueOnce([]);
+    vi.mocked(loadCommunityModeration).mockRejectedValueOnce(new Error("not a moderator"));
+    const empty = render(<CommunityView onOpenBoard={vi.fn()} />);
+    expect(await screen.findByText("No community boards have been published yet.")).toBeVisible();
+    empty.unmount();
+
+    render(<CommunityView onOpenBoard={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Report Public board" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Report Public board" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send report" }));
+    await waitFor(() => expect(reportCommunityCategory).toHaveBeenCalledWith("public", "spam", "Please review this community publication."));
+  });
+
+  it("surfaces community load, report, moderation, and remix failures", async () => {
+    vi.mocked(loadCommunity).mockRejectedValueOnce(new Error("Community unavailable"));
+    const failedLoad = render(<CommunityView onOpenBoard={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Community unavailable");
+    failedLoad.unmount();
+
+    vi.mocked(remixCommunity).mockRejectedValueOnce("offline");
+    const actions = render(<CommunityView onOpenBoard={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Remix/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This board could not be remixed.");
+    vi.mocked(reportCommunityCategory).mockRejectedValueOnce(new Error("Report unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Report Public board" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send report" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Report unavailable");
+    actions.unmount();
+
+    vi.mocked(loadCommunityModeration).mockResolvedValueOnce([{ id: "report", board_id: "public", reporter_id: "reporter", category: "spam", reason: "Review", status: "open", created_at: "", boards: { title: "Public board" } }]);
+    vi.mocked(moderateCommunity).mockRejectedValueOnce("offline");
+    render(<CommunityView onOpenBoard={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Mark reviewed" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The moderation decision could not be saved.");
   });
 });

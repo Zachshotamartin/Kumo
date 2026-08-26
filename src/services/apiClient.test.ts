@@ -4,11 +4,12 @@ const authMock = vi.hoisted(() => ({
 
 vi.mock("../config/firebase", () => ({ auth: authMock }));
 
-import { ApiError, authenticatedFetch, authenticatedRequest, publicFetch } from "./apiClient";
+import { ApiError, authenticatedFetch, authenticatedRequest, clientSessionId, publicFetch } from "./apiClient";
 
 describe("authenticatedFetch", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
     authMock.currentUser = { getIdToken: vi.fn().mockResolvedValue("token") };
   });
 
@@ -28,6 +29,39 @@ describe("authenticatedFetch", () => {
     expect(fetch).toHaveBeenCalledWith("/api/test", expect.objectContaining({
       headers: expect.objectContaining({ Authorization: "Bearer token" }),
     }));
+  });
+
+  it("creates and reuses a compatible fallback device-session id", () => {
+    vi.stubGlobal("crypto", {});
+    vi.spyOn(Date, "now").mockReturnValue(1234);
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const created = clientSessionId();
+    expect(created).toMatch(/^[a-zA-Z0-9-]{16,100}$/);
+    expect(clientSessionId()).toBe(created);
+  });
+
+  it("replaces malformed persisted IDs and survives blocked browser storage", () => {
+    localStorage.setItem("kumo:account-session-id", "short");
+    const replacement = clientSessionId();
+    expect(replacement).toMatch(/^[a-zA-Z0-9-]{16,100}$/);
+    expect(replacement).not.toBe("short");
+
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new DOMException("blocked"); });
+    expect(clientSessionId()).toBe(replacement);
+    getItem.mockRestore();
+
+    localStorage.clear();
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("blocked"); });
+    expect(clientSessionId()).toMatch(/^[a-zA-Z0-9-]{16,100}$/);
+    setItem.mockRestore();
+  });
+
+  it("creates an in-memory session when storage is blocked before initialization", async () => {
+    vi.resetModules();
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new DOMException("blocked"); });
+    const fresh = await import("./apiClient");
+    expect(fresh.clientSessionId()).toMatch(/^[a-zA-Z0-9-]{16,100}$/);
+    getItem.mockRestore();
   });
 
   it("handles no-content, API errors, and missing authentication", async () => {
@@ -84,7 +118,7 @@ describe("authenticatedFetch", () => {
     await expect(authenticatedRequest("/api/test", { signal: controller.signal, headers: { "X-Test": "yes" } }))
       .rejects.toMatchObject({ name: "AbortError" });
     expect(fetch).toHaveBeenCalledWith("/api/test", expect.objectContaining({
-      headers: { Authorization: "Bearer token", "X-Test": "yes" },
+      headers: expect.objectContaining({ Authorization: "Bearer token", "X-Test": "yes", "X-Kumo-Session-Id": expect.any(String) }),
     }));
   });
 

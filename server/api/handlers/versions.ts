@@ -203,10 +203,51 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return response.status(201).json({ boardId: created.id });
     }
 
-    if (action !== "restore") return response.status(400).json({ error: "Unknown version action." });
+    if (action !== "restore" && action !== "restore-layers") return response.status(400).json({ error: "Unknown version action." });
+    const selectedShapeIds: string[] = action === "restore-layers" && Array.isArray(request.body?.shapeIds)
+      ? Array.from(new Set<string>((request.body.shapeIds as unknown[]).filter((id: unknown): id is string => typeof id === "string" && id.length > 0))).slice(0, 500)
+      : [];
+    if (action === "restore-layers" && !selectedShapeIds.length) return response.status(400).json({ error: "Choose at least one layer to restore." });
 
     return await withDocumentLease(database, roomId, async () => {
       const current = await liveblocks.getStorageDocument(roomId, "json");
+      const restoreDocument = action === "restore-layers" ? (() => {
+        const currentDocument = current && typeof current === "object" ? current as Record<string, unknown> : {};
+        const targetDocument = target.document && typeof target.document === "object" ? target.document as Record<string, unknown> : {};
+        const currentNodes = currentDocument.nodes && typeof currentDocument.nodes === "object" ? { ...currentDocument.nodes as Record<string, unknown> } : {};
+        const targetNodes = targetDocument.nodes && typeof targetDocument.nodes === "object" ? targetDocument.nodes as Record<string, unknown> : {};
+        const effectiveShapeIds = new Set(selectedShapeIds);
+        selectedShapeIds.forEach((shapeId) => {
+          let parentId = (targetNodes[shapeId] as { parentId?: unknown } | undefined)?.parentId;
+          const visited = new Set<string>();
+          while (typeof parentId === "string" && parentId && !visited.has(parentId) && parentId in targetNodes) {
+            visited.add(parentId);
+            effectiveShapeIds.add(parentId);
+            parentId = (targetNodes[parentId] as { parentId?: unknown } | undefined)?.parentId;
+          }
+        });
+        const deletedShapeIds = new Set<string>();
+        effectiveShapeIds.forEach((shapeId) => {
+          if (shapeId in targetNodes) currentNodes[shapeId] = targetNodes[shapeId];
+          else {
+            delete currentNodes[shapeId];
+            deletedShapeIds.add(shapeId);
+          }
+        });
+        Object.entries(currentNodes).forEach(([shapeId, node]) => {
+          if (!node || typeof node !== "object" || effectiveShapeIds.has(shapeId)) return;
+          const candidate = node as Record<string, unknown>;
+          if (typeof candidate.parentId === "string" && deletedShapeIds.has(candidate.parentId)) currentNodes[shapeId] = { ...candidate, parentId: null };
+        });
+        const currentText = currentDocument.textCharacters && typeof currentDocument.textCharacters === "object" ? { ...currentDocument.textCharacters as Record<string, unknown> } : {};
+        const targetText = targetDocument.textCharacters && typeof targetDocument.textCharacters === "object" ? targetDocument.textCharacters as Record<string, unknown> : {};
+        effectiveShapeIds.forEach((shapeId) => {
+          if (shapeId in targetText) currentText[shapeId] = targetText[shapeId];
+          else delete currentText[shapeId];
+        });
+        selectedShapeIds.splice(0, selectedShapeIds.length, ...effectiveShapeIds);
+        return { ...currentDocument, nodes: currentNodes, textCharacters: currentText };
+      })() : target.document;
       const { data: beforeRestore, error: beforeError } = await database
         .from("document_snapshots")
         .insert({
@@ -227,9 +268,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
         client: liveblocks,
         roomId,
         current: boardDocumentFromJson(current),
-        next: boardDocumentFromJson(target.document),
+        next: boardDocumentFromJson(restoreDocument),
         commit: async () => {
-          if (!branchId) await syncBoardLinks(boardId, target.document);
+          if (!branchId) await syncBoardLinks(boardId, restoreDocument);
           const { error } = await database.rpc("complete_kumo_version_restore", {
             p_board_id: boardId,
             p_actor_id: actor.uid,
@@ -245,7 +286,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       await liveblocks.broadcastEvent(roomId, {
         type: "DOCUMENT_RESTORED", actorId: actor.uid, revision,
       }).catch(() => undefined);
-      return response.status(200).json({ restored: true, versionId, beforeRestoreId: beforeRestore.id, revision });
+      return response.status(200).json({ restored: true, versionId, beforeRestoreId: beforeRestore.id, revision, restoredShapeIds: selectedShapeIds });
     });
   } catch (error) {
     const message = errorMessage(error, "We couldn't update version history.");

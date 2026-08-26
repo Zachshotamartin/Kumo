@@ -80,6 +80,7 @@ describe("board persistence helpers", () => {
     ]);
     expect(boardSummary(board)).toMatchObject({ role: undefined, thumbnailUrl: null });
     expect(boardSummary(board, "viewer", "https://thumbnail")).toMatchObject({ role: "viewer", thumbnailUrl: "https://thumbnail" });
+    expect(boardSummary({ ...board, deleted_at: "2026-08-25T00:00:00.000Z" })).toMatchObject({ deletedAt: Date.parse("2026-08-25T00:00:00.000Z") });
     mocks.thumbnailUrls.mockResolvedValueOnce(new Map());
     await expect(boardSummaries([withThumbnail], new Map())).resolves.toEqual([expect.objectContaining({ thumbnailUrl: null, role: undefined })]);
   });
@@ -102,10 +103,34 @@ describe("board persistence helpers", () => {
     await expect(getBoardAccess("board", "actor")).resolves.toBeNull();
   });
 
+  it("inherits non-guest workspace access and surfaces workspace membership failures", async () => {
+    const workspaceBoard = { ...board, workspace_id: "workspace" };
+    const boardLookup = () => ({ select: () => ({ eq: () => ({ is: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: workspaceBoard, error: null }) }) }) }) });
+    const directLookup = () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }) });
+    const workspaceLookup = (data: unknown, error: unknown = null) => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data, error }) }) }) }) });
+
+    mocks.from.mockReturnValueOnce(boardLookup()).mockReturnValueOnce(directLookup()).mockReturnValueOnce(workspaceLookup({ role: "member" }));
+    await expect(getBoardAccess("board", "member")).resolves.toMatchObject({ role: "editor" });
+
+    const viewerLookup = () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: vi.fn().mockResolvedValue({ data: { role: "viewer" }, error: null }) }) }) }) });
+    mocks.from.mockReturnValueOnce(boardLookup()).mockReturnValueOnce(viewerLookup()).mockReturnValueOnce(workspaceLookup({ role: "member" }));
+    await expect(getBoardAccess("board", "member")).resolves.toMatchObject({ role: "editor" });
+
+    mocks.from.mockReturnValueOnce(boardLookup()).mockReturnValueOnce(directLookup()).mockReturnValueOnce(workspaceLookup({ role: "guest" }));
+    await expect(getBoardAccess("board", "guest")).resolves.toBeNull();
+
+    mocks.from.mockReturnValueOnce(boardLookup()).mockReturnValueOnce(viewerLookup()).mockReturnValueOnce(workspaceLookup({ role: "guest" }));
+    await expect(getBoardAccess("board", "guest-viewer")).resolves.toMatchObject({ role: "viewer" });
+
+    mocks.from.mockReturnValueOnce(boardLookup()).mockReturnValueOnce(directLookup()).mockReturnValueOnce(workspaceLookup(null, new Error("workspace offline")));
+    await expect(getBoardAccess("board", "member")).rejects.toThrow("workspace offline");
+  });
+
   it("lists memberships and searches escaped public titles", async () => {
     mocks.from
       .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ board_id: "board", role: "owner" }], error: null }) }) })
-      .mockReturnValueOnce({ select: () => ({ in: () => ({ is: () => ({ order: vi.fn().mockResolvedValue({ data: [board], error: null }) }) }) }) });
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ is: () => ({ in: () => ({ order: vi.fn().mockResolvedValue({ data: [board], error: null }) }) }) }) });
     await expect(listBoardsForUser("owner")).resolves.toEqual([
       expect.objectContaining({ id: "board", role: "owner" }),
     ]);
@@ -117,19 +142,72 @@ describe("board persistence helpers", () => {
       expect.objectContaining({ id: "board", role: "viewer" }),
     ]);
     await expect(searchPublicBoards("   ")).resolves.toEqual([]);
+
+    const hiddenBoard = { ...board, id: "hidden", owner_id: "blocked" };
+    const limit = vi.fn().mockResolvedValue({ data: [hiddenBoard, board], error: null });
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ is: () => ({ ilike: () => ({ order: () => ({ limit }) }) }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ limit: vi.fn().mockResolvedValue({ data: [{ user_low_id: "owner", user_high_id: "blocked", status: "blocked" }], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ limit: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) });
+    await expect(searchPublicBoards("cloud", "owner")).resolves.toEqual([expect.objectContaining({ id: "board" })]);
+    expect(limit).toHaveBeenCalledWith(48);
   });
 
   it("handles empty lists and board/search query failures", async () => {
-    mocks.from.mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }) });
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) });
     await expect(listBoardsForUser("owner")).resolves.toEqual([]);
-    mocks.from.mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: new Error("members offline") }) }) });
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: null, error: new Error("members offline") }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) });
     await expect(listBoardsForUser("owner")).rejects.toThrow("members offline");
     mocks.from
       .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ board_id: "board", role: "owner" }], error: null }) }) })
-      .mockReturnValueOnce({ select: () => ({ in: () => ({ is: () => ({ order: vi.fn().mockResolvedValue({ data: null, error: new Error("boards offline") }) }) }) }) });
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ is: () => ({ in: () => ({ order: vi.fn().mockResolvedValue({ data: null, error: new Error("boards offline") }) }) }) }) });
     await expect(listBoardsForUser("owner")).rejects.toThrow("boards offline");
     mocks.from.mockReturnValueOnce({ select: () => ({ eq: () => ({ is: () => ({ ilike: () => ({ order: () => ({ limit: vi.fn().mockResolvedValue({ data: null, error: new Error("search offline") }) }) }) }) }) }) });
     await expect(searchPublicBoards("cloud")).rejects.toThrow("search offline");
+    mocks.from.mockReturnValueOnce({ select: () => ({ eq: () => ({ is: () => ({ ilike: () => ({ order: () => ({ limit: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }) }) }) });
+    await expect(searchPublicBoards("cloud")).resolves.toEqual([]);
+  });
+
+  it("lists inherited workspace boards across every membership combination", async () => {
+    const workspaceBoard = { ...board, id: "workspace-board", workspace_id: "workspace" };
+    const memberships = [{ workspace_id: "workspace", role: "member" }];
+
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ board_id: "board", role: "owner" }], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: memberships, error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ is: () => ({ or: () => ({ order: vi.fn().mockResolvedValue({ data: [board, workspaceBoard], error: null }) }) }) }) });
+    await expect(listBoardsForUser("owner")).resolves.toEqual([
+      expect.objectContaining({ id: "board", role: "owner" }),
+      expect.objectContaining({ id: "workspace-board", role: "editor" }),
+    ]);
+
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: memberships, error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ is: () => ({ in: () => ({ order: vi.fn().mockResolvedValue({ data: [workspaceBoard], error: null }) }) }) }) });
+    await expect(listBoardsForUser("owner")).resolves.toEqual([expect.objectContaining({ id: "workspace-board", role: "editor" })]);
+
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ board_id: "workspace-board", role: "viewer" }], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: memberships, error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ is: () => ({ or: () => ({ order: vi.fn().mockResolvedValue({ data: [workspaceBoard], error: null }) }) }) }) });
+    await expect(listBoardsForUser("owner")).resolves.toEqual([expect.objectContaining({ id: "workspace-board", role: "editor" })]);
+
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ board_id: "board", role: "owner" }], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ is: () => ({ in: () => ({ order: vi.fn().mockResolvedValue({ data: [board], error: null }) }) }) }) });
+    await expect(listBoardsForUser("owner")).resolves.toEqual([expect.objectContaining({ id: "board", role: "owner" })]);
+
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ neq: vi.fn().mockResolvedValue({ data: null, error: new Error("workspace memberships offline") }) }) }) });
+    await expect(listBoardsForUser("owner")).rejects.toThrow("workspace memberships offline");
   });
 
   it("handles empty and failed linked-board queries plus inaccessible summaries", async () => {
@@ -186,6 +264,32 @@ describe("board persistence helpers", () => {
       .mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) });
     await expect(linkedBoardsForActor("source", "actor")).resolves.toEqual({
       one: expect.objectContaining({ thumbnailUrl: null }),
+    });
+
+    const workspaceLinked = { id: "one", title: "Workspace board", visibility: "private", thumbnail_asset_id: null, updated_at: new Date(14).toISOString(), workspace_id: "workspace" };
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ target_board_id: "one" }], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ in: () => ({ is: vi.fn().mockResolvedValue({ data: [workspaceLinked], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: [{ board_id: "one", role: "viewer" }], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: [{ workspace_id: "workspace", role: "member" }], error: null }) }) }) });
+    await expect(linkedBoardsForActor("source", "actor")).resolves.toEqual({
+      one: expect.objectContaining({ title: "Workspace board", accessible: true, role: "editor", updatedAt: 14 }),
+    });
+
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ target_board_id: "one" }], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ in: () => ({ is: vi.fn().mockResolvedValue({ data: [workspaceLinked], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: new Error("workspace roles offline") }) }) }) });
+    await expect(linkedBoardsForActor("source", "actor")).rejects.toThrow("workspace roles offline");
+
+    mocks.from
+      .mockReturnValueOnce({ select: () => ({ eq: vi.fn().mockResolvedValue({ data: [{ target_board_id: "one" }], error: null }) }) })
+      .mockReturnValueOnce({ select: () => ({ in: () => ({ is: vi.fn().mockResolvedValue({ data: [workspaceLinked], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: [{ board_id: "one", role: "viewer" }], error: null }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ in: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) });
+    await expect(linkedBoardsForActor("source", "actor")).resolves.toEqual({
+      one: expect.objectContaining({ accessible: true, role: "viewer" }),
     });
   });
 

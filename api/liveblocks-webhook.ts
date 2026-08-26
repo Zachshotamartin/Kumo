@@ -6,6 +6,7 @@ import { liveblocksAdmin } from "../server/api/_liveblocks.js";
 import { supabaseAdmin } from "../server/api/_supabase.js";
 import { syncBoardLinks } from "../server/api/_boardLinks.js";
 import { updateBoardThumbnail } from "../server/api/_boardThumbnail.js";
+import { sendCommentPushToUser } from "../server/api/_push.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -33,9 +34,50 @@ export default async function handler(request: VercelRequest, response: VercelRe
   }
 
   try {
+    const database = supabaseAdmin();
+    if (event.type === "notification" && (event.data.kind === "thread" || event.data.kind === "textMention")) {
+      const { data: board, error: boardError } = await database.from("boards")
+        .select("id, title")
+        .eq("liveblocks_room_id", event.data.roomId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (boardError) throw boardError;
+      if (!board) return response.status(200).json({ accepted: true });
+      const { data: mute, error: muteError } = await database.from("board_notification_mutes").select("board_id").eq("board_id", board.id).eq("user_id", event.data.userId).maybeSingle();
+      if (muteError) throw muteError;
+      if (mute) return response.status(200).json({ accepted: true });
+      const mention = event.data.kind === "textMention";
+      const { data: preferences, error: preferenceError } = await database.from("notification_preferences")
+        .select("board_comments")
+        .eq("user_id", event.data.userId)
+        .maybeSingle();
+      if (preferenceError) throw preferenceError;
+      const commentPreference = preferences?.board_comments ?? "all";
+      const allowed = commentPreference === "all" || (commentPreference === "mentions" && mention);
+      if (!allowed) return response.status(200).json({ accepted: true });
+      const notification = {
+        recipient_id: event.data.userId,
+        board_id: board.id,
+        kind: mention ? "mention" : "comment",
+        title: mention ? `You were mentioned in ${board.title}` : `New reply in ${board.title}`,
+        body: mention ? "Open the board to read the mention." : "A thread you follow has a new reply.",
+        action_url: `/?board=${encodeURIComponent(board.id)}`,
+        source_key: `liveblocks:${event.data.inboxNotificationId}`,
+        created_at: event.data.triggeredAt,
+      };
+      const { error: insertError } = await database.from("account_notifications")
+        .upsert(notification, { onConflict: "source_key", ignoreDuplicates: true });
+      if (insertError) throw insertError;
+      await sendCommentPushToUser(event.data.userId, mention, {
+        title: notification.title,
+        body: notification.body,
+        url: notification.action_url,
+        tag: `kumo:comment:${board.id}`,
+      });
+      return response.status(200).json({ accepted: true });
+    }
     if (event.type !== "storageUpdated") return response.status(200).json({ accepted: true });
 
-    const database = supabaseAdmin();
     const { data: board, error: boardError } = await database
       .from("boards")
       .select("id, owner_id, thumbnail_asset_id")

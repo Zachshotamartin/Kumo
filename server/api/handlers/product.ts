@@ -38,13 +38,25 @@ const graphResponse = async (boardId: string, actorUid: string) => {
   if (error) throw error;
   const ids = [...new Set([boardId, ...(links ?? []).flatMap((link) => [link.source_board_id as string, link.target_board_id as string])])];
   const [{ data: boards, error: boardError }, { data: memberships, error: memberError }] = await Promise.all([
-    database.from("boards").select("id, title, visibility, owner_id").in("id", ids).is("deleted_at", null),
+    database.from("boards").select("id, title, visibility, owner_id, workspace_id").in("id", ids).is("deleted_at", null),
     database.from("board_members").select("board_id, role").eq("user_id", actorUid).in("board_id", ids),
   ]);
   if (boardError) throw boardError;
   if (memberError) throw memberError;
+  const boardRows = boards ?? [];
   const roles = new Map((memberships ?? []).map((membership) => [membership.board_id as string, membership.role as string]));
-  const nodes = (boards ?? []).map((board) => {
+  const workspaceIds = [...new Set(boardRows.map((board) => board.workspace_id as string | null).filter((id): id is string => Boolean(id)))];
+  if (workspaceIds.length) {
+    const { data: workspaceMemberships, error: workspaceError } = await database.from("workspace_members")
+      .select("workspace_id, role").eq("user_id", actorUid).in("workspace_id", workspaceIds);
+    if (workspaceError) throw workspaceError;
+    const editable = new Set((workspaceMemberships ?? []).filter((membership) => membership.role !== "guest").map((membership) => membership.workspace_id as string));
+    boardRows.forEach((board) => {
+      const role = roles.get(board.id as string);
+      if (board.workspace_id && editable.has(board.workspace_id as string) && role !== "owner" && role !== "editor") roles.set(board.id as string, "editor");
+    });
+  }
+  const nodes = boardRows.map((board) => {
     const role = roles.get(board.id as string) ?? null;
     const accessible = Boolean(role) || board.visibility === "public";
     return { id: board.id, title: accessible ? board.title : "Private board", visibility: board.visibility, accessible, manageable: role === "owner" };
@@ -71,11 +83,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return result ? response.status(200).json({ graph: result }) : response.status(404).json({ error: "Board not found." });
       }
       if (scope === "notifications") {
-        const { data, error } = await database.from("account_notifications")
-          .select("id, actor_id, board_id, kind, title, body, action_url, read_at, created_at")
-          .eq("recipient_id", actor.uid).order("created_at", { ascending: false }).limit(100);
+        const [{ data, error }, { data: mutes, error: muteError }] = await Promise.all([
+          database.from("account_notifications").select("id, actor_id, board_id, kind, title, body, action_url, read_at, archived_at, created_at").eq("recipient_id", actor.uid).order("created_at", { ascending: false }).limit(200),
+          database.from("board_notification_mutes").select("board_id").eq("user_id", actor.uid),
+        ]);
         if (error) throw error;
-        return response.status(200).json({ notifications: data ?? [] });
+        if (muteError) throw muteError;
+        return response.status(200).json({ notifications: data ?? [], mutedBoardIds: (mutes ?? []).map((mute) => mute.board_id) });
       }
       if (scope === "libraries") {
         const boardId = stringQuery(request.query.boardId);
@@ -130,16 +144,47 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }
       const workspace = await ensureWorkspace(actor.uid, profile.displayName);
       const workspaceId = workspace.workspace_id as string;
-      const [{ data: folders, error: folderError }, { data: organization, error: organizationError }] = await Promise.all([
+      const [{ data: folders, error: folderError }, { data: organization, error: organizationError }, { data: savedViews, error: savedViewError }] = await Promise.all([
         database.from("workspace_folders").select("id, workspace_id, parent_id, name, created_by, created_at, updated_at").eq("workspace_id", workspaceId).order("name"),
         database.from("board_organization").select("board_id, workspace_id, folder_id, favorite, archived_at, trashed_at").eq("user_id", actor.uid),
+        database.from("saved_board_views").select("id, name, filter, sort, density, position").eq("user_id", actor.uid).order("position").order("created_at"),
       ]);
       if (folderError) throw folderError;
       if (organizationError) throw organizationError;
-      return response.status(200).json({ workspace, folders: folders ?? [], organization: organization ?? [] });
+      if (savedViewError) throw savedViewError;
+      return response.status(200).json({ workspace, folders: folders ?? [], organization: organization ?? [], savedViews: savedViews ?? [] });
     }
 
     const action = typeof request.body?.action === "string" ? request.body.action : "";
+    if (["save-board-view", "rename-board-view", "delete-board-view", "reorder-board-views"].includes(action)) {
+      if (action === "save-board-view") {
+        const filter = ["active", "favorites", "archived", "trash"].includes(request.body?.filter) ? request.body.filter : "active";
+        const sort = request.body?.sort === "title" ? "title" : "updated";
+        const density = request.body?.density === "compact" ? "compact" : "comfortable";
+        const name = cleanProductName(request.body?.name, "Saved view").slice(0, 80);
+        const { count, error: countError } = await database.from("saved_board_views").select("id", { count: "exact", head: true }).eq("user_id", actor.uid);
+        if (countError) throw countError;
+        if ((count ?? 0) >= 24) return response.status(409).json({ error: "Delete a saved view before adding another." });
+        const { data, error } = await database.from("saved_board_views").insert({ user_id: actor.uid, name, filter, sort, density, position: count ?? 0 }).select("id, name, filter, sort, density, position").single();
+        if (error) throw error;
+        return response.status(201).json({ view: data });
+      }
+      const viewId = typeof request.body?.viewId === "string" ? request.body.viewId : "";
+      if (action === "delete-board-view") {
+        const { error } = await database.from("saved_board_views").delete().eq("id", viewId).eq("user_id", actor.uid);
+        if (error) throw error;
+        return response.status(200).json({ deleted: true });
+      }
+      if (action === "rename-board-view") {
+        const { data, error } = await database.from("saved_board_views").update({ name: cleanProductName(request.body?.name, "Saved view").slice(0, 80), updated_at: new Date().toISOString() }).eq("id", viewId).eq("user_id", actor.uid).select("id, name, filter, sort, density, position").single();
+        if (error) throw error;
+        return response.status(200).json({ view: data });
+      }
+      const orderedIds = Array.isArray(request.body?.orderedIds) ? request.body.orderedIds.filter((id: unknown): id is string => typeof id === "string").slice(0, 24) : [];
+      const { error } = await database.rpc("reorder_kumo_saved_board_views", { p_user_id: actor.uid, p_ordered_ids: orderedIds });
+      if (error) throw error;
+      return response.status(200).json({ reordered: true });
+    }
     if (action === "mark-notification") {
       const id = typeof request.body?.id === "string" ? request.body.id : "";
       let query = database.from("account_notifications").update({ read_at: new Date().toISOString() }).eq("recipient_id", actor.uid).is("read_at", null);
@@ -147,6 +192,27 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const { error } = await query;
       if (error) throw error;
       return response.status(200).json({ updated: true });
+    }
+    if (action === "update-notification") {
+      const id = typeof request.body?.id === "string" ? request.body.id : "";
+      if (!id) return response.status(400).json({ error: "A notification is required." });
+      const patch = request.body?.archived === true ? { archived_at: new Date().toISOString() }
+        : request.body?.archived === false ? { archived_at: null }
+        : request.body?.read === false ? { read_at: null }
+        : { read_at: new Date().toISOString() };
+      const { error } = await database.from("account_notifications").update(patch).eq("id", id).eq("recipient_id", actor.uid);
+      if (error) throw error;
+      return response.status(200).json({ updated: true });
+    }
+    if (action === "mute-board-notifications" || action === "unmute-board-notifications") {
+      const boardId = typeof request.body?.boardId === "string" ? request.body.boardId : "";
+      if (!(await getBoardAccess(boardId, actor.uid))) return response.status(404).json({ error: "Board not found." });
+      const query = action === "mute-board-notifications"
+        ? database.from("board_notification_mutes").upsert({ board_id: boardId, user_id: actor.uid }, { onConflict: "board_id,user_id" })
+        : database.from("board_notification_mutes").delete().eq("board_id", boardId).eq("user_id", actor.uid);
+      const { error } = await query;
+      if (error) throw error;
+      return response.status(200).json({ muted: action === "mute-board-notifications" });
     }
 
     if (action === "create-folder") {
@@ -308,11 +374,12 @@ export default async function handler(request: VercelRequest, response: VercelRe
       if (boardError) throw boardError;
       if (board.owner_id === actor.uid) return response.status(400).json({ error: "You already own this board." });
       const role = request.body?.role === "editor" ? "editor" : "viewer";
-      const { data, error } = await database.from("board_access_requests").upsert({ board_id: boardId, requester_id: actor.uid, requested_role: role, message: String(request.body?.message ?? "").slice(0, 500), status: "pending" }, { onConflict: "board_id,requester_id,status" }).select("id, status").single();
-      if (error) throw error;
       const notification = { recipient_id: board.owner_id, actor_id: actor.uid, board_id: boardId, kind: "access-request", title: `Access requested for ${board.title}`, body: `${profile.displayName} requested ${role} access.`, action_url: `/?board=${encodeURIComponent(boardId)}` };
-      const { error: noticeError } = await database.from("account_notifications").insert(notification);
-      if (noticeError) throw noticeError;
+      const { data, error } = await database.rpc("create_kumo_board_access_request", {
+        p_board_id: boardId, p_requester_id: actor.uid, p_role: role, p_message: String(request.body?.message ?? "").slice(0, 500),
+        p_title: notification.title, p_body: notification.body, p_action_url: notification.action_url,
+      });
+      if (error) throw error;
       await Promise.allSettled([sendPreferredPushToUser(board.owner_id, "access_changes", { title: notification.title, body: notification.body, url: notification.action_url, tag: `kumo:access:${boardId}` })]);
       return response.status(201).json({ request: data });
     }
@@ -324,15 +391,12 @@ export default async function handler(request: VercelRequest, response: VercelRe
       const access = await getBoardAccess(accessRequest.board_id, actor.uid);
       if (!access || !ownerOnly(access.role)) return response.status(403).json({ error: "Only the owner can resolve access requests." });
       const approved = request.body?.decision === "approved";
-      if (approved) {
-        const { error: memberError } = await database.from("board_members").upsert({ board_id: accessRequest.board_id, user_id: accessRequest.requester_id, role: accessRequest.requested_role }, { onConflict: "board_id,user_id" });
-        if (memberError) throw memberError;
-      }
-      const { error: updateError } = await database.from("board_access_requests").update({ status: approved ? "approved" : "denied", resolved_by: actor.uid, resolved_at: new Date().toISOString() }).eq("id", requestId).eq("status", "pending");
-      if (updateError) throw updateError;
       const notification = { recipient_id: accessRequest.requester_id, actor_id: actor.uid, board_id: accessRequest.board_id, kind: "access-request", title: `Board access ${approved ? "approved" : "denied"}`, body: approved ? `You now have ${accessRequest.requested_role} access.` : "Your access request was denied.", action_url: approved ? `/?board=${encodeURIComponent(accessRequest.board_id)}` : "/?view=boards" };
-      const { error: noticeError } = await database.from("account_notifications").insert(notification);
-      if (noticeError) throw noticeError;
+      const { error: resolutionError } = await database.rpc("resolve_kumo_board_access_request", {
+        p_request_id: requestId, p_actor_id: actor.uid, p_approved: approved,
+        p_title: notification.title, p_body: notification.body, p_action_url: notification.action_url,
+      });
+      if (resolutionError) throw resolutionError;
       await Promise.allSettled([sendPreferredPushToUser(accessRequest.requester_id, "access_changes", { title: notification.title, body: notification.body, url: notification.action_url, tag: `kumo:access:${accessRequest.board_id}` })]);
       return response.status(200).json({ resolved: true, status: approved ? "approved" : "denied" });
     }

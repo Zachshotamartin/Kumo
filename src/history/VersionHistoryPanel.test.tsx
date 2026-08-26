@@ -14,6 +14,7 @@ import {
   listBoardVersions,
   renameBoardVersion,
   restoreBoardVersion,
+  restoreBoardVersionLayers,
   shareBoardVersion,
   type BoardVersion,
   type BoardVersionDetail,
@@ -22,7 +23,7 @@ import { SnapshotPreview, VersionHistoryPanel } from "./VersionHistoryPanel";
 
 vi.mock("../services/versionRepository", () => ({
   createBoardCheckpoint: vi.fn(), getBoardVersion: vi.fn(), listBoardVersions: vi.fn(), restoreBoardVersion: vi.fn(),
-  compareBoardVersion: vi.fn(), duplicateBoardVersion: vi.fn(), renameBoardVersion: vi.fn(), shareBoardVersion: vi.fn(),
+  restoreBoardVersionLayers: vi.fn(), compareBoardVersion: vi.fn(), duplicateBoardVersion: vi.fn(), renameBoardVersion: vi.fn(), shareBoardVersion: vi.fn(),
 }));
 
 const version: BoardVersion = {
@@ -53,6 +54,7 @@ describe("version history", () => {
     vi.mocked(getBoardVersion).mockResolvedValue(detail);
     vi.mocked(createBoardCheckpoint).mockResolvedValue({ ...version, id: "created" });
     vi.mocked(restoreBoardVersion).mockResolvedValue({ restored: true, versionId: version.id, beforeRestoreId: "recovery", revision: 99 });
+    vi.mocked(restoreBoardVersionLayers).mockResolvedValue({ restored: true, versionId: version.id, beforeRestoreId: "recovery", revision: 100, restoredShapeIds: ["shape"] });
     vi.mocked(compareBoardVersion).mockResolvedValue({ diff: [{ shapeId: "shape", status: "changed", name: "Card", before: null, after: null }] });
     vi.mocked(duplicateBoardVersion).mockResolvedValue({ boardId: "duplicate" });
     vi.mocked(renameBoardVersion).mockResolvedValue({ ...version, name: "Renamed" });
@@ -139,6 +141,33 @@ describe("version history", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rename selected version" }));
     fireEvent.click(screen.getByRole("button", { name: "Save details" }));
     await waitFor(() => expect(renameBoardVersion).toHaveBeenLastCalledWith("board", "version", "Named version", "", null));
+  });
+
+  it("selects comparison rows and selectively restores layers", async () => {
+    const store = makeStore("editor", "branch");
+    render(<Provider store={store}><VersionHistoryPanel /></Provider>);
+    await screen.findByText("Ready for review");
+    fireEvent.click(screen.getByRole("button", { name: "Compare selected version" }));
+    const checkbox = await screen.findByRole("checkbox");
+    fireEvent.click(checkbox);
+    expect(screen.getByRole("button", { name: "Restore selected layers" })).toBeDisabled();
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: "Restore selected layers" }));
+    await waitFor(() => expect(restoreBoardVersionLayers).toHaveBeenCalledWith("board", "version", ["shape"], "branch"));
+    expect(store.getState().whiteBoard.revision).toBe(100);
+    expect(screen.getByRole("status")).toHaveTextContent("Restored 1 selected layers");
+    await act(async () => { await Promise.resolve(); });
+  });
+
+  it("re-enables selective restore after a failed layer restore", async () => {
+    vi.mocked(restoreBoardVersionLayers).mockRejectedValueOnce(new Error("Layer restore unavailable"));
+    render(<Provider store={makeStore()}><VersionHistoryPanel /></Provider>);
+    await screen.findByText("Ready for review");
+    fireEvent.click(screen.getByRole("button", { name: "Compare selected version" }));
+    const restore = await screen.findByRole("button", { name: "Restore selected layers" });
+    fireEvent.click(restore);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Layer restore unavailable");
+    await waitFor(() => expect(restore).toBeEnabled());
   });
 
   it("uses the selected version name when blank metadata is saved", async () => {

@@ -1,6 +1,7 @@
 import { LiveblocksProvider } from "@liveblocks/react";
 import type { PropsWithChildren } from "react";
 import { auth } from "../config/firebase";
+import { clientSessionId } from "../services/apiClient";
 import { recordCollaborationAuthAttempt } from "./connectionTelemetry";
 import { openSessionGuestNonce, openSessionPasswordKey } from "./openSession";
 
@@ -28,6 +29,7 @@ const authorizeRoom = async (room?: string) => {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
+      "X-Kumo-Session-Id": clientSessionId(),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ room }),

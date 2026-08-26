@@ -82,12 +82,16 @@ const createAccount = async (label) => {
     password,
     idToken: account.idToken,
     uid: account.localId,
+    sessionId: randomUUID(),
   };
   accounts.push(result);
   return result;
 };
 
-const authHeaders = (account) => ({ authorization: `Bearer ${account.idToken}` });
+const authHeaders = (account) => ({
+  authorization: `Bearer ${account.idToken}`,
+  "x-kumo-session-id": account.sessionId,
+});
 const api = (account, path, init = {}) => jsonRequest(new URL(path, baseUrl), {
   ...init,
   headers: {

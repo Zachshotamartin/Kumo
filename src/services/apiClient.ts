@@ -14,6 +14,29 @@ export class ApiError extends Error {
 
 export const CLIENT_API_TIMEOUT_MS = 15_000;
 
+let volatileSessionId = "";
+
+export const clientSessionId = () => {
+  const key = "kumo:account-session-id";
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing && /^[a-zA-Z0-9-]{16,100}$/.test(existing)) return existing;
+  } catch {
+    if (volatileSessionId) return volatileSessionId;
+  }
+  const created = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2).padEnd(24, "0")}`;
+  volatileSessionId = created;
+  try {
+    localStorage.setItem(key, created);
+  } catch {
+    // Privacy modes may block localStorage. The in-memory ID still keeps this
+    // tab individually revocable for its lifetime.
+  }
+  return created;
+};
+
 const requestWithDeadline = async (input: string, init: RequestInit): Promise<Response> => {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -41,6 +64,7 @@ export const authenticatedRequest = async (
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
+      "X-Kumo-Session-Id": clientSessionId(),
       ...(init.body ? { "Content-Type": "application/json" } : {}),
       ...init.headers,
     },

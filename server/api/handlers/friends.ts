@@ -40,8 +40,8 @@ const searchProfiles = async (actorUid: string, rawQuery: string) => {
   if (query.length < 2) return [];
   const database = supabaseAdmin();
   const [byUsername, byName, relationships] = await Promise.all([
-    database.from("profiles").select(PROFILE_COLUMNS).eq("discoverable", true).ilike("username", `%${query}%`).limit(12),
-    database.from("profiles").select(PROFILE_COLUMNS).eq("discoverable", true).ilike("display_name", `%${query}%`).limit(12),
+    database.from("profiles").select(PROFILE_COLUMNS).eq("discoverable", true).eq("email_verified", true).ilike("username", `%${query}%`).limit(12),
+    database.from("profiles").select(PROFILE_COLUMNS).eq("discoverable", true).eq("email_verified", true).ilike("display_name", `%${query}%`).limit(12),
     friendshipRowsForActor(actorUid),
   ]);
   if (byUsername.error) throw byUsername.error;

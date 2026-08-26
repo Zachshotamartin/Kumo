@@ -11,14 +11,15 @@ const mocks = vi.hoisted(() => ({
   replaceDocument: vi.fn(),
   withLease: vi.fn(),
   sendPreferredPush: vi.fn(),
-  queues: new Map<string, Array<{ data?: unknown; error: unknown }>>(),
+  rpc: vi.fn(),
+  queues: new Map<string, Array<{ data?: unknown; count?: number | null; error: unknown }>>(),
   calls: [] as Array<{ table: string; operation: string; value?: unknown }>,
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
 vi.mock("../../server/api/_supabase", () => ({
   ensureActorProfile: mocks.ensureProfile,
-  supabaseAdmin: () => ({ from: (table: string) => query(table) }),
+  supabaseAdmin: () => ({ from: (table: string) => query(table), rpc: mocks.rpc }),
 }));
 vi.mock("../../server/api/_boards", () => ({
   getBoardAccess: mocks.getAccess,
@@ -51,8 +52,8 @@ const query = (table: string) => {
   return builder;
 };
 
-const enqueue = (table: string, ...results: Array<{ data?: unknown; error?: unknown }>) => {
-  mocks.queues.set(table, results.map((result) => ({ data: result.data, error: result.error ?? null })));
+const enqueue = (table: string, ...results: Array<{ data?: unknown; count?: number | null; error?: unknown }>) => {
+  mocks.queues.set(table, results.map((result) => ({ data: result.data, count: result.count, error: result.error ?? null })));
 };
 
 const response = () => {
@@ -93,6 +94,7 @@ describe("product API", () => {
     mocks.withLease.mockImplementation(async (_database: unknown, _roomId: string, operation: () => Promise<unknown>) => operation());
     mocks.replaceDocument.mockImplementation(async ({ commit }: { commit: () => Promise<void> }) => commit());
     mocks.sendPreferredPush.mockResolvedValue({ delivered: 1, subscriptions: 1, skipped: false });
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
   });
 
   it("builds a permission-aware graph with private titles, backlinks, and link health", async () => {
@@ -117,6 +119,37 @@ describe("product API", () => {
       ]),
       incoming: [{ sourceId: "source", targetId: "board", shapeId: "link-in" }],
     } });
+  });
+
+  it("applies workspace-inherited access to graph nodes and rejects membership lookup failures", async () => {
+    enqueue("board_links", { data: [{ source_board_id: "board", target_board_id: "destination", shape_id: "link" }] });
+    enqueue("boards", { data: [
+      { id: "board", title: "Product", visibility: "private", owner_id: "actor" },
+      { id: "destination", title: "Workspace secret", visibility: "private", owner_id: "other", workspace_id: "workspace" },
+    ] });
+    enqueue("board_members", { data: [{ board_id: "board", role: "owner" }, { board_id: "destination", role: "viewer" }] });
+    enqueue("workspace_members", { data: [{ workspace_id: "workspace", role: "member" }] });
+    const inherited = response();
+    await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), inherited);
+    expect(inherited.body).toMatchObject({ graph: { nodes: expect.arrayContaining([
+      expect.objectContaining({ id: "destination", title: "Workspace secret", accessible: true }),
+    ]) } });
+
+    enqueue("board_links", { data: [] });
+    enqueue("boards", { data: [{ id: "board", title: "Product", visibility: "private", owner_id: "actor", workspace_id: "workspace" }] });
+    enqueue("board_members", { data: [] });
+    enqueue("workspace_members", { error: new Error("workspace access failed") });
+    const failed = response();
+    await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), failed);
+    expect(failed.statusCode).toBe(500);
+
+    enqueue("board_links", { data: [] });
+    enqueue("boards", { data: [{ id: "board", title: "Product", visibility: "private", owner_id: "actor", workspace_id: "workspace" }] });
+    enqueue("board_members", { data: [{ board_id: "board", role: "owner" }] });
+    enqueue("workspace_members", { data: null, error: null });
+    const noInheritedMembership = response();
+    await productHandler(request("GET", {}, { scope: "graph", boardId: "board" }), noInheritedMembership);
+    expect(noInheritedMembership.body).toMatchObject({ graph: { nodes: [expect.objectContaining({ id: "board", accessible: true })] } });
   });
 
   it("creates a first workspace and returns its folders and personal organization", async () => {
@@ -169,7 +202,7 @@ describe("product API", () => {
     enqueue("account_notifications", { data: [{ id: "notice", title: "Mentioned" }] });
     const notifications = response();
     await productHandler(request("GET", {}, { scope: "notifications" }), notifications);
-    expect(notifications.body).toEqual({ notifications: [{ id: "notice", title: "Mentioned" }] });
+    expect(notifications.body).toEqual({ notifications: [{ id: "notice", title: "Mentioned" }], mutedBoardIds: [] });
 
     enqueue("design_libraries", { data: [{ id: "library", visibility: "public" }] });
     enqueue("design_library_subscriptions", { data: [{ library_id: "library", accepted_version: 1 }] });
@@ -207,6 +240,78 @@ describe("product API", () => {
     const all = response();
     await productHandler(request("POST", { action: "mark-notification" }), all);
     expect(all.body).toEqual({ updated: true });
+  });
+
+  it("loads muted notification state and reports either inbox query failure", async () => {
+    enqueue("account_notifications", { data: [{ id: "notice" }] });
+    enqueue("board_notification_mutes", { data: [{ board_id: "board" }] });
+    const loaded = response(); await productHandler(request("GET", {}, { scope: "notifications" }), loaded);
+    expect(loaded.body).toEqual({ notifications: [{ id: "notice" }], mutedBoardIds: ["board"] });
+
+    enqueue("account_notifications", { data: [] }); enqueue("board_notification_mutes", { error: new Error("mutes failed") });
+    const muteError = response(); await productHandler(request("GET", {}, { scope: "notifications" }), muteError); expect(muteError.statusCode).toBe(500);
+  });
+
+  it("creates, renames, deletes, and reorders synchronized saved views", async () => {
+    enqueue("saved_board_views", { count: 0 }, { data: { id: "view", name: "Saved view", filter: "active", sort: "updated", density: "comfortable", position: 0 } });
+    const created = response(); await productHandler(request("POST", { action: "save-board-view", name: 42, filter: "invalid", sort: "invalid", density: "invalid" }), created);
+    expect(created.statusCode).toBe(201);
+    expect(mocks.calls).toContainEqual(expect.objectContaining({ table: "saved_board_views", operation: "insert", value: expect.objectContaining({ name: "Saved view", filter: "active", sort: "updated", density: "comfortable", position: 0 }) }));
+
+    enqueue("saved_board_views", { count: 2 }, { data: { id: "favorites", name: "Favorites" } });
+    const custom = response(); await productHandler(request("POST", { action: "save-board-view", name: "Favorites", filter: "favorites", sort: "title", density: "compact" }), custom); expect(custom.statusCode).toBe(201);
+
+    enqueue("saved_board_views", { data: { id: "view", name: "Renamed" } });
+    const renamed = response(); await productHandler(request("POST", { action: "rename-board-view", viewId: "view", name: "Renamed" }), renamed); expect(renamed.body).toEqual({ view: { id: "view", name: "Renamed" } });
+    enqueue("saved_board_views", { error: null });
+    const deleted = response(); await productHandler(request("POST", { action: "delete-board-view", viewId: 42 }), deleted); expect(deleted.body).toEqual({ deleted: true });
+
+    const reordered = response(); await productHandler(request("POST", { action: "reorder-board-views", orderedIds: ["one", 2, "two"] }), reordered); expect(reordered.body).toEqual({ reordered: true });
+    expect(mocks.rpc).toHaveBeenCalledWith("reorder_kumo_saved_board_views", { p_user_id: "actor", p_ordered_ids: ["one", "two"] });
+    const emptyOrder = response(); await productHandler(request("POST", { action: "reorder-board-views", orderedIds: "one" }), emptyOrder); expect(emptyOrder.statusCode).toBe(200);
+  });
+
+  it("enforces saved-view limits and reports every saved-view persistence failure", async () => {
+    enqueue("saved_board_views", { count: 24 });
+    const limited = response(); await productHandler(request("POST", { action: "save-board-view" }), limited); expect(limited.statusCode).toBe(409);
+    enqueue("saved_board_views", { error: new Error("count failed") });
+    const count = response(); await productHandler(request("POST", { action: "save-board-view" }), count); expect(count.statusCode).toBe(500);
+    enqueue("saved_board_views", { count: null }, { error: new Error("insert failed") });
+    const insert = response(); await productHandler(request("POST", { action: "save-board-view" }), insert); expect(insert.statusCode).toBe(500);
+    enqueue("saved_board_views", { error: new Error("rename failed") });
+    const rename = response(); await productHandler(request("POST", { action: "rename-board-view", viewId: 42 }), rename); expect(rename.statusCode).toBe(500);
+    enqueue("saved_board_views", { error: new Error("delete failed") });
+    const deletion = response(); await productHandler(request("POST", { action: "delete-board-view", viewId: "view" }), deletion); expect(deletion.statusCode).toBe(500);
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("reorder failed") });
+    const reorder = response(); await productHandler(request("POST", { action: "reorder-board-views", orderedIds: [] }), reorder); expect(reorder.statusCode).toBe(500);
+  });
+
+  it("archives, restores, and toggles notification read state", async () => {
+    const cases = [
+      [{ archived: true }, { archived_at: expect.any(String) }],
+      [{ archived: false }, { archived_at: null }],
+      [{ read: false }, { read_at: null }],
+      [{ read: true }, { read_at: expect.any(String) }],
+    ] as const;
+    for (const [change, expected] of cases) {
+      enqueue("account_notifications", { error: null });
+      const reply = response(); await productHandler(request("POST", { action: "update-notification", id: "notice", ...change }), reply); expect(reply.statusCode).toBe(200);
+      expect(mocks.calls.filter((call) => call.table === "account_notifications" && call.operation === "update").at(-1)?.value).toEqual(expected);
+    }
+    const missing = response(); await productHandler(request("POST", { action: "update-notification", id: 42 }), missing); expect(missing.statusCode).toBe(400);
+    enqueue("account_notifications", { error: new Error("update failed") });
+    const failure = response(); await productHandler(request("POST", { action: "update-notification", id: "notice" }), failure); expect(failure.statusCode).toBe(500);
+  });
+
+  it("mutes and unmutes accessible boards and rejects inaccessible or failed changes", async () => {
+    enqueue("board_notification_mutes", { error: null });
+    const muted = response(); await productHandler(request("POST", { action: "mute-board-notifications", boardId: "board" }), muted); expect(muted.body).toEqual({ muted: true });
+    enqueue("board_notification_mutes", { error: null });
+    const unmuted = response(); await productHandler(request("POST", { action: "unmute-board-notifications", boardId: "board" }), unmuted); expect(unmuted.body).toEqual({ muted: false });
+    mocks.getAccess.mockResolvedValueOnce(null);
+    const missing = response(); await productHandler(request("POST", { action: "mute-board-notifications", boardId: 42 }), missing); expect(missing.statusCode).toBe(404);
+    enqueue("board_notification_mutes", { error: new Error("mute failed") });
+    const failed = response(); await productHandler(request("POST", { action: "mute-board-notifications", boardId: "board" }), failed); expect(failed.statusCode).toBe(500);
   });
 
   it("creates folders and executes every personal board organization mutation", async () => {
@@ -302,8 +407,8 @@ describe("product API", () => {
     const requested = response();
     await productHandler(request("POST", { action: "request-access", boardId: "private", role: "editor", message: "Please" }), requested);
     expect(requested.statusCode).toBe(201);
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: "account_notifications", operation: "insert", value: expect.objectContaining({ recipient_id: "owner", kind: "access-request" }),
+    expect(mocks.rpc).toHaveBeenCalledWith("create_kumo_board_access_request", expect.objectContaining({
+      p_board_id: "private", p_requester_id: "actor", p_role: "editor", p_title: "Access requested for Plan",
     }));
     expect(mocks.sendPreferredPush).toHaveBeenCalledWith("owner", "access_changes", expect.objectContaining({ title: "Access requested for Plan" }));
 
@@ -312,13 +417,8 @@ describe("product API", () => {
     const resolved = response();
     await productHandler(request("POST", { action: "resolve-access", requestId: "request", decision: "approved" }), resolved);
     expect(resolved.body).toEqual({ resolved: true, status: "approved" });
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: "board_members", operation: "upsert", value: { board_id: "board", user_id: "collaborator", role: "editor" },
-    }));
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: "account_notifications", operation: "insert", value: expect.objectContaining({
-        recipient_id: "collaborator", kind: "access-request", title: "Board access approved",
-      }),
+    expect(mocks.rpc).toHaveBeenCalledWith("resolve_kumo_board_access_request", expect.objectContaining({
+      p_request_id: "request", p_actor_id: "actor", p_approved: true, p_title: "Board access approved",
     }));
     expect(mocks.sendPreferredPush).toHaveBeenCalledWith("collaborator", "access_changes", expect.objectContaining({ title: "Board access approved" }));
   });
@@ -441,8 +541,8 @@ describe("product API", () => {
     await productHandler(request("POST", { action: "resolve-access", requestId: "request", decision: "denied" }), denied);
     expect(denied.body).toEqual({ resolved: true, status: "denied" });
     expect(mocks.calls).not.toContainEqual(expect.objectContaining({ table: "board_members", operation: "upsert" }));
-    expect(mocks.calls).toContainEqual(expect.objectContaining({
-      table: "board_access_requests", operation: "update", value: expect.objectContaining({ status: "denied" }),
+    expect(mocks.rpc).toHaveBeenCalledWith("resolve_kumo_board_access_request", expect.objectContaining({
+      p_request_id: "request", p_approved: false, p_title: "Board access denied",
     }));
   });
 
@@ -523,11 +623,13 @@ describe("product API", () => {
     const folderError = response(); await productHandler(request("GET"), folderError); expect(folderError.statusCode).toBe(500);
     enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { data: null }); enqueue("board_organization", { error: new Error("organization failed") });
     const organizationError = response(); await productHandler(request("GET"), organizationError); expect(organizationError.statusCode).toBe(500);
+    enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { data: [] }); enqueue("board_organization", { data: [] }); enqueue("saved_board_views", { error: new Error("views failed") });
+    const viewsError = response(); await productHandler(request("GET"), viewsError); expect(viewsError.statusCode).toBe(500);
     enqueue("workspace_members", { data: membership }); enqueue("workspace_folders", { data: null }); enqueue("board_organization", { data: null });
     const emptyWorkspace = response(); await productHandler(request("GET"), emptyWorkspace); expect(emptyWorkspace.body).toEqual(expect.objectContaining({ folders: [], organization: [] }));
 
     enqueue("account_notifications", { data: null });
-    const emptyNotifications = response(); await productHandler(request("GET", {}, { scope: "notifications" }), emptyNotifications); expect(emptyNotifications.body).toEqual({ notifications: [] });
+    const emptyNotifications = response(); await productHandler(request("GET", {}, { scope: "notifications" }), emptyNotifications); expect(emptyNotifications.body).toEqual({ notifications: [], mutedBoardIds: [] });
   });
 
   it("covers library, template, access-request, and share-link read boundaries", async () => {
@@ -665,24 +767,20 @@ describe("product API", () => {
     const subscriptionError = response(); await productHandler(request("POST", { action: "apply-library", boardId: "board", libraryId: "library" }), subscriptionError); expect(subscriptionError.statusCode).toBe(500);
   });
 
-  it("covers template, access-request, and notification persistence failures", async () => {
+  it("covers template and atomic access-request persistence failures", async () => {
     enqueue("board_templates", { data: { id: "template", visibility: "public" } });
     const publicTemplate = response(); await productHandler(request("POST", { action: "create-template", boardId: 42, visibility: "public", description: null }), publicTemplate); expect(publicTemplate.statusCode).toBe(201);
     enqueue("board_templates", { data: { owner_id: "actor", name: "Template", visibility: "private", document: {} } });
     const malformedTemplateId = response(); await productHandler(request("POST", { action: "instantiate-template", templateId: 42 }), malformedTemplateId); expect(malformedTemplateId.statusCode).toBe(201);
 
-    enqueue("boards", { data: { id: "board", owner_id: "owner", title: "Board" } }); enqueue("board_access_requests", { error: new Error("request failed") });
+    enqueue("boards", { data: { id: "board", owner_id: "owner", title: "Board" } });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("request failed") });
     const requestError = response(); await productHandler(request("POST", { action: "request-access", boardId: 42, role: "viewer", message: null }), requestError); expect(requestError.statusCode).toBe(500);
-    enqueue("boards", { data: { id: "board", owner_id: "owner", title: "Board" } }); enqueue("board_access_requests", { data: { id: "request" } }); enqueue("account_notifications", { error: new Error("notice failed") });
-    const requestNoticeError = response(); await productHandler(request("POST", { action: "request-access", boardId: "board" }), requestNoticeError); expect(requestNoticeError.statusCode).toBe(500);
 
     const accessRequest = { id: "request", board_id: "board", requester_id: "collaborator", requested_role: "editor" };
-    enqueue("board_access_requests", { data: accessRequest }); enqueue("board_members", { error: new Error("member failed") });
-    const memberError = response(); await productHandler(request("POST", { action: "resolve-access", requestId: 42, decision: "approved" }), memberError); expect(memberError.statusCode).toBe(500);
-    enqueue("board_access_requests", { data: accessRequest }, { error: new Error("update failed") }); enqueue("board_members", { error: null });
-    const updateError = response(); await productHandler(request("POST", { action: "resolve-access", requestId: "request", decision: "approved" }), updateError); expect(updateError.statusCode).toBe(500);
-    enqueue("board_access_requests", { data: accessRequest }, { error: null }); enqueue("account_notifications", { error: new Error("notice failed") });
-    const resolveNoticeError = response(); await productHandler(request("POST", { action: "resolve-access", requestId: "request", decision: "denied" }), resolveNoticeError); expect(resolveNoticeError.statusCode).toBe(500);
+    enqueue("board_access_requests", { data: accessRequest });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("resolution failed") });
+    const resolutionError = response(); await productHandler(request("POST", { action: "resolve-access", requestId: 42, decision: "approved" }), resolutionError); expect(resolutionError.statusCode).toBe(500);
   });
 
   it("covers governed share-link parsing and membership failures", async () => {

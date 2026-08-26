@@ -7,9 +7,12 @@ import editorReducer from "../../features/editor/editorSlice";
 import selectedReducer from "../../features/selected/selectedSlice";
 import whiteBoardReducer from "../../features/whiteBoard/whiteBoardSlice";
 import BoardDashboard from "./BoardDashboard";
+import { dashboardRouteFromUrl } from "./dashboardRouting";
+import { orderWorkspaceFolders } from "./dashboardFolders";
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
+  listDeleted: vi.fn(),
   search: vi.fn(),
   get: vi.fn(),
   create: vi.fn(),
@@ -29,22 +32,31 @@ const mocks = vi.hoisted(() => ({
   globalSearch: vi.fn(), acceptWorkspaceInvitation: vi.fn(),
   acceptBoardInvitation: vi.fn(),
   notificationPreferences: vi.fn(), deliverBrowserNotifications: vi.fn(),
+  createOnboarding: vi.fn(),
+  updateBoard: vi.fn(), deleteBoard: vi.fn(), restoreBoard: vi.fn(),
+  saveBoardView: vi.fn(), renameBoardView: vi.fn(), deleteBoardView: vi.fn(), reorderBoardViews: vi.fn(),
+  updateNotification: vi.fn(), muteNotifications: vi.fn(),
 }));
 
 vi.mock("../../services/boardRepository", () => ({
   listBoards: mocks.list,
+  listDeletedBoards: mocks.listDeleted,
   searchPublicBoards: mocks.search,
   getBoard: mocks.get,
   createBoard: mocks.create,
   duplicateBoard: mocks.duplicate,
   loadBoardPreview: mocks.preview,
+  createOnboardingBoard: mocks.createOnboarding,
+  updateBoardSettings: mocks.updateBoard,
+  deleteBoard: mocks.deleteBoard,
+  restoreDeletedBoard: mocks.restoreBoard,
 }));
 vi.mock("../../services/socialRepository", () => ({
   listFriendships: mocks.friendships,
 }));
 vi.mock("../../services/productRepository", () => ({
   loadWorkspaceOverview: mocks.workspace,
-  loadNotifications: mocks.notifications,
+  loadNotificationInbox: () => mocks.notifications().then((result: unknown) => Array.isArray(result) ? { notifications: result, mutedBoardIds: [] } : result),
   loadTemplates: mocks.templates,
   markNotificationRead: mocks.markNotification,
   instantiateTemplate: mocks.instantiateTemplate,
@@ -52,6 +64,12 @@ vi.mock("../../services/productRepository", () => ({
   organizeBoard: mocks.organize,
   redeemShareLink: mocks.redeem,
   requestBoardAccess: mocks.requestAccess,
+  saveBoardView: mocks.saveBoardView,
+  renameBoardView: mocks.renameBoardView,
+  deleteBoardView: mocks.deleteBoardView,
+  reorderBoardViews: mocks.reorderBoardViews,
+  updateNotificationState: mocks.updateNotification,
+  setBoardNotificationMuted: mocks.muteNotifications,
 }));
 vi.mock("../../services/platformRepository", () => ({
   globalSearch: mocks.globalSearch,
@@ -113,6 +131,7 @@ describe("BoardDashboard", () => {
     localStorage.clear();
     window.history.replaceState({}, "", "/");
     mocks.list.mockResolvedValue([summary("mine"), summary("shared", "other")]);
+    mocks.listDeleted.mockResolvedValue([]);
     mocks.get.mockImplementation(async (id: string) => board(id));
     mocks.create.mockResolvedValue("created");
     mocks.duplicate.mockResolvedValue("copied");
@@ -133,6 +152,16 @@ describe("BoardDashboard", () => {
     mocks.acceptWorkspaceInvitation.mockResolvedValue({ accepted: true, workspaceId: "workspace" });
     mocks.acceptBoardInvitation.mockResolvedValue({ boardId: "invited", role: "editor" });
     mocks.notificationPreferences.mockResolvedValue({ browser_enabled: false });
+    mocks.createOnboarding.mockResolvedValue("onboarding");
+    mocks.updateBoard.mockImplementation(async (_id: string, patch: Record<string, unknown>) => patch);
+    mocks.deleteBoard.mockResolvedValue(undefined);
+    mocks.restoreBoard.mockImplementation(async (id: string) => ({ ...summary(id), deletedAt: null }));
+    mocks.saveBoardView.mockImplementation(async (input: { name: string; filter: string; sort: string; density: string }) => ({ view: { id: "saved-view", position: 0, ...input } }));
+    mocks.renameBoardView.mockImplementation(async (id: string, name: string) => ({ view: { id, name, position: 0, filter: "active", sort: "updated", density: "comfortable" } }));
+    mocks.deleteBoardView.mockResolvedValue({ deleted: true });
+    mocks.reorderBoardViews.mockResolvedValue({ reordered: true });
+    mocks.updateNotification.mockResolvedValue({ updated: true });
+    mocks.muteNotifications.mockResolvedValue({ muted: true });
   });
 
   it("opens an access-controlled direct board link after authentication", async () => {
@@ -171,6 +200,7 @@ describe("BoardDashboard", () => {
     expect(localStorage.getItem("kumo:board-density")).toBe("compact");
     fireEvent.change(screen.getByLabelText("Saved view name"), { target: { value: "  Product maps  " } });
     fireEvent.submit(screen.getByLabelText("Saved view name").closest("form")!);
+    await waitFor(() => expect(mocks.saveBoardView).toHaveBeenCalled());
     const views = JSON.parse(localStorage.getItem("kumo:saved-board-views") ?? "[]") as Array<{ id: string; name: string }>;
     expect(views).toEqual([expect.objectContaining({ name: "Product maps" })]);
     fireEvent.change(screen.getByLabelText("Open saved board view"), { target: { value: views[0]?.id } });
@@ -238,6 +268,8 @@ describe("BoardDashboard", () => {
     });
     expect(await screen.findByText("Shared map")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Global board/ })).toHaveAttribute("href", "/?board=global");
+    fireEvent.click(screen.getByRole("option", { name: /Global board/ }));
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("global"));
     fireEvent.click(screen.getByRole("button", { name: "Copy Shared map" }));
     await act(async () => { await Promise.resolve(); });
     expect(mocks.duplicate).toHaveBeenCalledWith("public");
@@ -333,9 +365,12 @@ describe("BoardDashboard", () => {
     act(() => activate(notice));
     await waitFor(() => expect(mocks.markNotification).toHaveBeenCalledWith("notice"));
     await waitFor(() => expect(store.getState().whiteBoard.id).toBe("mine"));
+    mocks.markNotification.mockRejectedValueOnce(new Error("Read unavailable"));
+    act(() => activate(notice));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Read unavailable");
   });
 
-  it("validates, limits, and restores persisted board preferences", async () => {
+  it("validates local preferences and treats synchronized saved views as authoritative", async () => {
     localStorage.setItem("kumo:saved-board-views", "not-json");
     renderDashboard();
     await screen.findByText("My map");
@@ -359,6 +394,7 @@ describe("BoardDashboard", () => {
     ]));
     localStorage.setItem("kumo:board-sort", "title");
     localStorage.setItem("kumo:board-density", "compact");
+    mocks.workspace.mockResolvedValueOnce({ workspace: { workspace_id: "workspace" }, folders: [], organization: [], savedViews: valid.slice(-12) });
     renderDashboard();
     await screen.findByText("My map");
     const saved = screen.getByLabelText("Open saved board view");
@@ -366,6 +402,9 @@ describe("BoardDashboard", () => {
     expect(within(saved).queryByRole("option", { name: "View 0" })).not.toBeInTheDocument();
     fireEvent.change(saved, { target: { value: "missing" } });
     expect(screen.getByLabelText("Sort boards")).toHaveValue("title");
+    fireEvent.click(screen.getByRole("button", { name: "Rename view" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move view up" }));
+    expect(mocks.reorderBoardViews).not.toHaveBeenCalled();
   });
 
   it("does not run authenticated operations for a signed-out dashboard", async () => {
@@ -400,6 +439,12 @@ describe("BoardDashboard", () => {
     renderDashboard();
     cleanup();
     await act(async () => { rejectBoards(new Error("late")); await Promise.resolve(); });
+
+    let rejectWorkspace: (reason: unknown) => void = () => undefined;
+    mocks.workspace.mockImplementationOnce(() => new Promise((_, reject) => { rejectWorkspace = reject; }));
+    renderDashboard();
+    cleanup();
+    await act(async () => { rejectWorkspace(new Error("late workspace")); await Promise.resolve(); });
   });
 
   it("refreshes browser notifications only while visible and cleans up listeners", async () => {
@@ -434,7 +479,7 @@ describe("BoardDashboard", () => {
     expect(screen.getByRole("button", { name: /Plain/ })).not.toHaveClass("unreadNotification");
     fireEvent.click(screen.getByRole("button", { name: /Plain/ }));
     await waitFor(() => expect(mocks.markNotification).toHaveBeenCalledWith("plain"));
-    expect(window.location.search).toBe("");
+    expect(window.location.search).toBe("?view=inbox");
     fireEvent.click(screen.getByRole("button", { name: /Home/ }));
     expect(window.location.search).toContain("profile=alex");
   });
@@ -490,6 +535,8 @@ describe("BoardDashboard", () => {
     expect(screen.getByText("Settings view")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Inbox/ }));
     expect(screen.getByText("Your inbox is clear.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "archived" }));
+    expect(screen.getByText("No archived notifications.")).toBeInTheDocument();
   });
 
   it("filters every organization state and handles public-owner and empty results", async () => {
@@ -588,5 +635,279 @@ describe("BoardDashboard", () => {
     fireEvent.change(screen.getByPlaceholderText("Search public boards"), { target: { value: "failure" } });
     await waitFor(() => expect(mocks.search).toHaveBeenCalledWith("failure"));
     expect(await screen.findByText(/No public boards match/)).toBeInTheDocument();
+  });
+
+  it("parses template and community routes and responds to browser history navigation", async () => {
+    expect(dashboardRouteFromUrl("https://kumo.test/?template=starter")).toMatchObject({ view: "templates", template: "starter" });
+    expect(dashboardRouteFromUrl("https://kumo.test/?community=showcase")).toMatchObject({ view: "community", community: "showcase" });
+    expect(dashboardRouteFromUrl("https://kumo.test/?view=settings")).toMatchObject({ view: "settings" });
+    expect(dashboardRouteFromUrl("https://kumo.test/?view=unknown")).toMatchObject({ view: "boards" });
+    mocks.templates.mockResolvedValue([{ id: "starter", owner_id: "user", source_board_id: "mine", name: "Starter", description: "", visibility: "private", created_at: "", updated_at: "" }]);
+    renderDashboard();
+    await screen.findByText("My map");
+    window.history.replaceState({}, "", "/?template=starter");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByRole("heading", { name: "Board templates" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Use template" })).toHaveAttribute("aria-current", "true");
+    window.history.replaceState({}, "", "/?community=showcase");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByText("Community view")).toBeVisible();
+  });
+
+  it("filters a nested folder tree and runs every bulk board action", async () => {
+    mocks.workspace.mockResolvedValue({
+      workspace: { workspace_id: "workspace" },
+      folders: [
+        { id: "root", workspace_id: "workspace", parent_id: null, name: "Root", created_by: "user", created_at: "", updated_at: "" },
+        { id: "child", workspace_id: "workspace", parent_id: "root", name: "Child", created_by: "user", created_at: "", updated_at: "" },
+        { id: "orphan", workspace_id: "workspace", parent_id: "missing", name: "Orphan", created_by: "user", created_at: "", updated_at: "" },
+      ],
+      organization: [
+        { board_id: "mine", workspace_id: "workspace", folder_id: "child", favorite: false, archived_at: null, trashed_at: null },
+        { board_id: "shared", workspace_id: "workspace", folder_id: "root", favorite: false, archived_at: null, trashed_at: null },
+      ],
+    });
+    renderDashboard();
+    await screen.findByText("My map");
+    expect(screen.getByRole("treeitem", { name: /Child/ })).toHaveAttribute("aria-level", "2");
+    fireEvent.click(screen.getByRole("treeitem", { name: /Root/ }));
+    expect(screen.getByText("My map")).toBeVisible();
+    expect(screen.getByText("Shared map")).toBeVisible();
+    fireEvent.click(screen.getByRole("treeitem", { name: /Child/ }));
+    expect(screen.getByText("My map")).toBeVisible();
+    expect(screen.queryByText("Shared map")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("treeitem", { name: /All boards/ }));
+
+    const selectBoth = () => {
+      fireEvent.click(screen.getByRole("checkbox", { name: "Select My map" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Select Shared map" }));
+    };
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select My map" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select My map" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Shared map" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Shared map" }));
+    selectBoth();
+    fireEvent.change(screen.getByLabelText("Move selected boards"), { target: { value: "" } });
+    mocks.organize.mockRejectedValueOnce(new Error("Bulk unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Favorite" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Bulk unavailable");
+    mocks.organize.mockRejectedValueOnce("offline");
+    fireEvent.click(screen.getByRole("button", { name: "Favorite" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Some selected boards could not be updated."));
+    fireEvent.click(screen.getByRole("button", { name: "Favorite" }));
+    await waitFor(() => expect(screen.queryByRole("toolbar", { name: "Bulk board actions" })).not.toBeInTheDocument());
+
+    selectBoth();
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    await waitFor(() => expect(screen.queryByRole("toolbar", { name: "Bulk board actions" })).not.toBeInTheDocument());
+    selectBoth();
+    fireEvent.click(screen.getByRole("button", { name: "Trash" }));
+    await waitFor(() => expect(screen.queryByRole("toolbar", { name: "Bulk board actions" })).not.toBeInTheDocument());
+    selectBoth();
+    fireEvent.change(screen.getByLabelText("Move selected boards"), { target: { value: "child" } });
+    await waitFor(() => expect(screen.queryByRole("toolbar", { name: "Bulk board actions" })).not.toBeInTheDocument());
+    selectBoth();
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.queryByRole("toolbar", { name: "Bulk board actions" })).not.toBeInTheDocument();
+    expect(mocks.organize).toHaveBeenCalledWith("move-board", expect.any(String), { folderId: "child" });
+  });
+
+  it("orders cyclic folder data once and tolerates blocked preference storage", async () => {
+    const cyclic = [
+      { id: "a", workspace_id: "workspace", parent_id: "b", name: "A", created_by: "user", created_at: "", updated_at: "" },
+      { id: "b", workspace_id: "workspace", parent_id: "a", name: "B", created_by: "user", created_at: "", updated_at: "" },
+    ];
+    expect(orderWorkspaceFolders(cyclic)).toEqual(cyclic);
+
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new DOMException("blocked"); });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("blocked"); });
+    renderDashboard();
+    await screen.findByText("My map");
+    fireEvent.change(screen.getByLabelText("Sort boards"), { target: { value: "title" } });
+    expect(screen.getByLabelText("Sort boards")).toHaveValue("title");
+    getItem.mockRestore();
+    setItem.mockRestore();
+  });
+
+  it("synchronizes saved-view CRUD and board context-menu actions", async () => {
+    mocks.workspace.mockResolvedValue({
+      workspace: { workspace_id: "workspace" }, folders: [], organization: [],
+      savedViews: [
+        { id: "first", name: "First", filter: "active", sort: "updated", density: "comfortable" },
+        { id: "second", name: "Second", filter: "favorites", sort: "title", density: "compact" },
+      ],
+    });
+    const prompt = vi.spyOn(window, "prompt");
+    const confirm = vi.spyOn(window, "confirm");
+    renderDashboard();
+    await screen.findByText("My map");
+    expect(JSON.parse(localStorage.getItem("kumo:saved-board-views") ?? "[]")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Open saved board view"), { target: { value: "second" } });
+    fireEvent.click(screen.getByRole("button", { name: "Move view up" }));
+    await waitFor(() => expect(mocks.reorderBoardViews).toHaveBeenCalledWith(["second", "first"]));
+    prompt.mockReturnValueOnce(null);
+    fireEvent.click(screen.getByRole("button", { name: "Rename view" }));
+    expect(mocks.renameBoardView).not.toHaveBeenCalled();
+    prompt.mockReturnValueOnce("Renamed view");
+    fireEvent.click(screen.getByRole("button", { name: "Rename view" }));
+    await waitFor(() => expect(mocks.renameBoardView).toHaveBeenCalledWith("second", "Renamed view"));
+    await screen.findByRole("option", { name: "Renamed view" });
+    fireEvent.click(screen.getByRole("button", { name: "Delete view" }));
+    await waitFor(() => expect(mocks.deleteBoardView).toHaveBeenCalledWith("second"));
+
+    mocks.saveBoardView.mockRejectedValueOnce(new Error("Save unavailable"));
+    fireEvent.change(screen.getByLabelText("Saved view name"), { target: { value: "Broken" } });
+    fireEvent.submit(screen.getByLabelText("Saved view name").closest("form")!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Save unavailable");
+    mocks.saveBoardView.mockRejectedValueOnce("offline");
+    fireEvent.change(screen.getByLabelText("Saved view name"), { target: { value: "Broken again" } });
+    fireEvent.submit(screen.getByLabelText("Saved view name").closest("form")!);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Saved view could not be synchronized."));
+
+    fireEvent.click(screen.getByRole("button", { name: "active" }));
+    const sharedCard = screen.getByText("Shared map").closest("article")!;
+    fireEvent.click(within(sharedCard).getByLabelText("More actions for Shared map"));
+    fireEvent.click(within(sharedCard).getByRole("menuitem", { name: "Duplicate" }));
+    await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith("shared"));
+    expect(within(sharedCard).queryByRole("menuitem", { name: "Share" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("More actions for My map"));
+    prompt.mockReturnValueOnce(null);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(mocks.updateBoard).not.toHaveBeenCalled();
+    prompt.mockReturnValueOnce("Renamed map");
+    mocks.updateBoard.mockRejectedValueOnce(new Error("Rename unavailable"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Rename unavailable");
+    prompt.mockReturnValueOnce("Renamed map");
+    mocks.updateBoard.mockRejectedValueOnce("offline");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The board could not be renamed."));
+    prompt.mockReturnValueOnce("Renamed map");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    await waitFor(() => expect(screen.getByText("Renamed map")).toBeVisible());
+
+    const renamedCard = screen.getByText("Renamed map").closest("article")!;
+    fireEvent.click(within(renamedCard).getByLabelText("More actions for Renamed map"));
+    fireEvent.click(within(renamedCard).getByRole("menuitem", { name: "Duplicate" }));
+    await waitFor(() => expect(mocks.duplicate).toHaveBeenCalledWith("mine"));
+    fireEvent.click(within(renamedCard).getByRole("menuitem", { name: "Share" }));
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("mine"));
+    expect(new URL(window.location.href).searchParams.get("shareDialog")).toBe("1");
+
+    confirm.mockReturnValueOnce(false);
+    fireEvent.click(within(renamedCard).getByRole("menuitem", { name: "Delete" }));
+    expect(mocks.deleteBoard).not.toHaveBeenCalled();
+    confirm.mockReturnValueOnce(true);
+    mocks.deleteBoard.mockRejectedValueOnce(new Error("Delete unavailable"));
+    fireEvent.click(within(renamedCard).getByRole("menuitem", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Delete unavailable");
+    confirm.mockReturnValueOnce(true);
+    mocks.deleteBoard.mockRejectedValueOnce("offline");
+    fireEvent.click(within(renamedCard).getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The board could not be deleted."));
+    confirm.mockReturnValueOnce(true);
+    fireEvent.click(within(renamedCard).getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByText("Renamed map")).not.toBeInTheDocument());
+    prompt.mockRestore();
+    confirm.mockRestore();
+  });
+
+  it("reports saved-view reorder, rename, and delete synchronization failures", async () => {
+    mocks.workspace.mockResolvedValue({
+      workspace: { workspace_id: "workspace" }, folders: [], organization: [],
+      savedViews: [
+        { id: "first", name: "First", filter: "active", sort: "updated", density: "comfortable" },
+        { id: "second", name: "Second", filter: "favorites", sort: "title", density: "compact" },
+      ],
+    });
+    const prompt = vi.spyOn(window, "prompt");
+    renderDashboard();
+    await screen.findByText("My map");
+
+    const disabledRename = screen.getByRole("button", { name: "Rename view" });
+    disabledRename.removeAttribute("disabled");
+    fireEvent.click(disabledRename);
+
+    fireEvent.change(screen.getByLabelText("Open saved board view"), { target: { value: "second" } });
+    mocks.reorderBoardViews.mockRejectedValueOnce(new Error("Reorder unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Move view up" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Reorder unavailable");
+
+    prompt.mockReturnValueOnce("Renamed");
+    mocks.renameBoardView.mockRejectedValueOnce("offline");
+    fireEvent.click(screen.getByRole("button", { name: "Rename view" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Saved view could not be renamed."));
+
+    mocks.deleteBoardView.mockRejectedValueOnce(new Error("Delete unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete view" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Delete unavailable");
+  });
+
+  it("filters, reads, archives, restores, mutes, and unmutes inbox notifications", async () => {
+    const unread = { id: "unread", actor_id: "other", board_id: "mine", kind: "comment", title: "Unread notice", body: "Open it", action_url: null, read_at: null, archived_at: null, created_at: "2026-08-24" };
+    const read = { ...unread, id: "read", title: "Read notice", read_at: "2026-08-24T01:00:00Z" };
+    const archived = { ...unread, id: "archived", title: "Archived notice", read_at: "2026-08-24T01:00:00Z", archived_at: "2026-08-24T02:00:00Z" };
+    mocks.notifications.mockResolvedValue({ notifications: [unread, read, archived], mutedBoardIds: ["mine"] });
+    renderDashboard();
+    await screen.findByText("My map");
+    fireEvent.click(screen.getByRole("button", { name: /Inbox/ }));
+    fireEvent.click(screen.getByRole("button", { name: "unread" }));
+    expect(screen.getByText("Unread notice")).toBeVisible();
+    expect(screen.queryByText("Read notice")).not.toBeInTheDocument();
+    const unreadArticle = screen.getByText("Unread notice").closest("article")!;
+    fireEvent.click(within(unreadArticle).getByRole("button", { name: "Unmute board" }));
+    await waitFor(() => expect(mocks.muteNotifications).toHaveBeenCalledWith("mine", false));
+    fireEvent.click(within(unreadArticle).getByRole("button", { name: "Mute board" }));
+    await waitFor(() => expect(mocks.muteNotifications).toHaveBeenCalledWith("mine", true));
+    fireEvent.click(within(unreadArticle).getByRole("button", { name: "Mark read" }));
+    await waitFor(() => expect(mocks.updateNotification).toHaveBeenCalledWith("unread", { read: true }));
+    expect(screen.getByText("You have no unread notifications.")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "all" }));
+    const readArticle = screen.getByText("Read notice").closest("article")!;
+    fireEvent.click(within(readArticle).getByRole("button", { name: "Mark unread" }));
+    await waitFor(() => expect(mocks.updateNotification).toHaveBeenCalledWith("read", { read: false }));
+    fireEvent.click(within(readArticle).getByRole("button", { name: "Archive" }));
+    await waitFor(() => expect(mocks.updateNotification).toHaveBeenCalledWith("read", { archived: true }));
+    fireEvent.click(screen.getByRole("button", { name: "archived" }));
+    expect(screen.getByText("Archived notice")).toBeVisible();
+    const archivedArticle = screen.getByText("Archived notice").closest("article")!;
+    fireEvent.click(within(archivedArticle).getByRole("button", { name: "Restore" }));
+    await waitFor(() => expect(mocks.updateNotification).toHaveBeenCalledWith("archived", { archived: false }));
+
+    mocks.updateNotification.mockRejectedValueOnce(new Error("Notification unavailable"));
+    fireEvent.click(within(screen.getByText("Read notice").closest("article")!).getByRole("button", { name: "Restore" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Notification unavailable");
+    mocks.updateNotification.mockRejectedValueOnce("offline");
+    fireEvent.click(within(screen.getByText("Read notice").closest("article")!).getByRole("button", { name: "Restore" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The notification could not be updated."));
+    mocks.muteNotifications.mockRejectedValueOnce(new Error("Mute unavailable"));
+    fireEvent.click(within(screen.getByText("Read notice").closest("article")!).getByRole("button", { name: "Unmute board" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Mute unavailable");
+    mocks.muteNotifications.mockRejectedValueOnce("offline");
+    fireEvent.click(within(screen.getByText("Read notice").closest("article")!).getByRole("button", { name: "Unmute board" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Board notification settings could not be updated."));
+  });
+
+  it("restores recoverable trash and covers guided onboarding success and failures", async () => {
+    mocks.list.mockResolvedValue([]);
+    mocks.listDeleted.mockResolvedValue([{ ...summary("deleted"), title: "Deleted map", deletedAt: Date.parse("2026-08-24T00:00:00Z") }]);
+    renderDashboard();
+    await screen.findByText("Start one board. Link the next.");
+    fireEvent.click(screen.getByRole("button", { name: "Open guided sample" }));
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("onboarding"));
+    mocks.createOnboarding.mockRejectedValueOnce(new Error("Guide unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Open guided sample" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Guide unavailable");
+    mocks.createOnboarding.mockRejectedValueOnce("offline");
+    fireEvent.click(screen.getByRole("button", { name: "Open guided sample" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The guided board could not be created."));
+
+    fireEvent.click(screen.getByRole("button", { name: "trash" }));
+    expect(screen.getByText("Deleted map")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Open Deleted map" }));
+    expect(mocks.get).not.toHaveBeenCalledWith("deleted");
+    fireEvent.click(screen.getByRole("button", { name: "Restore Deleted map" }));
+    await waitFor(() => expect(mocks.restoreBoard).toHaveBeenCalledWith("deleted"));
   });
 });

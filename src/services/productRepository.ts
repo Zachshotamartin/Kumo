@@ -41,17 +41,20 @@ export interface WorkspaceOverview {
   workspace: { workspace_id: string; role: "owner" | "admin" | "member" | "guest"; workspaces: { id: string; name: string; owner_id: string } };
   folders: WorkspaceFolder[];
   organization: BoardOrganization[];
+  savedViews: SavedBoardView[];
 }
+export interface SavedBoardView { id: string; name: string; filter: "active" | "favorites" | "archived" | "trash"; sort: "updated" | "title"; density: "comfortable" | "compact"; position: number }
 
 export interface AccountNotification {
   id: string;
   actor_id: string | null;
   board_id: string | null;
-  kind: "comment" | "mention" | "reaction" | "share" | "friend" | "library" | "branch" | "access-request" | "system";
+  kind: "comment" | "mention" | "reaction" | "share" | "friend" | "library" | "branch" | "access-request" | "access-change" | "system";
   title: string;
   body: string;
   action_url: string | null;
   read_at: string | null;
+  archived_at: string | null;
   created_at: string;
 }
 
@@ -111,9 +114,13 @@ export const loadWorkspaceOverview = () => authenticatedFetch<WorkspaceOverview>
   ...result,
   folders: result.folders ?? [],
   organization: result.organization ?? [],
+  savedViews: result.savedViews ?? [],
 }));
-export const loadNotifications = () => authenticatedFetch<{ notifications?: AccountNotification[] }>("/api/product?scope=notifications").then((result) => result.notifications ?? []);
+export const loadNotificationInbox = () => authenticatedFetch<{ notifications?: AccountNotification[]; mutedBoardIds?: string[] }>("/api/product?scope=notifications").then((result) => ({ notifications: result.notifications ?? [], mutedBoardIds: result.mutedBoardIds ?? [] }));
+export const loadNotifications = () => loadNotificationInbox().then((result) => result.notifications);
 export const markNotificationRead = (id?: string) => productPost<{ updated: true }>({ action: "mark-notification", id });
+export const updateNotificationState = (id: string, patch: { read?: boolean; archived?: boolean }) => productPost<{ updated: true }>({ action: "update-notification", id, ...patch });
+export const setBoardNotificationMuted = (boardId: string, muted: boolean) => productPost<{ muted: boolean }>({ action: muted ? "mute-board-notifications" : "unmute-board-notifications", boardId });
 export const loadLibraries = (boardId: string) => authenticatedFetch<{ libraries?: DesignLibrarySummary[]; subscriptions?: LibrarySubscription[] }>(`/api/product?scope=libraries&boardId=${encodeURIComponent(boardId)}`).then((result) => ({ libraries: result.libraries ?? [], subscriptions: result.subscriptions ?? [] }));
 export const publishLibrary = (boardId: string, input: { name: string; description: string; visibility: DesignLibrarySummary["visibility"]; versionDescription: string; semanticVersion?: string; releaseStatus?: "draft" | "review" | "published"; changelog?: string[] }) => productPost<{ libraryId: string; version: number; assetCount: number; releaseStatus: string }>({ action: "publish-library", boardId, ...input });
 export const loadLibraryVersions = (libraryId: string) => authenticatedFetch<{ library: DesignLibrarySummary; versions: DesignLibraryVersion[] }>(`/api/product?scope=library-versions&libraryId=${encodeURIComponent(libraryId)}`);
@@ -125,6 +132,10 @@ export const createTemplate = (boardId: string, name: string, description: strin
 export const instantiateTemplate = (templateId: string, name?: string) => productPost<{ boardId: string }>({ action: "instantiate-template", templateId, name });
 export const createFolder = (name: string, parentId?: string | null) => productPost<{ folder: WorkspaceFolder }>({ action: "create-folder", name, parentId });
 export const organizeBoard = (action: "move-board" | "favorite-board" | "archive-board" | "trash-board" | "restore-board", boardId: string, payload: Record<string, unknown> = {}) => productPost<{ organization: BoardOrganization }>({ action, boardId, ...payload });
+export const saveBoardView = (view: Omit<SavedBoardView, "id" | "position">) => productPost<{ view: SavedBoardView }>({ action: "save-board-view", ...view });
+export const renameBoardView = (viewId: string, name: string) => productPost<{ view: SavedBoardView }>({ action: "rename-board-view", viewId, name });
+export const deleteBoardView = (viewId: string) => productPost<{ deleted: true }>({ action: "delete-board-view", viewId });
+export const reorderBoardViews = (orderedIds: string[]) => productPost<{ reordered: true }>({ action: "reorder-board-views", orderedIds });
 export const requestBoardAccess = (boardId: string, role: "viewer" | "editor", message: string) => productPost<{ request: { id: string; status: string } }>({ action: "request-access", boardId, role, message });
 export const createShareLink = (boardId: string, options: { role: "viewer" | "editor"; allowedDomain?: string; expiresAt?: string }) => productPost<{ link: { id: string; role: string; allowed_domain: string | null; expires_at: string | null }; token: string }>({ action: "create-share-link", boardId, ...options });
 export const redeemShareLink = (token: string) => productPost<{ boardId: string; role: "viewer" | "editor" }>({ action: "redeem-share-link", token });

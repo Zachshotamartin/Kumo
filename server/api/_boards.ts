@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { boardDocumentFromJson, emptyBoardDocument, liveblocksAdmin } from "./_liveblocks.js";
 import { supabaseAdmin } from "./_supabase.js";
 import { boardThumbnailUrls, updateBoardThumbnail } from "./_boardThumbnail.js";
+import { hiddenProfileIdsForActor } from "./_profiles.js";
 
 export type BoardRole = "owner" | "editor" | "viewer";
 export type BoardVisibility = "private" | "public";
@@ -17,6 +18,7 @@ export interface BoardRow {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  workspace_id?: string | null;
 }
 
 export interface BoardAccess {
@@ -43,6 +45,7 @@ export const boardSummary = (board: BoardRow, role?: BoardRole, thumbnailUrl?: s
   role,
   updatedAt: new Date(board.updated_at).getTime(),
   thumbnailUrl: thumbnailUrl ?? null,
+  deletedAt: board.deleted_at ? new Date(board.deleted_at).getTime() : null,
 });
 
 export const boardSummaries = async (boards: BoardRow[], roles: Map<string, BoardRole>) => {
@@ -57,7 +60,7 @@ export const boardSummaries = async (boards: BoardRow[], roles: Map<string, Boar
 export const publicBoardsForOwner = async (ownerUid: string) => {
   const { data, error } = await supabaseAdmin()
     .from("boards")
-    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at, workspace_id")
     .eq("owner_id", ownerUid)
     .eq("visibility", "public")
     .is("deleted_at", null)
@@ -75,7 +78,7 @@ export const getBoardAccess = async (
   const database = supabaseAdmin();
   const { data: boardData, error: boardError } = await database
     .from("boards")
-    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at, workspace_id")
     .eq("id", boardId)
     .is("deleted_at", null)
     .maybeSingle();
@@ -90,7 +93,19 @@ export const getBoardAccess = async (
     .eq("user_id", actorUid)
     .maybeSingle();
   if (memberError) throw memberError;
-  if (member) return { board, role: member.role as BoardRole };
+  const directRole = member?.role as BoardRole | undefined;
+  if (directRole === "owner" || directRole === "editor") return { board, role: directRole };
+  if (board.workspace_id) {
+    const { data: workspaceMember, error: workspaceError } = await database
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", board.workspace_id)
+      .eq("user_id", actorUid)
+      .maybeSingle();
+    if (workspaceError) throw workspaceError;
+    if (workspaceMember && workspaceMember.role !== "guest") return { board, role: "editor" };
+  }
+  if (directRole) return { board, role: directRole };
   if (board.visibility === "public") return { board, role: "viewer" };
   return null;
 };
@@ -111,7 +126,7 @@ export const linkedBoardsForActor = async (
   const [{ data: boards, error: boardError }, { data: memberships, error: memberError }] = await Promise.all([
     database
       .from("boards")
-      .select("id, title, visibility, thumbnail_asset_id, updated_at")
+      .select("id, title, visibility, thumbnail_asset_id, updated_at, workspace_id")
       .in("id", targetIds)
       .is("deleted_at", null),
     database
@@ -122,14 +137,35 @@ export const linkedBoardsForActor = async (
   ]);
   if (boardError) throw boardError;
   if (memberError) throw memberError;
+  const boardRows = boards ?? [];
   const roles = new Map((memberships ?? []).map((member) => [
     member.board_id as string,
     member.role as BoardRole,
   ]));
-  const thumbnailUrls = await boardThumbnailUrls((boards ?? []).map((board) => ({
+  const workspaceIds = [...new Set(boardRows
+    .map((board) => board.workspace_id as string | null)
+    .filter((workspaceId): workspaceId is string => Boolean(workspaceId)))];
+  if (workspaceIds.length) {
+    const { data: workspaceMemberships, error: workspaceError } = await database
+      .from("workspace_members")
+      .select("workspace_id, role")
+      .eq("user_id", actorUid)
+      .in("workspace_id", workspaceIds);
+    if (workspaceError) throw workspaceError;
+    const editableWorkspaces = new Set((workspaceMemberships ?? [])
+      .filter((membership) => membership.role !== "guest")
+      .map((membership) => membership.workspace_id as string));
+    boardRows.forEach((board) => {
+      const currentRole = roles.get(board.id as string);
+      if (board.workspace_id && editableWorkspaces.has(board.workspace_id as string) && currentRole !== "owner" && currentRole !== "editor") {
+        roles.set(board.id as string, "editor");
+      }
+    });
+  }
+  const thumbnailUrls = await boardThumbnailUrls(boardRows.map((board) => ({
     thumbnail_asset_id: board.thumbnail_asset_id as string | null,
   })));
-  return Object.fromEntries((boards ?? []).map((board) => {
+  return Object.fromEntries(boardRows.map((board) => {
     const role = roles.get(board.id as string) ?? null;
     const visibility = board.visibility as BoardVisibility;
     const accessible = Boolean(role) || visibility === "public";
@@ -149,38 +185,49 @@ export const linkedBoardsForActor = async (
 
 export const listBoardsForUser = async (actorUid: string) => {
   const database = supabaseAdmin();
-  const { data: members, error: memberError } = await database
-    .from("board_members")
-    .select("board_id, role")
-    .eq("user_id", actorUid);
+  const [{ data: members, error: memberError }, { data: workspaceMemberships, error: workspaceError }] = await Promise.all([
+    database.from("board_members").select("board_id, role").eq("user_id", actorUid),
+    database.from("workspace_members").select("workspace_id, role").eq("user_id", actorUid).neq("role", "guest"),
+  ]);
   if (memberError) throw memberError;
-  if (!members?.length) return [];
+  if (workspaceError) throw workspaceError;
+  if (!members?.length && !workspaceMemberships?.length) return [];
 
   const roles = new Map(members.map((member) => [member.board_id as string, member.role as BoardRole]));
-  const { data: boards, error: boardError } = await database
+  const explicitIds = [...roles.keys()];
+  const workspaceIds = (workspaceMemberships ?? []).map((membership) => membership.workspace_id as string);
+  let boardQuery = database
     .from("boards")
-    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
-    .in("id", [...roles.keys()])
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false });
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at, workspace_id")
+    .is("deleted_at", null);
+  if (explicitIds.length && workspaceIds.length) boardQuery = boardQuery.or(`id.in.(${explicitIds.join(",")}),workspace_id.in.(${workspaceIds.join(",")})`);
+  else if (explicitIds.length) boardQuery = boardQuery.in("id", explicitIds);
+  else boardQuery = boardQuery.in("workspace_id", workspaceIds);
+  const { data: boards, error: boardError } = await boardQuery.order("updated_at", { ascending: false });
   if (boardError) throw boardError;
+  (boards as BoardRow[]).forEach((board) => {
+    const currentRole = roles.get(board.id);
+    if (currentRole !== "owner" && currentRole !== "editor" && board.workspace_id && workspaceIds.includes(board.workspace_id)) roles.set(board.id, "editor");
+  });
   return boardSummaries(boards as BoardRow[], roles);
 };
 
-export const searchPublicBoards = async (query: string) => {
+export const searchPublicBoards = async (query: string, actorUid?: string) => {
   const normalized = query.trim().slice(0, 120);
   if (!normalized) return [];
   const escaped = normalized.replace(/[%,_]/g, "");
   const { data, error } = await supabaseAdmin()
     .from("boards")
-    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at")
+    .select("id, owner_id, title, visibility, liveblocks_room_id, thumbnail_asset_id, legacy_rtdb_id, created_at, updated_at, deleted_at, workspace_id")
     .eq("visibility", "public")
     .is("deleted_at", null)
     .ilike("title", `%${escaped}%`)
     .order("updated_at", { ascending: false })
-    .limit(12);
+    .limit(actorUid ? 48 : 12);
   if (error) throw error;
-  return boardSummaries(data as BoardRow[], new Map((data as BoardRow[]).map((board) => [board.id, "viewer" as const])));
+  const hidden = actorUid ? await hiddenProfileIdsForActor(actorUid) : new Set<string>();
+  const visible = ((data ?? []) as BoardRow[]).filter((board) => !hidden.has(board.owner_id)).slice(0, 12);
+  return boardSummaries(visible, new Map(visible.map((board) => [board.id, "viewer" as const])));
 };
 
 export const provisionBoard = async ({

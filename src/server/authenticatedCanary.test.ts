@@ -36,7 +36,10 @@ describe("authenticated production canary", () => {
     expect(fetcher).toHaveBeenCalledTimes(5);
     expect(fetcher).toHaveBeenNthCalledWith(2, new URL("https://kumo.example/api/session"), expect.objectContaining({
       method: "POST",
-      headers: expect.objectContaining({ authorization: "Bearer token" }),
+      headers: expect.objectContaining({ authorization: "Bearer token", "x-kumo-session-id": "canary-canary-user" }),
+    }));
+    expect(fetcher).toHaveBeenNthCalledWith(1, expect.any(String), expect.objectContaining({
+      body: JSON.stringify({ returnSecureToken: true }),
     }));
     expect(fetcher).toHaveBeenNthCalledWith(4, new URL("https://database.example/rest/v1/profiles?firebase_uid=eq.canary-user"), expect.objectContaining({ method: "DELETE" }));
     expect(String(fetcher.mock.calls[4]![0])).toContain("accounts:delete?key=firebase-key");

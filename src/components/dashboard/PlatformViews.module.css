@@ -32,6 +32,11 @@
 .tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .tags span { padding: 3px 6px; color: #d5a15f; border: 1px solid #5b4934; border-radius: 999px; font-size: var(--kumo-text-2xs); }
 .actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.sessionList { display: grid; gap: 6px; margin-block: 12px; }
+.sessionList article { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: #202124; border: 1px solid #303236; border-radius: 8px; }
+.sessionList article > div { display: grid; gap: 2px; min-width: 0; }
+.sessionList small { overflow: hidden; color: #92908a; text-overflow: ellipsis; white-space: nowrap; }
+.sessionList time { color: #92908a; font-size: 11px; }
 .message { color: #9cc4a6; font-size: 12px; }
 .error { color: #e59b95; font-size: 12px; }
 .dialogBackdrop { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 24px; background: rgb(9 10 11 / 72%); }

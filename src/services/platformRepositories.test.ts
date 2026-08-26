@@ -18,6 +18,7 @@ import {
   getBoardVersion,
   listBoardVersions,
   restoreBoardVersion,
+  restoreBoardVersionLayers,
   type BoardVersion,
   type BoardVersionDetail,
 } from "./versionRepository";
@@ -31,13 +32,20 @@ import {
   loadLibraries,
   loadLibraryDiff,
   loadLibraryVersions,
+  loadNotificationInbox,
   loadNotifications,
   loadProductGraph,
   loadShareLinks,
   loadTemplates,
   loadWorkspaceOverview,
   markNotificationRead,
+  updateNotificationState,
+  setBoardNotificationMuted,
   organizeBoard,
+  saveBoardView,
+  renameBoardView,
+  deleteBoardView,
+  reorderBoardViews,
   publishLibrary,
   governLibraryRelease,
   redeemShareLink,
@@ -49,7 +57,10 @@ import {
 vi.mock("./apiClient", () => ({ authenticatedFetch: vi.fn() }));
 
 describe("collaboration platform repositories", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(authenticatedFetch).mockReset();
+  });
 
   it("lists board collaborators with an encoded board id", async () => {
     const collaborator: BoardCollaborator = { id: "user", email: "a@example.com", name: "Ada", avatar: "", role: "editor" };
@@ -116,9 +127,17 @@ describe("collaboration platform repositories", () => {
     expect(authenticatedFetch).toHaveBeenNthCalledWith(3, "/api/versions", expect.objectContaining({ body: JSON.stringify({ action: "checkpoint", boardId: "board", name: "Review", description: "Ready", branchId: "branch / one" }) }));
   });
 
+  it("restores only requested version layers with optional branch scope", async () => {
+    vi.mocked(authenticatedFetch).mockResolvedValue({ restored: true, versionId: "version", beforeRestoreId: "before", revision: 2, restoredShapeIds: ["shape"] });
+    await restoreBoardVersionLayers("board", "version", ["shape"], "branch");
+    await restoreBoardVersionLayers("board", "version", ["shape"]);
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(1, "/api/versions", expect.objectContaining({ body: JSON.stringify({ action: "restore-layers", boardId: "board", versionId: "version", shapeIds: ["shape"], branchId: "branch" }) }));
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(2, "/api/versions", expect.objectContaining({ body: JSON.stringify({ action: "restore-layers", boardId: "board", versionId: "version", shapeIds: ["shape"] }) }));
+  });
+
   it("covers the product graph, workspace, inbox, libraries, templates, access, and governed sharing API", async () => {
     const graph = { sourceId: "board", nodes: [], edges: [], incoming: [] };
-    const workspace = { workspace: { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Workspace", owner_id: "user" } }, folders: [], organization: [] };
+    const workspace = { workspace: { workspace_id: "workspace", role: "owner", workspaces: { id: "workspace", name: "Workspace", owner_id: "user" } }, folders: [], organization: [], savedViews: [] };
     const responses: unknown[] = [
       { graph }, workspace, { notifications: [] }, { updated: true },
       { libraries: [], subscriptions: [] }, { libraryId: "library", version: 1, assetCount: 2 },
@@ -162,7 +181,7 @@ describe("collaboration platform repositories", () => {
     [
       { workspace: { workspace_id: "workspace" } }, {}, {}, {}, {}, {}, {},
     ].forEach((value) => vi.mocked(authenticatedFetch).mockResolvedValueOnce(value));
-    await expect(loadWorkspaceOverview()).resolves.toMatchObject({ folders: [], organization: [] });
+    await expect(loadWorkspaceOverview()).resolves.toMatchObject({ folders: [], organization: [], savedViews: [] });
     await expect(loadNotifications()).resolves.toEqual([]);
     await expect(loadLibraries("board")).resolves.toEqual({ libraries: [], subscriptions: [] });
     await expect(loadTemplates()).resolves.toEqual([]);
@@ -172,5 +191,25 @@ describe("collaboration platform repositories", () => {
     await loadLibraryVersions("library / one");
     vi.mocked(authenticatedFetch).mockResolvedValueOnce({ updated: true });
     await governLibraryRelease("approve-library-release", "library", 2);
+  });
+
+  it("covers full inbox state, board mutes, and saved-view CRUD contracts", async () => {
+    [
+      { notifications: [{ id: "notice" }], mutedBoardIds: ["board"] }, { updated: true }, { muted: true }, { muted: false },
+      { view: { id: "view" } }, { view: { id: "view", name: "Renamed" } }, { deleted: true }, { reordered: true },
+    ].forEach((value) => vi.mocked(authenticatedFetch).mockResolvedValueOnce(value));
+    await expect(loadNotificationInbox()).resolves.toEqual({ notifications: [{ id: "notice" }], mutedBoardIds: ["board"] });
+    await updateNotificationState("notice", { archived: true });
+    await setBoardNotificationMuted("board", true);
+    await setBoardNotificationMuted("board", false);
+    await saveBoardView({ name: "Favorites", filter: "favorites", sort: "updated", density: "comfortable" });
+    await renameBoardView("view", "Renamed");
+    await deleteBoardView("view");
+    await reorderBoardViews(["view"]);
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(2, "/api/product", expect.objectContaining({ body: JSON.stringify({ action: "update-notification", id: "notice", archived: true }) }));
+    expect(authenticatedFetch).toHaveBeenNthCalledWith(3, "/api/product", expect.objectContaining({ body: JSON.stringify({ action: "mute-board-notifications", boardId: "board" }) }));
+
+    vi.mocked(authenticatedFetch).mockResolvedValueOnce({});
+    await expect(loadNotificationInbox()).resolves.toEqual({ notifications: [], mutedBoardIds: [] });
   });
 });

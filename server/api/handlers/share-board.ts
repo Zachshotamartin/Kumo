@@ -7,6 +7,7 @@ import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { friendshipBetween } from "../_profiles.js";
 import { enforceRateLimit, hashSecret, requestOrigin } from "../_security.js";
 import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
+import { sendPreferredPushToUser } from "../_push.js";
 
 type BoardRole = "editor" | "viewer";
 type ShareAction = "invite" | "remove" | "update-role" | "transfer-owner" | "leave" | "accept-invitation" | "cancel-invitation" | "refresh-invitation";
@@ -24,6 +25,18 @@ interface ShareRequest {
 }
 
 const invitationLink = (request: VercelRequest, token: string) => `${requestOrigin(request)}/?invite=${encodeURIComponent(token)}`;
+
+const notifyAccessChange = async ({
+  recipientId, boardId, title, body, actionUrl,
+}: {
+  recipientId: string;
+  boardId: string;
+  title: string;
+  body: string;
+  actionUrl: string;
+}) => {
+  void sendPreferredPushToUser(recipientId, "access_changes", { title, body, url: actionUrl, tag: `kumo:access:${boardId}` }).catch(() => undefined);
+};
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!allowMethods(request, response, ["GET", "POST"])) return;
@@ -111,8 +124,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (body.action === "transfer-owner") {
       if (!body.memberUid || body.memberUid === actor.uid) return response.status(400).json({ error: "Choose another board member as owner." });
-      const { error } = await database.rpc("transfer_kumo_board_ownership", { p_board_id: boardId, p_actor_id: actor.uid, p_new_owner_id: body.memberUid });
+      const title = `You now own ${access.board.title}`;
+      const notificationBody = `${actorProfile.displayName} transferred board ownership to you.`;
+      const actionUrl = `/?board=${encodeURIComponent(boardId)}`;
+      const { error } = await database.rpc("apply_kumo_board_access_change", {
+        p_operation: "transfer", p_board_ids: [boardId], p_actor_id: actor.uid, p_user_id: body.memberUid, p_role: null,
+        p_notification_board_id: boardId, p_title: title, p_body: notificationBody, p_action_url: actionUrl,
+      });
       if (error) throw error;
+      await notifyAccessChange({ recipientId: body.memberUid, boardId, title, body: notificationBody, actionUrl });
       return response.status(200).json({ transferred: true, newOwnerId: body.memberUid });
     }
 
@@ -122,7 +142,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       if (!friendUid && (!email || !/^\S+@\S+\.\S+$/.test(email))) return response.status(400).json({ error: "Enter a valid email address or choose a friend." });
       let relationship = friendUid ? await friendshipBetween(actor.uid, friendUid) : null;
       if (friendUid && relationship?.status !== "accepted") return response.status(403).json({ error: "Only accepted friends can be shared with from the friends list." });
-      const profileQuery = database.from("profiles").select("firebase_uid, email, display_name, avatar_url");
+      const profileQuery = database.from("profiles").select("firebase_uid, email, display_name, avatar_url").eq("email_verified", true);
       const { data: invited, error: invitedError } = friendUid
         ? await profileQuery.eq("firebase_uid", friendUid).maybeSingle()
         : await profileQuery.ilike("email", email).maybeSingle();
@@ -144,8 +164,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
       if (relationship?.status === "blocked") return response.status(403).json({ error: "This profile cannot be invited." });
       const managedBoards = plan.boards.filter((candidate) => candidate.manageable);
       const selectedBoards = body.includeLinkedBoards === false ? managedBoards.filter((candidate) => candidate.id === boardId) : managedBoards;
-      const { error } = await database.rpc("share_kumo_board_set", { p_board_ids: selectedBoards.map((candidate) => candidate.id), p_actor_id: actor.uid, p_user_id: invited.firebase_uid, p_role: role });
+      const title = `${actorProfile.displayName} shared ${access.board.title}`;
+      const notificationBody = `You received ${role} access.`;
+      const actionUrl = `/?board=${encodeURIComponent(boardId)}`;
+      const { error } = await database.rpc("apply_kumo_board_access_change", {
+        p_operation: "share", p_board_ids: selectedBoards.map((candidate) => candidate.id), p_actor_id: actor.uid, p_user_id: invited.firebase_uid, p_role: role,
+        p_notification_board_id: boardId, p_title: title, p_body: notificationBody, p_action_url: actionUrl,
+      });
       if (error) throw error;
+      await notifyAccessChange({ recipientId: invited.firebase_uid, boardId, title, body: notificationBody, actionUrl });
       const existingAccess = await membershipBoardIds(invited.firebase_uid, plan.boards.map((candidate) => candidate.id));
       const unavailableBoards = plan.boards.filter((candidate) => !candidate.manageable && candidate.visibility === "private" && !existingAccess.has(candidate.id));
       return response.status(200).json({ uid: invited.firebase_uid, email: invited.email, name: invited.display_name, avatar: invited.avatar_url, role, sharedBoards: selectedBoards, unavailableBoards });
@@ -156,13 +183,27 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const selectedBoards = body.includeLinkedBoards === false ? managedBoards.filter((candidate) => candidate.id === boardId) : managedBoards;
     if (body.action === "update-role") {
       const role: BoardRole = body.role === "viewer" ? "viewer" : "editor";
-      const { error } = await database.rpc("share_kumo_board_set", { p_board_ids: selectedBoards.map((candidate) => candidate.id), p_actor_id: actor.uid, p_user_id: body.memberUid, p_role: role });
+      const title = `Access changed for ${access.board.title}`;
+      const notificationBody = `Your role is now ${role}.`;
+      const actionUrl = `/?board=${encodeURIComponent(boardId)}`;
+      const { error } = await database.rpc("apply_kumo_board_access_change", {
+        p_operation: "share", p_board_ids: selectedBoards.map((candidate) => candidate.id), p_actor_id: actor.uid, p_user_id: body.memberUid, p_role: role,
+        p_notification_board_id: boardId, p_title: title, p_body: notificationBody, p_action_url: actionUrl,
+      });
       if (error) throw error;
+      await notifyAccessChange({ recipientId: body.memberUid, boardId, title, body: notificationBody, actionUrl });
       return response.status(200).json({ uid: body.memberUid, role, updatedBoards: selectedBoards });
     }
     if (body.action !== "remove") return response.status(400).json({ error: "Unknown sharing action." });
-    const { error } = await database.rpc("remove_kumo_board_member_set", { p_board_ids: selectedBoards.map((candidate) => candidate.id), p_actor_id: actor.uid, p_user_id: body.memberUid });
+    const title = `Access removed from ${access.board.title}`;
+    const notificationBody = `${actorProfile.displayName} removed your board access.`;
+    const actionUrl = "/?view=boards";
+    const { error } = await database.rpc("apply_kumo_board_access_change", {
+      p_operation: "remove", p_board_ids: selectedBoards.map((candidate) => candidate.id), p_actor_id: actor.uid, p_user_id: body.memberUid, p_role: null,
+      p_notification_board_id: boardId, p_title: title, p_body: notificationBody, p_action_url: actionUrl,
+    });
     if (error) throw error;
+    await notifyAccessChange({ recipientId: body.memberUid, boardId, title, body: notificationBody, actionUrl });
     return response.status(200).json({ uid: body.memberUid, removedBoards: selectedBoards });
   } catch (error) {
     const message = errorMessage(error, "We couldn't update board access.");

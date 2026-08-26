@@ -1,10 +1,13 @@
 import type { Shape } from "../classes/shape";
+import { deleteJournalMutation, deleteJournalRecoverySnapshot, journalMutation, journalRecoverySnapshot, readJournalMutations, readJournalRecoverySnapshot } from "./offlineJournal";
 
 export interface RecoverySnapshot {
   boardId: string;
   savedAt: number;
   baseRevision: number;
   backgroundColor: string;
+  baseBackgroundColor: string;
+  baseShapes: Shape[];
   shapes: Shape[];
 }
 
@@ -26,38 +29,60 @@ export interface RecoveryMerge {
   conflicts: RecoveryConflict[];
 }
 
+export type RecoveryResolution = "remote" | "local";
+
 const RECOVERY_PREFIX = "kumo:recovery:";
 const QUEUE_KEY = "kumo:offline-queue";
 
-const storageAvailable = () => typeof window !== "undefined" && Boolean(window.localStorage);
+const localStorage = (): Storage | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
 
 export const recoveryKey = (boardId: string) => `${RECOVERY_PREFIX}${boardId}`;
 
 export const saveRecoverySnapshot = (snapshot: RecoverySnapshot) => {
-  if (!storageAvailable()) return;
-  window.localStorage.setItem(recoveryKey(snapshot.boardId), JSON.stringify(snapshot));
+  const storage = localStorage();
+  if (storage) storage.setItem(recoveryKey(snapshot.boardId), JSON.stringify(snapshot));
+  return journalRecoverySnapshot(snapshot).catch(() => undefined);
 };
 
 export const loadRecoverySnapshot = (boardId: string): RecoverySnapshot | null => {
-  if (!storageAvailable()) return null;
-  const value = window.localStorage.getItem(recoveryKey(boardId));
+  const storage = localStorage();
+  if (!storage) return null;
+  const value = storage.getItem(recoveryKey(boardId));
   if (!value) return null;
   try {
     const parsed = JSON.parse(value) as RecoverySnapshot;
-    return parsed.boardId === boardId && Array.isArray(parsed.shapes) ? parsed : null;
+    return parsed.boardId === boardId && Array.isArray(parsed.shapes) && Array.isArray(parsed.baseShapes) ? parsed : null;
   } catch {
     return null;
   }
 };
 
 export const clearRecoverySnapshot = (boardId: string) => {
-  if (storageAvailable()) window.localStorage.removeItem(recoveryKey(boardId));
+  localStorage()?.removeItem(recoveryKey(boardId));
+  return deleteJournalRecoverySnapshot(boardId).catch(() => undefined);
+};
+
+export const hydrateRecoverySnapshot = async (boardId: string) => {
+  const cached = loadRecoverySnapshot(boardId);
+  const journaled = await readJournalRecoverySnapshot(boardId).catch(() => null);
+  const selected = !cached ? journaled : !journaled ? cached : cached.savedAt >= journaled.savedAt ? cached : journaled;
+  const storage = localStorage();
+  if (selected && storage) storage.setItem(recoveryKey(boardId), JSON.stringify(selected));
+  return selected;
 };
 
 export const queuedMutations = (): QueuedBoardMutation[] => {
-  if (!storageAvailable()) return [];
+  const storage = localStorage();
+  if (!storage) return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(QUEUE_KEY) ?? "[]");
+    const parsed = JSON.parse(storage.getItem(QUEUE_KEY) ?? "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -65,14 +90,30 @@ export const queuedMutations = (): QueuedBoardMutation[] => {
 };
 
 export const queueBoardMutation = (mutation: QueuedBoardMutation) => {
-  if (!storageAvailable()) return;
+  const storage = localStorage();
   const current = queuedMutations().filter((candidate) => candidate.id !== mutation.id);
-  window.localStorage.setItem(QUEUE_KEY, JSON.stringify([...current, mutation]));
+  if (storage) storage.setItem(QUEUE_KEY, JSON.stringify([...current, mutation]));
+  return journalMutation(mutation).catch(() => undefined);
 };
 
 export const removeQueuedMutation = (id: string) => {
-  if (!storageAvailable()) return;
-  window.localStorage.setItem(QUEUE_KEY, JSON.stringify(queuedMutations().filter((mutation) => mutation.id !== id)));
+  const storage = localStorage();
+  if (storage) storage.setItem(QUEUE_KEY, JSON.stringify(queuedMutations().filter((mutation) => mutation.id !== id)));
+  return deleteJournalMutation(id).catch(() => undefined);
+};
+
+export const hydrateQueuedMutations = async () => {
+  const cached = queuedMutations();
+  const journaled = await readJournalMutations().catch(() => []);
+  const merged = new Map<string, QueuedBoardMutation>();
+  [...journaled, ...cached].forEach((mutation) => {
+    const current = merged.get(mutation.id);
+    if (!current || mutation.createdAt >= current.createdAt) merged.set(mutation.id, mutation);
+  });
+  const result = [...merged.values()].sort((left, right) => left.createdAt - right.createdAt);
+  const storage = localStorage();
+  if (storage) storage.setItem(QUEUE_KEY, JSON.stringify(result));
+  return result;
 };
 
 const changedFields = (base: Shape, candidate: Shape) => {
@@ -94,35 +135,62 @@ export const mergeRecoverySnapshot = (base: Shape[], remote: Shape[], local: Sha
     if (!localShape && !remoteShape) return;
     if (!baseShape) {
       if (localShape && remoteShape && JSON.stringify(localShape) !== JSON.stringify(remoteShape)) conflicts.push({ shapeId: id, fields: ["__shape"] });
-      merged.push(localShape ?? remoteShape!);
+      merged.push(remoteShape ?? localShape!);
       return;
     }
-    if (!localShape || !remoteShape) {
-      const surviving = (localShape ?? remoteShape)!;
-      const changed = changedFields(baseShape, surviving).size > 0;
-      if (changed) conflicts.push({ shapeId: id, fields: ["__deleted"] });
-      merged.push(surviving);
+    if (!localShape && remoteShape) {
+      const remoteChanged = changedFields(baseShape, remoteShape).size > 0;
+      if (remoteChanged) {
+        conflicts.push({ shapeId: id, fields: ["__deleted"] });
+        merged.push(remoteShape);
+      }
       return;
     }
-    const localChanges = changedFields(baseShape, localShape);
-    const remoteChanges = changedFields(baseShape, remoteShape);
+    if (localShape && !remoteShape) {
+      const localChanged = changedFields(baseShape, localShape).size > 0;
+      if (localChanged) conflicts.push({ shapeId: id, fields: ["__deleted"] });
+      return;
+    }
+    const localChanges = changedFields(baseShape, localShape!);
+    const remoteChanges = changedFields(baseShape, remoteShape!);
     const overlapping = [...localChanges].filter((field) => remoteChanges.has(field) && JSON.stringify((localShape as unknown as Record<string, unknown>)[field]) !== JSON.stringify((remoteShape as unknown as Record<string, unknown>)[field]));
     if (overlapping.length) conflicts.push({ shapeId: id, fields: overlapping });
     const next = { ...remoteShape } as Record<string, unknown>;
-    localChanges.forEach((field) => { next[field] = (localShape as unknown as Record<string, unknown>)[field]; });
+    localChanges.forEach((field) => {
+      if (!overlapping.includes(field)) next[field] = (localShape as unknown as Record<string, unknown>)[field];
+    });
     merged.push(next as unknown as Shape);
   });
   return { shapes: merged.sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id)), conflicts };
+};
+
+export const resolveRecoveryConflicts = (
+  merge: RecoveryMerge,
+  remote: Shape[],
+  local: Shape[],
+  resolutions: Record<string, RecoveryResolution>
+): Shape[] => {
+  const remoteById = new Map(remote.map((shape) => [shape.id, shape]));
+  const localById = new Map(local.map((shape) => [shape.id, shape]));
+  const conflictIds = new Set(merge.conflicts.map((conflict) => conflict.shapeId));
+  const resolved = new Map(merge.shapes.map((shape) => [shape.id, shape]));
+  conflictIds.forEach((shapeId) => {
+    const choice = resolutions[shapeId] ?? "remote";
+    const chosen = choice === "local" ? localById.get(shapeId) : remoteById.get(shapeId);
+    if (chosen) resolved.set(shapeId, chosen);
+    else resolved.delete(shapeId);
+  });
+  return [...resolved.values()].sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id));
 };
 
 export const replayQueuedMutations = async (
   send: (mutation: QueuedBoardMutation) => Promise<void>
 ) => {
   const failures: Array<{ mutation: QueuedBoardMutation; error: unknown }> = [];
-  for (const mutation of queuedMutations()) {
+  for (const mutation of await hydrateQueuedMutations()) {
     try {
       await send(mutation);
-      removeQueuedMutation(mutation.id);
+      await removeQueuedMutation(mutation.id);
     } catch (error) {
       failures.push({ mutation, error });
     }
