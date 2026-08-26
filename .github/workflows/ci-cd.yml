@@ -219,6 +219,10 @@ jobs:
         run: ./node_modules/.bin/vercel alias set "${{ steps.deploy_preview.outputs.url }}" "$VERCEL_VALIDATION_DOMAIN" --token="$VERCEL_TOKEN"
       - name: Smoke-test deployed preview
         run: yarn verify:deployment "https://$VERCEL_VALIDATION_DOMAIN"
+      - name: Run authenticated preview canary
+        run: yarn verify:authenticated-canary "https://$VERCEL_VALIDATION_DOMAIN" .vercel/.env.preview.local
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}
       - name: Enforce Lighthouse budgets
         run: yarn verify:lighthouse
         env:
@@ -294,3 +298,5 @@ jobs:
         run: yarn verify:deployment "${{ steps.deploy_production.outputs.url }}"
       - name: Run authenticated production canary
         run: yarn verify:authenticated-canary "${{ steps.deploy_production.outputs.url }}" .vercel/.env.production.local
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}

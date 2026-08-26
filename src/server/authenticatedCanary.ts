@@ -4,12 +4,16 @@ export interface AuthenticatedCanaryOptions {
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   email: string;
-  password: string;
 }
 
-interface FirebaseAccount {
-  idToken: string;
-  localId: string;
+export interface AuthenticatedCanaryIdentityAdmin {
+  createUser: (email: string) => Promise<{ uid: string }>;
+  createCustomToken: (uid: string) => Promise<string>;
+  deleteUser: (uid: string) => Promise<void>;
+}
+
+interface FirebaseSession {
+  idToken?: unknown;
 }
 
 const responseMessage = async (response: Response) => {
@@ -32,47 +36,54 @@ const failedCleanupResponse = (error: unknown) => ({
 
 export const verifyAuthenticatedCanary = async (
   options: AuthenticatedCanaryOptions,
+  identityAdmin: AuthenticatedCanaryIdentityAdmin,
   fetcher: typeof fetch = fetch
 ) => {
   const baseUrl = new URL(options.baseUrl);
   if (baseUrl.protocol !== "https:") throw new Error("The authenticated canary requires an HTTPS deployment URL.");
   const identity = (operation: string) => `https://identitytoolkit.googleapis.com/v1/accounts:${operation}?key=${encodeURIComponent(options.firebaseApiKey)}`;
-  let account: FirebaseAccount | null = null;
+  let uid: string | null = null;
   let primaryError: unknown;
   let result: { uid: string; boardCount: number } | undefined;
   const cleanupErrors: Error[] = [];
 
   try {
-    // Use an anonymous disposable identity. Email/password sign-up tokens are
-    // intentionally unverified and production APIs correctly reject them.
-    const signup = await requireResponse(await fetcher(identity("signUp"), {
+    // Production intentionally disables public sign-up. Create the disposable
+    // identity through Admin Auth, then exchange a custom token for the same
+    // client ID token that a real authenticated browser sends to the APIs.
+    const account = await identityAdmin.createUser(options.email);
+    uid = account.uid;
+    const customToken = await identityAdmin.createCustomToken(uid);
+    const signIn = await requireResponse(await fetcher(identity("signInWithCustomToken"), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ returnSecureToken: true }),
-    }), "Firebase canary signup");
-    account = await signup.json() as FirebaseAccount;
-    if (!account.idToken || !account.localId) throw new Error("Firebase canary signup returned an incomplete account.");
-    const sessionId = `canary-${account.localId}`.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 100).padEnd(16, "0");
-    const headers = { authorization: `Bearer ${account.idToken}`, "x-kumo-session-id": sessionId, "content-type": "application/json" };
+      body: JSON.stringify({ token: customToken, returnSecureToken: true }),
+    }), "Firebase canary custom-token sign-in");
+    const firebaseSession = await signIn.json() as FirebaseSession;
+    if (typeof firebaseSession.idToken !== "string" || !firebaseSession.idToken) {
+      throw new Error("Firebase canary custom-token sign-in returned an invalid session.");
+    }
+    const sessionId = `canary-${uid}`.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 100).padEnd(16, "0");
+    const headers = { authorization: `Bearer ${firebaseSession.idToken}`, "x-kumo-session-id": sessionId, "content-type": "application/json" };
     const session = await requireResponse(await fetcher(new URL("/api/session", baseUrl), {
       method: "POST",
       headers,
       body: "{}",
     }), "Authenticated session API");
     const sessionBody = await session.json() as { profile?: { uid?: string } };
-    if (sessionBody.profile?.uid !== account.localId) throw new Error("Authenticated session returned the wrong profile.");
+    if (sessionBody.profile?.uid !== uid) throw new Error("Authenticated session returned the wrong profile.");
     const boards = await requireResponse(await fetcher(new URL("/api/boards", baseUrl), {
-      headers: { authorization: `Bearer ${account.idToken}`, "x-kumo-session-id": sessionId },
+      headers: { authorization: `Bearer ${firebaseSession.idToken}`, "x-kumo-session-id": sessionId },
     }), "Authenticated boards API");
     const boardsBody = await boards.json() as { boards?: unknown[] };
     if (!Array.isArray(boardsBody.boards)) throw new Error("Authenticated boards API returned an invalid collection.");
-    result = { uid: account.localId, boardCount: boardsBody.boards.length };
+    result = { uid, boardCount: boardsBody.boards.length };
   } catch (error) {
     primaryError = error;
   } finally {
-    if (account) {
+    if (uid) {
       const profileUrl = new URL("/rest/v1/profiles", options.supabaseUrl);
-      profileUrl.searchParams.set("firebase_uid", `eq.${account.localId}`);
+      profileUrl.searchParams.set("firebase_uid", `eq.${uid}`);
       const profileCleanup = await fetcher(profileUrl, {
         method: "DELETE",
         headers: {
@@ -81,12 +92,11 @@ export const verifyAuthenticatedCanary = async (
         },
       }).catch(failedCleanupResponse);
       if (!profileCleanup.ok) cleanupErrors.push(new Error(`Supabase canary cleanup failed: ${await responseMessage(profileCleanup)}`));
-      const accountCleanup = await fetcher(identity("delete"), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ idToken: account.idToken }),
-      }).catch(failedCleanupResponse);
-      if (!accountCleanup.ok) cleanupErrors.push(new Error(`Firebase canary cleanup failed: ${await responseMessage(accountCleanup)}`));
+      try {
+        await identityAdmin.deleteUser(uid);
+      } catch (error) {
+        cleanupErrors.push(new Error(`Firebase canary cleanup failed: ${error instanceof Error ? error.message : String(error)}`));
+      }
     }
   }
 
