@@ -4,6 +4,32 @@ export interface DeploymentSmokeResult {
   boardsStatus: number;
 }
 
+export const DEPLOYMENT_RETRY_DELAYS_MS = [0, 250, 500, 1_000, 2_000, 4_000] as const;
+
+const transientDeploymentStatus = (status: number) =>
+  [404, 408, 425, 429].includes(status) || status >= 500;
+
+const fetchDeploymentRoot = async (
+  url: URL,
+  fetcher: typeof fetch,
+  wait: (delayMs: number) => Promise<void>
+) => {
+  let response: Response | undefined;
+  let failure: unknown;
+  for (const delay of DEPLOYMENT_RETRY_DELAYS_MS) {
+    if (delay) await wait(delay);
+    try {
+      response = await fetcher(url, { redirect: "follow" });
+      failure = undefined;
+      if (response.ok || !transientDeploymentStatus(response.status)) return response;
+    } catch (caught) {
+      failure = caught;
+    }
+  }
+  if (response) return response;
+  throw failure;
+};
+
 const expectAuthenticationChallenge = async (response: Response, label: string) => {
   if (response.status !== 401) {
     throw new Error(`The deployed ${label} returned HTTP ${response.status} instead of an authentication challenge.`);
@@ -16,14 +42,15 @@ const expectAuthenticationChallenge = async (response: Response, label: string) 
 
 export const verifyDeploymentSmoke = async (
   deploymentUrl: string,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  wait: (delayMs: number) => Promise<void> = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs))
 ): Promise<DeploymentSmokeResult> => {
   const base = new URL(deploymentUrl);
   if (base.protocol !== "https:" && base.hostname !== "localhost") {
     throw new Error("Deployment smoke checks require HTTPS outside localhost.");
   }
 
-  const root = await fetcher(new URL("/", base), { redirect: "follow" });
+  const root = await fetchDeploymentRoot(new URL("/", base), fetcher, wait);
   if (!root.ok) throw new Error(`The deployed application returned HTTP ${root.status}.`);
   const markup = await root.text();
   if (!/<(?:div[^>]+id=["']root["']|title>Kumo)/i.test(markup)) {
