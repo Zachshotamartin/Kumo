@@ -28,6 +28,7 @@ describe("consolidated Vercel API router", () => {
 
   it("keeps the production collaboration canary compatible with verified-email enforcement", () => {
     const canary = readFileSync(join(process.cwd(), "scripts", "verify-product-collaboration.mjs"), "utf8");
+    const purge = readFileSync(join(process.cwd(), "scripts", "purge-full-stack-canary-artifacts.mjs"), "utf8");
     const workflow = readFileSync(join(process.cwd(), ".github", "workflows", "ci-cd.yml"), "utf8");
     expect(canary).toContain('createVerifiedCanaryAccount(label, firebaseAdmin');
     expect(canary).toContain('required("FIREBASE_SERVICE_ACCOUNT_JSON")');
@@ -36,6 +37,16 @@ describe("consolidated Vercel API router", () => {
     expect(canary).not.toContain('identityUrl("signUp")');
     expect(canary).not.toContain('getByLabel("Email")');
     expect(canary).not.toContain('getByLabel("Password")');
+    expect(canary).toContain("cleanupFullStackCanaryArtifacts({");
+    expect(canary).toContain('deleteBoard: (boardId) => deleteSupabaseRows("boards", "id", boardId)');
+    expect(canary).toContain("assertFullStackCanaryOutcome(verificationError, cleanupError)");
+    expect(canary).not.toContain("catch(() => undefined)");
+    expect(purge).toContain('isFullStackCanaryEmail(profile.email)');
+    expect(purge).toContain('if (!apply)');
+    expect(purge.indexOf('required("FIREBASE_SERVICE_ACCOUNT_JSON")'))
+      .toBeLessThan(purge.indexOf("liveblocks.deleteRoom(roomId)"));
+    expect(purge.indexOf('required("FIREBASE_SERVICE_ACCOUNT_JSON")'))
+      .toBeLessThan(purge.indexOf('supabase.from("boards").delete()'));
     expect(workflow).toContain('FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KUMO_7D8E1 }}');
     const previewWorkflow = workflow.slice(workflow.indexOf("  preview:"), workflow.indexOf("  production:"));
     expect(previewWorkflow).toContain('- name: Run authenticated preview canary');

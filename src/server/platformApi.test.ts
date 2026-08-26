@@ -354,7 +354,10 @@ describe("product maturity platform API", () => {
     mocks.searchBoards.mockResolvedValue([{ id: "public", title: "Public design", role: "viewer" }]);
     enqueue("profiles", { data: [{ firebase_uid: "person", username: "designer", display_name: "Designer" }] });
     enqueue("board_templates", { data: [{ id: "template", name: "Design kickoff", description: "Starter" }] });
-    enqueue("community_publications", { data: [{ board_id: "community", slug: "design-community", description: "Design reference", boards: { title: "Community design" } }] });
+    enqueue("community_publications", { data: [
+      { board_id: "community", slug: "design-community", description: "Design reference", boards: { title: "Community design" }, profiles: { email: "creator@example.com" } },
+      { board_id: "canary", slug: "full-stack-run", description: "Disposable integration publication", boards: { title: "Full-stack product source" }, profiles: { email: "kumo-full-stack-owner-run@example.com" } },
+    ] });
     const search = response();
     await handler(request("GET", {}, { scope: "global-search", q: "design" }), search);
     expect((search.body as { results: Array<{ kind: string }> }).results.map((item) => item.kind)).toEqual(["board", "board", "profile", "template", "community"]);
@@ -407,7 +410,7 @@ describe("product maturity platform API", () => {
     const forbiddenLinks = response(); await handler(request("GET", {}, { scope: "prototype-links", boardId: "board" }), forbiddenLinks);
     expect(forbiddenLinks.statusCode).toBe(403);
 
-    enqueue("community_publications", { data: [{ board_id: "board", slug: "board" }] });
+    enqueue("community_publications", { data: [{ board_id: "board", slug: "board", profiles: { email: "creator@example.com" } }] });
     const community = response(); await handler(request("GET", {}, { scope: "community" }), community);
     expect(community.body).toEqual({ publications: [{ board_id: "board", slug: "board" }], canModerate: false });
 
@@ -418,9 +421,14 @@ describe("product maturity platform API", () => {
     enqueue("community_publications", { data: [
       { board_id: "hidden", published_by: "blocked", slug: "hidden" },
       { board_id: "visible", published_by: "creator", slug: "visible" },
+      { board_id: "canary", published_by: "canary", slug: "full-stack-run", profiles: [{ email: "kumo-full-stack-owner-run@example.com" }] },
+      { board_id: "own-canary", published_by: "owner", slug: "full-stack-own-run", profiles: { email: "kumo-full-stack-owner-own-run@example.com" } },
     ] });
     const filtered = response(); await handler(request("GET", {}, { scope: "community" }), filtered);
-    expect(filtered.body).toEqual({ publications: [{ board_id: "visible", published_by: "creator", slug: "visible" }], canModerate: false });
+    expect(filtered.body).toEqual({ publications: [
+      { board_id: "visible", published_by: "creator", slug: "visible" },
+      { board_id: "own-canary", published_by: "owner", slug: "full-stack-own-run" },
+    ], canModerate: false });
   });
 
   it("renames workspaces and manages existing members and invitations safely", async () => {

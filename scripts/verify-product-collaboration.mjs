@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { createVerifiedCanaryAccount, parseFirebaseCanaryServiceAccount } from "../src/server/fullStackFirebaseCanary.ts";
+import { assertFullStackCanaryOutcome, cleanupFullStackCanaryArtifacts } from "../src/server/fullStackCanaryArtifacts.ts";
 
 const baseUrl = new URL(process.argv[2] ?? "http://localhost:5175");
 const envPath = resolve(process.argv[3] ?? ".env.local");
@@ -66,6 +67,7 @@ const roomIds = new Set();
 const extensionIds = new Set();
 const fontStorageKeys = new Set();
 let browser;
+let verificationError;
 
 const messageFromBody = (body, status) => typeof body?.error?.message === "string"
   ? body.error.message
@@ -80,6 +82,12 @@ const jsonRequest = async (input, init = {}) => {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`${input}: ${messageFromBody(body, response.status)}`);
   return body;
+};
+
+const deleteSupabaseRows = async (table, column, value) => {
+  const url = new URL(`/rest/v1/${table}`, supabaseUrl);
+  url.searchParams.set(column, `eq.${value}`);
+  await jsonRequest(url, { method: "DELETE", headers: supabaseHeaders });
 };
 
 const createAccount = async (label) => {
@@ -608,35 +616,39 @@ try {
 
   await ownerContext.close();
   await collaboratorContext.close();
-  console.log(
-    "Full-stack verification passed: real Supabase workspace/folder/font/notification/access/library/template/share/guest-session/branch mutations; "
-    + "workspace ownership, extensions, prototype delivery, exact-version sharing, community remix, account portability, performance telemetry; "
-    + "real Liveblocks two-user contention, offline edit, reconnect convergence, and persisted resilience telemetry."
-  );
+} catch (error) {
+  verificationError = error;
 } finally {
-  await browser?.close().catch(() => undefined);
-  for (const roomId of [...roomIds].reverse()) {
-    await liveblocks.deleteRoom(roomId).catch(() => undefined);
+  let cleanupError;
+  try {
+    await cleanupFullStackCanaryArtifacts({
+      accountIds: accounts.map((account) => account.uid),
+      boardIds: boards.map((board) => board.id),
+      extensionIds: [...extensionIds],
+      fontStorageKeys: [...fontStorageKeys],
+      roomIds: [...roomIds],
+    }, {
+      closeBrowser: async () => { await browser?.close(); },
+      deleteAuditEvents: (accountId) => deleteSupabaseRows("audit_events", "actor_id", accountId),
+      deleteBoard: (boardId) => deleteSupabaseRows("boards", "id", boardId),
+      deleteExtension: (extensionId) => deleteSupabaseRows("extension_catalog", "id", extensionId),
+      deleteFirebaseUser: (accountId) => firebaseAdmin.deleteUser(accountId),
+      deleteFontStorage: async (keys) => {
+        const { error } = await supabase.storage.from("workspace-fonts").remove(keys);
+        if (error) throw error;
+      },
+      deleteLiveblocksRoom: (roomId) => liveblocks.deleteRoom(roomId),
+      deleteProfile: (accountId) => deleteSupabaseRows("profiles", "firebase_uid", accountId),
+    });
+  } catch (error) {
+    cleanupError = error;
   }
-  for (const account of accounts) {
-    const audits = new URL("/rest/v1/audit_events", supabaseUrl);
-    audits.searchParams.set("actor_id", `eq.${account.uid}`);
-    await fetch(audits, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
-  }
-  for (const extensionId of extensionIds) {
-    const extensions = new URL("/rest/v1/extension_catalog", supabaseUrl);
-    extensions.searchParams.set("id", `eq.${extensionId}`);
-    await fetch(extensions, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
-  }
-  if (fontStorageKeys.size) {
-    await supabase.storage.from("workspace-fonts").remove([...fontStorageKeys]).catch(() => undefined);
-  }
-  for (const account of accounts) {
-    const profiles = new URL("/rest/v1/profiles", supabaseUrl);
-    profiles.searchParams.set("firebase_uid", `eq.${account.uid}`);
-    await fetch(profiles, { method: "DELETE", headers: supabaseHeaders }).catch(() => undefined);
-  }
-  for (const account of accounts) {
-    await firebaseAdmin.deleteUser(account.uid).catch(() => undefined);
-  }
+  assertFullStackCanaryOutcome(verificationError, cleanupError);
 }
+
+console.log(
+  "Full-stack verification passed: real Supabase workspace/folder/font/notification/access/library/template/share/guest-session/branch mutations; "
+  + "workspace ownership, extensions, prototype delivery, exact-version sharing, community remix, account portability, performance telemetry; "
+  + "real Liveblocks two-user contention, offline edit, reconnect convergence, and persisted resilience telemetry; "
+  + "all disposable canary artifacts removed."
+);
