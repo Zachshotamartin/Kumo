@@ -10,6 +10,7 @@ import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 import { pushConfigured, sendPushToUser } from "../_push.js";
 import { friendshipRowsForActor, otherUserId } from "../_profiles.js";
 import { buildAccountExport } from "../_accountExport.js";
+import { isFullStackCanaryPublisher, withoutJoinedPublisher } from "../../../src/server/fullStackCanaryArtifacts.js";
 
 type WorkspaceRole = "owner" | "admin" | "member" | "guest";
 const clean = (value: unknown, fallback = "", limit = 120) => typeof value === "string" ? value.trim().slice(0, limit) || fallback : fallback;
@@ -151,7 +152,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           listBoardsForUser(actor.uid), searchPublicBoards(query, actor.uid),
           database.from("profiles").select("firebase_uid, username, display_name, avatar_url").eq("discoverable", true).eq("email_verified", true).or(`username.ilike.%${query.replace(/[%,]/g, "")}%,display_name.ilike.%${query.replace(/[%,]/g, "")}%`).limit(12),
           database.from("board_templates").select("id, owner_id, name, description, visibility").or(`owner_id.eq.${actor.uid},visibility.eq.public`).ilike("name", `%${query.replace(/[%,]/g, "")}%`).limit(12),
-          database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_count, boards(title)").ilike("description", `%${query.replace(/[%,]/g, "")}%`).limit(12),
+          database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_count, boards(title), profiles!community_publications_published_by_fkey(email)").ilike("description", `%${query.replace(/[%,]/g, "")}%`).limit(12),
           friendshipRowsForActor(actor.uid),
         ]);
         if (profileResult.error) throw profileResult.error;
@@ -166,7 +167,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           ...boardResults.map((board) => ({ kind: "board", id: board.id, label: board.title, detail: board.role ?? "public", actionUrl: `/?board=${encodeURIComponent(board.id)}` })),
           ...visibleProfiles.map((item) => ({ kind: "profile", id: item.firebase_uid, label: item.display_name, detail: `@${item.username}`, actionUrl: `/?profile=${encodeURIComponent(item.username)}` })),
           ...(templateResult.data ?? []).filter((item) => item.owner_id === actor.uid || !hiddenProfileIds.has(item.owner_id)).map((item) => ({ kind: "template", id: item.id, label: item.name, detail: item.description, actionUrl: `/?template=${encodeURIComponent(item.id)}` })),
-          ...(communityResult.data ?? []).filter((item) => !hiddenProfileIds.has(item.published_by)).map((item) => ({ kind: "community", id: item.board_id, label: (item.boards as { title?: string } | null)?.title ?? item.slug, detail: item.description, actionUrl: `/?community=${encodeURIComponent(item.slug)}` })),
+          ...(communityResult.data ?? []).filter((item) => !hiddenProfileIds.has(item.published_by) && (item.published_by === actor.uid || !isFullStackCanaryPublisher(item.profiles))).map((item) => ({ kind: "community", id: item.board_id, label: (item.boards as { title?: string } | null)?.title ?? item.slug, detail: item.description, actionUrl: `/?community=${encodeURIComponent(item.slug)}` })),
         ].slice(0, 40) });
       }
       if (scope === "operations") {
@@ -205,12 +206,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }
       if (scope === "community") {
         const [{ data, error }, relationships] = await Promise.all([
-          database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_allowed, remix_count, published_at, boards(title, thumbnail_asset_id)").order("published_at", { ascending: false }).limit(48),
+          database.from("community_publications").select("board_id, published_by, slug, description, tags, remix_allowed, remix_count, published_at, boards(title, thumbnail_asset_id), profiles!community_publications_published_by_fkey(email)").order("published_at", { ascending: false }).limit(48),
           friendshipRowsForActor(actor.uid),
         ]);
         if (error) throw error;
         const hiddenProfileIds = new Set(relationships.filter((row) => row.status === "blocked").map((row) => otherUserId(row, actor.uid)));
-        return response.status(200).json({ publications: (data ?? []).filter((publication) => !hiddenProfileIds.has(publication.published_by)), canModerate: isCommunityModerator(actor.uid) });
+        const publications = (data ?? [])
+          .filter((publication) => !hiddenProfileIds.has(publication.published_by) && (publication.published_by === actor.uid || !isFullStackCanaryPublisher(publication.profiles)))
+          .map(withoutJoinedPublisher);
+        return response.status(200).json({ publications, canModerate: isCommunityModerator(actor.uid) });
       }
       if (scope === "community-moderation") {
         if (!isCommunityModerator(actor.uid)) return response.status(403).json({ error: "Community moderator access is required." });
