@@ -70,17 +70,19 @@ const jsonRequest = async (input, init = {}) => {
 };
 
 const createAccount = async (label) => {
-  const password = `Kumo-${randomUUID()}-A1!`;
-  const email = `kumo-full-stack-${label}-${randomUUID()}@example.com`;
   const account = await jsonRequest(identityUrl("signUp"), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password, returnSecureToken: true }),
+    body: JSON.stringify({ returnSecureToken: true }),
   });
+  if (!account.idToken || !account.refreshToken || !account.localId || !account.expiresIn) {
+    throw new Error(`Firebase returned an incomplete ${label} canary identity.`);
+  }
   const result = {
-    email,
-    password,
+    email: `${account.localId}@firebase.local`,
     idToken: account.idToken,
+    refreshToken: account.refreshToken,
+    expirationTime: Date.now() + Number(account.expiresIn) * 1_000,
     uid: account.localId,
     sessionId: randomUUID(),
   };
@@ -227,9 +229,43 @@ const loginAndOpenBoard = async (context, account, boardTitle) => {
     if (message.type() === "error") diagnostics.push(`console: ${message.text()}`);
   });
   await page.goto(baseUrl.toString(), { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Email").fill(account.email);
-  await page.getByLabel("Password").fill(account.password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.evaluate(async ({ apiKey, account: firebaseAccount }) => {
+    const database = await new Promise((resolveDatabase, rejectDatabase) => {
+      const request = globalThis.indexedDB.open("firebaseLocalStorageDb", 1);
+      request.addEventListener("upgradeneeded", () => {
+        if (!request.result.objectStoreNames.contains("firebaseLocalStorage")) {
+          request.result.createObjectStore("firebaseLocalStorage", { keyPath: "fbase_key" });
+        }
+      });
+      request.addEventListener("success", () => resolveDatabase(request.result));
+      request.addEventListener("error", () => rejectDatabase(request.error));
+    });
+    const transaction = database.transaction("firebaseLocalStorage", "readwrite");
+    transaction.objectStore("firebaseLocalStorage").put({
+      fbase_key: `firebase:authUser:${apiKey}:[DEFAULT]`,
+      value: {
+        uid: firebaseAccount.uid,
+        emailVerified: false,
+        isAnonymous: true,
+        providerData: [],
+        stsTokenManager: {
+          refreshToken: firebaseAccount.refreshToken,
+          accessToken: firebaseAccount.idToken,
+          expirationTime: firebaseAccount.expirationTime,
+        },
+        apiKey,
+        appName: "[DEFAULT]",
+      },
+    });
+    await new Promise((resolveTransaction, rejectTransaction) => {
+      transaction.addEventListener("complete", resolveTransaction);
+      transaction.addEventListener("error", () => rejectTransaction(transaction.error));
+      transaction.addEventListener("abort", () => rejectTransaction(transaction.error));
+    });
+    database.close();
+    globalThis.localStorage.setItem("kumo:account-session-id", firebaseAccount.sessionId);
+  }, { apiKey: firebaseApiKey, account });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("button", { name: "Kumo boards" })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Open ${boardTitle}`, exact: true }).click({ timeout: 60_000 });
   try {
@@ -294,7 +330,14 @@ try {
   const invitedWorkspaceMember = await post(owner, "/api/platform", {
     action: "invite-workspace-member", workspaceId, email: collaborator.email, role: "admin",
   });
-  assert(invitedWorkspaceMember.added && invitedWorkspaceMember.userId === collaborator.uid, "An existing profile could not be added to the workspace.");
+  const workspaceInvitationToken = typeof invitedWorkspaceMember.url === "string"
+    ? new URL(invitedWorkspaceMember.url).searchParams.get("workspaceInvite")
+    : null;
+  assert(invitedWorkspaceMember.invitation?.id && workspaceInvitationToken, "A workspace invitation was not issued for the disposable collaborator.");
+  const acceptedWorkspaceInvitation = await post(collaborator, "/api/platform", {
+    action: "accept-workspace-invitation", token: workspaceInvitationToken,
+  });
+  assert(acceptedWorkspaceInvitation.accepted && acceptedWorkspaceInvitation.workspaceId === workspaceId, "The disposable collaborator could not accept the workspace invitation.");
   const transferredWorkspace = await post(owner, "/api/platform", {
     action: "transfer-workspace-ownership", workspaceId, userId: collaborator.uid,
   });
@@ -414,7 +457,7 @@ try {
   assert(collaboratorAccess.board?.role === "editor", "Approved access did not create editor membership.");
 
   const share = await post(owner, "/api/product", {
-    action: "create-share-link", boardId: source.id, role: "editor", allowedDomain: "example.com",
+    action: "create-share-link", boardId: source.id, role: "editor", allowedDomain: "firebase.local",
   });
   const redeemed = await post(collaborator, "/api/product", { action: "redeem-share-link", token: share.token });
   assert(redeemed.boardId === source.id && redeemed.role === "editor", "Governed share link did not grant its configured role.");

@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import vercelConfig from "../../vercel.json";
@@ -24,6 +24,16 @@ describe("consolidated Vercel API router", () => {
     expect(vercelConfig.crons).toEqual([
       { path: "/api/maintenance", schedule: "0 3 * * *" },
     ]);
+  });
+
+  it("keeps the production collaboration canary compatible with verified-email enforcement", () => {
+    const canary = readFileSync(join(process.cwd(), "scripts", "verify-product-collaboration.mjs"), "utf8");
+    expect(canary).toContain('body: JSON.stringify({ returnSecureToken: true })');
+    expect(canary).toContain('isAnonymous: true');
+    expect(canary).toContain('fbase_key: `firebase:authUser:${apiKey}:[DEFAULT]`');
+    expect(canary).toContain('action: "accept-workspace-invitation"');
+    expect(canary).not.toContain('getByLabel("Email")');
+    expect(canary).not.toContain('getByLabel("Password")');
   });
 
   it("routes API requests before the single-page-app fallback", () => {
