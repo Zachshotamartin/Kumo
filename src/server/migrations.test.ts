@@ -156,4 +156,27 @@ describe("production database migrations", () => {
     expect(source).toContain("grant select on public.kumo_schema_releases to service_role");
     expect(source.trimEnd()).toMatch(/values \('202608250002'\)\s+on conflict \(version\) do nothing;$/);
   });
+
+  it("adds complete product-flow coverage projections, policies, runs, gates, evidence, and service isolation", () => {
+    const source = migration("202608260001_product_coverage.sql");
+    for (const table of [
+      "product_flows", "product_flow_nodes", "product_flow_edges", "coverage_policies",
+      "coverage_runs", "coverage_run_inputs", "coverage_findings", "coverage_suppressions",
+      "coverage_merge_gates", "coverage_gate_overrides", "coverage_telemetry_events",
+    ]) {
+      expect(source).toContain(`create table if not exists public.${table}`);
+      expect(source).toContain(`alter table public.${table} enable row level security`);
+    }
+    expect(source).toContain("sync_kumo_product_coverage_projection");
+    expect(source).toContain("sync_kumo_board_links_and_product_coverage");
+    expect(source).toContain("save_kumo_product_flow");
+    expect(source).toContain("coverage_runs_reject_update");
+    expect(source).toContain("Coverage runs are immutable");
+    expect(source).toContain("pg_advisory_xact_lock");
+    expect(source).toContain("Coverage projection payloads must be arrays");
+    expect(source).toContain("revoke all on function public.sync_kumo_product_coverage_projection");
+    expect(source).toContain("to service_role");
+    expect(source).not.toContain("board_id uuid");
+    expect(source.trimEnd()).toMatch(/values \('202608260001'\)\s+on conflict \(version\) do nothing;$/);
+  });
 });

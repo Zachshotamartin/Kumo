@@ -21,6 +21,7 @@ import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 import { BoardSummary, listBoards } from "../../services/boardRepository";
 import { applyTextRun, branchVectorPath, splitVectorPath, validateVectorNetwork } from "../../platform/productCapabilities";
+import { normalizeProductFrameMetadata, PRODUCT_STATE_KINDS } from "../../platform/productCoverage";
 
 interface NumberFieldProps {
   label: string;
@@ -132,6 +133,10 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
   const textSelection = useSelector((state: RootState) => state.editor.textSelection);
   const [boardChoices, setBoardChoices] = useState<BoardSummary[]>([]);
   const [boardLoadError, setBoardLoadError] = useState<string | null>(null);
+  const productState = normalizeProductFrameMetadata(shape.productState, shape.name);
+  const patchProductState = (patch: Partial<NonNullable<Shape["productState"]>>) => actions.patchSelected({
+    productState: normalizeProductFrameMetadata({ ...productState, ...patch }, shape.name),
+  });
 
   useEffect(() => {
     if (shape.type !== "board") return;
@@ -150,6 +155,20 @@ const ShapeInspector = ({ shape, actions }: { shape: Shape; actions: EditorActio
   };
   return (
     <>
+      {shape.type === "frame" && <section className={styles.inspectorSection}>
+        <h2>Product coverage</h2>
+        <p className={styles.fieldHint}>Describe the product state this frame proves. Coverage uses these fields instead of guessing from layer names.</p>
+        <label className={styles.fullField}><span>Screen</span><input value={productState.screenKey} onChange={(event) => patchProductState({ screenKey: event.target.value })} /></label>
+        <div className={styles.fieldGrid}>
+          <label className={styles.fullField}><span>State</span><select value={productState.state} onChange={(event) => patchProductState({ state: event.target.value as typeof productState.state })}>{PRODUCT_STATE_KINDS.map((state) => <option value={state} key={state}>{state.replaceAll("-", " ")}</option>)}</select></label>
+          <label className={styles.fullField}><span>Viewport</span><select value={productState.viewport} onChange={(event) => patchProductState({ viewport: event.target.value as typeof productState.viewport })}><option value="responsive">Responsive</option><option value="mobile">Mobile</option><option value="tablet">Tablet</option><option value="desktop">Desktop</option></select></label>
+        </div>
+        {productState.state === "custom" && <label className={styles.fullField}><span>Custom state</span><input value={productState.customState} onChange={(event) => patchProductState({ customState: event.target.value })} /></label>}
+        <label className={styles.fullField}><span>Criticality</span><select value={productState.criticality} onChange={(event) => patchProductState({ criticality: event.target.value as typeof productState.criticality })}><option value="critical">Critical</option><option value="required">Required</option><option value="optional">Optional</option></select></label>
+        <label className={styles.fullField}><span>Journey IDs</span><input value={productState.flowIds.join(", ")} onChange={(event) => patchProductState({ flowIds: event.target.value.split(",").map((item) => item.trim()).filter(Boolean) })} placeholder="checkout, onboarding" /></label>
+        <label className={styles.fullField}><span>Roles</span><input value={productState.roles.join(", ")} onChange={(event) => patchProductState({ roles: event.target.value.split(",").map((item) => item.trim()).filter(Boolean) })} placeholder="guest, customer, admin" /></label>
+        <label className={styles.fullField}><span>Requirements</span><input value={productState.requirementRefs.join(", ")} onChange={(event) => patchProductState({ requirementRefs: event.target.value.split(",").map((item) => item.trim()).filter(Boolean) })} placeholder="PROD-123, spec://checkout" /></label>
+      </section>}
       <section className={styles.inspectorSection}>
         <h2>Position</h2>
         <div className={styles.fieldGrid}>

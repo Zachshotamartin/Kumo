@@ -37,6 +37,7 @@ vi.mock("../../collaboration/offlineJournal", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../collaboration/offlineJournal")>(),
   readSyncEvents: mocks.syncEvents,
 }));
+vi.mock("./ProductCoveragePanel", () => ({ default: () => <div>Coverage tools</div> }));
 
 const shape = (id: string, patch: Partial<Shape> = {}): Shape => ({
   id, type: "rectangle", name: id, x1: 0, y1: 0, x2: 100, y2: 60,
@@ -99,6 +100,13 @@ describe("ProductPanel", () => {
     expect(screen.getByRole("img", { name: "2 connected boards and 1 links" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Roadmap/ }));
     expect(store.getState().selected.selectedShapes).toEqual(["link"]);
+  });
+
+  it("opens the integrated product coverage workspace", async () => {
+    render(<Provider store={makeStore()}><ProductPanel /></Provider>);
+    await screen.findAllByText("Roadmap");
+    fireEvent.click(screen.getByRole("tab", { name: "coverage" }));
+    expect(screen.getByText("Coverage tools")).toBeVisible();
   });
 
   it("finds, selects, and replaces text across the document", async () => {
@@ -416,6 +424,8 @@ describe("ProductPanel", () => {
     render(<Provider store={store}><ProductPanel /></Provider>);
     expect(screen.getByText("Loading graph…")).toBeInTheDocument();
     expect(mocks.graph).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "coverage" }));
+    expect(screen.getByText("Coverage tools")).toBeVisible();
     fireEvent.click(screen.getByRole("tab", { name: "libraries" }));
     expect(screen.getByLabelText("Library name")).toHaveValue("Kumo library");
     fireEvent.click(screen.getByRole("button", { name: /Publish update/ }));
