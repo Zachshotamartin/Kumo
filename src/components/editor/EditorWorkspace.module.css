@@ -1172,6 +1172,227 @@
   background: var(--ui-surface-raised);
 }
 
+.coverageHero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  color: #b8dfc2;
+  background: rgb(63 139 88 / 12%);
+  border: 1px solid rgb(83 168 111 / 30%);
+  border-radius: 8px;
+}
+
+.coverageHero[data-blocked="true"] {
+  color: #f0be89;
+  background: rgb(184 101 46 / 12%);
+  border-color: rgb(205 123 61 / 32%);
+}
+
+.coverageHero strong {
+  font: 700 30px/1 var(--ui-font-sans);
+  letter-spacing: -0.04em;
+}
+
+.coverageHero span,
+.coverageHero small {
+  display: block;
+}
+
+.coverageHero small {
+  margin-top: 3px;
+  color: var(--ui-text-subtle);
+  font-size: var(--kumo-text-2xs);
+}
+
+.coverageBars {
+  display: grid;
+  gap: 7px;
+}
+
+.coverageBars > div,
+.coverageBars span {
+  display: grid;
+  gap: 4px;
+}
+
+.coverageBars span {
+  grid-template-columns: 1fr auto;
+  color: var(--ui-text-muted);
+  font-size: var(--kumo-text-2xs);
+  text-transform: capitalize;
+}
+
+.coverageBars progress {
+  width: 100%;
+  height: 5px;
+  accent-color: #7fc493;
+}
+
+.coverageSections {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.coverageSections button {
+  min-width: max-content;
+  padding: 5px 7px;
+  color: var(--ui-text-muted);
+  font-size: var(--kumo-text-2xs);
+  text-transform: capitalize;
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: 5px;
+}
+
+.coverageSections button[aria-selected="true"] {
+  color: var(--ui-text);
+  border-color: #b87a2e;
+}
+
+.coverageExport {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--kumo-control-compact);
+  padding: 0 8px;
+  color: var(--ui-text-muted);
+  font-size: var(--kumo-text-2xs);
+  text-decoration: none;
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: 5px;
+}
+
+.coverageFindingList {
+  display: grid;
+  gap: 8px;
+}
+
+.coverageFinding {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid #84878d;
+  border-radius: 6px;
+}
+
+.coverageFinding[data-severity="critical"] {
+  border-left-color: #df6b5e;
+}
+
+.coverageFinding[data-severity="error"] {
+  border-left-color: #d89358;
+}
+
+.coverageFinding[data-severity="warning"] {
+  border-left-color: #d3bd68;
+}
+
+.coverageFinding p {
+  margin: 0;
+  color: var(--ui-text-subtle);
+  font-size: var(--kumo-text-2xs);
+}
+
+.coverageFinding > div {
+  display: flex;
+  gap: 5px;
+}
+
+.coverageFindingJump {
+  display: grid;
+  justify-items: start;
+  width: 100%;
+  height: auto;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.coverageFindingJump small {
+  color: var(--ui-text-subtle);
+  font-size: var(--kumo-text-2xs);
+}
+
+.coverageMatrix {
+  display: grid;
+  min-width: max-content;
+  overflow-x: auto;
+  font-size: var(--kumo-text-2xs);
+}
+
+.coverageMatrix > div {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) repeat(4, 54px);
+  align-items: center;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.coverageMatrix b,
+.coverageMatrix span,
+.coverageMatrix button {
+  padding: 6px;
+}
+
+.coverageMatrix button {
+  color: var(--ui-text-subtle);
+  background: transparent;
+  border: 0;
+}
+
+.coverageMatrix button[data-covered="true"] {
+  color: #8ed0a0;
+}
+
+.coverageMatrixCell {
+  padding: 0 !important;
+}
+
+.coverageMatrixCell button {
+  width: 100%;
+}
+
+.coverageCode {
+  margin-top: 8px;
+  color: var(--ui-text-subtle);
+  font-size: var(--kumo-text-2xs);
+}
+
+.coverageCode pre {
+  max-height: 180px;
+  padding: 8px;
+  overflow: auto;
+  color: var(--ui-text);
+  white-space: pre-wrap;
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border);
+}
+
+.coverageGraph {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.coverageGraph button {
+  display: grid;
+  justify-items: start;
+  height: auto;
+  min-height: 48px;
+  padding: 7px;
+  text-align: left;
+}
+
+.coverageGraph small {
+  color: var(--ui-text-subtle);
+  font-size: var(--kumo-text-2xs);
+}
+
 .assetRow small,
 .assetApply small {
   display: block;

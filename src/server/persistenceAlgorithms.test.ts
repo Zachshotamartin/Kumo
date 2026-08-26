@@ -1,4 +1,4 @@
-import { boardLinkRows, syncBoardLinks } from "../../server/api/_boardLinks";
+import { boardLinkRows, coverageProjection, syncBoardLinks } from "../../server/api/_boardLinks";
 import {
   cloneAssetsToBoard,
   documentAssetIds,
@@ -92,11 +92,56 @@ describe("persistence algorithms", () => {
   });
 
   it("synchronizes normalized board links and surfaces database failures", async () => {
-    const rpc = vi.fn().mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ error: new Error("link sync failed") });
+    const rpc = vi.fn().mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ error: new Error("atomic sync failed") });
     vi.mocked(supabaseAdmin).mockReturnValue({ rpc } as never);
     await syncBoardLinks("source", { nodes: { link: { type: "board", boardId: "target" } } });
-    expect(rpc).toHaveBeenCalledWith("sync_kumo_board_links", { p_source_board_id: "source", p_links: [{ target_board_id: "target", shape_id: "link" }] });
-    await expect(syncBoardLinks("source", {})).rejects.toThrow("link sync failed");
+    expect(rpc).toHaveBeenCalledWith("sync_kumo_board_links_and_product_coverage", { p_source_board_id: "source", p_links: [{ target_board_id: "target", shape_id: "link" }], p_nodes: [], p_edges: [] });
+    await expect(syncBoardLinks("source", {})).rejects.toThrow("atomic sync failed");
+  });
+
+  it("projects annotated journey frames, conditions, cross-board targets, and implicit board links", () => {
+    const projection = coverageProjection("source", { nodes: {
+      frame: { id: "frame", type: "frame", name: "Checkout", parentId: null, productState: { screenKey: "Checkout", state: "custom", customState: "Fraud review", flowIds: ["purchase"], roles: ["customer"], viewport: "mobile", criticality: "critical", requirementRefs: ["PAY-1"] } },
+      button: { id: "button", type: "rectangle", parentId: "frame", prototypeInteractions: [{ id: "next", trigger: "click", action: "open-board", boardId: "target", destinationFrameId: "complete", condition: { variableId: "paid", operator: "truthy" }, fallback: true }] },
+      link: { id: "link", type: "board", parentId: "frame", boardId: "other" },
+      duplicate: { id: "duplicate", type: "board", parentId: "frame", boardId: "ignored", prototypeInteractions: [{ id: "explicit", trigger: "click", action: "open-board", boardId: "ignored" }] },
+    } });
+    expect(projection.nodes).toEqual([expect.objectContaining({ frame_id: "frame", screen_key: "Checkout", state_kind: "custom", custom_state: "Fraud review", annotated: true })]);
+    expect(projection.edges).toEqual([
+      expect.objectContaining({ interaction_id: "explicit", target_board_id: "ignored" }),
+      expect.objectContaining({ interaction_id: "link:board-link", target_board_id: "other" }),
+      expect.objectContaining({ interaction_id: "next", target_board_id: "target", target_frame_id: "complete", is_fallback: true }),
+    ]);
+  });
+
+  it("projects local, missing, unsupported, hidden, and cyclic coverage shapes defensively", () => {
+    expect(coverageProjection("source", null)).toEqual({ nodes: [], edges: [] });
+    expect(coverageProjection("source", { nodes: "invalid" })).toEqual({ nodes: [], edges: [] });
+    const projection = coverageProjection("source", { nodes: {
+      zFrame: { type: "frame", name: "Z", parentId: null },
+      aFrame: { id: "aFrame", type: "frame", name: "A", parentId: null },
+      hidden: { id: "hidden", type: "frame", parentId: null, hidden: true },
+      nestedFrame: { id: "nestedFrame", type: "frame", parentId: "aFrame" },
+      child: { id: "child", type: "rectangle", parentId: "aFrame", prototypeInteractions: [
+        { id: "local", trigger: "click", action: "navigate", destinationId: "target" },
+        { id: "missing-local", trigger: "click", action: "navigate" },
+        { id: "board-missing", trigger: "click", action: "open-board" },
+        { id: "board-default", trigger: "click", action: "open-board", boardId: "target-board" },
+        { id: "ignored", trigger: "click", action: "open-url", url: "https://example.com" },
+      ] },
+      target: { id: "target", type: "rectangle", parentId: "nestedFrame" },
+      cycleA: { id: "cycleA", type: "rectangle", parentId: "cycleB" },
+      cycleB: { id: "cycleB", type: "rectangle", parentId: "cycleA" },
+    } });
+    expect(projection.nodes.map((node) => node.frame_id)).toEqual(["aFrame", "zFrame"]);
+    expect(projection.nodes[0]).toMatchObject({ annotated: false });
+    expect(projection.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ interaction_id: "local", target_board_id: "source", target_frame_id: "aFrame" }),
+      expect.objectContaining({ interaction_id: "missing-local", target_frame_id: null }),
+      expect.objectContaining({ interaction_id: "board-missing", target_board_id: null, target_frame_id: null }),
+      expect.objectContaining({ interaction_id: "board-default", target_board_id: "target-board", target_frame_id: null }),
+    ]));
+    expect(projection.edges.some((edge) => edge.interaction_id === "ignored")).toBe(false);
   });
 
   it("copies authorized assets into target-board storage and records new ownership", async () => {

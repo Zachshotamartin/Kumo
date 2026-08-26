@@ -65,6 +65,9 @@ const allTables = (database: ExportDatabase, value: unknown[] | null = []) => {
     "push_subscriptions", "installed_extensions", "performance_events", "board_invitations",
     "branch_reviews", "branch_conflicts", "board_links", "board_access_requests", "board_share_links",
     "prototype_share_links", "board_open_sessions", "workspace_folders", "workspace_fonts",
+    "product_flows", "product_flow_nodes", "product_flow_edges", "coverage_policies", "coverage_runs",
+    "coverage_run_inputs", "coverage_findings", "coverage_suppressions", "coverage_merge_gates",
+    "coverage_gate_overrides", "coverage_telemetry_events",
   ]) database.set(table, value);
   return database;
 };
@@ -103,7 +106,10 @@ describe("portable account export", () => {
       .set("branch_conflicts", [{ branch_id: "branch", shape_id: "shape" }])
       .set("notification_preferences", [{ user_id: "user", digest: "daily" }])
       .set("saved_board_views", [{ id: "view", user_id: "user" }])
-      .set("installed_extensions", [{ extension_id: "tokens.export" }]);
+      .set("installed_extensions", [{ extension_id: "tokens.export" }])
+      .set("coverage_runs", [{ id: "coverage-run" }])
+      .set("coverage_run_inputs", [{ run_id: "coverage-run", board_id: "board" }])
+      .set("coverage_findings", [{ run_id: "coverage-run", fingerprint: "finding" }]);
     mocks.database = database;
 
     const result = await buildAccountExport("user", profile);
@@ -126,6 +132,7 @@ describe("portable account export", () => {
       notificationPreferences: [{ user_id: "user", digest: "daily" }],
       savedViews: [{ id: "view", user_id: "user" }],
       installedExtensions: [{ extension_id: "tokens.export" }],
+      productFlows: [], coverageRuns: [{ id: "coverage-run" }], coverageFindings: [{ run_id: "coverage-run", fingerprint: "finding" }], coverageTelemetryEvents: [],
     });
     expect(result.exportedAt).toEqual(expect.any(String));
     expect(result.boardMemberships).toEqual(expect.arrayContaining([expect.objectContaining({ board_id: "shared", user_id: "user", role: "viewer" })]));
@@ -152,6 +159,9 @@ describe("portable account export", () => {
       notificationPreferences: [], notificationMutes: [], savedViews: [], accountSessions: [],
       accountDeletionRequests: [], pushSubscriptions: [], installedExtensions: [], performanceEvents: [],
       communityPublications: [], communityReports: [],
+      productFlows: [], productFlowNodes: [], productFlowEdges: [], coveragePolicies: [], coverageRuns: [],
+      coverageRunInputs: [], coverageFindings: [], coverageSuppressions: [], coverageMergeGates: [],
+      coverageGateOverrides: [], coverageTelemetryEvents: [],
     });
     expect(database.downloaded).toEqual([]);
   });
@@ -161,7 +171,12 @@ describe("portable account export", () => {
       .set("boards", [{ id: "board", owner_id: "user", title: "Owned", visibility: "private", liveblocks_room_id: "board:one", thumbnail_asset_id: null, legacy_rtdb_id: null, created_at: new Date(0).toISOString(), updated_at: new Date(1).toISOString(), deleted_at: null }])
       .set("assets", null)
       .set("document_snapshots", null)
-      .set("document_branches", null);
+      .set("document_branches", null)
+      .set("workspaces", [{ id: "workspace", owner_id: "user" }])
+      .set("product_flow_nodes", null)
+      .set("product_flow_edges", null)
+      .set("coverage_policies", null)
+      .set("coverage_runs", null);
     mocks.database = database;
     await expect(buildAccountExport("user", profile)).resolves.toMatchObject({
       assets: [], snapshots: [], branches: [], branchDocuments: [],

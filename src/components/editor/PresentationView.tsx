@@ -72,11 +72,14 @@ const PresentationView = () => {
   const board = useSelector((state: RootState) => state.whiteBoard);
   const requestedFrameId = useSelector((state: RootState) => state.editor.presentationFrameId);
   const flows = useMemo(() => prototypeFlows(board.shapes), [board.shapes]);
+  const requestedFlowId = new URL(window.location.href).searchParams.get("flow");
+  const requestedFlow = flows.find((flow) => flow.id === requestedFlowId);
   const initial = board.shapes.find((shape) => shape.id === requestedFrameId && shape.type === "frame")
+    ?? board.shapes.find((shape) => shape.id === requestedFlow?.startFrameId)
     ?? board.shapes.find((shape) => shape.id === flows[0]?.startFrameId)
     ?? startPrototypeFrame(board.shapes);
   const [frameId, setFrameId] = useState(initial?.id ?? null);
-  const [flowId, setFlowId] = useState(flows.find((flow) => flow.startFrameId === initial?.id)?.id ?? flows[0]?.id ?? "");
+  const [flowId, setFlowId] = useState(requestedFlow?.id ?? flows.find((flow) => flow.startFrameId === initial?.id)?.id ?? flows[0]?.id ?? "");
   const [history, setHistory] = useState<string[]>([]);
   const [localShapes, setLocalShapes] = useState(board.shapes);
   const [prototypeVariables, setPrototypeVariables] = useState<Record<string, VariableValue>>(() => Object.fromEntries(board.shapes
@@ -93,6 +96,10 @@ const PresentationView = () => {
   const visible = useMemo(() => frameId ? shapesInPrototypeFrame(localShapes, frameId) : [], [frameId, localShapes]);
 
   const close = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("present");
+    url.searchParams.delete("flow");
+    window.history.replaceState({}, "", url);
     dispatch(setPresentationMode(false));
     dispatch(setPresentationFrameId(null));
   }, [dispatch]);
@@ -147,9 +154,18 @@ const PresentationView = () => {
       try {
         setError(null);
         const next = await getBoard(interaction.boardId);
+        const destination = next.shapes.find((candidate) => candidate.id === interaction.destinationFrameId && candidate.type === "frame")
+          ?? startPrototypeFrame(next.shapes);
         dispatch(clearSelectedShapes());
         dispatch(setWhiteboardData(next));
-        close();
+        if (!destination) {
+          close();
+          return;
+        }
+        setLocalShapes(next.shapes);
+        setHistory([]);
+        setOverlayId(null);
+        setFrameId(destination.id);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "We couldn't open the linked board.");
       }
@@ -200,6 +216,8 @@ const PresentationView = () => {
         <div
           ref={frameRef}
           className={styles.presentationFrame}
+          data-testid={`prototype-frame-${board.id}:${frame.id}`}
+          data-product-node={`${board.id}:${frame.id}`}
           style={{
             aspectRatio: `${Math.max(1, frameBounds.width)} / ${Math.max(1, frameBounds.height)}`,
             background: frame.backgroundColor ?? board.backGroundColor,
@@ -212,7 +230,9 @@ const PresentationView = () => {
             const bounds = shape.type === "connector" ? connectorRenderBounds(localShapes, shape) : shapeBounds(shape);
             const left = (bounds.x - frameBounds.x) / frameBounds.width * 100;
             const top = (bounds.y - frameBounds.y) / frameBounds.height * 100;
-            const click = interactionForTrigger(shape, "click");
+            const click = interactionForTrigger(shape, "click") ?? (shape.type === "board" && shape.boardId
+              ? { id: "board-link", trigger: "click" as const, action: "open-board" as const, boardId: shape.boardId }
+              : undefined);
             const hover = interactionForTrigger(shape, "hover");
             const mouseEnter = interactionForTrigger(shape, "mouse-enter");
             const mouseLeave = interactionForTrigger(shape, "mouse-leave");
@@ -232,6 +252,7 @@ const PresentationView = () => {
                 type="button"
                 key={shape.id}
                 data-prototype-shape={shape.id}
+                data-testid={click ? `prototype-edge-${board.id}:${shape.id}:${click.id}` : undefined}
                 className={styles.presentationShape}
                 aria-label={shape.name ?? shape.type}
                 style={{

@@ -235,7 +235,7 @@ const requiredDataPaths = [
   ["src/collaboration/LiveblocksRoot.tsx", "/api/liveblocks-auth"],
   ["api/liveblocks-webhook.ts", 'from("document_snapshots")'],
   ["api/liveblocks-webhook.ts", "syncBoardLinks"],
-  ["server/api/_boardLinks.ts", 'rpc("sync_kumo_board_links"'],
+  ["server/api/_boardLinks.ts", 'rpc("sync_kumo_board_links_and_product_coverage"'],
   ["src/services/socialRepository.ts", "/api/friends"],
   ["server/api/handlers/share-board.ts", "friendshipBetween"],
 ];
