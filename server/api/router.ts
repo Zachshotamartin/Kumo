@@ -4,6 +4,7 @@ import boardPreview from "./handlers/board-preview.js";
 import boards from "./handlers/boards.js";
 import branches from "./handlers/branches.js";
 import collaborators from "./handlers/collaborators.js";
+import coverage from "./handlers/coverage.js";
 import friends from "./handlers/friends.js";
 import liveblocksAuth from "./handlers/liveblocks-auth.js";
 import migrateBoard from "./handlers/migrate-board.js";
@@ -25,6 +26,7 @@ export const apiHandlers: Readonly<Record<string, ApiHandler>> = {
   boards,
   branches,
   collaborators,
+  coverage,
   friends,
   "liveblocks-auth": liveblocksAuth,
   "migrate-board": migrateBoard,

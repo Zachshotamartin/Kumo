@@ -37,8 +37,8 @@ export const createDesignBranch = async (boardId: string, name: string): Promise
   return result.branch;
 };
 
-export const mergeDesignBranch = (boardId: string, branchId: string, description = ""): Promise<{ merged: true; checkpointId: string; revision: number }> =>
-  authenticatedFetch("/api/branches", { method: "POST", body: JSON.stringify({ action: "merge", boardId, branchId, description }) });
+export const mergeDesignBranch = (boardId: string, branchId: string, description = "", coverageOverrideReason = ""): Promise<{ merged: true; checkpointId: string; revision: number }> =>
+  authenticatedFetch("/api/branches", { method: "POST", body: JSON.stringify({ action: "merge", boardId, branchId, description, coverageOverrideReason }) });
 
 export const archiveDesignBranch = (boardId: string, branchId: string): Promise<{ archived: true }> =>
   authenticatedFetch("/api/branches", { method: "POST", body: JSON.stringify({ action: "archive", boardId, branchId }) });

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   requireActor: vi.fn(), getAccess: vi.fn(), from: vi.fn(), getDocument: vi.fn(),
   createRoom: vi.fn(), deleteRoom: vi.fn(), initialize: vi.fn(), deleteStorage: vi.fn(), broadcast: vi.fn(), syncLinks: vi.fn(), rpc: vi.fn(),
   sendPreferredPush: vi.fn(),
+  coverageGate: vi.fn(),
 }));
 
 vi.mock("../../server/api/_auth", () => ({ requireActor: mocks.requireActor }));
@@ -13,6 +14,7 @@ vi.mock("../../server/api/_boards", () => ({ getBoardAccess: mocks.getAccess }))
 vi.mock("../../server/api/_supabase", () => ({ supabaseAdmin: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
 vi.mock("../../server/api/_boardLinks", () => ({ syncBoardLinks: mocks.syncLinks }));
 vi.mock("../../server/api/_push", () => ({ sendPreferredPushToUser: mocks.sendPreferredPush }));
+vi.mock("../../server/api/_coverageGate", () => ({ checkCoverageMergeGate: mocks.coverageGate }));
 vi.mock("../../server/api/_liveblocks", () => ({
   boardDocumentFromJson: (document: unknown) => ({ normalized: document }),
   liveblocksAdmin: () => ({
@@ -42,6 +44,7 @@ describe("design branch API", () => {
     mocks.initialize.mockResolvedValue(undefined); mocks.deleteStorage.mockResolvedValue(undefined);
     mocks.broadcast.mockResolvedValue(undefined); mocks.syncLinks.mockResolvedValue(undefined);
     mocks.sendPreferredPush.mockResolvedValue({ delivered: 1, subscriptions: 1, skipped: false });
+    mocks.coverageGate.mockResolvedValue({ blocked: false });
     mocks.rpc.mockImplementation(async (name: string) => ({
       data: name === "acquire_kumo_document_lease"
         ? true
@@ -120,6 +123,44 @@ describe("design branch API", () => {
     expect(reply.statusCode).toBe(409);
     expect(reply.body).toMatchObject({ code: "BRANCH_BASE_DIVERGED" });
     expect(mocks.deleteStorage).not.toHaveBeenCalled();
+  });
+
+  it("enforces checksum-bound coverage and records an owner override before merging", async () => {
+    const current = { nodes: {} };
+    const next = { nodes: { complete: { id: "complete" } } };
+    const branch = { id: "branch", board_id: "board", name: "Coverage", room_id: "branch:branch", status: "open", base_checksum: createHash("sha256").update(JSON.stringify(current)).digest("hex") };
+    mocks.getDocument.mockImplementation(async (room: string) => room === "branch:branch" ? next : current);
+    mocks.coverageGate.mockResolvedValue({ blocked: true, code: "COVERAGE_GATE_FAILED", error: "Coverage failed.", run: { id: "run", score: 70, critical_blockers: 2 } });
+    const overrideInsert = vi.fn().mockResolvedValue({ error: null });
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "document_branches") return branchQuery(branch);
+      if (table === "branch_reviews") return { select: () => ({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) };
+      if (table === "coverage_gate_overrides") return { insert: overrideInsert };
+      if (table === "document_snapshots") return { insert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: { id: "checkpoint" }, error: null }) }) }) };
+      return {};
+    });
+    const blocked = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), blocked);
+    expect(blocked).toMatchObject({ statusCode: 409, body: { code: "COVERAGE_GATE_FAILED", coverage: { id: "run" } } });
+
+    const overridden = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch", coverageOverrideReason: "Emergency production recovery" }), overridden);
+    expect(overrideInsert).toHaveBeenCalledWith(expect.objectContaining({ board_id: "board", branch_id: "branch", run_id: "run", actor_id: "owner", reason: "Emergency production recovery" }));
+    expect(overridden.statusCode).toBe(200);
+
+    mocks.getAccess.mockResolvedValueOnce({ board, role: "editor" });
+    const editor = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch", coverageOverrideReason: "Editors cannot override" }), editor);
+    expect(editor.statusCode).toBe(409);
+
+    mocks.coverageGate.mockResolvedValue({ blocked: true });
+    const missingRun = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch" }), missingRun);
+    expect(missingRun.body).toMatchObject({ coverage: null });
+    overrideInsert.mockResolvedValueOnce({ error: new Error("override audit failed") });
+    const auditFailure = response();
+    await handler(request("POST", { action: "merge", boardId: "board", branchId: "branch", coverageOverrideReason: "Emergency audit exception" }), auditFailure);
+    expect(auditFailure).toMatchObject({ statusCode: 500, body: { error: "override audit failed" } });
   });
 
   it("restores main and its links when the transactional database commit fails", async () => {

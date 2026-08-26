@@ -1,4 +1,4 @@
-export const REQUIRED_SUPABASE_SCHEMA_RELEASE = "202608250002";
+export const REQUIRED_SUPABASE_SCHEMA_RELEASE = "202608260001";
 
 type SchemaReleaseProbeOptions = {
   fetchImpl?: typeof fetch;
@@ -47,7 +47,7 @@ export const verifySupabaseSchemaRelease = async ({
   if (!Array.isArray(rows) || rows.length !== 1 || rows[0]?.version !== version) {
     throw new Error(
       `Remote Supabase schema release ${version} has not been applied. ` +
-      `Apply supabase/migrations/${version}_reliability_release.sql before deploying.`,
+      `Apply every Supabase migration through ${version} before deploying.`,
     );
   }
 

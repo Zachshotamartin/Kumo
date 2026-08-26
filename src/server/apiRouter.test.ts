@@ -66,6 +66,7 @@ describe("consolidated Vercel API router", () => {
       "boards",
       "branches",
       "collaborators",
+      "coverage",
       "friends",
       "liveblocks-auth",
       "maintenance",

@@ -629,7 +629,7 @@ const EditorWorkspace = () => {
         </div>
       )}
       {shareOpen && <ShareDialog onClose={() => { setShareOpen(false); const url = new URL(window.location.href); url.searchParams.delete("shareDialog"); window.history.replaceState({}, "", url); }} />}
-      {editor.presentationMode && <PresentationView />}
+      {(editor.presentationMode || new URL(window.location.href).searchParams.get("present") === "1") && <PresentationView />}
     </main>
   );
 };
