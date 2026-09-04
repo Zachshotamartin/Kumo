@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// The browser suite runs without a backend, but the Firebase client still has to construct for the
+// app shell to mount and `getAuth` rejects an empty key. This placeholder keeps the suite runnable
+// from a bare checkout with no local .env file; a real key in the environment wins.
+const firebaseApiKey = process.env.VITE_FIREBASE_API_KEY || "test-firebase-browser-key";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -23,7 +28,7 @@ export default defineConfig({
   webServer: [
     {
       command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4177 --strictPort",
-      env: { VITE_E2E: "true" },
+      env: { VITE_E2E: "true", VITE_FIREBASE_API_KEY: firebaseApiKey },
       url: "http://127.0.0.1:4177",
       reuseExistingServer: false,
       timeout: 120_000,
