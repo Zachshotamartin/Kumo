@@ -208,6 +208,16 @@ describe("EditorToolbar image uploads", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Broken image");
   });
 
+  it("rejects a file whose type is outside the accepted media list", async () => {
+    const view = render(<Provider store={makeStore()}><EditorToolbar /></Provider>);
+    const input = view.container.querySelector("input[type='file']") as HTMLInputElement;
+    expect(input.accept).toBe("image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm");
+    fireEvent.change(input, { target: { files: [new File(["payload"], "payload.html", { type: "text/html" })] } });
+    expect(await screen.findByRole("alert"))
+      .toHaveTextContent("Kumo accepts PNG, JPEG, WebP, GIF and SVG images, and MP4 or WebM video.");
+    expect(mocks.upload).not.toHaveBeenCalled();
+  });
+
   it("removes a completed upload after switching boards and tolerates cleanup failure", async () => {
     let finishUpload: (asset: Record<string, unknown>) => void = () => undefined;
     mocks.upload.mockImplementationOnce(() => new Promise((resolve) => { finishUpload = resolve; }));

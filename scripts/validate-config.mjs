@@ -40,6 +40,16 @@ const requiredResolutions = {
   "firebase-admin/**/glob/minimatch/brace-expansion": "2.1.4",
   "firebase-admin/**/gaxios/uuid": "11.1.1",
   "firebase-admin/**/teeny-request/uuid": "11.1.1",
+  "**/@vercel/node/undici": "6.28.0",
+  "vercel/undici": "6.28.0",
+  tsx: "4.23.13",
+  "@vercel/node/**/micromatch/picomatch": "2.3.2",
+  "vercel/@vercel/fun/tar": "7.5.22",
+  "vercel/@vercel/fun/@tootallnate/once": "2.0.1",
+  "vercel/@vercel/python-analysis/js-yaml": "4.3.1",
+  "vercel/@vercel/python-analysis/minimatch": "10.2.6",
+  "firebase-tools/superstatic/minimatch/brace-expansion": "2.1.4",
+  "firebase-tools/archiver/readdir-glob/minimatch/brace-expansion": "2.1.4",
 };
 for (const [dependency, version] of Object.entries(requiredResolutions)) {
   if (packageJson.resolutions?.[dependency] !== version) {

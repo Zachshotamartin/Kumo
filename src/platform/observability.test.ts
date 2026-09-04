@@ -57,6 +57,15 @@ describe("observability", () => {
       .toBe("/open?board=board-1&openSession=%5Bredacted%5D&versionToken=%5Bredacted%5D&mode=view");
     expect(redactTelemetryText("Failed at https://kumo.test/open?openSession=secret-value&mode=view"))
       .toBe("Failed at https://kumo.test/open?openSession=[redacted]&mode=view");
+    expect(redactTelemetryText("/board?token=abc)&password=def]&safe=keep"))
+      .toBe("/board?token=[redacted])&password=[redacted]]&safe=keep");
+  });
+
+  it("redacts in linear time on adversarial separator-heavy text", () => {
+    const hostile = `${"?".repeat(40_000)}&token`;
+    const started = performance.now();
+    expect(redactTelemetryText(hostile)).toBe(hostile);
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   it("registers vitals, errors, rejections, and slow-entry observers exactly once", async () => {

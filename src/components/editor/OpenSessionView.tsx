@@ -4,7 +4,7 @@ import { login, setAuthenticatedProfile } from "../../features/auth/authSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { redeemOpenSession } from "../../services/platformRepository";
 import type { AppDispatch, RootState } from "../../store";
-import { openSessionGuestNonce, openSessionPasswordKey } from "../../collaboration/openSession";
+import { openSessionGuestNonce, rememberOpenSessionPassword } from "../../collaboration/openSession";
 import KumoLogo from "../brand/KumoLogo";
 import WorkSpace from "../workSpace/workSpace";
 import ui from "../ui/Ui.module.css";
@@ -13,7 +13,7 @@ import styles from "./PrototypeShareView.module.css";
 const OpenSessionView = ({ token }: { token: string }) => {
   const dispatch = useDispatch<AppDispatch>();
   const boardId = useSelector((state: RootState) => state.whiteBoard.id);
-  const [password, setPassword] = useState(() => sessionStorage.getItem(openSessionPasswordKey(token)) ?? "");
+  const [password, setPassword] = useState("");
   const [needsPassword, setNeedsPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ const OpenSessionView = ({ token }: { token: string }) => {
     setError(null);
     try {
       const session = await redeemOpenSession(token, candidate, openSessionGuestNonce(token));
-      sessionStorage.setItem(openSessionPasswordKey(token), candidate);
+      rememberOpenSessionPassword(token, candidate);
       dispatch(login({ uid: session.guestId, email: "guest@open-session.kumo" }));
       dispatch(setAuthenticatedProfile({ displayName: "Kumo guest", username: session.guestId.replace(":", "-"), avatarUrl: null }));
       dispatch(setWhiteboardData({

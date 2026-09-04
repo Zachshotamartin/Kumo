@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
-  applyApiSecurityHeaders, enforceRateLimit, hashSecret, openSessionGuestId, requestOrigin,
-  validOpenSessionGuestNonce, verifySecret,
+  applyApiSecurityHeaders, enforceRateLimit, hashSecret, maximumEmailLength, openSessionGuestId,
+  requestOrigin, validEmailAddress, validOpenSessionGuestNonce, verifySecret,
 } from "../../server/api/_security";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
@@ -20,6 +20,23 @@ const response = () => {
 
 describe("API security helpers", () => {
   beforeEach(() => { vi.clearAllMocks(); delete process.env.PUBLIC_APP_URL; });
+
+  it("accepts well-formed addresses, rejects malformed ones, and bounds their length", () => {
+    for (const address of ["person@example.com", "first.last+tag@mail.example.co.uk", "a@b.cd"]) {
+      expect(validEmailAddress(address)).toBe(true);
+    }
+    for (const address of ["", "person", "person@example", "person@.com", "person@example.", "a b@example.com", "person@ex ample.com"]) {
+      expect(validEmailAddress(address)).toBe(false);
+    }
+    expect(validEmailAddress(`${"a".repeat(maximumEmailLength - 12)}@example.com`)).toBe(true);
+    expect(validEmailAddress(`${"a".repeat(maximumEmailLength)}@example.com`)).toBe(false);
+  });
+
+  it("validates addresses in linear time on backtracking-prone input", () => {
+    const started = performance.now();
+    expect(validEmailAddress(`${"a".repeat(200)}@${"a".repeat(50)}`)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 
   it("derives trusted request origins and stable guest identities", () => {
     process.env.PUBLIC_APP_URL = " https://kumo.example/ ";

@@ -112,6 +112,25 @@ describe("collaboration telemetry API", () => {
     expect(mocks.insert).toHaveBeenLastCalledWith(expect.objectContaining({ board_id: null, rating: null, route: "/" }));
   });
 
+  it("redacts sensitive route parameters in linear time on adversarial input", async () => {
+    const redacted = response();
+    await handler(request({
+      kind: "performance",
+      metric: "LCP",
+      value: 1,
+      route: "/board?token=abc)&password=def]&openSession=ghi&safe=keep",
+    }), redacted);
+    expect(mocks.insert).toHaveBeenLastCalledWith(expect.objectContaining({
+      route: "/board?token=[redacted])&password=[redacted]]&openSession=[redacted]&safe=keep",
+    }));
+
+    const hostile = `${"?".repeat(40_000)}&token`;
+    const started = performance.now();
+    await handler(request({ kind: "performance", metric: "LCP", value: 1, route: hostile }), response());
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(mocks.insert).toHaveBeenLastCalledWith(expect.objectContaining({ route: hostile.slice(0, 500) }));
+  });
+
   it("records sanitized client errors without requiring a board", async () => {
     const reply = response();
     await handler(request({

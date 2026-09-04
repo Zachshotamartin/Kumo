@@ -1,4 +1,5 @@
 import webPush from "web-push";
+import { validEmailAddress } from "./_security.js";
 import { supabaseAdmin } from "./_supabase.js";
 
 export interface PushPayload {
@@ -38,7 +39,9 @@ const configure = () => {
   const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
   const subject = process.env.VAPID_SUBJECT?.trim();
   if (!publicKey || !privateKey || !subject) throw new Error("Web Push environment variables are incomplete.");
-  if (!/^mailto:\S+@\S+\.\S+$|^https:\/\//.test(subject)) throw new Error("VAPID_SUBJECT must be a mailto: or HTTPS URL.");
+  const validSubject = subject.startsWith("https://")
+    || (subject.startsWith("mailto:") && validEmailAddress(subject.slice("mailto:".length)));
+  if (!validSubject) throw new Error("VAPID_SUBJECT must be a mailto: or HTTPS URL.");
   webPush.setVapidDetails(subject, publicKey, privateKey);
 };
 

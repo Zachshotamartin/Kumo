@@ -57,6 +57,10 @@ export default defineConfig(({ mode }) => ({
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/setupTests.ts",
+    // Suites that reach the real Firebase browser client need a non-empty key for `getAuth` to
+    // construct. Supplying a placeholder here keeps the suite independent of any local .env file:
+    // the deployed key comes from the environment and is never committed.
+    env: { VITE_FIREBASE_API_KEY: "test-firebase-browser-key" },
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

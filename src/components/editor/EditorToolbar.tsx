@@ -7,6 +7,13 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import { ShapeFunctions } from "../../classes/shape";
 import { normalizeShape } from "../../editor/geometry";
+import {
+  ACCEPTED_MEDIA_TYPES,
+  acceptedMediaType,
+  isAcceptedVideoType,
+  unsupportedMediaMessage,
+  type AcceptedVideoType,
+} from "../../editor/mediaTypes";
 import { EDITOR_TOOL_DEFINITIONS } from "../../editor/toolDefinitions";
 import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
 import { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
@@ -14,21 +21,25 @@ import { deleteBoardAsset, uploadBoardImage } from "../../services/assetReposito
 import { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
-const mediaDimensions = async (file: File) => {
-  if (file.type.startsWith("video/")) {
-    const url = URL.createObjectURL(file);
-    try {
-      return await new Promise<{ width: number; height: number }>((resolve, reject) => {
-        const video = document.createElement("video");
-        video.preload = "metadata";
-        video.onloadedmetadata = () => resolve({ width: video.videoWidth || 640, height: video.videoHeight || 360 });
-        video.onerror = () => reject(new Error("This video could not be read."));
-        video.src = url;
-      });
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+const videoDimensions = async (file: File, mediaType: AcceptedVideoType) => {
+  const url = URL.createObjectURL(new Blob([file], { type: mediaType }));
+  try {
+    return await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => resolve({ width: video.videoWidth || 640, height: video.videoHeight || 360 });
+      video.onerror = () => reject(new Error("This video could not be read."));
+      video.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
   }
+};
+
+const mediaDimensions = async (file: File) => {
+  const mediaType = acceptedMediaType(file);
+  if (!mediaType) throw new Error(unsupportedMediaMessage);
+  if (isAcceptedVideoType(mediaType)) return videoDimensions(file, mediaType);
   const bitmap = await createImageBitmap(file);
   const dimensions = { width: bitmap.width, height: bitmap.height };
   bitmap.close();
@@ -127,7 +138,7 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
       <input
         ref={imageInput}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm"
+        accept={ACCEPTED_MEDIA_TYPES.join(",")}
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0];

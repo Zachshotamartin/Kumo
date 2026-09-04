@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { createShapeId, ShapeFunctions, type Shape } from "../classes/shape.js";
 import { normalizeShape, shapeBounds } from "./geometry.js";
 import type { Bounds, Point } from "./types.js";
@@ -441,10 +442,14 @@ const svgPathPoints = (source: string, translate: (point: Point) => Point) => {
 /** Convert common SVG primitives and paths into editable Kumo layers. */
 export const shapesFromSvg = (source: string, origin: Point, existing: Shape[]): Shape[] => {
   if (typeof DOMParser === "undefined") return [];
-  const document = new DOMParser().parseFromString(source, "image/svg+xml");
-  if (document.querySelector("parsererror")) return [];
-  const root = document.documentElement;
-  if (root.tagName.toLowerCase() !== "svg") return [];
+  // Imported markup is pasted by the user and never validated upstream, so scripts, event handlers
+  // and non-SVG elements are stripped before anything is parsed or read back out of the document.
+  const safeSource = DOMPurify.sanitize(source, { USE_PROFILES: { svg: true, svgFilters: true } });
+  const document = new DOMParser().parseFromString(safeSource, "image/svg+xml");
+  // Markup that does not survive sanitization parses to an error document with no `svg` root, so
+  // this single guard covers both an unparseable paste and one that carries no drawable content.
+  const root = document.querySelector("svg");
+  if (!root) return [];
   const viewBox = (root.getAttribute("viewBox") ?? "").split(/[\s,]+/).map(Number);
   const viewX = Number.isFinite(viewBox[0]) ? viewBox[0]! : 0;
   const viewY = Number.isFinite(viewBox[1]) ? viewBox[1]! : 0;

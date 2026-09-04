@@ -71,7 +71,7 @@ describe("consolidated Vercel API router", () => {
   });
 
   it("preserves every public JSON API route behind the catch-all", () => {
-    expect(Object.keys(apiHandlers).sort()).toEqual([
+    expect([...apiHandlers.keys()].sort()).toEqual([
       "assets",
       "board-preview",
       "boards",
@@ -97,15 +97,26 @@ describe("consolidated Vercel API router", () => {
 
   it("dispatches a known route and returns its result", () => {
     const testHandler = vi.fn(() => "handled");
-    const mutableHandlers = apiHandlers as Record<string, typeof testHandler>;
-    mutableHandlers.test = testHandler;
+    const mutableHandlers = apiHandlers as Map<string, typeof testHandler>;
+    mutableHandlers.set("test", testHandler);
     const result = response();
     expect(routeApiRequest(
       { query: { path: "test" } } as unknown as VercelRequest,
       result as unknown as VercelResponse
     )).toBe("handled");
     expect(testHandler).toHaveBeenCalledWith(expect.any(Object), result);
-    delete mutableHandlers.test;
+    mutableHandlers.delete("test");
+  });
+
+  it("never dispatches an inherited object member as a route", () => {
+    for (const path of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      const result = response();
+      routeApiRequest(
+        { query: { path } } as unknown as VercelRequest,
+        result as unknown as VercelResponse
+      );
+      expect(result.statusCode).toBe(404);
+    }
   });
 
   it("returns structured 404 responses for unknown API paths", () => {

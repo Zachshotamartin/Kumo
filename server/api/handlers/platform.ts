@@ -5,7 +5,7 @@ import { getBoardAccess, listBoardsForUser, provisionBoard, searchPublicBoards }
 import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { liveblocksAdmin } from "../_liveblocks.js";
 import { folderMoveCreatesCycle, hashPassword, sanitizeExtensionManifest, summarizeConnectionTelemetry, verifyPassword } from "../_platform.js";
-import { enforceRateLimit, hashSecret, openSessionGuestId, requestOrigin, validOpenSessionGuestNonce } from "../_security.js";
+import { enforceRateLimit, hashSecret, openSessionGuestId, requestOrigin, validEmailAddress, validOpenSessionGuestNonce } from "../_security.js";
 import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 import { pushConfigured, sendPushToUser } from "../_push.js";
 import { friendshipRowsForActor, otherUserId } from "../_profiles.js";
@@ -260,7 +260,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       if (action === "invite-workspace-member") {
         const email = clean(request.body?.email, "", 320).toLowerCase();
         const memberRole = ["admin", "member", "guest"].includes(request.body?.role) ? request.body.role : "member";
-        if (!/^\S+@\S+\.\S+$/.test(email)) return response.status(400).json({ error: "Enter a valid email address." });
+        if (!validEmailAddress(email)) return response.status(400).json({ error: "Enter a valid email address." });
         const { data: existing, error: existingError } = await database.from("profiles").select("firebase_uid, email, display_name").eq("email_verified", true).ilike("email", email).maybeSingle();
         if (existingError) throw existingError;
         if (existing) {

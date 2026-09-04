@@ -8,6 +8,7 @@ import selectedReducer from "../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../features/whiteBoard/whiteBoardSlice";
 import BoardRoom from "./BoardRoom";
 import { LiveblocksRoot } from "./LiveblocksRoot";
+import { forgetOpenSessionPassword, rememberOpenSessionPassword } from "./openSession";
 
 const mocks = vi.hoisted(() => ({
   authEndpoint: undefined as undefined | ((room?: string) => Promise<unknown>),
@@ -79,9 +80,9 @@ describe("collaboration room providers", () => {
     await expect(mocks.authEndpoint?.("board:one")).rejects.toThrow("Denied");
   });
 
-  it("authorizes anonymous open sessions with their separately stored password", async () => {
+  it("authorizes anonymous open sessions with their separately held password", async () => {
     window.history.replaceState({}, "", "/?openSession=guest-token");
-    sessionStorage.setItem("kumo:open-session-password:guest-token", "shared-secret");
+    rememberOpenSessionPassword("guest-token", "shared-secret");
     sessionStorage.setItem("kumo:open-session-guest:guest-token", "0123456789abcdef");
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ token: "guest-liveblocks" }), { status: 200 }));
     render(<LiveblocksRoot><div>Child</div></LiveblocksRoot>);
@@ -92,7 +93,9 @@ describe("collaboration room providers", () => {
       body: JSON.stringify({ room: "board:guest-board", openSessionToken: "guest-token", openSessionPassword: "shared-secret", openSessionGuestNonce: "0123456789abcdef" }),
     });
     expect(mocks.token).not.toHaveBeenCalled();
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain("shared-secret");
     window.history.replaceState({}, "", "/");
+    forgetOpenSessionPassword("guest-token");
     sessionStorage.clear();
   });
 

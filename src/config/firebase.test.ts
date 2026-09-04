@@ -25,4 +25,10 @@ describe("Firebase browser client", () => {
     expect(provider).toBeInstanceOf(Object);
     vi.unstubAllGlobals();
   });
+
+  it("uses the configured browser API key and never falls back to a committed one", async () => {
+    const { resolveFirebaseApiKey } = await import("./firebase");
+    expect(resolveFirebaseApiKey("AIzaConfiguredForThisEnvironment")).toBe("AIzaConfiguredForThisEnvironment");
+    expect(resolveFirebaseApiKey(undefined)).toBe("");
+  });
 });

@@ -11,9 +11,21 @@ const finiteMetric = (value: unknown, maximum: number): number | null =>
   typeof value === "number" && Number.isFinite(value)
     ? Math.min(maximum, Math.max(0, Math.round(value)))
     : null;
+const sensitiveParameterName = /token|password|secret|invite|share|opensession/;
+/**
+ * Matches one `?name=value` or `&name=value` pair. The leading separator, the name and the value
+ * are drawn from disjoint character sets — the name can contain neither `?`, `&` nor `=`, and the
+ * `=` between name and value is mandatory — so no repetition in the pattern overlaps another and
+ * the match runs in linear time no matter what a caller sends.
+ */
+const queryParameterPattern = /[?&][^?=&#\s]*=[^&#\s)\]}]*/g;
 const redactTelemetryText = (value: unknown, fallback: string, limit: number) => {
   const text = typeof value === "string" ? value : fallback;
-  return text.replace(/([?&][^=&#\s]*(?:token|password|secret|invite|share|openSession)[^=&#\s]*=)[^&#\s)\]}]*/gi, "$1[redacted]").slice(0, limit);
+  return text.replace(queryParameterPattern, (parameter) => {
+    const separator = parameter.indexOf("=");
+    const name = parameter.slice(1, separator).toLowerCase();
+    return sensitiveParameterName.test(name) ? `${parameter.slice(0, separator + 1)}[redacted]` : parameter;
+  }).slice(0, limit);
 };
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {

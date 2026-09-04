@@ -3,7 +3,7 @@ import type { PropsWithChildren } from "react";
 import { auth } from "../config/firebase";
 import { clientSessionId } from "../services/apiClient";
 import { recordCollaborationAuthAttempt } from "./connectionTelemetry";
-import { openSessionGuestNonce, openSessionPasswordKey } from "./openSession";
+import { openSessionGuestNonce, openSessionPassword } from "./openSession";
 
 const authorizeRoom = async (room?: string) => {
   if (room) recordCollaborationAuthAttempt(room);
@@ -15,7 +15,7 @@ const authorizeRoom = async (room?: string) => {
       body: JSON.stringify({
         room,
         openSessionToken,
-        openSessionPassword: sessionStorage.getItem(openSessionPasswordKey(openSessionToken)) ?? "",
+        openSessionPassword: openSessionPassword(openSessionToken),
         openSessionGuestNonce: openSessionGuestNonce(openSessionToken),
       }),
     });
