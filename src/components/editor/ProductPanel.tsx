@@ -46,8 +46,9 @@ import { setRightPanel } from "../../features/editor/editorSlice";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
+import ProductCoveragePanel from "./ProductCoveragePanel";
 
-type ProductTab = "graph" | "find" | "libraries" | "accessibility" | "extensions" | "performance" | "publish" | "recovery";
+type ProductTab = "coverage" | "graph" | "find" | "libraries" | "accessibility" | "extensions" | "performance" | "publish" | "recovery";
 
 const builtInExtension: ExtensionManifest = {
   id: "kumo.quick-edit",
@@ -127,7 +128,6 @@ const ProductPanel = () => {
   const recoveryMerge = useMemo(() => recovery
     ? mergeRecoverySnapshot(recovery.baseShapes, board.shapes, recovery.shapes)
     : null, [board.shapes, recovery]);
-
   const run = async (operation: () => Promise<void>) => {
     setBusy(true); setError(null); setMessage(null);
     try { await operation(); }
@@ -138,16 +138,17 @@ const ProductPanel = () => {
   const select = (shapeId: string) => dispatch(setSelectedShapes([shapeId]));
   const refreshExtensions = async () => setExtensions(await loadExtensions());
   const catalogManifest = (extension: CatalogExtension) => extension.manifest as ExtensionManifest;
-
   return (
     <aside className={styles.inspectorPanel} aria-label="Product tools">
       <div className={styles.panelHeading}><span>Product tools</span><button type="button" aria-label="Close product tools" onClick={() => dispatch(setRightPanel("properties"))}><X aria-hidden="true" /></button></div>
       <div className={styles.productTabs} role="tablist" aria-label="Product tools">
-        {(["graph", "find", "libraries", "accessibility", "extensions", "performance", "publish", "recovery"] as ProductTab[]).map((item) => (
+        {(["coverage", "graph", "find", "libraries", "accessibility", "extensions", "performance", "publish", "recovery"] as ProductTab[]).map((item) => (
           <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>{item}</button>
         ))}
       </div>
       <div className={styles.inspectorBody}>
+        {tab === "coverage" && <ProductCoveragePanel key={board.id ?? "no-board"} />}
+
         {tab === "graph" && <section className={styles.inspectorSection}>
           <h2><Graph aria-hidden="true" /> Board graph</h2>
           <p className={styles.fieldHint}>Backlinks and permission health for every direct connection.</p>

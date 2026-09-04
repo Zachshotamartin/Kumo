@@ -350,6 +350,45 @@ describe("InspectorPanel", () => {
     expect(actions.unframeSelected).toHaveBeenCalledOnce();
   });
 
+  it("authors complete product coverage metadata on frames", () => {
+    const frame = rectangle("checkout", {
+      type: "frame",
+      name: "Checkout",
+      productState: {
+        screenKey: "Checkout",
+        state: "custom",
+        flowIds: ["purchase"],
+        roles: ["guest"],
+        viewport: "responsive",
+        criticality: "required",
+        requirementRefs: ["PROD-1"],
+      },
+    });
+    const { actions } = renderInspector([frame], [frame.id]);
+    expect(screen.getByLabelText("Custom state")).toHaveValue("Custom");
+    fireEvent.change(screen.getByLabelText("Screen"), { target: { value: "Payment" } });
+    fireEvent.change(screen.getByLabelText("State"), { target: { value: "error" } });
+    fireEvent.change(screen.getByLabelText("Viewport"), { target: { value: "mobile" } });
+    fireEvent.change(screen.getByLabelText("Custom state"), { target: { value: "Fraud review" } });
+    fireEvent.change(screen.getByLabelText("Criticality"), { target: { value: "critical" } });
+    fireEvent.change(screen.getByLabelText("Journey IDs"), { target: { value: "purchase, , recovery" } });
+    fireEvent.change(screen.getByLabelText("Roles"), { target: { value: "guest, admin, " } });
+    fireEvent.change(screen.getByLabelText("Requirements"), { target: { value: "PROD-1, , SPEC-2" } });
+
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ screenKey: "Payment" }) });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ state: "error" }) });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ viewport: "mobile" }) });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ customState: "Fraud review" }) });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ criticality: "critical" }) });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ flowIds: ["purchase", "recovery"] }) });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ roles: ["guest", "admin"] }) });
+    expect(actions.patchSelected).toHaveBeenCalledWith({ productState: expect.objectContaining({ requirementRefs: ["PROD-1", "SPEC-2"] }) });
+
+    cleanup();
+    renderInspector([{ ...frame, productState: { ...frame.productState!, customState: "Fraud review" } }], [frame.id]);
+    expect(screen.getByLabelText("Custom state")).toHaveValue("Fraud review");
+  });
+
   it("updates advanced typography, parent constraints, and vector editing", () => {
     const nestedText = { ...textShape, parentId: "frame" };
     const { actions } = renderInspector([nestedText], [nestedText.id]);

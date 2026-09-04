@@ -87,6 +87,22 @@ export const buildAccountExport = async (actorUid: string, profile: ActorProfile
     dataOrThrow(database.from("workspace_folders").select("*").eq("created_by", actorUid)),
     dataOrThrow(database.from("workspace_fonts").select("*").eq("uploaded_by", actorUid)),
   ]);
+  const [productFlows, productFlowNodes, productFlowEdges, coveragePolicies, coverageRuns, coverageSuppressions, coverageMergeGates, coverageGateOverrides, coverageTelemetryEvents] = await Promise.all([
+    dataOrThrow(database.from("product_flows").select("*").eq("owner_id", actorUid)),
+    boardIds.length ? dataOrThrow(database.from("product_flow_nodes").select("*").in("board_id", boardIds)) : Promise.resolve([]),
+    boardIds.length ? dataOrThrow(database.from("product_flow_edges").select("*").in("source_board_id", boardIds)) : Promise.resolve([]),
+    workspaceIds.length ? dataOrThrow(database.from("coverage_policies").select("*").in("workspace_id", workspaceIds)) : Promise.resolve([]),
+    boardIds.length ? dataOrThrow(database.from("coverage_runs").select("*").in("root_board_id", boardIds)) : Promise.resolve([]),
+    dataOrThrow(database.from("coverage_suppressions").select("*").eq("owner_id", actorUid)),
+    boardIds.length ? dataOrThrow(database.from("coverage_merge_gates").select("*").in("board_id", boardIds)) : Promise.resolve([]),
+    dataOrThrow(database.from("coverage_gate_overrides").select("*").eq("actor_id", actorUid)),
+    workspaceIds.length ? dataOrThrow(database.from("coverage_telemetry_events").select("*").in("workspace_id", workspaceIds).order("occurred_at", { ascending: false })) : Promise.resolve([]),
+  ]);
+  const coverageRunIds = (coverageRuns ?? []).map((run) => run.id as string);
+  const [coverageRunInputs, coverageFindings] = await Promise.all([
+    coverageRunIds.length ? dataOrThrow(database.from("coverage_run_inputs").select("*").in("run_id", coverageRunIds)) : Promise.resolve([]),
+    coverageRunIds.length ? dataOrThrow(database.from("coverage_findings").select("*").in("run_id", coverageRunIds)) : Promise.resolve([]),
+  ]);
   const accessRequestsMade = await dataOrThrow(database.from("board_access_requests").select("*").eq("requester_id", actorUid));
   const branchDocuments = await Promise.all((branches ?? []).map(async (branch) => ({
     branchId: branch.id,
@@ -167,5 +183,16 @@ export const buildAccountExport = async (actorUid: string, profile: ActorProfile
     templates: templates ?? [],
     communityPublications: publications ?? [],
     communityReports: reports ?? [],
+    productFlows: productFlows ?? [],
+    productFlowNodes: productFlowNodes ?? [],
+    productFlowEdges: productFlowEdges ?? [],
+    coveragePolicies: coveragePolicies ?? [],
+    coverageRuns: coverageRuns ?? [],
+    coverageRunInputs,
+    coverageFindings,
+    coverageSuppressions: coverageSuppressions ?? [],
+    coverageMergeGates,
+    coverageGateOverrides: coverageGateOverrides ?? [],
+    coverageTelemetryEvents,
   };
 };

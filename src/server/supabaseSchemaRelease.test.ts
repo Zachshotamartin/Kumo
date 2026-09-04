@@ -57,7 +57,7 @@ describe("Supabase schema release verification", () => {
       version: "release-7",
     })).rejects.toThrow(
       "Remote Supabase schema release release-7 has not been applied. " +
-      "Apply supabase/migrations/release-7_reliability_release.sql before deploying.",
+      "Apply every Supabase migration through release-7 before deploying.",
     );
   });
 

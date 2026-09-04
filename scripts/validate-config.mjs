@@ -40,7 +40,7 @@ const requiredResolutions = {
   "firebase-admin/**/glob/minimatch/brace-expansion": "2.1.4",
   "firebase-admin/**/gaxios/uuid": "11.1.1",
   "firebase-admin/**/teeny-request/uuid": "11.1.1",
-  "@vercel/node/undici": "6.28.0",
+  "**/@vercel/node/undici": "6.28.0",
   "vercel/undici": "6.28.0",
   tsx: "4.23.13",
   "@vercel/node/**/micromatch/picomatch": "2.3.2",
@@ -245,7 +245,7 @@ const requiredDataPaths = [
   ["src/collaboration/LiveblocksRoot.tsx", "/api/liveblocks-auth"],
   ["api/liveblocks-webhook.ts", 'from("document_snapshots")'],
   ["api/liveblocks-webhook.ts", "syncBoardLinks"],
-  ["server/api/_boardLinks.ts", 'rpc("sync_kumo_board_links"'],
+  ["server/api/_boardLinks.ts", 'rpc("sync_kumo_board_links_and_product_coverage"'],
   ["src/services/socialRepository.ts", "/api/friends"],
   ["server/api/handlers/share-board.ts", "friendshipBetween"],
 ];

@@ -148,6 +148,17 @@ export interface Shape {
   prototypeStart?: boolean;
   /** A frame may be the starting point of more than one named flow. */
   prototypeFlowIds?: string[];
+  /** Product-completeness metadata. Only frames participate as journey states. */
+  productState?: {
+    screenKey: string;
+    state: "default" | "loading" | "empty" | "error" | "success" | "offline" | "unauthorized" | "not-found" | "confirmation" | "custom";
+    customState?: string;
+    flowIds: string[];
+    roles: string[];
+    viewport: "mobile" | "tablet" | "desktop" | "responsive";
+    criticality: "critical" | "required" | "optional";
+    requirementRefs: string[];
+  };
   prototypeOverflow?: "clip" | "scroll";
   prototypeOverflowAxis?: "none" | "horizontal" | "vertical" | "both";
   prototypePosition?: "scroll" | "fixed" | "sticky";
@@ -176,6 +187,10 @@ export interface Shape {
       operator: "equals" | "not-equals" | "greater" | "less" | "truthy";
       value?: string | number | boolean;
     };
+    /** Explicit catch-all for sibling conditional transitions with the same trigger. */
+    fallback?: boolean;
+    /** Optional target frame when opening a linked board. */
+    destinationFrameId?: string;
   }>;
   /** Vector and compositing data. Vector points are stored in board/world coordinates. */
   vectorPoints?: Array<{

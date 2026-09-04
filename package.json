@@ -17,7 +17,7 @@
     "firebase-admin/**/glob/minimatch/brace-expansion": "2.1.4",
     "firebase-admin/**/gaxios/uuid": "11.1.1",
     "firebase-admin/**/teeny-request/uuid": "11.1.1",
-    "@vercel/node/undici": "6.28.0",
+    "**/@vercel/node/undici": "6.28.0",
     "vercel/undici": "6.28.0",
     "@vercel/node/**/micromatch/picomatch": "2.3.2",
     "vercel/@vercel/fun/tar": "7.5.22",
@@ -73,7 +73,8 @@
     "purge:full-stack-canary": "node --experimental-strip-types scripts/purge-full-stack-canary-artifacts.mjs",
     "verify:database-migrations": "bash scripts/verify-database-migrations.sh",
     "verify:remote-schema": "node --experimental-strip-types scripts/verify-remote-supabase-schema.mjs",
-    "verify:lighthouse": "node --experimental-strip-types scripts/verify-lighthouse.mjs"
+    "verify:lighthouse": "node --experimental-strip-types scripts/verify-lighthouse.mjs",
+    "verify:product-coverage": "node --experimental-strip-types scripts/verify-product-coverage.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -87,7 +88,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/web-push": "^3.6.4",
-    "@vercel/node": "^7.0.0",
+    "@vercel/node": "^10.0.0",
     "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.11",
     "chrome-launcher": "1.2.1",

@@ -1032,8 +1032,10 @@ describe("new editor capability panels", () => {
   });
 
   it("opens linked boards successfully and reports non-Error failures", async () => {
-    const link = shape("link", "board", { name: "Open destination", parentId: frame.id, prototypeInteractions: [{ id: "open", trigger: "click", action: "open-board", boardId: "destination" }] });
-    mocks.getBoard.mockResolvedValueOnce({ id: "destination", roomId: "board:destination", role: "viewer", title: "Destination", shapes: [] });
+    const link = shape("link", "board", { name: "Open destination", parentId: frame.id, prototypeInteractions: [{ id: "open", trigger: "click", action: "open-board", boardId: "destination", destinationFrameId: "not-a-frame" }] });
+    const destinationFrame = shape("destination-frame", "frame", { name: "Destination frame" });
+    const nonFrameDestination = shape("not-a-frame", "rectangle", { name: "Not a frame" });
+    mocks.getBoard.mockResolvedValueOnce({ id: "destination", roomId: "board:destination", role: "viewer", title: "Destination", shapes: [nonFrameDestination, destinationFrame] });
     const successful = makeStore("");
     successful.dispatch(setWhiteboardData({ shapes: [frame, link] }));
     successful.dispatch(setSelectedShapes([link.id]));
@@ -1042,7 +1044,28 @@ describe("new editor capability panels", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open destination" }));
     await waitFor(() => expect(successful.getState().whiteBoard.id).toBe("destination"));
     expect(successful.getState().selected.selectedShapes).toEqual([]);
+    expect(screen.getByTestId("prototype-frame-destination:destination-frame")).toBeVisible();
     first.unmount();
+
+    const implicitLink = shape("implicit-link", "board", { name: "Implicit destination", parentId: frame.id, boardId: "implicit" });
+    mocks.getBoard.mockResolvedValueOnce({ id: "implicit", roomId: "board:implicit", role: "viewer", title: "Implicit", shapes: [destinationFrame] });
+    const implicit = makeStore("");
+    implicit.dispatch(setWhiteboardData({ shapes: [frame, implicitLink] }));
+    implicit.dispatch(setPresentationFrameId(frame.id));
+    const implicitView = render(<Provider store={implicit}><PresentationView /></Provider>);
+    fireEvent.click(screen.getByRole("button", { name: "Implicit destination" }));
+    await waitFor(() => expect(implicit.getState().whiteBoard.id).toBe("implicit"));
+    implicitView.unmount();
+
+    mocks.getBoard.mockResolvedValueOnce({ id: "empty", roomId: "board:empty", role: "viewer", title: "Empty", shapes: [] });
+    const empty = makeStore("");
+    empty.dispatch(setWhiteboardData({ shapes: [frame, link] }));
+    empty.dispatch(setPresentationFrameId(frame.id));
+    const emptyView = render(<Provider store={empty}><PresentationView /></Provider>);
+    fireEvent.click(screen.getByRole("button", { name: "Open destination" }));
+    await waitFor(() => expect(empty.getState().whiteBoard.id).toBe("empty"));
+    expect(empty.getState().editor.presentationMode).toBe(false);
+    emptyView.unmount();
 
     mocks.getBoard.mockRejectedValueOnce("offline");
     const failed = makeStore("");

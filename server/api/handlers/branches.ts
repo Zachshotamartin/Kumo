@@ -9,6 +9,7 @@ import { boardDocumentFromJson, liveblocksAdmin } from "../_liveblocks.js";
 import { supabaseAdmin } from "../_supabase.js";
 import { branchVisualDiff, threeWayMergeDocuments } from "../_branchMerge.js";
 import { sendPreferredPushToUser } from "../_push.js";
+import { checkCoverageMergeGate } from "../_coverageGate.js";
 
 const cleanName = (value: unknown) => typeof value === "string" ? value.trim().slice(0, 120) : "";
 const checksum = (document: unknown) => createHash("sha256").update(JSON.stringify(document)).digest("hex");
@@ -198,6 +199,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
         .eq("branch_id", branchId);
       if (reviewError) throw reviewError;
       const branchChecksum = checksum(branchDocument);
+      const coverageGate = await checkCoverageMergeGate(boardId, branchId, branchChecksum);
+      if (coverageGate.blocked) {
+        const overrideReason = typeof request.body?.coverageOverrideReason === "string" ? request.body.coverageOverrideReason.trim().slice(0, 1000) : "";
+        if (access.role !== "owner" || overrideReason.length < 8) return response.status(409).json({ error: coverageGate.error, code: coverageGate.code, coverage: coverageGate.run ?? null });
+        const { error: overrideError } = await database.from("coverage_gate_overrides").insert({ board_id: boardId, branch_id: branchId, run_id: coverageGate.run?.id ?? null, actor_id: actor.uid, reason: overrideReason });
+        if (overrideError) throw overrideError;
+      }
       const blockingReviews = (reviews ?? []).filter((review) => review.status === "changes-requested" && (!review.reviewed_checksum || review.reviewed_checksum === branchChecksum));
       if (blockingReviews.length) return response.status(409).json({
         error: "Resolve the requested branch changes before merging.",
