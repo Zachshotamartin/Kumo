@@ -7,6 +7,7 @@ import editorReducer from "../../features/editor/editorSlice";
 import selectedReducer from "../../features/selected/selectedSlice";
 import whiteBoardReducer from "../../features/whiteBoard/whiteBoardSlice";
 import { redeemOpenSession } from "../../services/platformRepository";
+import { forgetOpenSessionPassword, openSessionPassword } from "../../collaboration/openSession";
 import OpenSessionView from "./OpenSessionView";
 
 vi.mock("../../services/platformRepository", () => ({ redeemOpenSession: vi.fn() }));
@@ -27,7 +28,12 @@ const session = {
 };
 
 describe("open board sessions", () => {
-  beforeEach(() => { vi.clearAllMocks(); sessionStorage.clear(); sessionStorage.setItem("kumo:open-session-guest:open-token", "0123456789abcdef"); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    forgetOpenSessionPassword("open-token");
+    sessionStorage.setItem("kumo:open-session-guest:open-token", "0123456789abcdef");
+  });
 
   it("redeems the token, establishes a scoped guest identity, and opens the workspace", async () => {
     mockedRedeem.mockResolvedValue(session);
@@ -48,7 +54,8 @@ describe("open board sessions", () => {
     expect(await screen.findByText("Authenticated workspace")).toBeVisible();
     expect(mockedRedeem).toHaveBeenLastCalledWith("open-token", "shared-secret", "0123456789abcdef");
     expect(window.location.href).not.toContain("shared-secret");
-    expect(sessionStorage.getItem("kumo:open-session-password:open-token")).toBe("shared-secret");
+    expect(openSessionPassword("open-token")).toBe("shared-secret");
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain("shared-secret");
   });
 
   it("shows revoked or expired session errors without a password form", async () => {

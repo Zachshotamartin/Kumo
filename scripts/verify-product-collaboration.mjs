@@ -35,7 +35,7 @@ const required = (name) => {
   return value;
 };
 
-const firebaseApiKey = env.VITE_FIREBASE_API_KEY || "AIzaSyBA9pnDobxLfEjNYrxS9H2r8CMwFg_C7Zs";
+const firebaseApiKey = required("VITE_FIREBASE_API_KEY");
 const supabaseUrl = required("SUPABASE_URL");
 const supabaseServiceRoleKey = required("SUPABASE_SERVICE_ROLE_KEY");
 const liveblocksSecretKey = required("LIVEBLOCKS_SECRET_KEY");

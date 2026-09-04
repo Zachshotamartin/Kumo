@@ -16,6 +16,19 @@ export const hashSecret = digest;
 
 export const validOpenSessionGuestNonce = (value: string) => /^[a-z0-9_-]{16,80}$/i.test(value);
 
+/**
+ * Address-shape check for request-supplied email addresses. Every quantified character class is
+ * followed by a delimiter the class itself cannot match, so no input makes the engine backtrack:
+ * the test is linear in the length of `value` and safe to run on untrusted request bodies.
+ */
+const emailAddressPattern = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+
+/** Longest address the SMTP specification allows, used as a hard bound before any matching. */
+export const maximumEmailLength = 254;
+
+export const validEmailAddress = (value: string) =>
+  value.length > 0 && value.length <= maximumEmailLength && emailAddressPattern.test(value);
+
 export const openSessionGuestId = (token: string, nonce: string) =>
   `guest:${digest(token).slice(0, 12)}:${digest(nonce).slice(0, 12)}`;
 

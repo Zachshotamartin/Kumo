@@ -16,7 +16,17 @@
     "firebase-admin/**/glob/minimatch": "9.0.7",
     "firebase-admin/**/glob/minimatch/brace-expansion": "2.1.4",
     "firebase-admin/**/gaxios/uuid": "11.1.1",
-    "firebase-admin/**/teeny-request/uuid": "11.1.1"
+    "firebase-admin/**/teeny-request/uuid": "11.1.1",
+    "@vercel/node/undici": "6.28.0",
+    "vercel/undici": "6.28.0",
+    "@vercel/node/**/micromatch/picomatch": "2.3.2",
+    "vercel/@vercel/fun/tar": "7.5.22",
+    "vercel/@vercel/fun/@tootallnate/once": "2.0.1",
+    "vercel/@vercel/python-analysis/js-yaml": "4.3.1",
+    "vercel/@vercel/python-analysis/minimatch": "10.2.6",
+    "firebase-tools/superstatic/minimatch/brace-expansion": "2.1.4",
+    "firebase-tools/archiver/readdir-glob/minimatch/brace-expansion": "2.1.4",
+    "tsx": "4.23.13"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
@@ -27,6 +37,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "@reduxjs/toolkit": "^2.5.0",
     "@supabase/supabase-js": "^2.112.3",
+    "dompurify": "^3.4.14",
     "firebase": "12.18.0",
     "firebase-admin": "^14.3.0",
     "react": "^19.0.0",

@@ -18,6 +18,7 @@ const required = [
   "FIREBASE_ADMIN_CLIENT_EMAIL",
   "FIREBASE_ADMIN_PRIVATE_KEY",
   "FIREBASE_ADMIN_DATABASE_URL",
+  "VITE_FIREBASE_API_KEY",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "VITE_SUPABASE_URL",
@@ -27,6 +28,7 @@ const required = [
 ];
 const localRequired = [
   "FIREBASE_ADMIN_PROJECT_ID",
+  "VITE_FIREBASE_API_KEY",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "VITE_SUPABASE_URL",
@@ -47,6 +49,7 @@ if (requireConcreteValues) {
     FIREBASE_ADMIN_CLIENT_EMAIL: (value) => /@.+\.iam\.gserviceaccount\.com$/.test(value),
     FIREBASE_ADMIN_PRIVATE_KEY: (value) => value.includes("BEGIN PRIVATE KEY"),
     FIREBASE_ADMIN_DATABASE_URL: (value) => /^https:\/\/.+\.firebaseio\.com\/?$/.test(value),
+    VITE_FIREBASE_API_KEY: (value) => /^AIza[0-9A-Za-z_-]{35}$/.test(value),
     SUPABASE_URL: (value) => /^https:\/\/.+\.supabase\.co\/?$/.test(value),
     SUPABASE_SERVICE_ROLE_KEY: (value) => value.length >= 32 && !/placeholder|sensitive|encrypted/i.test(value),
     VITE_SUPABASE_URL: (value) => /^https:\/\/.+\.supabase\.co\/?$/.test(value),
@@ -55,7 +58,8 @@ if (requireConcreteValues) {
     LIVEBLOCKS_WEBHOOK_SECRET: (value) => value.length >= 20 && !/placeholder|sensitive|encrypted/i.test(value),
     VAPID_PUBLIC_KEY: (value) => value.length >= 80,
     VAPID_PRIVATE_KEY: (value) => value.length >= 40,
-    VAPID_SUBJECT: (value) => /^mailto:\S+@\S+\.\S+$|^https:\/\//.test(value),
+    VAPID_SUBJECT: (value) => value.startsWith("https://")
+      || (value.startsWith("mailto:") && /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(value.slice("mailto:".length))),
   };
   const placeholders = expected.filter((name) => !concreteChecks[name](values.get(name)));
   if (placeholders.length) {

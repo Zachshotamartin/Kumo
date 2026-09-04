@@ -4,9 +4,21 @@ import { authenticatedFetch } from "../services/apiClient";
 let started = false;
 
 const sensitiveQueryParameter = /(?:token|password|secret|invite|share|openSession)/i;
-const sensitiveQueryValue = /([?&][^=&#\s]*(?:token|password|secret|invite|share|openSession)[^=&#\s]*=)[^&#\s)\]}]*/gi;
+/**
+ * Matches one `?name=value` or `&name=value` pair. The leading separator, the name and the value
+ * are drawn from disjoint character sets — the name can contain neither `?`, `&` nor `=`, and the
+ * `=` between name and value is mandatory — so no repetition in the pattern overlaps another and
+ * the match stays linear even on a hostile error message. The server-side redaction in
+ * `server/api/handlers/telemetry.ts` mirrors this shape.
+ */
+const queryParameterPattern = /[?&][^?=&#\s]*=[^&#\s)\]}]*/g;
 
-export const redactTelemetryText = (value: string) => value.replace(sensitiveQueryValue, "$1[redacted]");
+export const redactTelemetryText = (value: string) => value.replace(queryParameterPattern, (parameter) => {
+  const separator = parameter.indexOf("=");
+  return sensitiveQueryParameter.test(parameter.slice(1, separator))
+    ? `${parameter.slice(0, separator + 1)}[redacted]`
+    : parameter;
+});
 
 export const telemetryRoute = (href: string) => {
   const url = new URL(href);

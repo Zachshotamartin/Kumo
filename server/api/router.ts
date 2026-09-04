@@ -19,24 +19,28 @@ import { applyApiSecurityHeaders } from "./_security.js";
 
 type ApiHandler = (request: VercelRequest, response: VercelResponse) => unknown;
 
-export const apiHandlers: Readonly<Record<string, ApiHandler>> = {
-  assets,
-  "board-preview": boardPreview,
-  boards,
-  branches,
-  collaborators,
-  friends,
-  "liveblocks-auth": liveblocksAuth,
-  "migrate-board": migrateBoard,
-  maintenance,
-  profile,
-  product,
-  platform,
-  session,
-  "share-board": shareBoard,
-  telemetry,
-  versions,
-};
+/**
+ * Routes are held in a `Map` rather than a plain object so a request path can never reach an
+ * inherited member such as `constructor` or `__proto__` through dynamic property lookup.
+ */
+export const apiHandlers: ReadonlyMap<string, ApiHandler> = new Map<string, ApiHandler>([
+  ["assets", assets],
+  ["board-preview", boardPreview],
+  ["boards", boards],
+  ["branches", branches],
+  ["collaborators", collaborators],
+  ["friends", friends],
+  ["liveblocks-auth", liveblocksAuth],
+  ["migrate-board", migrateBoard],
+  ["maintenance", maintenance],
+  ["profile", profile],
+  ["product", product],
+  ["platform", platform],
+  ["session", session],
+  ["share-board", shareBoard],
+  ["telemetry", telemetry],
+  ["versions", versions],
+]);
 
 export const apiRouteName = (path: string | string[] | undefined): string =>
   Array.isArray(path) ? path.join("/") : path ?? "";
@@ -44,7 +48,7 @@ export const apiRouteName = (path: string | string[] | undefined): string =>
 export default function routeApiRequest(request: VercelRequest, response: VercelResponse) {
   applyApiSecurityHeaders(response);
   const route = apiRouteName(request.query.path);
-  const handler = apiHandlers[route];
-  if (!handler) return response.status(404).json({ error: "API route not found." });
+  const handler = apiHandlers.get(route);
+  if (typeof handler !== "function") return response.status(404).json({ error: "API route not found." });
   return handler(request, response);
 }

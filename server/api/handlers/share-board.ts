@@ -5,7 +5,7 @@ import { getBoardAccess } from "../_boards.js";
 import { linkedBoardSharePlan, membershipBoardIds } from "../_boardSharing.js";
 import { allowMethods, errorMessage, stringQuery } from "../_http.js";
 import { friendshipBetween } from "../_profiles.js";
-import { enforceRateLimit, hashSecret, requestOrigin } from "../_security.js";
+import { enforceRateLimit, hashSecret, requestOrigin, validEmailAddress } from "../_security.js";
 import { ensureActorProfile, supabaseAdmin } from "../_supabase.js";
 import { sendPreferredPushToUser } from "../_push.js";
 
@@ -139,7 +139,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (body.action === "invite") {
       const friendUid = body.friendUid?.trim() ?? "";
       const email = body.email?.trim().toLowerCase() ?? "";
-      if (!friendUid && (!email || !/^\S+@\S+\.\S+$/.test(email))) return response.status(400).json({ error: "Enter a valid email address or choose a friend." });
+      if (!friendUid && !validEmailAddress(email)) return response.status(400).json({ error: "Enter a valid email address or choose a friend." });
       let relationship = friendUid ? await friendshipBetween(actor.uid, friendUid) : null;
       if (friendUid && relationship?.status !== "accepted") return response.status(403).json({ error: "Only accepted friends can be shared with from the friends list." });
       const profileQuery = database.from("profiles").select("firebase_uid, email, display_name, avatar_url").eq("email_verified", true);

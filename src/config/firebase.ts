@@ -4,7 +4,15 @@ import { resolveFirebaseAuthDomain } from "./authDomain";
 
 const browserLocation = typeof window === "undefined" ? undefined : window.location;
 
-export const firebaseApiKey = import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyBA9pnDobxLfEjNYrxS9H2r8CMwFg_C7Zs";
+/**
+ * The browser API key is supplied per environment rather than committed. It is not a secret — it
+ * ships in every bundle — but keeping it out of the repository is what lets it be rotated and
+ * restricted without a code change, and `validate:vercel-env` fails the pipeline before a
+ * deployment can be built without it.
+ */
+export const resolveFirebaseApiKey = (configuredKey: string | undefined) => configuredKey ?? "";
+
+export const firebaseApiKey = resolveFirebaseApiKey(import.meta.env.VITE_FIREBASE_API_KEY);
 
 const firebaseConfig = {
   apiKey: firebaseApiKey,
