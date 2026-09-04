@@ -24,8 +24,6 @@
     "vercel/@vercel/fun/@tootallnate/once": "2.0.1",
     "vercel/@vercel/python-analysis/js-yaml": "4.3.1",
     "vercel/@vercel/python-analysis/minimatch": "10.2.6",
-    "firebase-tools/superstatic/minimatch/brace-expansion": "2.1.4",
-    "firebase-tools/archiver/readdir-glob/minimatch/brace-expansion": "2.1.4",
     "tsx": "4.23.13"
   },
   "dependencies": {
@@ -63,6 +61,7 @@
     "sync:vercel-env": "node scripts/sync-vercel-env.mjs",
     "verify:vercel-account": "node scripts/verify-vercel-account.mjs",
     "validate:config": "node scripts/validate-config.mjs",
+    "deploy:firebase-rules": "npx --yes firebase-tools@15 deploy --only database,storage",
     "verify:local-api": "node scripts/verify-local-authenticated-api.mjs",
     "verify:full-stack": "node --experimental-strip-types scripts/verify-product-collaboration.mjs",
     "validate:local-env": "node scripts/validate-vercel-runtime-env.mjs .env.local --require-concrete --local-runtime",
@@ -96,7 +95,6 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.4",
-    "firebase-tools": "^15.28.1",
     "globals": "^17.11.0",
     "jsdom": "^30.0.1",
     "lighthouse": "13.4.1",

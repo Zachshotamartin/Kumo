@@ -48,12 +48,20 @@ const requiredResolutions = {
   "vercel/@vercel/fun/@tootallnate/once": "2.0.1",
   "vercel/@vercel/python-analysis/js-yaml": "4.3.1",
   "vercel/@vercel/python-analysis/minimatch": "10.2.6",
-  "firebase-tools/superstatic/minimatch/brace-expansion": "2.1.4",
-  "firebase-tools/archiver/readdir-glob/minimatch/brace-expansion": "2.1.4",
 };
 for (const [dependency, version] of Object.entries(requiredResolutions)) {
   if (packageJson.resolutions?.[dependency] !== version) {
     throw new Error(`The patched ${dependency} dependency must remain pinned to ${version}.`);
+  }
+}
+/**
+ * The Firebase CLI is a manually invoked tool, not part of any build, test, or deployment step.
+ * Installing it pulled 230 transitive packages in, including a `stream-json` release with no
+ * non-breaking patch available. `yarn deploy:firebase-rules` fetches it on demand instead.
+ */
+for (const manifestSection of ["dependencies", "devDependencies"]) {
+  if (packageJson[manifestSection]?.["firebase-tools"]) {
+    throw new Error(`firebase-tools must stay out of ${manifestSection}; run it through yarn deploy:firebase-rules.`);
   }
 }
 if (packageJson.engines?.node !== "24.x" || packageJson.packageManager !== "yarn@1.22.22") {

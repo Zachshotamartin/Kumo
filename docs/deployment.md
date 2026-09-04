@@ -63,6 +63,16 @@ Firebase Admin currently brings in `jwks-rsa`, whose default `jose` v6 dependenc
 
 Supabase migrations and Liveblocks webhook configuration use a separate reviewed release step before the application cutover. This prevents an application deploy token from gaining database-administration privileges and keeps infrastructure changes auditable.
 
+### Realtime Database and Storage rules
+
+`database.rules.json` and `storage.rules` stay the source of truth and are published with the Firebase CLI, which no deployment step runs. The CLI is not installed as a dependency: it pulls in 230 transitive packages for a tool that is only invoked by hand, and one of them had an advisory whose only fix was a breaking major the CLI cannot load. Publish rules on demand instead, after `firebase login`:
+
+```
+yarn deploy:firebase-rules
+```
+
+That fetches a pinned Firebase CLI major through `npx` and runs `deploy --only database,storage` against the project in `.firebaserc`. `validate:config` fails if `firebase-tools` is ever added back to the manifest.
+
 ## 5. First cutover
 
 1. Apply the reviewed Supabase migration.
