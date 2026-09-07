@@ -33,6 +33,10 @@ describe("landing page production editor integration", () => {
     const { container } = render(<MarketingCanvas logoContext="idle" logoStatus="Ready" />);
     expect(screen.getByRole("heading", { level: 1, name: "Every board can lead somewhere." })).toBeVisible();
     expect(container.querySelectorAll("[data-shape-type='text']")).toHaveLength(9);
+    const gesture = new MouseEvent("pointerdown", { ...point(400, 400), bubbles: true, cancelable: true });
+    act(() => { canvas().dispatchEvent(gesture); });
+    expect(gesture.defaultPrevented).toBe(true);
+    fireEvent.pointerUp(canvas(), point(400, 400));
     draw();
     expect(container.querySelectorAll("[data-shape-type='rectangle']")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Resize from bottom right" })).toBeVisible();
@@ -46,7 +50,9 @@ describe("landing page production editor integration", () => {
     expect(container.querySelectorAll("[data-shape-type='rectangle']")).toHaveLength(0);
     fireEvent.doubleClick(canvas(), point(100, 780));
     const text = screen.getByRole("textbox", { name: "Edit text" });
-    fireEvent.pointerDown(text, point(100, 780));
+    const textPointer = new MouseEvent("pointerdown", { ...point(100, 780), bubbles: true, cancelable: true });
+    act(() => { text.dispatchEvent(textPointer); });
+    expect(textPointer.defaultPrevented).toBe(false);
     fireEvent.change(text, { target: { value: "A local edit." } });
     fireEvent.blur(text);
     expect(screen.getByRole("heading", { name: "A local edit." })).toBeVisible();

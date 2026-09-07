@@ -34,6 +34,8 @@ test("landing canvas uses production resize, marquee, grouping, clipboard, and h
   await rectangle(page, x + 220, y + 15);
   await page.getByRole("button", { name: "Select (V)" }).click();
   await drag(page, { x: x - 20, y: y - 20 }, { x: x + 335, y: y + 125 });
+  await expect(page.getByRole("button", { name: "Delete selection" })).toBeEnabled();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("");
   await canvas.press("ControlOrMeta+g");
   const groupIds = await shapes.evaluateAll((items) => items.map((item) => item.getAttribute("data-group-id")));
   expect(groupIds[0]).toBeTruthy();

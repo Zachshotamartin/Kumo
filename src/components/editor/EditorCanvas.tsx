@@ -1536,7 +1536,10 @@ export const EditorCanvasView = ({
       role="application"
       aria-label="Kumo design canvas"
       onPointerDown={(event) => {
+        // Own this gesture before WebKit starts native text selection/dragging,
+        // which can steal pointer capture and swallow the release event.
         // Text editors and cursor-chat inputs stop their own pointer events.
+        event.preventDefault();
         event.currentTarget.focus({ preventScroll: true });
         handleCanvasPointerDown(event);
       }}
