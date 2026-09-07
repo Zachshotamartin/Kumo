@@ -1,3 +1,4 @@
+/* eslint jsx-a11y/no-noninteractive-tabindex: ["error", { "roles": ["application"] }] -- The canvas application requires focus to own its editing shortcuts. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cursor, LockSimple, X } from "@phosphor-icons/react";
 import { useUpdateMyPresence } from "@liveblocks/react";
@@ -172,6 +173,11 @@ interface EditorCanvasViewProps {
   actions: EditorActions;
   updateMyPresence: (patch: Partial<Liveblocks["Presence"]>) => void;
   showCommentPins?: boolean;
+  /** Embedded editors own shortcuts only while their canvas has focus. */
+  embedded?: boolean;
+  /** Optional semantic labels for public documents, independent of gesture logic. */
+  headingShapeId?: string;
+  mediaRepository?: { upload: typeof uploadBoardAsset; remove: typeof deleteBoardAsset };
   applyCollaborativeText?: (shapeId: string, previousText: string, nextText: string) => void;
 }
 
@@ -179,6 +185,9 @@ export const EditorCanvasView = ({
   actions,
   updateMyPresence,
   showCommentPins = true,
+  embedded = false,
+  headingShapeId,
+  mediaRepository = { upload: uploadBoardAsset, remove: deleteBoardAsset },
   applyCollaborativeText = () => undefined,
 }: EditorCanvasViewProps) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -294,7 +303,7 @@ export const EditorCanvasView = ({
           });
         } finally { URL.revokeObjectURL(url); }
       }
-      const asset = await uploadBoardAsset(board.id, file, dimensions);
+      const asset = await mediaRepository.upload(board.id, file, dimensions);
       assetId = asset.id;
       const scale = Math.min(1, 480 / Math.max(1, dimensions.width, dimensions.height));
       const shape = normalizeShape({
@@ -313,13 +322,14 @@ export const EditorCanvasView = ({
       dispatch(setSelectedShapes([shape.id]));
       setNavigationError(null);
     } catch (caught) {
-      if (assetId) void deleteBoardAsset(assetId).catch(() => undefined);
+      if (assetId) void mediaRepository.remove(assetId).catch(() => undefined);
       setNavigationError(caught instanceof Error ? caught.message : "This media could not be added.");
     }
-  }, [actions, activePageId, board.id, board.shapes, dispatch]);
+  }, [actions, activePageId, board.id, board.shapes, dispatch, mediaRepository]);
 
   useEffect(() => {
     const paste = (event: ClipboardEvent) => {
+      if (embedded && !canvasRef.current?.contains(document.activeElement)) return;
       if ((event.target as Element | null)?.closest?.("input, textarea, [contenteditable='true']")) return;
       const file = [...(event.clipboardData?.files ?? [])][0];
       if (!file) return;
@@ -331,7 +341,7 @@ export const EditorCanvasView = ({
     };
     window.addEventListener("paste", paste);
     return () => window.removeEventListener("paste", paste);
-  }, [editor.viewport, ingestExternalFile]);
+  }, [editor.viewport, embedded, ingestExternalFile]);
 
   const claimShapeActivity = useCallback((
     shapeIds: string[],
@@ -426,6 +436,7 @@ export const EditorCanvasView = ({
       return 1;
     };
     const handleCanvasWheel = (event: WheelEvent) => {
+      if (embedded && !canvas.contains(document.activeElement)) return;
       event.preventDefault();
       event.stopPropagation();
       const rect = canvas.getBoundingClientRect();
@@ -447,7 +458,7 @@ export const EditorCanvasView = ({
 
     canvas.addEventListener("wheel", handleCanvasWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", handleCanvasWheel);
-  }, [dispatch]);
+  }, [dispatch, embedded]);
 
   useEffect(() => () => {
     navigationRequestRef.current += 1;
@@ -1238,6 +1249,7 @@ export const EditorCanvasView = ({
         && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (embedded && !canvasRef.current?.contains(document.activeElement)) return;
       if (event.key === "Alt" && !isEditableTarget(event.target)) dispatch(setMeasureMode(true));
       if (event.code === "Space" && !isEditableTarget(event.target)) {
         spacePressedRef.current = true;
@@ -1443,7 +1455,7 @@ export const EditorCanvasView = ({
     };
     // cancelInteraction reads only refs and the current action facade.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actions, blockIfRemotelyActive, board.shapes, claimShapeActivity, cursorChatMode, dispatch, editor.editingShapeId, editor.viewport, exitCursorChat, fitToContent, releaseShapeActivity, selectHitTarget, selectedIds, updateMyPresence]);
+  }, [actions, blockIfRemotelyActive, board.shapes, claimShapeActivity, cursorChatMode, dispatch, editor.editingShapeId, editor.viewport, embedded, exitCursorChat, fitToContent, releaseShapeActivity, selectHitTarget, selectedIds, updateMyPresence]);
 
   const handleTextChange = (shapeId: string, text: string) => {
     if (!textBaselineRef.current) textBaselineRef.current = cloneShapes(board.shapes);
@@ -1501,6 +1513,7 @@ export const EditorCanvasView = ({
     <div
       ref={canvasRef}
       className={styles.canvas}
+      tabIndex={0}
       style={{
         backgroundColor: board.backGroundColor,
         cursor:
@@ -1522,7 +1535,11 @@ export const EditorCanvasView = ({
       }}
       role="application"
       aria-label="Kumo design canvas"
-      onPointerDown={handleCanvasPointerDown}
+      onPointerDown={(event) => {
+        // Text editors and cursor-chat inputs stop their own pointer events.
+        event.currentTarget.focus({ preventScroll: true });
+        handleCanvasPointerDown(event);
+      }}
       onPointerMove={handleCanvasPointerMove}
       onPointerUp={finishCanvasPointer}
       onPointerCancel={cancelCanvasPointer}
@@ -1640,6 +1657,8 @@ export const EditorCanvasView = ({
                 data-group-id={shape.groupId ?? undefined}
                 data-parent-id={shape.parentId ?? undefined}
                 data-shape-type={shape.type}
+                role={shape.id === headingShapeId ? "heading" : undefined}
+                aria-level={shape.id === headingShapeId ? 1 : undefined}
                 data-drawing-kind={shape.drawingKind ?? undefined}
                 data-locked={isEffectivelyLocked(canvasShapes, shape) ? "true" : "false"}
                 data-z-index={shape.zIndex}

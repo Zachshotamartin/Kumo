@@ -29,6 +29,22 @@ if (!jsonFiles.get("vercel.dev.json")?.rewrites?.some((rewrite) =>
   throw new Error("vercel.dev.json must route consolidated local API requests.");
 }
 
+// Firebase owns these helper documents, including their inline bootstrap scripts.
+// Applying the app's script-src/frame-ancestors policy breaks redirect and iframe auth.
+const appCspRoutes = jsonFiles.get("vercel.json").headers.filter((route) =>
+  route.headers.some((header) => header.key.toLowerCase() === "content-security-policy")
+);
+const cspForPath = (path) => appCspRoutes.filter((route) => new RegExp('^' + route.source + '$').test(path));
+for (const path of ["/__/auth", "/__/auth/handler", "/__/auth/iframe", "/__/auth/handler.js"]) {
+  if (cspForPath(path).length) throw new Error("App CSP must not override Firebase-owned helper pages: " + path);
+}
+for (const path of ["/", "/index.html", "/boards/demo", "/api/session", "/__/authentication", "/__/auth-other"]) {
+  const policies = cspForPath(path).flatMap((route) => route.headers).filter((header) => header.key === "Content-Security-Policy");
+  if (policies.length !== 1 || !policies[0].value.includes("script-src 'self'") || /script-src[^;]*'unsafe-inline'/.test(policies[0].value)) {
+    throw new Error("The application must retain its strict script policy: " + path);
+  }
+}
+
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 const requiredResolutions = {
   jose: "5.10.0",

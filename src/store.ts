@@ -6,7 +6,7 @@ import actionsSlice from "./features/actions/actionsSlice";
 import selectedSlice from "./features/selected/selectedSlice";
 import editorSlice from "./features/editor/editorSlice";
 
-const store = configureStore({
+export const createAppStore = () => configureStore({
   reducer: {
     auth: authSlice,
     whiteBoard: whiteBoardSlice,
@@ -15,6 +15,8 @@ const store = configureStore({
     editor: editorSlice,
   },
 });
+
+const store = createAppStore();
 
 export type RootState = ReturnType<typeof store.getState>;
 

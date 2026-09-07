@@ -211,25 +211,36 @@ export const createMarketingTextShapes = (status: string): Shape[] => [
   }),
 ];
 
-export const moveMarketingShape = (
-  shape: Shape,
-  deltaX: number,
-  deltaY: number
-): Shape => {
-  const nextX = Math.min(
-    MARKETING_CANVAS_WIDTH - shape.width,
-    Math.max(0, shape.x1 + deltaX)
-  );
-  const nextY = Math.min(
-    MARKETING_CANVAS_HEIGHT - shape.height,
-    Math.max(0, shape.y1 + deltaY)
-  );
-
-  return {
-    ...shape,
-    x1: nextX,
-    y1: nextY,
-    x2: nextX + shape.width,
-    y2: nextY + shape.height,
+/** Seed a responsive document in real editor pixels; edits never use CSS-only bounds. */
+export const layoutMarketingShapes = (status: string, width: number, height: number, mobile: boolean): Shape[] => {
+  const fonts: Record<string, number> = {
+    "marketing-brand": 20, "marketing-descriptor": 9, "marketing-explore": 9,
+    "marketing-shape": 9, "marketing-build": 9, "marketing-status": 11,
+    "marketing-eyebrow": 11, "marketing-headline": Math.min(78, Math.max(42, width * 0.058)), "marketing-copy": 16,
   };
+  const mobilePositions: Record<string, [number, number, number, number]> = {
+    "marketing-brand": [24, 26, 112, 30],
+    "marketing-status": [width - 174, 245, 150, 32],
+    "marketing-eyebrow": [24, 350, width - 48, 26],
+    "marketing-headline": [24, 390, width - 48, 120],
+    "marketing-copy": [24, 530, width - 48, 72],
+  };
+  return createMarketingTextShapes(status).map((shape) => {
+    const mobilePosition = mobilePositions[shape.id];
+    const headline = shape.id === "marketing-headline";
+    const bounds = mobile && mobilePosition ? mobilePosition : [
+      shape.x1 / MARKETING_CANVAS_WIDTH * width,
+      shape.y1 / MARKETING_CANVAS_HEIGHT * height,
+      (headline ? Math.max(540, 660 - width / 10) : shape.width) / MARKETING_CANVAS_WIDTH * width,
+      shape.height / MARKETING_CANVAS_HEIGHT * height,
+    ];
+    const [x, y, w, h] = bounds as [number, number, number, number];
+    const fontSize = mobile && headline ? Math.min(52, width * 0.11) : fonts[shape.id]!;
+    return {
+      ...shape, x1: x, y1: y, x2: x + w, y2: y + h, width: w, height: h, fontSize,
+      letterSpacing: headline ? -0.055 * fontSize : shape.letterSpacing,
+      text: shape.textCase === "upper" ? shape.text!.toUpperCase() : shape.text,
+      hidden: mobile && !mobilePosition,
+    };
+  });
 };

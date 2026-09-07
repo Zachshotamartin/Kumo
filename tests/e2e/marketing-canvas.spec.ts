@@ -1,93 +1,76 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-test("landing mini canvas draws below editable modeled copy and resets cleanly", async ({ page }) => {
-  await page.goto("/");
-
-  const surface = page.getByRole("button", { name: /Kumo sketch canvas/i });
-  const drawingLayer = page.locator("[data-layer='drawings']");
-  const objectLayer = page.locator("[data-layer='marketing-objects']");
-  const headlineObject = page.locator("[data-shape-id='marketing-headline']");
-  await expect(page.getByRole("toolbar", { name: "Landing canvas tools" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Reset canvas" }).locator("svg")).toBeVisible();
-  await expect(page.locator("[data-model-type='text']")).toHaveCount(9);
-  await expect(headlineObject).toHaveAttribute("data-model-type", "text");
-  await expect.poll(async () => ({
-    drawings: Number(await drawingLayer.evaluate((element) => getComputedStyle(element).zIndex)),
-    objects: Number(await objectLayer.evaluate((element) => getComputedStyle(element).zIndex)),
-  })).toEqual({ drawings: 2, objects: 3 });
-
+const rectangle = async (page: Page, x: number, y: number) => {
   await page.getByRole("button", { name: "Rectangle (R)" }).click();
-  const surfaceBox = await surface.boundingBox();
-  expect(surfaceBox).not.toBeNull();
-  if (!surfaceBox) return;
-  await page.mouse.move(surfaceBox.x + surfaceBox.width * 0.34, surfaceBox.y + surfaceBox.height * 0.32);
+  await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(surfaceBox.x + surfaceBox.width * 0.49, surfaceBox.y + surfaceBox.height * 0.48, { steps: 5 });
+  await page.mouse.move(x + 100, y + 70, { steps: 5 });
   await page.mouse.up();
-  await expect(page.locator("[data-shape-type='rectangle']")).toHaveCount(1);
+};
+const drag = async (page: Page, from: { x: number; y: number }, to: { x: number; y: number }) => {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 8 });
+  await page.mouse.up();
+};
 
-  await page.getByRole("button", { name: "Pen (P)" }).click();
-  for (const [startY, endY] of [[0.30, 0.20], [0.20, 0.30]]) {
-    await page.mouse.move(surfaceBox.x + surfaceBox.width * 0.35, surfaceBox.y + surfaceBox.height * startY);
-    await page.mouse.down();
-    await page.mouse.move(
-      surfaceBox.x + surfaceBox.width * 0.45,
-      surfaceBox.y + surfaceBox.height * endY,
-      { steps: 4 }
-    );
-    await page.mouse.up();
-  }
-  const vectorPaths = page.locator("[data-shape-type='vector'] path[stroke]");
-  await expect(vectorPaths).toHaveCount(2);
-  const slopes = await vectorPaths.evaluateAll((paths) => paths.map((path) => {
-    const coordinates = (path.getAttribute("d")?.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
-    return (coordinates[3]! - coordinates[1]!) / (coordinates[2]! - coordinates[0]!);
-  }));
-  expect(slopes[0]).toBeLessThan(0);
-  expect(slopes[1]).toBeGreaterThan(0);
-
+test("landing canvas uses production resize, marquee, grouping, clipboard, and history", async ({ page }) => {
+  await page.goto("/");
+  const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+  const shapes = page.locator("[data-shape-type='rectangle']");
+  await expect(canvas).toBeVisible();
+  const bounds = (await canvas.boundingBox())!;
+  const x = bounds.x + 140, y = bounds.y + 150;
+  await rectangle(page, x, y);
+  await expect(shapes).toHaveCount(1);
+  const original = (await shapes.first().boundingBox())!;
+  const corner = (await page.getByRole("button", { name: "Resize from bottom right", exact: true }).boundingBox())!;
+  await drag(page, { x: corner.x + corner.width / 2, y: corner.y + corner.height / 2 }, { x: corner.x + corner.width / 2 + 55, y: corner.y + corner.height / 2 + 35 });
+  await expect.poll(async () => (await shapes.first().boundingBox())!.width).toBeGreaterThan(original.width + 45);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(async () => (await shapes.first().boundingBox())!.width).toBeCloseTo(original.width, 0);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect.poll(async () => (await shapes.first().boundingBox())!.width).toBeGreaterThan(original.width + 45);
+  await rectangle(page, x + 220, y + 15);
   await page.getByRole("button", { name: "Select (V)" }).click();
-  const drawnRectangle = page.getByRole("button", { name: /Rectangle\. Drag to move/i });
-  const drawnBefore = await drawnRectangle.boundingBox();
-  expect(drawnBefore).not.toBeNull();
-  await drawnRectangle.click();
-  await expect(drawnRectangle.locator("[data-selection-highlight='true']")).toBeVisible();
-  await drawnRectangle.press("ArrowRight");
-  await expect.poll(async () => (await drawnRectangle.boundingBox())?.x ?? 0)
-    .toBeGreaterThan(drawnBefore!.x);
-
-  const initialX = Number(await headlineObject.getAttribute("data-shape-x"));
-  const headlineBox = await headlineObject.boundingBox();
-  expect(headlineBox).not.toBeNull();
-  if (!headlineBox) return;
-  await page.mouse.move(headlineBox.x + 20, headlineBox.y + 20);
-  await page.mouse.down();
-  await page.mouse.move(headlineBox.x + 60, headlineBox.y + 42, { steps: 4 });
-  await page.mouse.up();
-  const selectionHighlight = headlineObject.locator("[data-selection-highlight='true']");
-  await expect(selectionHighlight).toBeVisible();
-  await expect.poll(() => selectionHighlight.evaluate((element) => getComputedStyle(element).borderStyle))
-    .toBe("solid");
-  await expect.poll(async () => Number(await headlineObject.getAttribute("data-shape-x")))
-    .toBeGreaterThan(initialX);
-
-  await headlineObject.focus();
-  await headlineObject.press("Enter");
-  const textEditor = headlineObject.getByRole("textbox", { name: "Edit text" });
-  await expect.poll(() => textEditor.evaluate((element) => {
-    const editor = element as HTMLTextAreaElement;
-    return {
-      start: editor.selectionStart,
-      allSelected: editor.selectionEnd === editor.value.length,
-    };
-  })).toEqual({ start: 0, allSelected: true });
-  await textEditor.fill("Move ideas into view.");
-  await textEditor.blur();
-  await expect(page.getByRole("heading", { name: "Move ideas into view." })).toBeVisible();
-
+  await drag(page, { x: x - 20, y: y - 20 }, { x: x + 335, y: y + 125 });
+  await canvas.press("ControlOrMeta+g");
+  const groupIds = await shapes.evaluateAll((items) => items.map((item) => item.getAttribute("data-group-id")));
+  expect(groupIds[0]).toBeTruthy();
+  expect(groupIds[1]).toBe(groupIds[0]);
+  await canvas.press("ControlOrMeta+c");
+  await canvas.press("ControlOrMeta+v");
+  await expect(shapes).toHaveCount(4);
+  await canvas.press("Delete");
+  await expect(shapes).toHaveCount(2);
+  await canvas.press("ControlOrMeta+z");
+  await expect(shapes).toHaveCount(4);
   await page.getByRole("button", { name: "Reset canvas" }).click();
-  await expect(page.locator("[data-shape-type='rectangle']")).toHaveCount(0);
-  await expect(page.locator("[data-shape-type='vector']")).toHaveCount(0);
+  await expect(shapes).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+});
+
+test("landing copy uses the editor's text editing and shortcuts stay out of the login form", async ({ page }) => {
+  await page.goto("/");
+  const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+  const headline = page.getByRole("heading", { level: 1, name: "Every board can lead somewhere." });
+  const bounds = (await headline.boundingBox())!;
+  await page.mouse.dblclick(bounds.x + 35, bounds.y + 20);
+  const text = canvas.getByRole("textbox", { name: "Edit text" });
+  await expect(text).toBeFocused();
+  await text.fill("Move ideas into view.");
+  await text.press("Escape");
+  await expect(page.getByRole("heading", { name: "Move ideas into view." })).toBeVisible();
+  await page.getByLabel("Email", { exact: true }).fill("test@example.com");
+  await page.getByLabel("Email", { exact: true }).press("ControlOrMeta+a");
+  await page.getByLabel("Email", { exact: true }).press("Backspace");
+  await expect(page.getByRole("heading", { name: "Move ideas into view." })).toBeVisible();
+  await page.getByRole("button", { name: "Reset canvas" }).click();
   await expect(page.getByRole("heading", { name: "Every board can lead somewhere." })).toBeVisible();
-  await expect(page.locator("[data-shape-id='marketing-headline']")).toHaveAttribute("data-shape-x", "60");
+  // The decoration is behind the entire isolated canvas, including the mascot.
+  const layers = await page.getByLabel("Animated Kumo mascot").evaluate((mascot) => {
+    const canvasRoot = mascot.closest('[class*="marketingCanvas"]')!;
+    return { canvas: Number(getComputedStyle(canvasRoot).zIndex), decoration: Number(getComputedStyle(canvasRoot.parentElement!, "::after").zIndex) };
+  });
+  expect(layers.canvas).toBeGreaterThan(layers.decoration);
 });

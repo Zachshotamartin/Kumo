@@ -1,189 +1,11 @@
 .marketingCanvas {
   position: absolute;
   inset: 0;
+  z-index: 1;
   isolation: isolate;
   overflow: hidden;
-  container-type: inline-size;
 }
-
-.drawingLayer,
-.previewLayer,
-.sketchSurface,
-.objectLayer {
-  position: absolute;
-  inset: 0;
-}
-
-.drawingLayer {
-  z-index: 2;
-  pointer-events: none;
-}
-
-.previewLayer {
-  z-index: 2;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.drawnShape {
-  position: absolute;
-  box-sizing: border-box;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  transform-origin: center;
-  pointer-events: none;
-  touch-action: none;
-}
-
-.drawingLayer[data-tool="pointer"] .drawnShape {
-  cursor: grab;
-  pointer-events: auto;
-}
-
-.drawingLayer[data-tool="pointer"] .drawnShape:active { cursor: grabbing; }
-
-.drawnShape:focus-visible { outline: none; }
-
-.selectedDrawing { z-index: 2; }
-
-.previewShape {
-  stroke-width: 2px;
-  vector-effect: non-scaling-stroke;
-}
-
-.previewShape {
-  display: none;
-  fill: rgb(184 122 46 / 0.06);
-  stroke: #d69a51;
-  stroke-dasharray: 7 6;
-  opacity: 0.85;
-}
-
-.previewShape[data-visible="true"] { display: block; }
-
-.sketchSurface {
-  z-index: 1;
-  touch-action: none;
-}
-
-.sketchSurface[data-tool="pointer"] { cursor: default; }
-.sketchSurface:not([data-tool="pointer"]) { cursor: crosshair; }
-
-.sketchSurface:focus-visible {
-  outline: 2px solid rgb(184 122 46 / 0.45);
-  outline-offset: -3px;
-}
-
-.objectLayer {
-  z-index: 3;
-  pointer-events: none;
-}
-
-.textObject {
-  position: absolute;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  box-sizing: border-box;
-  padding: 3px;
-  margin: -3px;
-  cursor: grab;
-  pointer-events: auto;
-  touch-action: none;
-  user-select: none;
-}
-
-.objectLayer:not([data-tool="pointer"]) .textObject { pointer-events: none; }
-
-.textObject::after {
-  position: absolute;
-  inset: -3px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  content: "";
-  pointer-events: none;
-}
-
-.textObject:hover::after { border-color: rgb(184 122 46 / 0.28); }
-.textObject:active { cursor: grabbing; will-change: transform; }
-
-.selectedObject::after {
-  border-color: transparent;
-}
-
-.editingObject {
-  z-index: 500 !important;
-  cursor: text;
-  user-select: text;
-}
-
-.editingObject::after {
-  border-color: #cf8e3e;
-  border-style: dashed;
-}
-
-.objectText {
-  display: block;
-  min-width: 1px;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  line-height: inherit;
-  text-align: inherit;
-  text-transform: inherit;
-  white-space: normal;
-  outline: none;
-}
-
-.editingObject .objectText {
-  min-width: 100%;
-  cursor: text;
-  user-select: text;
-}
-
-.editingObject textarea::selection {
-  color: #17181a;
-  background: #d69a51;
-}
-
-.textObject[data-shape-id="marketing-brand"] .objectText {
-  letter-spacing: -0.05em;
-}
-
-.textObject[data-shape-id="marketing-headline"] .objectText {
-  max-width: 100%;
-  font-kerning: normal;
-  text-wrap: balance;
-}
-
-.textObject[data-shape-id="marketing-copy"] .objectText { max-width: 100%; }
-
-.textObject[data-shape-id="marketing-eyebrow"] {
-  align-items: center;
-  gap: 8px;
-}
-
-.textObject[data-shape-id="marketing-eyebrow"] svg {
-  width: 1.12em;
-  height: 1.12em;
-  flex: 0 0 auto;
-}
-
-.flowObject {
-  align-items: center;
-  gap: 6px;
-}
-
-.flowArrow {
-  width: 1.25em;
-  height: 1.25em;
-  flex: 0 0 auto;
-  color: #cf8e3e;
-}
-
+.editorSurface { position: absolute; inset: 0; z-index: 1; }
 .heroVisual {
   position: absolute;
   top: 13%;
@@ -205,7 +27,7 @@
 .sketchToolbar {
   position: absolute;
   right: clamp(18px, 2.2vw, 34px);
-  bottom: clamp(18px, 2.4vw, 34px);
+  top: 58%;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -281,66 +103,10 @@
   .sketchToolbar button { transition: none; }
 }
 
+
 @media (max-width: 820px) {
-  .sketchSurface { pointer-events: none; }
+  .editorSurface { pointer-events: none; }
   .sketchToolbar { display: none; }
-  .textObject { pointer-events: none; }
-
-  .textObject[data-shape-id="marketing-descriptor"],
-  .textObject[data-shape-id="marketing-explore"],
-  .textObject[data-shape-id="marketing-shape"],
-  .textObject[data-shape-id="marketing-build"] {
-    display: none;
-  }
-
-  .textObject[data-shape-id="marketing-brand"] {
-    top: 26px !important;
-    left: 24px !important;
-    width: 112px !important;
-    min-height: 30px !important;
-    font-size: 20px !important;
-  }
-
-  .textObject[data-shape-id="marketing-status"] {
-    top: 245px !important;
-    right: 22px !important;
-    left: auto !important;
-    width: 150px !important;
-    min-height: 28px !important;
-    font-size: var(--kumo-text-2xs) !important;
-    text-align: center !important;
-  }
-
-  .textObject[data-shape-id="marketing-eyebrow"] {
-    top: 350px !important;
-    left: 24px !important;
-    width: 230px !important;
-    min-height: 26px !important;
-    font-size: var(--kumo-text-2xs) !important;
-  }
-
-  .textObject[data-shape-id="marketing-headline"] {
-    top: 390px !important;
-    left: 24px !important;
-    width: calc(100% - 48px) !important;
-    min-height: 120px !important;
-    font-size: clamp(38px, 11vw, 52px) !important;
-    letter-spacing: -0.06em !important;
-  }
-
-  .textObject[data-shape-id="marketing-copy"] {
-    top: 520px !important;
-    left: 24px !important;
-    width: calc(100% - 48px) !important;
-    min-height: 72px !important;
-    font-size: 15px !important;
-    letter-spacing: 0 !important;
-  }
-
-  .heroVisual {
-    top: 78px;
-    right: 24px;
-  }
-
+  .heroVisual { top: 78px; right: 24px; }
   .brandLogo { width: 146px; }
 }
