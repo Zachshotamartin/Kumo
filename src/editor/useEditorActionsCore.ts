@@ -16,7 +16,7 @@ import {
   unframeShapes,
   ungroupShapes,
 } from "./commands";
-import { moveShapesFromBaseline, normalizeShape, selectionBounds, shapeBounds } from "./geometry";
+import { moveShapesFromBaseline, normalizeShape, resizeShapesFromBaseline, selectionBounds, shapeBounds } from "./geometry";
 import { applyDocumentLayout, constrainFrameChildren } from "./layout";
 import {
   applySharedStyle,
@@ -405,9 +405,7 @@ export const useEditorActionsCore = ({
       const y = values.y ?? bounds.y;
       const width = Math.max(1, values.width ?? bounds.width);
       const height = Math.max(1, values.height ?? bounds.height);
-      const resized = board.shapes.map((item) => item.id === shape.id
-        ? normalizeShape({ ...item, x1: x, y1: y, x2: x + width, y2: y + height })
-        : item);
+      const resized = resizeShapesFromBaseline(board.shapes, [shape.id], bounds, { x, y, width, height });
       commitShapes(shape.type === "frame"
         ? constrainFrameChildren(board.shapes, resized, shape.id)
         : resized);

@@ -8,6 +8,7 @@ import { shapeUsesSvgSurface } from "./shapePaint";
 export const shapeAppearanceStyle = (shape: Shape, zoom: number): CSSProperties => {
   const stroke = shape.strokes?.filter((candidate) => candidate.visible && candidate.width > 0).at(-1);
   const usesSurface = shapeUsesSvgSurface(shape);
+  const usesGraphic = usesSurface || ["vector", "boolean", "connector"].includes(shape.type);
   const radii = shape.cornerRadii;
   const radius = shape.type === "ellipse"
     ? "50%"
@@ -20,11 +21,11 @@ export const shapeAppearanceStyle = (shape: Shape, zoom: number): CSSProperties 
     : stroke?.color ?? shape.borderColor ?? "transparent";
   return {
     borderRadius: radius,
-    border: usesSurface || ["vector", "boolean", "connector"].includes(shape.type)
+    border: usesGraphic
       ? 0
       : `${Math.max(0, (stroke?.width ?? shape.borderWidth ?? 0) * zoom)}px ${stroke?.style === "dotted" ? "dotted" : stroke?.style === "dashed" ? "dashed" : shape.borderStyle ?? "solid"} ${strokeColor}`,
-    backgroundColor: usesSurface ? "transparent" : shape.backgroundColor ?? "transparent",
-    backgroundImage: usesSurface ? undefined : image,
+    backgroundColor: usesGraphic ? "transparent" : shape.backgroundColor ?? "transparent",
+    backgroundImage: usesGraphic ? undefined : image,
     backgroundSize: mediaCropCss(shape)?.backgroundSize ?? (shape.imageFit === "fit" ? "contain" : shape.imageFit === "tile" ? "auto" : "cover"),
     backgroundRepeat: shape.imageFit === "tile" ? "repeat" : "no-repeat",
     backgroundPosition: mediaCropCss(shape)?.backgroundPosition ?? "center",
