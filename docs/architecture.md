@@ -61,3 +61,11 @@ RLS is enabled and browser roles are explicitly revoked. The Supabase service-ro
 - `api`: authenticated Vercel Functions and webhook.
 - `supabase/migrations`: reviewed, idempotent database migrations.
 - `tests/e2e`: browser smoke tests.
+
+## Public landing editor
+
+The landing document is rendered by `EditorCanvasView`, the same canvas used by a board. Its pointer gestures, hit testing, resize/rotation handles, marquee and Shift selection, text editing, clipboard shortcuts, and context menu are not separately implemented marketing interactions.
+
+`useEditorActionsCore` owns the shared command and normalization pipeline. `useEditorActions` supplies Liveblocks persistence; `useLocalEditorActions` supplies Redux document history. Browser fixtures also use the local adapter, so they exercise the production command implementation. The landing page creates its own Redux store and disposable browser media URLs; it cannot mutate the signed-in workspace or upload demo media. Reset clears its document, history, selection, clipboard, and media URLs.
+
+Embedded canvases receive keyboard and paste shortcuts only while focused. Outside the canvas, page scrolling and the authentication form retain normal browser behavior. Responsive seed geometry uses real shape bounds rather than separate CSS-only positions. The decorative landing curve is behind the isolated editor and mascot.

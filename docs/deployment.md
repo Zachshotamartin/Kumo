@@ -83,3 +83,13 @@ That fetches a pinned Firebase CLI major through `npx` and runs `deploy --only d
 6. Retire Firebase Hosting after the production smoke test. Keep Firebase Auth and legacy RTDB reads active until migration is complete.
 
 Useful references: [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite), [Vercel custom GitHub Actions workflow](https://vercel.com/docs/git/vercel-for-github), and [Vercel CLI deployment](https://vercel.com/docs/projects/deploy-from-cli).
+
+## Firebase auth helpers and the application CSP
+
+HTTPS sign-in uses same-origin Firebase helpers at `/__/auth/*`, transparently proxied to `https://kumo-7d8e1.firebaseapp.com/__/auth/*` before the SPA fallback. These are provider-owned HTML documents, not the Kumo client shell. Firebase initializes both the redirect handler and its hidden auth iframe with inline bootstrap scripts.
+
+Apply Kumo's strict Content Security Policy to application routes **except** `/__/auth` and its descendants. Do not apply `script-src 'self'` or `frame-ancestors 'none'` to the helper pages: the former blocks Firebase's bootstrap and the latter blocks its hidden iframe. General security headers still apply to all routes, and the application policy has not gained `unsafe-inline` for scripts. Avoid hard-coding one bootstrap hash; Firebase owns the script bodies, including redirect POST data.
+
+`validate:config` verifies route boundaries and the retained strict application script policy. The browser regression serves the configured headers over HTTPS and verifies that app inline scripts are blocked while the redirect and embedded iframe bootstraps run. `verify:deployment` fetches the actual proxied helper documents on preview and production to detect an incorrect rewrite or inherited CSP.
+
+Reference: [Firebase redirect sign-in best practices, reverse-proxy option](https://firebase.google.com/docs/auth/web/redirect-best-practices#option-3-proxy-auth-requests-to-firebaseappcom).
