@@ -22,7 +22,7 @@ if (!appPolicy.includes("script-src 'self'") || /script-src[^;]*'unsafe-inline'/
   throw new Error("The application must retain its strict script policy.");
 }
 const scriptSources = appPolicy.split(";").map((directive) => directive.trim().split(/\s+/)).find(([name]) => name === "script-src");
-if (!scriptSources.includes("https://apis.google.com")) {
+if (!scriptSources?.some((source) => source === "https://apis.google.com")) {
   throw new Error("App CSP blocks Google's iframe loader, so Firebase cannot recover redirect sign-in.");
 }
 console.log("Firebase redirect and iframe helpers are served without the app-only CSP; application CSP remains strict.");

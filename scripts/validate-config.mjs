@@ -44,7 +44,7 @@ for (const path of ["/", "/index.html", "/boards/demo", "/api/session", "/__/aut
     throw new Error("The application must retain its strict script policy: " + path);
   }
   const scriptSources = policies[0].value.split(";").map((directive) => directive.trim().split(/\s+/)).find(([name]) => name === "script-src");
-  if (!scriptSources.includes("https://apis.google.com")) {
+  if (!scriptSources?.some((source) => source === "https://apis.google.com")) {
     throw new Error("App CSP must allow Firebase's Google iframe loader and modules: " + path);
   }
 }
