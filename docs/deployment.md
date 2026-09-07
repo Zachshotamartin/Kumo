@@ -90,6 +90,10 @@ HTTPS sign-in uses same-origin Firebase helpers at `/__/auth/*`, transparently p
 
 Apply Kumo's strict Content Security Policy to application routes **except** `/__/auth` and its descendants. Do not apply `script-src 'self'` or `frame-ancestors 'none'` to the helper pages: the former blocks Firebase's bootstrap and the latter blocks its hidden iframe. General security headers still apply to all routes, and the application policy has not gained `unsafe-inline` for scripts. Avoid hard-coding one bootstrap hash; Firebase owns the script bodies, including redirect POST data.
 
+The application itself must also permit `https://apis.google.com` in **script-src**. On return from Google, the Firebase SDK loads `/js/api.js` and the GAPI iframe module from that origin before recovering the redirect result. Permitting the helper iframe or Google API fetches in `connect-src` does not permit these scripts. Blocking them leaves the user on the sign-in page even when the helper routes have no CSP. Keep this allowance specific to Google's script origin; no wildcard or `unsafe-inline` is needed.
+
 `validate:config` verifies route boundaries and the retained strict application script policy. The browser regression serves the configured headers over HTTPS and verifies that app inline scripts are blocked while the redirect and embedded iframe bootstraps run. `verify:deployment` fetches the actual proxied helper documents on preview and production to detect an incorrect rewrite or inherited CSP.
+
+The Google-return browser regression runs the production application and its real Firebase SDK under this CSP, clicks Google sign-in, supplies fixture provider responses, and verifies that the dashboard opens and survives reload. It covers dynamic GAPI loading and Firebase persistence; it does not replace a manual sign-in with a real Google account.
 
 Reference: [Firebase redirect sign-in best practices, reverse-proxy option](https://firebase.google.com/docs/auth/web/redirect-best-practices#option-3-proxy-auth-requests-to-firebaseappcom).

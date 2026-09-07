@@ -43,6 +43,10 @@ for (const path of ["/", "/index.html", "/boards/demo", "/api/session", "/__/aut
   if (policies.length !== 1 || !policies[0].value.includes("script-src 'self'") || /script-src[^;]*'unsafe-inline'/.test(policies[0].value)) {
     throw new Error("The application must retain its strict script policy: " + path);
   }
+  const scriptSources = policies[0].value.split(";").map((directive) => directive.trim().split(/\s+/)).find(([name]) => name === "script-src");
+  if (!scriptSources.includes("https://apis.google.com")) {
+    throw new Error("App CSP must allow Firebase's Google iframe loader and modules: " + path);
+  }
 }
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
