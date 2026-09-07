@@ -31,6 +31,17 @@ describe("canonical shape appearance", () => {
     expect(shapeAppearanceStyle({ ...base, type: "ellipse" }, 1).borderRadius).toBe("50%");
   });
 
+  it("leaves SVG cutouts and open paths transparent instead of painting their bounding box", () => {
+    for (const type of ["vector", "boolean", "connector"] as const) {
+      expect(shapeAppearanceStyle({
+        ...base, type, backgroundColor: "#dde9a6", borderWidth: 4,
+        backgroundImage: "https://assets.test/fill.png",
+      }, 1)).toEqual(expect.objectContaining({
+        backgroundColor: "transparent", backgroundImage: undefined, border: 0,
+      }));
+    }
+  });
+
   it("renders legacy DOM strokes and fitted media without optional appearance values", () => {
     expect(shapeAppearanceStyle({ ...base, strokes: [{ id: "stroke", color: "#123456", width: 2, opacity: 1, visible: true, style: "dotted", align: "center" }] }, 2).border)
       .toBe("4px dotted #123456");
