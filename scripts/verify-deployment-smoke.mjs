@@ -1,4 +1,6 @@
 import { verifyDeploymentSmoke } from "../src/server/deploymentSmoke.ts";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const deploymentUrl = process.argv[2];
 if (!deploymentUrl) throw new Error("Usage: node scripts/verify-deployment-smoke.mjs <deployment-url>");
@@ -17,6 +19,15 @@ for (const [path, marker] of [["handler", "fireauth.oauthhelper.widget.initializ
   }
 }
 const appResponse = await fetch(new URL("/", deploymentUrl));
+const { headers } = JSON.parse(readFileSync("vercel.json", "utf8"));
+const expectedRevision = createHash("sha256").update(JSON.stringify(headers)).digest("hex");
+const markup = await appResponse.text();
+if (markup.match(/<meta name="kumo-security-revision" content="([a-f0-9]{64})"/)?.[1] !== expectedRevision) {
+  throw new Error("The deployed document does not match this release's security headers.");
+}
+if (!appResponse.headers.get("cache-control")?.split(",").some((directive) => directive.trim() === "no-store")) {
+  throw new Error("The authentication entry document must not retain superseded security headers in the HTTP cache.");
+}
 const appPolicy = appResponse.headers.get("content-security-policy") ?? "";
 if (!appPolicy.includes("script-src 'self'") || /script-src[^;]*'unsafe-inline'/.test(appPolicy)) {
   throw new Error("The application must retain its strict script policy.");

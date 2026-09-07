@@ -42,6 +42,8 @@ jobs:
         run: yarn typecheck
       - name: Production build and artifact budgets
         run: yarn build
+      - name: Verify security-policy-only deployments update the document
+        run: node scripts/verify-security-policy-build.mjs
 
   unit:
     name: Unit tests and per-file coverage

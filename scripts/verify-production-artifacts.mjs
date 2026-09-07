@@ -1,8 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 
 const outputDirectory = resolve(process.cwd(), process.argv[2] ?? "dist");
+const { headers } = JSON.parse(readFileSync("vercel.json", "utf8"));
+const expectedRevision = createHash("sha256").update(JSON.stringify(headers)).digest("hex");
+const html = readFileSync(join(outputDirectory, "index.html"), "utf8");
+if (html.match(/<meta name="kumo-security-revision" content="([a-f0-9]{64})"/)?.[1] !== expectedRevision) {
+  throw new Error("Production HTML must change when deployed security headers change.");
+}
 const files = (directory) => readdirSync(directory).flatMap((entry) => {
   const absolute = join(directory, entry);
   return statSync(absolute).isDirectory() ? files(absolute) : [absolute];
