@@ -109,6 +109,26 @@ describe("useEditorActions", () => {
     await waitFor(() => expect(store.getState().editor.saveStatus).toBe("saved"));
   });
 
+  it("numeric edits transform vector handles and boolean operands with their bounds", () => {
+    const { result, store } = setup();
+    const vector: Shape = { ...rect("curve", 0), type: "vector", vectorPoints: [
+      { id: "start", x: 0, y: 0, handleOut: { x: 5, y: 0 } },
+      { id: "end", x: 20, y: 20, handleIn: { x: 15, y: 10 } },
+    ] };
+    const composite: Shape = { ...rect("cutout", 0), type: "boolean", booleanOperation: "subtract", booleanChildren: [vector] };
+    act(() => store.dispatch(setWhiteboardData({ shapes: [vector, composite] })));
+    for (const shape of [vector, composite]) {
+      act(() => result.current.setShapeGeometry(shape, { x: 100, y: 200, width: 40, height: 60 }));
+      const updated = store.getState().whiteBoard.shapes.find((candidate) => candidate.id === shape.id)!;
+      const path = shape.type === "boolean" ? updated.booleanChildren![0]! : updated;
+      expect(path).toMatchObject({ x1: 100, y1: 200, x2: 140, y2: 260 });
+      expect(path.vectorPoints).toEqual([
+        { id: "start", x: 100, y: 200, handleOut: { x: 110, y: 200 } },
+        { id: "end", x: 140, y: 260, handleIn: { x: 130, y: 230 } },
+      ]);
+    }
+  });
+
   it("clones cross-board assets before paste and reports clone failures", async () => {
     const { result, store } = setup();
     act(() => store.dispatch(setClipboard({ shapes: [rect("image", 0, "image")], boardId: "other" })));
