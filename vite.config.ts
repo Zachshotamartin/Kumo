@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, relative, resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
@@ -8,6 +9,19 @@ import { devProxyForMode } from "./src/config/devProxy.ts";
 const outputFiles = (directory: string): string[] => readdirSync(directory).flatMap((entry) => {
   const absolute = join(directory, entry);
   return statSync(absolute).isDirectory() ? outputFiles(absolute) : [absolute];
+});
+
+// Vercel's 304 responses omit CSP. If only vercel.json changes, an unchanged
+// index.html ETag can leave returning browsers enforcing the previous policy.
+// Tie the document bytes to the deployed headers so policy changes require 200.
+const injectSecurityPolicyRevision = (): Plugin => ({
+  name: "kumo-security-policy-revision",
+  apply: "build",
+  transformIndexHtml() {
+    const { headers } = JSON.parse(readFileSync(resolve(process.cwd(), "vercel.json"), "utf8"));
+    const revision = createHash("sha256").update(JSON.stringify(headers)).digest("hex");
+    return [{ tag: "meta", attrs: { name: "kumo-security-revision", content: revision }, injectTo: "head" }];
+  },
 });
 
 const injectServiceWorkerPrecache = (): Plugin => ({
@@ -29,7 +43,7 @@ const injectServiceWorkerPrecache = (): Plugin => ({
 });
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), injectServiceWorkerPrecache()],
+  plugins: [react(), injectSecurityPolicyRevision(), injectServiceWorkerPrecache()],
   server: {
     proxy: devProxyForMode(mode),
     watch: {
