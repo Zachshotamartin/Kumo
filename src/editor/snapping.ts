@@ -185,10 +185,13 @@ export const frameClipInsets = (
     parentId = parent.parentId;
   }
   if (!clip) return null;
+  // Signed insets locate the ancestor's clipping boundary. Clamping to zero
+  // clips each child to its own box, erasing thick strokes, caps and shadows
+  // even when there is ample room inside the frame.
   return {
-    top: Math.max(0, clip.y - bounds.y),
-    right: Math.max(0, bounds.x + bounds.width - (clip.x + clip.width)),
-    bottom: Math.max(0, bounds.y + bounds.height - (clip.y + clip.height)),
-    left: Math.max(0, clip.x - bounds.x),
+    top: clip.y - bounds.y,
+    right: bounds.x + bounds.width - (clip.x + clip.width),
+    bottom: bounds.y + bounds.height - (clip.y + clip.height),
+    left: clip.x - bounds.x,
   };
 };
