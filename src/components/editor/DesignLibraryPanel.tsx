@@ -13,11 +13,10 @@ import { setRightPanel } from "../../features/editor/editorSlice";
 import type { AppDispatch, RootState } from "../../store";
 import styles from "./EditorWorkspace.module.css";
 
-const DesignLibraryPanel = () => {
+export const DesignLibraryPanelView = ({ actions }: { actions: ReturnType<typeof useEditorActions> }) => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
-  const actions = useEditorActions();
   const [name, setName] = useState("Brand");
   const [color, setColor] = useState("#b87a2e");
   const [collectionName, setCollectionName] = useState("Theme");
@@ -160,5 +159,7 @@ const DesignLibraryPanel = () => {
     </aside>
   );
 };
+
+const DesignLibraryPanel = () => <DesignLibraryPanelView actions={useEditorActions()} />;
 
 export default DesignLibraryPanel;

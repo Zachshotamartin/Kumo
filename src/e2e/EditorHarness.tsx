@@ -7,6 +7,8 @@ import type { AppDispatch, RootState } from "../store";
 import { EditorCanvasView } from "../components/editor/EditorCanvas";
 import { EditorToolbarView } from "../components/editor/EditorToolbar";
 import { InspectorPanelView } from "../components/editor/InspectorPanel";
+import { DesignLibraryPanelView } from "../components/editor/DesignLibraryPanel";
+import { setRightPanel } from "../features/editor/editorSlice";
 import { LayersPanelView } from "../components/editor/LayersPanel";
 import styles from "../components/editor/EditorWorkspace.module.css";
 import { useLocalEditorActions } from "./useLocalEditorActions";
@@ -60,6 +62,7 @@ const EditorHarness = () => {
   const dispatch = useDispatch<AppDispatch>();
   const actions = useLocalEditorActions();
   const boardId = useSelector((state: RootState) => state.whiteBoard.id);
+  const rightPanel = useSelector((state: RootState) => state.editor.rightPanel);
 
   useEffect(() => {
     dispatch(setWhiteboardData({
@@ -86,7 +89,11 @@ const EditorHarness = () => {
           <span className={styles.breadcrumb}>/</span>
           <span>Editor regression lab</span>
         </div>
-        <span className={styles.saveStatus}>Local test document</span>
+        <div className={styles.topbarEnd}>
+          <button type="button" onClick={() => dispatch(setRightPanel("assets"))}>Assets</button>
+          <button type="button" onClick={() => dispatch(setRightPanel("properties"))}>Properties</button>
+          <span className={styles.saveStatus}>Local test document</span>
+        </div>
       </header>
       <div
         className={styles.editorGrid}
@@ -104,7 +111,7 @@ const EditorHarness = () => {
           <EditorToolbarView actions={actions} />
         </section>
         <span />
-        <div className={styles.panelSlot}><InspectorPanelView actions={actions} /></div>
+        <div className={styles.panelSlot}>{rightPanel === "assets" ? <DesignLibraryPanelView actions={actions} /> : <InspectorPanelView actions={actions} />}</div>
       </div>
     </main>
   );
