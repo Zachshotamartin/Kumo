@@ -455,6 +455,14 @@ describe("object snapping and frame clipping", () => {
     expect(snapResizePointerToObjects([moving, target], [moving.id], "n", { x: 10, y: 10 }, 1)).toEqual({ point: { x: 10, y: 10 }, guides: [] });
   });
 
+  it("clips to the frame boundary, preserving paint beyond a narrow child's geometry", () => {
+    const parent = frame("f", 0, 0, 100, 100);
+    const vertical = rectangle("line", 40, 20, 0, 60, { parentId: parent.id, type: "vector", borderWidth: 7 });
+    expect(frameClipInsets([parent, vertical], vertical)).toEqual({ top: -20, right: -60, bottom: -20, left: -40 });
+    const horizontal = { ...vertical, x1: 20, y1: 40, x2: 80, y2: 40, width: 60, height: 0 };
+    expect(frameClipInsets([parent, horizontal], horizontal)).toEqual({ top: -40, right: -20, bottom: -60, left: -20 });
+  });
+
   it("uses frame visual bounds and intersects nested clipping frames", () => {
     const outer = frame("outer", 0, 0, 100, 100, { borderWidth: 4 });
     const inner = frame("inner", 10, 10, 60, 60, { parentId: outer.id });
