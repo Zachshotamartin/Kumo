@@ -821,12 +821,16 @@
 }
 
 .inspectorSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
   padding: 14px;
   border-bottom: 1px solid var(--line);
 }
 
 .inspectorSection h2 {
-  margin: 0 0 12px;
+  margin: 0;
   color: #a4a4a0;
   font-size: var(--kumo-text-2xs);
   font-weight: 700;
@@ -888,7 +892,9 @@
 .codeBlock button:disabled,
 .exportGrid button:disabled { cursor: not-allowed; opacity: 0.45; }
 
-.inspectorSection > button + button { margin-top: 7px; }
+.inspectorSection > * { min-width: 0; }
+.inspectorSection > button { justify-self: start; max-width: 100%; }
+.inspectorSection > .assetList:empty { display: none; }
 .inspectorSection > button svg,
 .assetActions svg,
 .assetRow button svg,
@@ -911,13 +917,14 @@
 .buttonGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: 8px;
 }
 
 .field,
 .fullField,
 .colorField {
   display: grid;
+  min-width: 0;
   align-items: center;
   gap: 7px;
   color: #8f9094;
@@ -949,7 +956,7 @@
 .field input,
 .fullField input,
 .fullField select,
-.colorControl input[type="text"] {
+.colorControl input:not([type="color"]) {
   min-width: 0;
   width: 100%;
   height: 30px;
@@ -968,7 +975,7 @@
 }
 
 .fullField {
-  margin-top: 8px;
+  min-width: 0;
 }
 
 .fullField input,
@@ -981,7 +988,7 @@
 
 .fieldHint,
 .fieldError {
-  margin: 8px 0 0;
+  margin: 0;
   font-size: var(--kumo-text-2xs);
   line-height: 1.45;
 }
@@ -990,8 +997,7 @@
 
 .assetList {
   display: grid;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 8px;
 }
 
 .pagesSection {
@@ -1053,6 +1059,7 @@
 
 .assetRow {
   display: flex;
+  flex-wrap: wrap;
   min-height: 34px;
   align-items: center;
   justify-content: space-between;
@@ -1092,13 +1099,23 @@
 .assetRow > div,
 .assetActions {
   display: flex;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .assetActions {
-  margin-top: 8px;
-  flex-wrap: wrap;
+  align-items: center;
 }
+
+.assetActions > :is(.fullField, .colorField, .controlLabel, strong, small),
+.assetRow > :is(.fullField, .colorField) {
+  flex: 1 0 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.assetRow > span { flex: 1; }
+.assetRow > div { flex-shrink: 0; }
 
 .assetApply {
   display: flex;
@@ -1110,7 +1127,7 @@
 
 .interactionRow {
   display: grid;
-  grid-template-columns: 16px 1fr 32px;
+  grid-template-columns: 16px minmax(0, 1fr) 32px;
   align-items: center;
   gap: 7px;
   padding: 8px 0;
@@ -1140,9 +1157,8 @@
 
 .interactionForm {
   display: grid;
-  gap: 9px;
-  margin-top: 10px;
-  padding-top: 10px;
+  gap: 12px;
+  padding-top: 12px;
   border-top: 1px solid #393b3f;
 }
 
@@ -1507,11 +1523,6 @@
   background: #252629;
   border: 1px solid #3b3d41;
   border-radius: 6px;
-}
-
-.gradientStop + .gradientStop,
-.effectRow + .effectRow {
-  margin-top: 7px;
 }
 
 .presentationOverlay,
@@ -1938,8 +1949,7 @@
 .fieldError { color: #f1a38f; }
 
 .colorField {
-  grid-template-columns: 48px minmax(0, 1fr);
-  margin-bottom: 8px;
+  grid-template-columns: minmax(48px, min-content) minmax(0, 1fr);
 }
 
 .colorControl {
@@ -1965,7 +1975,6 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
-  margin-top: 9px;
   overflow: hidden;
   background: #34363a;
   border-radius: var(--kumo-radius-control);
@@ -1977,7 +1986,6 @@
 
 .controlLabel {
   display: block;
-  margin-top: 12px;
   color: #8f9094;
   font-size: var(--kumo-text-2xs);
 }
@@ -2007,6 +2015,9 @@
 }
 
 .buttonGrid button {
+  min-width: 0;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
   border-radius: var(--kumo-radius-control);
   font-size: var(--kumo-text-2xs);
 }
@@ -2017,6 +2028,7 @@
 
 .toggleRow {
   display: flex;
+  gap: 8px;
   min-height: 38px;
   align-items: center;
   justify-content: space-between;
@@ -2025,6 +2037,7 @@
 }
 
 .toggleRow input {
+  flex-shrink: 0;
   width: 17px;
   height: 17px;
   accent-color: var(--accent);
