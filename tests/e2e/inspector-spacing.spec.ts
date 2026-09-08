@@ -29,7 +29,7 @@ async function expectSeparatedFields(panel: Locator) {
 }
 
 test("inspector rows and action grids stay separated with styles and multi-mode variables", async ({ page }) => {
-  await page.goto("/e2e.html");
+  await page.goto("/e2e.html?panels");
   await page.getByRole("button", { name: "Product note", exact: true }).click();
   await page.getByRole("button", { name: "Assets", exact: true }).click();
   const assets = page.getByRole("complementary", { name: "Assets" });

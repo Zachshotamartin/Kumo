@@ -89,11 +89,11 @@ const EditorHarness = () => {
           <span className={styles.breadcrumb}>/</span>
           <span>Editor regression lab</span>
         </div>
-        <div className={styles.topbarEnd}>
+        {new URLSearchParams(window.location.search).has("panels") && <div className={styles.buttonGrid}>
           <button type="button" onClick={() => dispatch(setRightPanel("assets"))}>Assets</button>
           <button type="button" onClick={() => dispatch(setRightPanel("properties"))}>Properties</button>
-          <span className={styles.saveStatus}>Local test document</span>
-        </div>
+        </div>}
+        <span className={styles.saveStatus}>Local test document</span>
       </header>
       <div
         className={styles.editorGrid}
