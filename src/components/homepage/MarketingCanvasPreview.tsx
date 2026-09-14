@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import KumoLogo from "../brand/KumoLogo";
 import type { KumoLogoContext } from "../brand/KumoLogoConfig";
 import { layoutMarketingShapes } from "./marketingCanvasModel";
 import styles from "./MarketingCanvas.module.css";
@@ -33,9 +32,6 @@ const MarketingCanvasPreview = ({ logoContext, logoStatus }: { logoContext: Kumo
           whiteSpace: "pre-wrap", overflowWrap: "break-word",
         }}>{shape.text}</Tag>;
       })}
-      <div className={styles.heroVisual}>
-        <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" animationScope="app-startup" />
-      </div>
     </div>
   );
 };

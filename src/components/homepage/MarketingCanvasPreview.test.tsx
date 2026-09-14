@@ -1,8 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import MarketingCanvasPreview from "./MarketingCanvasPreview";
 
-vi.mock("../brand/KumoLogo", () => ({ default: ({ label }: { label: string }) => <div aria-label={label} /> }));
-
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it("paints the responsive marketing document while the editor loads", () => {
@@ -15,7 +13,6 @@ it("paints the responsive marketing document while the editor loads", () => {
   const heading = screen.getByRole("heading", { name: "Every board can lead somewhere." });
   expect(heading).toHaveStyle({ left: "52.68px", top: "699.36px" });
   expect(screen.getByText("Ready")).toBeVisible();
-  expect(screen.getByLabelText("Animated Kumo mascot")).toBeVisible();
   vi.stubGlobal("innerWidth", 390);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 390, height: 620 } as DOMRect);
   act(() => resize());

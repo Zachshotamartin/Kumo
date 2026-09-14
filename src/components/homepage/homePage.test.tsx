@@ -63,6 +63,13 @@ describe("HomePage authentication", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
   };
 
+  it("keeps the same mascot mounted while the interactive canvas loads", async () => {
+    render(<HomePage />);
+    const mascot = screen.getByLabelText("Animated Kumo mascot");
+    await screen.findByRole("application", { name: "Kumo design canvas" });
+    expect(screen.getByLabelText("Animated Kumo mascot")).toBe(mascot);
+  });
+
   it("signs in and leaves profile initialization to the app auth observer", async () => {
     render(<HomePage />);
     expect(screen.getByText("Kumo", { exact: true })).toBeInTheDocument();

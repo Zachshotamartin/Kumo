@@ -57,6 +57,7 @@ const KumoLogo = ({
 }: KumoLogoProps) => {
   const [element, setElement] = useState<KumoLogoElement | null>(null);
   const playedAnimation = useRef(false);
+  const configuredElement = useRef<KumoLogoElement | null>(null);
 
   useEffect(() => {
     if (!element) return;
@@ -67,7 +68,10 @@ const KumoLogo = ({
       // React assigns known custom-element properties instead of retaining their
       // attributes. Configure imperatively so the authored paddle-leg rig is
       // installed before any animation samples its geometry.
-      logo.configure(KUMO_LOGO_CONFIG);
+      if (configuredElement.current !== logo) {
+        logo.configure(KUMO_LOGO_CONFIG);
+        configuredElement.current = logo;
+      }
       if (!startupAnimation || playedAnimation.current) return;
       if (animationScope && playedAnimationScopes.has(animationScope)) return;
       playedAnimation.current = true;
@@ -82,7 +86,6 @@ const KumoLogo = ({
     "aria-hidden": decorative ? "true" : undefined,
     "aria-label": decorative ? undefined : label,
     className,
-    config: KUMO_LOGO_CONFIG,
     context,
     ref: setElement,
     style,

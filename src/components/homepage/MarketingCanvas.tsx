@@ -15,13 +15,13 @@ import type { KumoLogoContext } from "../brand/KumoLogoConfig";
 import { layoutMarketingShapes, MARKETING_STATUS_SHAPE_ID } from "./marketingCanvasModel";
 import styles from "./MarketingCanvas.module.css";
 
-interface MarketingCanvasProps { logoContext: KumoLogoContext; logoStatus: string }
+interface MarketingCanvasProps { logoContext: KumoLogoContext; logoStatus: string; showLogo?: boolean }
 const tools = EDITOR_TOOL_DEFINITIONS.filter((tool) =>
   ["pointer", "hand", "rectangle", "ellipse", "pen", "text"].includes(tool.id)
 );
 const noPresence = () => undefined;
 
-const LandingEditor = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
+const LandingEditor = ({ logoContext, logoStatus, showLogo = true }: MarketingCanvasProps) => {
   const localStore = useStore<RootState>();
   const dispatch = useDispatch<AppDispatch>();
   const actions = useLocalEditorActions();
@@ -30,6 +30,7 @@ const LandingEditor = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const edited = useRef(false);
   const statusRef = useRef(logoStatus);
+  const previousStatus = useRef(logoStatus);
   const sizeRef = useRef({ width: 1000, height: 1000, mobile: false });
   const [ready, setReady] = useState(false);
   const [media] = useState(createLocalAssets);
@@ -55,12 +56,17 @@ const LandingEditor = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
 
   useLayoutEffect(() => {
     const root = rootRef.current!;
+    let previousSize = "";
     const resize = () => {
       const rect = root.getBoundingClientRect();
-      sizeRef.current = {
+      const size = {
         width: rect.width || 1000, height: rect.height || 1000,
         mobile: window.innerWidth <= 820,
       };
+      const key = `${size.width}:${size.height}:${size.mobile}`;
+      if (key === previousSize) return;
+      previousSize = key;
+      sizeRef.current = size;
       if (!edited.current) reset();
       setReady(true);
     };
@@ -73,6 +79,8 @@ const LandingEditor = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
   useEffect(() => () => media.dispose(), [media]);
   useEffect(() => {
     // A sign-in status update must not recreate the demo or discard user edits.
+    if (previousStatus.current === logoStatus) return;
+    previousStatus.current = logoStatus;
     const shapes = localStore.getState().whiteBoard.shapes.map((shape) =>
       shape.id === MARKETING_STATUS_SHAPE_ID ? { ...shape, text: logoStatus } : shape
     );
@@ -87,9 +95,9 @@ const LandingEditor = ({ logoContext, logoStatus }: MarketingCanvasProps) => {
           headingShapeId="marketing-headline" mediaRepository={media}
         />}
       </div>
-      <div className={styles.heroVisual}>
+      {showLogo && <div className={styles.heroVisual}>
         <KumoLogo className={styles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" animationScope="app-startup" />
-      </div>
+      </div>}
       <div className={styles.sketchToolbar} role="toolbar" aria-label="Landing canvas tools">
         <span className={styles.toolbarLabel}>Try it</span>
         <div className={styles.toolGroup}>

@@ -18,6 +18,8 @@ import { clearPendingGoogleRedirect, hasPendingGoogleRedirect, markPendingGoogle
 import LoadingScreen from "../LoadingScreen";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
 import MarketingCanvasPreview from "./MarketingCanvasPreview";
+import KumoLogo from "../brand/KumoLogo";
+import canvasStyles from "./MarketingCanvas.module.css";
 import {
   consumeLocalGoogleRedirect,
   hasLocalGoogleRedirectResult,
@@ -212,9 +214,14 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   return (
     <main className={styles.homePage}>
       <section className={styles.intro}>
-        <Suspense fallback={<MarketingCanvasPreview logoContext={logoContext} logoStatus={logoStatus} />}>
-          <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} />
-        </Suspense>
+        <div className={canvasStyles.marketingCanvas} data-context={logoContext}>
+          <Suspense fallback={<MarketingCanvasPreview logoContext={logoContext} logoStatus={logoStatus} />}>
+            <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} showLogo={false} />
+          </Suspense>
+          <div className={canvasStyles.heroVisual}>
+            <KumoLogo className={canvasStyles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" animationScope="app-startup" />
+          </div>
+        </div>
       </section>
       <form className={styles.loginForm} aria-label="Authentication" onSubmit={handleLogin} aria-busy={controlsDisabled}>
         <div className={styles.modeSwitch} role="tablist" aria-label="Authentication mode">

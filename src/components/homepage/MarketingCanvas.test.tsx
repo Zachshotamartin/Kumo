@@ -73,7 +73,10 @@ describe("landing page production editor integration", () => {
   it("preserves edits through auth status and size updates, but reseeds an untouched composition", () => {
     const view = render(<MarketingCanvas logoContext="idle" logoStatus="Ready" />);
     act(() => resize());
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ ...bounds, width: 1100 });
+    act(() => resize());
     draw();
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ ...bounds, width: 1200 });
     act(() => resize());
     view.rerender(<MarketingCanvas logoContext="loading" logoStatus="Signing in" />);
     expect(view.container.querySelectorAll("[data-shape-type='rectangle']")).toHaveLength(1);
