@@ -13,7 +13,7 @@ import {
   sendPasswordResetEmail,
   signOut,
 } from "firebase/auth";
-import { ensureUserProfile } from "../../services/userRepository";
+import LoadingScreen from "../LoadingScreen";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
 import MarketingCanvas from "./MarketingCanvas";
 import {
@@ -38,6 +38,7 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [redirectPending, setRedirectPending] = useState(() => hasLocalGoogleRedirectResult(window.location.href));
 
   const selectMode = (nextMode: "signin" | "register") => {
     setMode(nextMode);
@@ -72,7 +73,6 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
         if (localResult) {
           window.history.replaceState({}, "", localResult.returnUrl);
           await signInWithCredential(auth, localResult.credential);
-          await ensureUserProfile();
         }
         return;
       }
@@ -82,6 +82,8 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
       if (!active) return;
       window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
+    }).finally(() => {
+      if (active) setRedirectPending(false);
     });
     return () => { active = false; };
   }, []);
@@ -100,7 +102,6 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
           setMessage("Verify your email before opening Kumo. We sent a fresh verification link.");
           return;
         }
-        await ensureUserProfile();
       } else {
         if (password.length < 12) {
           setError("Use a password with at least twelve characters.");
@@ -175,6 +176,8 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
       setSubmitting(false);
     }
   };
+
+  if (redirectPending) return <LoadingScreen />;
 
   const logoContext: KumoLogoContext = authPending || submitting
     ? "loading"

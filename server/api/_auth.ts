@@ -21,6 +21,14 @@ export const requireActor = async (request: VercelRequest): Promise<DecodedIdTok
   const userAgent = String(request.headers["user-agent"] ?? "").slice(0, 500);
   if (!session) {
     const { error: insertError } = await database.from("account_sessions").insert({ id: sessionId, user_id: actor.uid, user_agent: userAgent });
+    if (insertError?.code === "23505") {
+      // Parallel first-load requests can both observe a missing session. Accept
+      // the winner's row only after checking that it still exists and is active.
+      const { data: registered, error: registrationError } = await database.from("account_sessions").select("revoked_at").eq("user_id", actor.uid).eq("id", sessionId).maybeSingle();
+      if (registrationError) throw registrationError;
+      if (!registered || registered.revoked_at) throw new Error("Authentication required.");
+      return actor;
+    }
     // The first /session request creates the profile after authentication. Its
     // session row can therefore encounter the profile FK once; the next
     // request registers it normally. Do not hide any other persistence error.

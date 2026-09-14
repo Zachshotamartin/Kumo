@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   sessionUpdateError: null as unknown,
   sessionInsert: vi.fn(),
   sessionUpdate: vi.fn(),
+  sessionLookup: vi.fn(),
 }));
 
 vi.mock("../../server/api/_firebaseAdmin", () => ({ adminAuth: () => ({ verifyIdToken: mocks.verify }) }));
@@ -29,6 +30,8 @@ describe("server clients and document helpers", () => {
     mocks.sessionLookupError = null;
     mocks.sessionInsertError = null;
     mocks.sessionUpdateError = null;
+    mocks.sessionInsert.mockReset();
+    mocks.sessionLookup.mockReset();
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
     process.env.SUPABASE_URL = "https://auth-test.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role";
@@ -53,7 +56,10 @@ describe("server clients and document helpers", () => {
         select: () => ({
           eq: () => ({
             eq: () => ({
-              maybeSingle: () => Promise.resolve({ data: mocks.session, error: mocks.sessionLookupError }),
+              maybeSingle: () => {
+                mocks.sessionLookup();
+                return Promise.resolve({ data: mocks.session, error: mocks.sessionLookupError });
+              },
             }),
           }),
         }),
@@ -181,6 +187,31 @@ describe("server clients and document helpers", () => {
     mocks.session = { id, last_seen_at: new Date(0).toISOString(), revoked_at: null };
     mocks.sessionUpdateError = new Error("update failed");
     await expect(requireActor(request(id))).rejects.toThrow("update failed");
+  });
+
+  it("accepts parallel session registration without overwriting the winning session", async () => {
+    const id = "session-1234567890";
+    const request = { headers: { authorization: "Bearer firebase-token", "x-kumo-session-id": id } } as unknown as VercelRequest;
+    mocks.sessionInsert.mockImplementation(() => {
+      if (mocks.session) mocks.sessionInsertError = { code: "23505" };
+      else mocks.session = { id, last_seen_at: new Date().toISOString(), revoked_at: null };
+    });
+    await expect(Promise.all([requireActor(request), requireActor(request)])).resolves.toEqual([{ uid: "actor" }, { uid: "actor" }]);
+    expect(mocks.sessionInsert).toHaveBeenCalledTimes(2);
+    expect(mocks.sessionLookup).toHaveBeenCalledTimes(3);
+    expect(mocks.sessionUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each(["revoked", "missing", "lookup failure"])("rejects a registration conflict when the winning session is %s", async (state) => {
+    const id = "session-1234567890";
+    const request = { headers: { authorization: "Bearer firebase-token", "x-kumo-session-id": id } } as unknown as VercelRequest;
+    mocks.sessionInsert.mockImplementation(() => {
+      mocks.sessionInsertError = { code: "23505" };
+      if (state === "revoked") mocks.session = { id, last_seen_at: new Date().toISOString(), revoked_at: new Date().toISOString() };
+      if (state === "lookup failure") mocks.sessionLookupError = new Error("lookup failed");
+    });
+    await expect(requireActor(request)).rejects.toThrow(state === "lookup failure" ? "lookup failed" : "Authentication required");
+    expect(mocks.sessionUpdate).not.toHaveBeenCalled();
   });
 
   it("aborts stalled database requests at the shared server deadline", async () => {

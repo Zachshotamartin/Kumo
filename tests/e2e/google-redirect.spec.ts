@@ -10,6 +10,19 @@ test("Google redirect returns to an authenticated dashboard and survives reload"
   const policyErrors: string[] = [];
   const loadedGoogleScripts: string[] = [];
   let exchanges = 0;
+  let sessionReady = false;
+  const prematureRequests: string[] = [];
+  await page.addInitScript(() => {
+    const screens: string[] = [];
+    Object.assign(window, { kumoScreenHistory: screens });
+    new MutationObserver(() => {
+      const text = document.body?.innerText ?? "";
+      const current = text.includes("Continue with Google") ? "landing"
+        : text.includes("Pick up where the idea moved.") ? "dashboard"
+        : text.includes("Opening your canvas") ? "loading" : null;
+      if (current && screens.at(-1) !== current) screens.push(current);
+    }).observe(document, { childList: true, subtree: true, attributes: true });
+  });
   page.on("console", (message) => {
     if (/Content Security Policy|Content-Security-Policy/.test(message.text())) policyErrors.push(message.text());
   });
@@ -89,6 +102,13 @@ test("Google redirect returns to an authenticated dashboard and survives reload"
     }
     if (url.pathname === "/__/auth/iframe") return route.fulfill({ headers, contentType: "text/html", body: "<!doctype html><title>Auth relay fixture</title>" });
     if (url.pathname.startsWith("/api/")) {
+      if (url.pathname === "/api/session") {
+        // Keep session setup in flight long enough to expose premature mounts.
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        sessionReady = true;
+      } else if (!sessionReady && url.pathname === "/api/boards") {
+        prematureRequests.push(url.pathname + url.search);
+      }
       return route.fulfill({ headers, json: {
         profile: { uid: user.localId, email: user.email, displayName: user.displayName, username: "redirect", avatarUrl: null },
         boards: [], folders: [], organization: [], savedViews: [], notifications: [], mutedBoardIds: [], templates: [],
@@ -110,9 +130,14 @@ test("Google redirect returns to an authenticated dashboard and survives reload"
   expect(loadedGoogleScripts).toContain("/js/api.js");
   expect(loadedGoogleScripts).toContain("/_/scs/fixture-iframes.js");
   expect(policyErrors).toEqual([]);
+  expect(prematureRequests).toEqual([]);
+  expect(await page.evaluate(() => (window as Window & { kumoScreenHistory: string[] }).kumoScreenHistory)).not.toContain("landing");
+  sessionReady = false;
   await page.reload();
   await expect(page.getByRole("heading", { name: "Pick up where the idea moved." })).toBeVisible();
   expect(exchanges).toBe(1);
   expect(policyErrors).toEqual([]);
+  expect(prematureRequests).toEqual([]);
+  expect(await page.evaluate(() => (window as Window & { kumoScreenHistory: string[] }).kumoScreenHistory)).not.toContain("landing");
   await expect(page.getByRole("button", { name: "Continue with Google" })).toHaveCount(0);
 });

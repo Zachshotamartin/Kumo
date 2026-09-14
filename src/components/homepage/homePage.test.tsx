@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import HomePage from "./homePage";
 
 const mocks = vi.hoisted(() => ({
@@ -60,14 +60,14 @@ describe("HomePage authentication", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
   };
 
-  it("signs in and provisions the application profile", async () => {
+  it("signs in and leaves profile initialization to the app auth observer", async () => {
     render(<HomePage />);
     expect(screen.getByText("Kumo", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByLabelText("Animated Kumo mascot")).toHaveLength(1);
     fillCredentials();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith({}, "user@example.com", "passwordpassword"));
-    expect(mocks.profile).toHaveBeenCalled();
+    expect(mocks.profile).not.toHaveBeenCalled();
   });
 
   it("registers a new account and maps Firebase validation errors", async () => {
@@ -244,6 +244,19 @@ describe("HomePage authentication", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Authentication with Google failed."));
   });
 
+  it("keeps a local Google return on the loading screen until the credential exchange finishes", async () => {
+    let rejectCredential!: (reason: Error) => void;
+    mocks.hasLocal.mockReturnValue(true);
+    mocks.consumeLocal.mockReturnValue({ returnUrl: "/returned", credential: { providerId: "google.com" } });
+    mocks.credential.mockReturnValueOnce(new Promise((_, reject) => { rejectCredential = reject; }));
+    render(<HomePage />);
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    await act(async () => rejectCredential(new Error("Google sign-in expired.")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Google sign-in expired.");
+    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+  });
+
   it("consumes local Google results, including empty returns", async () => {
     mocks.hasLocal.mockReturnValue(true);
     mocks.consumeLocal.mockReturnValueOnce(null);
@@ -256,7 +269,7 @@ describe("HomePage authentication", () => {
     render(<HomePage />);
     await waitFor(() => expect(mocks.credential).toHaveBeenCalledWith({}, { providerId: "google.com" }));
     expect(window.location.pathname).toBe("/returned");
-    expect(mocks.profile).toHaveBeenCalled();
+    expect(mocks.profile).not.toHaveBeenCalled();
   });
 
   it("prepares local Google redirects and ignores redirect errors after unmount", async () => {

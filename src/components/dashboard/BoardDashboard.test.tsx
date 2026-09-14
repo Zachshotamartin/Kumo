@@ -164,6 +164,43 @@ describe("BoardDashboard", () => {
     mocks.muteNotifications.mockResolvedValue({ muted: true });
   });
 
+  it("loads active boards even when Trash fails", async () => {
+    mocks.listDeleted.mockRejectedValueOnce(new Error("Trash unavailable"));
+    renderDashboard();
+    expect(await screen.findByText("My map")).toBeVisible();
+    expect(screen.getByText("Shared map")).toBeVisible();
+    expect(screen.queryByText("We couldn't load your boards.")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("We couldn't load Trash. Refresh to retry.");
+  });
+
+  it("shows active boards while Trash is still loading", async () => {
+    mocks.listDeleted.mockReturnValueOnce(new Promise(() => undefined));
+    renderDashboard();
+    expect(await screen.findByText("My map")).toBeVisible();
+    expect(screen.queryByLabelText("Loading boards")).not.toBeInTheDocument();
+  });
+
+  it("ignores a Trash failure after leaving the dashboard", async () => {
+    let rejectTrash!: (reason: Error) => void;
+    mocks.listDeleted.mockReturnValueOnce(new Promise((_, reject) => { rejectTrash = reject; }));
+    renderDashboard();
+    cleanup();
+    await act(async () => rejectTrash(new Error("Trash unavailable")));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the dashboard hidden while a direct board link opens", async () => {
+    window.history.replaceState({}, "", "/?board=shared-link");
+    let resolveBoard!: (value: ReturnType<typeof board>) => void;
+    mocks.get.mockReturnValueOnce(new Promise((resolve) => { resolveBoard = resolve; }));
+    const store = renderDashboard();
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("shared-link"));
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    expect(screen.queryByText("My map")).not.toBeInTheDocument();
+    await act(async () => resolveBoard(board("shared-link")));
+    expect(store.getState().whiteBoard.id).toBe("shared-link");
+  });
+
   it("opens an access-controlled direct board link after authentication", async () => {
     window.history.replaceState({}, "", "/?board=shared-link");
     const store = renderDashboard();
