@@ -484,6 +484,13 @@
   scrollbar-width: thin;
 }
 
+.inspectorBody {
+  /* Let the final controls scroll above the free-plan Liveblocks badge. */
+  --inspector-bottom-clearance: calc(80px + env(safe-area-inset-bottom, 0px));
+  padding-block-end: var(--inspector-bottom-clearance);
+  scroll-padding-block-end: var(--inspector-bottom-clearance);
+}
+
 .layerRow {
   display: grid;
   min-height: 36px;
