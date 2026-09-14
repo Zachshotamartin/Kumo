@@ -949,4 +949,13 @@ describe("BoardDashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restore Deleted map" }));
     await waitFor(() => expect(mocks.restoreBoard).toHaveBeenCalledWith("deleted"));
   });
+
+it('keeps an existing workspace conversation dock without offering an AI launcher on the dashboard', async () => {
+  const { setBuilderVisible, resetBuilderUI } = await import('../../builder/uiState');
+  renderDashboard(); await screen.findByText('My map');
+  act(() => setBuilderVisible(true));
+  expect(screen.queryByRole('button', { name: 'Kumo AI' })).not.toBeInTheDocument();
+  act(resetBuilderUI);
+});
+
 });

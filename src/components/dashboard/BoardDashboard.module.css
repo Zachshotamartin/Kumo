@@ -599,3 +599,10 @@
   .boardGrid,
   .skeletonGrid { grid-template-columns: 1fr; }
 }
+
+.withAI { display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
+.aiDock { position: sticky; top: 66px; height: calc(100dvh - 66px); border-left: 1px solid var(--kumo-line); }
+@media (max-width: 900px) {
+  .withAI { grid-template-columns: minmax(0, 1fr); }
+  .aiDock { position: relative; top: auto; grid-row: 1; height: min(640px, 75dvh); border-bottom: 1px solid var(--kumo-line); }
+}

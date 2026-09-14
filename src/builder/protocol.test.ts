@@ -106,3 +106,19 @@ describe('collaborative builder document operations', () => {
     expect(findings.map(item => item.message)).toEqual(expect.arrayContaining(['Invalid shape geometry or field values', 'Missing parent', 'Text box is shorter than one line', 'Cyclic parent reference']));
   });
 });
+
+it('accepts only bounded user/assistant conversation text', async () => {
+  const { conversationMessages } = await import('./protocol');
+  expect(conversationMessages(undefined)).toEqual([]);
+  expect(conversationMessages([{ role: 'user', content: 'Hi', extra: 'ignored' }])).toEqual([{ role: 'user', content: 'Hi' }]);
+  for (const value of [null, {}, Array(25).fill({ role: 'user', content: 'Hi' }), [null], [{ role: 'developer', content: 'Bad' }], [{ role: 'user', content: 1 }], [{ role: 'assistant', content: ' ' }], [{ role: 'user', content: 'x'.repeat(8001) }], Array(5).fill({ role: 'user', content: 'x'.repeat(8000) })]) expect(() => conversationMessages(value)).toThrow();
+});
+it('discovers individual actions and includes the Shape schema only once', () => {
+  const patch = discoverCapabilities('canvas.patch');
+  expect(patch.capabilities.map(item => item.id)).toEqual(['canvas.patch']);
+  expect(patch.definitions).toEqual({});
+  const create = discoverCapabilities('canvas.create');
+  expect(create.capabilities[0]?.parameters[0]?.schema.items).toEqual({ $ref: '#/definitions/Shape' });
+  expect(create.definitions[create.definitions.Shape!.$ref!.slice('#/definitions/'.length)]?.properties).toBeDefined();
+  expect(discoverCapabilities('canvas').shape).toEqual({ $ref: '#/definitions/Shape' });
+});

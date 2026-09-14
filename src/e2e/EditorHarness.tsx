@@ -1,3 +1,5 @@
+import { BuilderButton, BuilderDock } from '../builder/BuilderControls';
+import { useBuilderUI } from '../builder/uiState';
 import { useEffect, type CSSProperties } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { normalizeShape } from "../editor/geometry";
@@ -61,6 +63,8 @@ const seedShapes = [
 ];
 
 const EditorHarness = () => {
+  const ai = useBuilderUI();
+  const builderFixture = window.location.pathname === "/builder-e2e.html";
   const dispatch = useDispatch<AppDispatch>();
   const actions = useLocalEditorActions();
   const boardId = useSelector((state: RootState) => state.whiteBoard.id);
@@ -95,14 +99,14 @@ const EditorHarness = () => {
           <button type="button" onClick={() => dispatch(setRightPanel("assets"))}>Assets</button>
           <button type="button" onClick={() => dispatch(setRightPanel("properties"))}>Properties</button>
         </div>}
-        <span className={styles.saveStatus}>Local test document</span>
+        {builderFixture && <BuilderButton />}<span className={styles.saveStatus}>Local test document</span>
       </header>
       <div
-        className={styles.editorGrid}
+        className={`${styles.editorGrid} ${ai.visible ? styles.aiOpen : ""}`}
         style={{
           "--layers-panel-width": "220px",
           "--layers-resizer-width": "0px",
-          "--properties-panel-width": "280px",
+          "--properties-panel-width": ai.visible ? "320px" : "280px",
           "--properties-resizer-width": "0px",
         } as CSSProperties}
       >
@@ -114,7 +118,7 @@ const EditorHarness = () => {
           {new URLSearchParams(window.location.search).has("minimap") && <EditorMinimap />}
         </section>
         <span />
-        <div className={styles.panelSlot}>{rightPanel === "assets" ? <DesignLibraryPanelView actions={actions} /> : <InspectorPanelView actions={actions} />}</div>
+        <div className={styles.panelSlot}>{ai.visible ? <BuilderDock /> : rightPanel === "assets" ? <DesignLibraryPanelView actions={actions} /> : <InspectorPanelView actions={actions} />}</div>
       </div>
     </main>
   );

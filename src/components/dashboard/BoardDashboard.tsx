@@ -70,6 +70,8 @@ import {
   type WorkspaceFolder,
 } from "../../services/productRepository";
 import { dashboardRouteFromUrl } from "./dashboardRouting";
+import { BuilderDock } from "../../builder/BuilderControls";
+import { useBuilderUI } from "../../builder/uiState";
 import { orderWorkspaceFolders } from "./dashboardFolders";
 
 type DashboardView = "boards" | "friends" | "profile" | "inbox" | "templates" | "workspace" | "community" | "settings";
@@ -117,6 +119,7 @@ const folderDepth = (folder: WorkspaceFolder, folders: WorkspaceFolder[]) => {
 const routeFromLocation = () => dashboardRouteFromUrl(window.location.href);
 
 const BoardDashboard = () => {
+  const ai = useBuilderUI();
   const dispatch = useDispatch<AppDispatch>();
   const user = useSelector((state: RootState) => state.auth);
   const [boards, setBoards] = useState<BoardSummary[]>([]);
@@ -531,6 +534,7 @@ const BoardDashboard = () => {
         </div>
       </header>
 
+      <div className={ai.visible ? styles.withAI : undefined}>
       <div className={styles.content}>
         {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert"><span>{error}</span>{requestedBoardId && <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => void requestBoardAccess(requestedBoardId, "viewer", "Please share this board with me.").then(() => { setError("Access request sent to the board owner."); setRequestedBoardId(null); }).catch((caught) => setError(caughtMessage(caught, "Access request failed.")))}>Request access</button>}</div>}
         {view === "friends" ? (
@@ -665,6 +669,8 @@ const BoardDashboard = () => {
           </div>
           </>
         )}
+      </div>
+      {ai.visible && <div className={styles.aiDock}><BuilderDock /></div>}
       </div>
     </main>
   );

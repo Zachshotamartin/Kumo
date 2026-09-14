@@ -16,6 +16,20 @@ export interface BuilderRun {
 export const terminalRun = (state: RunState) => ['completed', 'stopped', 'failed', 'budget_exhausted', 'interrupted'].includes(state);
 export const validEffort = (value: unknown): value is Effort => EFFORTS.includes(value as Effort);
 
+export interface ConversationMessage { role: 'user' | 'assistant'; content: string }
+/** Conversation is untrusted text, never provider tools or privileged messages. */
+export function conversationMessages(value: unknown): ConversationMessage[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 24) throw new Error('The conversation is too long. Start a new chat.');
+  let length = 0;
+  return value.map(item => {
+    if (!item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string' || !item.content.trim() || item.content.length > 8000) throw new Error('Invalid conversation message.');
+    length += item.content.length;
+    if (length > 32000) throw new Error('The conversation is too long. Start a new chat.');
+    return { role: item.role, content: item.content };
+  });
+}
+
 /** Bound untrusted model/input JSON before schema validation or persistence. */
 export function boundedJson(value: unknown, maxBytes = 120_000): void {
   const source = JSON.stringify(value);

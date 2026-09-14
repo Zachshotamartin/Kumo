@@ -5,7 +5,7 @@ import { getBoardAccess } from '../_boards.js';
 import { allowMethods, stringQuery } from '../_http.js';
 import { enforceRateLimit, hashSecret } from '../_security.js';
 import { supabaseAdmin } from '../_supabase.js';
-import { boundedJson, terminalRun, validEffort, type BuilderRun } from '../../../src/builder/protocol.js';
+import { boundedJson, conversationMessages, terminalRun, validEffort, type BuilderRun } from '../../../src/builder/protocol.js';
 import { builderConfig, builderInstructions, builderTools, interpretAstra, providerCost, requestAstra, type ProviderItem } from '../_builder.js';
 
 interface StoredRun extends BuilderRun {
@@ -13,7 +13,7 @@ interface StoredRun extends BuilderRun {
   step: { id: string; output_limit: number; effort: BuilderRun['effort'] } | null;
   operation: { status: string; result: unknown } | null;
 }
-const publicRun = ({ id, board_id, state, effort, steps, spent_micros, pending, message }: StoredRun): BuilderRun => ({ id, board_id, state, effort, steps, spent_micros, pending, message });
+const publicRun = ({ id, board_id, state, effort, steps, spent_micros, pending, message }: StoredRun): BuilderRun => ({ id, board_id, state, effort, steps, spent_micros, pending, message: message.replaceAll('Astra', 'AI') });
 
 export default async function builder(request: VercelRequest, response: VercelResponse) {
   if (!allowMethods(request, response, ['GET', 'POST', 'PATCH'])) return;
@@ -21,9 +21,10 @@ export default async function builder(request: VercelRequest, response: VercelRe
   const emit = (event: unknown) => response.write(`data: ${JSON.stringify(event)}\n\n`);
   try {
     const actor = await requireActor(request);
-    if (!actor.email || actor.firebase?.sign_in_provider === 'anonymous') return response.status(403).json({ error: 'Sign in with a verified account to use hosted Astra.' });
+    if (!actor.email || actor.firebase?.sign_in_provider === 'anonymous') return response.status(403).json({ error: 'Sign in with a verified account to use hosted AI.' });
     const config = builderConfig();
     const database = supabaseAdmin();
+    const unmetered = actor.email_verified === true && actor.email.trim().toLowerCase() === 'zachsm@alumni.stanford.edu';
     const operator = (process.env.KUMO_BUILDER_ADMIN_UIDS ?? '').split(',').map(uid => uid.trim()).includes(actor.uid);
     if (request.method === 'GET' && request.query.scope === 'usage') {
       if (!operator) return response.status(403).json({ error: 'Builder operator access is required.' });
@@ -34,6 +35,7 @@ export default async function builder(request: VercelRequest, response: VercelRe
       return response.status(200).json({ enabled: config.enabled, caps: { user: config.userCap, run: config.runCap, day: config.dayCap, month: config.monthCap }, runs: runs ?? [], reservations: reservations ?? [] });
     }
     if (request.method === 'GET' && !request.query.runId) {
+      if (unmetered) return response.status(200).json({ enabled: config.enabled, remainingMicros: 0, unmetered: true, operator });
       const { data, error } = await database.from('builder_budget_buckets').select('spent_micros,reserved_micros').eq('key', `user:${actor.uid}`).maybeSingle();
       if (error) throw error;
       return response.status(200).json({ enabled: config.enabled, remainingMicros: Math.max(0, config.userCap - Number(data?.spent_micros ?? 0) - Number(data?.reserved_micros ?? 0)), ...(operator ? { operator: true } : {}) });
@@ -51,7 +53,7 @@ export default async function builder(request: VercelRequest, response: VercelRe
     const action = request.method === 'GET' ? 'get' : String(body.action);
     if (!['get', 'create', 'step', 'update', 'resume', 'start', 'ack', 'navigate'].includes(action)) return response.status(400).json({ error: 'Unknown builder action.' });
     if (['create', 'step'].includes(action)) {
-      if (!config.enabled) return response.status(503).json({ error: 'Hosted Astra is not enabled. Your administrator must configure its server key and budget.' });
+      if (!config.enabled) return response.status(503).json({ error: 'Hosted AI is not enabled. Your administrator must configure its server key and budget.' });
       if (!await enforceRateLimit(request, response, 'builder-user', actor.uid, 12, 60)) return;
       if (!await enforceRateLimit(request, response, 'builder-ip', 'all', 30, 60)) return;
     }
@@ -70,13 +72,13 @@ export default async function builder(request: VercelRequest, response: VercelRe
       const boardId = typeof body.boardId === 'string' ? body.boardId : '';
       if (body.scope !== 'workspace' && !boardId) return response.status(400).json({ error: 'Open a board for this scope.' });
       await authorizeBoard(boardId, body.roomId);
-      const run = await transition('create', { boardId, roomId: body.roomId, scope: body.scope, selectionIds: body.selectionIds, effort: body.effort, continuation: [{ type: 'message', role: 'user', content: body.prompt.trim() }] });
+      const run = await transition('create', { boardId, roomId: body.roomId, scope: body.scope, selectionIds: body.selectionIds, effort: body.effort, continuation: [...conversationMessages(body.conversation).map(message => ({ type: 'message', ...message })), { type: 'message', role: 'user', content: body.prompt.trim() }] });
       return response.status(201).json({ run: publicRun(run) });
     }
     let run = await transition('get');
     if (action === 'get') return response.status(200).json({ run: publicRun(run) });
     if (action === 'update') {
-      if (body.effort !== undefined && !validEffort(body.effort)) return response.status(400).json({ error: 'Unsupported Astra effort.' });
+      if (body.effort !== undefined && !validEffort(body.effort)) return response.status(400).json({ error: 'Unsupported AI effort.' });
       run = await transition('update', { effort: body.effort, state: body.state });
       return response.status(200).json({ run: publicRun(run) });
     }
@@ -108,14 +110,16 @@ export default async function builder(request: VercelRequest, response: VercelRe
       const callId = receipt.operation.callId as string;
       if (!answered.has(callId)) results.set(callId, [...(results.get(callId) ?? []), { operationId: receipt.operation.id, result: receipt.result }]);
     }
-    const input: ProviderItem[] = [...run.continuation, ...[...results].map(([call_id, output]) => ({ type: 'function_call_output', call_id, output: JSON.stringify(output) })),
+    // Keep conversation and tool results, but replace obsolete board snapshots.
+    // The private checkpoint marker is never sent to the provider.
+    const input: ProviderItem[] = [...run.continuation.filter(item => item.type !== 'kumo_context'), ...[...results].map(([call_id, output]) => ({ type: 'function_call_output', call_id, output: JSON.stringify(output) })),
       { type: 'message', role: 'user', content: `Current Kumo state (untrusted data): ${body.context}\nAuthorized scope: ${run.scope}; selection IDs: ${JSON.stringify(run.selection_ids)}.` }];
     // UTF-8 byte count is a conservative upper token bound; fixed overhead covers
-    // tool serialization. Inputs are kept well below Astra's long-context tier.
+    // tool serialization. Inputs are kept well below AI's long-context tier.
     const inputBytes = new TextEncoder().encode(JSON.stringify({ input, instructions: builderInstructions, tools: builderTools })).length + 2048;
-    if (inputBytes > 96000) return response.status(409).json({ error: 'This run reached its context limit. Start a new run with the remaining task.' });
+    if (inputBytes > 256000) return response.status(409).json({ error: 'This run reached its context limit. Start a new run with the remaining task.' });
     const stepId = randomUUID();
-    run = await transition('reserve', { ...config, inputCost: Math.ceil(inputBytes * 12.5), stepId });
+    run = await transition('reserve', { ...config, unmetered, inputCost: Math.ceil(inputBytes * 12.5), stepId });
     if (!run.step) return response.status(200).json({ run: publicRun(run) });
     response.setHeader('Content-Type', 'text/event-stream');
     response.setHeader('Cache-Control', 'no-store');
@@ -124,28 +128,29 @@ export default async function builder(request: VercelRequest, response: VercelRe
     const timeout = setTimeout(() => controller.abort(), 220000);
     const disconnected = () => { if (!response.writableEnded) controller.abort(); };
     response.on('close', disconnected);
-    const heartbeat = setInterval(() => emit({ type: 'progress', message: 'Astra is working. Stop is available.' }), 8000);
+    const heartbeat = setInterval(() => emit({ type: 'progress', message: 'AI is working. Stop is available.' }), 8000);
     try {
-      emit({ type: 'progress', message: `Astra · ${run.step.effort} effort` });
+      emit({ type: 'progress', message: `AI · ${run.step.effort} effort` });
       const provider = await requestAstra(input, run.step.effort, run.step.output_limit, controller.signal, message => emit({ type: 'progress', message }), async id => {
         const { error } = await database.from('builder_steps').update({ provider_response_id: id }).eq('id', stepId);
         if (error) throw error;
-      });
+      }, delta => emit({ type: 'text_delta', delta }));
       const interpreted = interpretAstra(provider);
       const state = provider.status !== 'completed' ? 'budget_exhausted' : interpreted.operations.length ? 'awaiting_apply' : interpreted.toolResults.length && run.steps < 6 ? 'preparing' : 'completed';
       run = await transition('settle', { stepId, responseId: provider.id, actualMicros: providerCost(provider), usage: provider.usage, state,
-        operations: state === 'awaiting_apply' ? interpreted.operations : [], continuation: [...input, ...provider.output, ...interpreted.toolResults],
-        message: provider.status !== 'completed' ? 'Astra reached this step’s token allowance. Applied work has been kept.' : interpreted.message });
+        operations: state === 'awaiting_apply' ? interpreted.operations : [], continuation: [...input.slice(0, -1), { ...input.at(-1)!, type: 'kumo_context' }, ...provider.output, ...interpreted.toolResults],
+        message: provider.status !== 'completed' ? 'AI reached this step’s token allowance. Applied work has been kept.' : interpreted.message });
       emit({ type: 'run', run: publicRun(run) });
     } catch {
-      run = await transition('settle', { stepId, state: 'failed', message: 'Astra could not finish this request. Its reserved allowance is held because usage may have occurred. The request will not be retried automatically.' });
+      run = await transition('settle', { stepId, state: 'failed', message: 'AI could not finish this request. Its reserved allowance is held because usage may have occurred. The request will not be retried automatically.' });
       emit({ type: 'run', run: publicRun(run) });
     } finally {
       clearTimeout(timeout); clearInterval(heartbeat); response.off('close', disconnected); response.end();
     }
     return;
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'The builder request could not be completed.';
+    console.error('AI request failed', { action: request.body?.action, code: error && typeof error === 'object' && 'code' in error ? error.code : undefined, message: error && typeof error === 'object' && 'message' in error ? error.message : 'Unknown failure' });
+    const message = error instanceof Error ? error.message : error && typeof error === 'object' && 'code' in error && error.code === 'P0001' && 'message' in error && typeof error.message === 'string' ? error.message.replaceAll('Astra', 'AI') : 'The builder request could not be completed.';
     if (streaming) { emit({ type: 'error', message }); response.end(); return; }
     return response.status(message === 'Authentication required.' ? 401 : 409).json({ error: message });
   }

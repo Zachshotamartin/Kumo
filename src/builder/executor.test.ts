@@ -128,3 +128,10 @@ it('navigates through authorized board loading and waits for the new room', asyn
   store.dispatch(setWhiteboardData({ id: 'board' })); expect(builderContext()).toContain('board');
   vi.useRealTimers();
 });
+
+it('gives the model the actual canvas size so fitting accounts for sidebars', () => {
+  const canvas = document.createElement('div'); canvas.dataset.testid = 'editor-canvas'; document.body.append(canvas);
+  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ width: 620, height: 900 } as DOMRect);
+  expect(JSON.parse(builderContext()).canvasSize).toEqual({ width: 620, height: 900 });
+  canvas.remove();
+});

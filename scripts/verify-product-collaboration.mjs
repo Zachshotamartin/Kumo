@@ -614,6 +614,16 @@ try {
   const persisted = await liveblocks.getStorageDocument(source.roomId, "json");
   assert(persisted.nodes?.[seedShape.id]?.x1 > seedShape.x1 + 20, "Offline shape edit did not persist after Liveblocks reconnected.");
 
+  // Verify the real responsive toolbar before opening the conversation.
+  await ownerPage.setViewportSize({ width: 1000, height: 900 });
+  const workspaceTools = ownerPage.getByRole("button", { name: "Workspace tools", exact: true });
+  await expect(workspaceTools).toBeVisible();
+  await workspaceTools.click();
+  await ownerPage.getByRole("button", { name: "Comments", exact: true }).click();
+  await expect(ownerPage.getByRole("complementary", { name: "Comments", exact: true })).toBeVisible();
+  await expect(workspaceTools).toHaveAttribute("aria-expanded", "false");
+  await ownerPage.setViewportSize({ width: 1440, height: 1000 });
+
   // Exercise the production builder executor with real two-client Liveblocks
   // storage/presence. Only inference/control replies are deterministic; no paid
   // provider request or hosted flag is needed for this deployment gate.
@@ -633,14 +643,14 @@ try {
     if (body.action === "ack") { await builderAck; return route.fulfill({ json: { run: builderRun("completed") } }); }
     return route.fulfill({ json: { run: builderRun("stopped") } });
   });
-  await ownerPage.getByRole("button", { name: "Build with Astra" }).click();
-  const builderPanel = ownerPage.getByRole("complementary", { name: "Astra builder" });
+  await ownerPage.getByRole("button", { name: "Kumo AI" }).click();
+  const builderPanel = ownerPage.getByRole("complementary", { name: "AI chat" });
   await builderPanel.getByLabel("Scope").selectOption("board");
-  await builderPanel.getByLabel("What should Astra do?").fill("Create the canary card.");
-  await builderPanel.getByRole("button", { name: "Run", exact: true }).click();
+  await builderPanel.getByLabel("Message AI").fill("Create the canary card.");
+  await builderPanel.getByRole("button", { name: "Send message", exact: true }).click();
   try {
     await expect(collaboratorPage.locator('[data-shape-id="astra-canary-shape"]')).toBeVisible({ timeout: 20000 });
-    await expect(collaboratorPage.getByText("Astra · Create canary card", { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(collaboratorPage.getByText("AI · Create canary card", { exact: true })).toBeVisible({ timeout: 10000 });
     await expect.poll(async () => (await liveblocks.getStorageDocument(source.roomId, "json")).builderReceipts?.[builderOperationId], { timeout: 20000 }).toBeTruthy();
   } finally { releaseBuilderAck(); }
   await expect(builderPanel.getByRole("status")).toContainText("Completed");

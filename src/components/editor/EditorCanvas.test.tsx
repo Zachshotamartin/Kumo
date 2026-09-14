@@ -181,7 +181,7 @@ describe("EditorCanvas transform interactions", () => {
 
   it('renders collaborator-owned Astra presence separately from human cursors', () => {
     renderCanvas([], { board: { currentUsers: [{ uid: 'remote', cursorX: null, cursorY: null, builder: { runId: 'run', x: 10, y: 20, shapeIds: [], label: 'Build card', expiresAt: Date.now() + 10000 } }] } });
-    expect(screen.getByText('Astra · Build card')).toBeInTheDocument();
+    expect(screen.getByText('AI · Build card')).toBeInTheDocument();
   });
   it("commits a two-axis flip when a corner crosses its opposite anchor", () => {
     const { canvas } = renderCanvas(rectangle());

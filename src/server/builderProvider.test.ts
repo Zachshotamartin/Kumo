@@ -38,7 +38,7 @@ describe('Astra provider boundary', () => {
     expect(builderInstructions).toContain('untrusted');
   });
   it('streams a single request, preserving complete output and encrypted continuations', async () => {
-    const data = [': keepalive\n', 'data: {"type":"response.created"}\n\n', 'data: {"type":"response.output_item.added"}\n', `data: ${JSON.stringify({ type: 'response.completed', response: complete() })}\r\n`, 'data: [DONE]\n'].join('');
+    const data = [': keepalive\n', 'data: {"type":"response.output_text.delta","delta":"Hello"}\n', 'data: {"type":"response.created"}\n\n', 'data: {"type":"response.output_item.added"}\n', `data: ${JSON.stringify({ type: 'response.completed', response: complete() })}\r\n`, 'data: [DONE]\n'].join('');
     const fetchMock = vi.fn().mockResolvedValue(new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(data.slice(0, 31))); controller.enqueue(new TextEncoder().encode(data.slice(31))); controller.close(); } })));
     vi.stubGlobal('fetch', fetchMock);
     const progress = vi.fn();
@@ -67,4 +67,16 @@ describe('Astra provider boundary', () => {
     const parse = vi.spyOn(JSON, 'parse').mockImplementationOnce(() => { throw 'parse failed'; });
     expect(interpretAstra(complete({ output: [{ type: 'function_call', arguments: '{}' }] })).toolResults[0]?.output).toContain('Invalid tool call'); parse.mockRestore();
   });
+});
+
+it('forwards only visible text as it arrives before provider completion', async () => {
+  let source!: ReadableStreamDefaultController<Uint8Array>;
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>({ start(controller) { source = controller; } }))));
+  const delta = vi.fn();
+  const result = requestAstra([], 'medium', 1000, new AbortController().signal, vi.fn(), undefined, delta);
+  source.enqueue(new TextEncoder().encode('data: {"type":"response.reasoning_text.delta","delta":"private"}\ndata: {"type":"response.output_text.delta","delta":"I can help."}\ndata: {"type":"response.output_text.delta"}\n'));
+  await vi.waitFor(() => expect(delta).toHaveBeenCalledExactlyOnceWith('I can help.'));
+  source.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'response.completed', response: complete() })}\n`)); source.close();
+  expect(await result).toEqual(complete());
+  vi.unstubAllGlobals();
 });
