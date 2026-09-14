@@ -9,7 +9,7 @@ import { initializeEditor, setClipboard, setViewport, setShowRulers } from "../.
 import { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { createAppStore, type AppDispatch, type RootState } from "../../store";
-import { EditorCanvasView } from "../editor/EditorCanvas";
+import { EditorCanvasView } from "../editor/EditorCanvasView";
 import KumoLogo from "../brand/KumoLogo";
 import type { KumoLogoContext } from "../brand/KumoLogoConfig";
 import { layoutMarketingShapes, MARKETING_STATUS_SHAPE_ID } from "./marketingCanvasModel";

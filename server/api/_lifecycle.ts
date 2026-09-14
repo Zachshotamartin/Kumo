@@ -130,6 +130,8 @@ export const deleteAccountResources = async (claim: AccountDeletionClaim, databa
 
 export const runLifecycleMaintenance = async (now = new Date()): Promise<LifecycleSummary> => {
   const database = supabaseAdmin();
+  const { error: builderPruneError } = await database.rpc('prune_builder_content');
+  if (builderPruneError) throw builderPruneError;
   const summary: LifecycleSummary = { accountsClaimed: 0, accountsDeleted: 0, accountFailures: 0, boardsPurged: 0, boardFailures: 0, storageCleanups: 0, storageCleanupFailures: 0, digestUsers: 0, digestDeliveries: 0 };
   const { data: claims, error: claimError } = await database.rpc("claim_due_kumo_account_deletions", { p_limit: 20 });
   if (claimError) throw claimError;

@@ -1,4 +1,4 @@
-export const REQUIRED_SUPABASE_SCHEMA_RELEASE = "202608260001";
+export const REQUIRED_SUPABASE_SCHEMA_RELEASE = "202609140001";
 
 type SchemaReleaseProbeOptions = {
   fetchImpl?: typeof fetch;

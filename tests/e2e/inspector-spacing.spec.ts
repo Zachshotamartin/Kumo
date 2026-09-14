@@ -66,3 +66,33 @@ test("text, effects, gradients and geometry controls have independent rows", asy
   await panel.getByLabel("Add effect").selectOption("inner-shadow");
   await expectSeparatedFields(panel);
 });
+
+test("final inspector actions scroll clear of the Liveblocks attribution", async ({ page }) => {
+  await page.goto("/e2e.html");
+  await page.getByRole("button", { name: "Ochre card", exact: true }).click();
+  const panel = page.getByRole("complementary", { name: "Properties" });
+  // The backend-free harness has no Liveblocks connection. Reproduce the
+  // installed SDK's 111 x 38px badge at its 12px bottom/right offsets.
+  await page.evaluate(() => {
+    const badge = document.createElement("div");
+    badge.setAttribute("aria-label", "Liveblocks attribution fixture");
+    badge.style.cssText = "position:fixed;right:12px;bottom:12px;width:111px;height:38px;background:white;z-index:9999";
+    document.body.append(badge);
+  });
+  const badge = page.getByLabel("Liveblocks attribution fixture");
+  for (const height of [600, 768]) {
+    await page.setViewportSize({ width: 1366, height });
+    for (const width of [220, 280, 480]) {
+      await page.locator('[class*="editorGrid"]').evaluate((grid, value) => {
+        (grid as HTMLElement).style.setProperty("--properties-panel-width", `${value}px`);
+      }, width);
+      await panel.locator('[class*="inspectorBody"]').evaluate((body) => { body.scrollTop = body.scrollHeight; });
+      const finalAction = panel.getByRole("button", { name: "Delete", exact: true });
+      const action = (await finalAction.boundingBox())!;
+      const attribution = (await badge.boundingBox())!;
+      expect(action.y + action.height).toBeLessThanOrEqual(attribution.y - 12);
+      await finalAction.click({ trial: true });
+      await expect(badge).toBeVisible();
+    }
+  }
+});

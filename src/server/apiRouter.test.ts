@@ -76,6 +76,7 @@ describe("consolidated Vercel API router", () => {
       "board-preview",
       "boards",
       "branches",
+      "builder",
       "collaborators",
       "coverage",
       "friends",

@@ -296,6 +296,15 @@ while (pendingServerFiles.length) {
   const imports = ts.preProcessFile(source, true, true).importedFiles.map(({ fileName }) => fileName);
   for (const specifier of imports.filter((value) => value.startsWith("."))) {
     const displayFile = relative(projectRoot, file);
+    if (specifier.endsWith(".json")) {
+      const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+      const declaration = parsed.statements.find(statement => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === specifier);
+      const jsonAttribute = declaration?.attributes?.elements.some(attribute => attribute.name.text === "type" && attribute.value.text === "json");
+      const target = resolve(dirname(file), specifier);
+      if (!jsonAttribute || !existsSync(target)) throw new Error(`Vercel JSON import in ${displayFile} requires an existing file and with { type: 'json' }: ${specifier}`);
+      JSON.parse(readFileSync(target, "utf8"));
+      continue;
+    }
     if (!specifier.endsWith(".js")) {
       throw new Error(
         `Vercel ESM import in ${displayFile} must include its emitted .js extension: ${specifier}`,

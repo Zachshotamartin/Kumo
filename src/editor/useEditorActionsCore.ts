@@ -47,11 +47,8 @@ import {
 import { replaceShapes, setWhiteboardData, WhiteBoardState } from "../features/whiteBoard/whiteBoardSlice";
 import { setSelectedShapes } from "../features/selected/selectedSlice";
 import type { updateBoardSettings } from "../services/boardRepository";
-import {
-  type cloneBoardAssets,
-  collectShapeAssetIds,
-  rewriteShapeAssetIds,
-} from "../services/assetRepository";
+import type { cloneBoardAssets } from "../services/assetRepository";
+import { collectShapeAssetIds, rewriteShapeAssetIds } from './shapeAssets';
 import { AppDispatch, RootState } from "../store";
 import { queueBoardMutation } from "../collaboration/offlineRecovery";
 import { resolveVariableModes } from "../platform/productCapabilities";
@@ -81,15 +78,19 @@ export interface EditorRuntime {
   history: { undo: () => void; redo: () => void };
   canUndo: boolean;
   canRedo: boolean;
+  /** Pins automated commands to their issued targets while the human keeps selecting. */
+  selectionOverride?: string[];
 }
 
 export const useEditorActionsCore = ({
-  mutateShapes, mutateBackground, updateBoardSettings, cloneBoardAssets, history, canUndo, canRedo,
+  mutateShapes, mutateBackground, updateBoardSettings, cloneBoardAssets, history, canUndo, canRedo, selectionOverride,
 }: EditorRuntime) => {
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
-  const selectedIds = useSelector((state: RootState) => state.selected.selectedShapes);
-  const selectionRotation = useSelector((state: RootState) => state.selected.selectionRotation);
+  const userSelection = useSelector((state: RootState) => state.selected.selectedShapes);
+  const selectedIds = selectionOverride ?? userSelection;
+  const userSelectionRotation = useSelector((state: RootState) => state.selected.selectionRotation);
+  const selectionRotation = selectionOverride ? 0 : userSelectionRotation;
   const editor = useSelector((state: RootState) => state.editor);
   const canEdit = board.role === "owner" || board.role === "editor";
 

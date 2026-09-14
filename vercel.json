@@ -4,6 +4,7 @@
   "installCommand": "yarn install --frozen-lockfile",
   "buildCommand": "yarn build",
   "outputDirectory": "dist",
+  "functions": { "api/router.ts": { "maxDuration": 300 } },
   "git": {
     "deploymentEnabled": false
   },

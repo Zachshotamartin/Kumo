@@ -118,4 +118,6 @@ begin
 end $$;
 SQL
 
+psql "$database_url" --set ON_ERROR_STOP=1 --file supabase/tests/builder.sql
+
 echo "Database migrations passed clean-apply, idempotency, RLS, complete privilege isolation, service-role execution, storage, and transactional behavior checks."

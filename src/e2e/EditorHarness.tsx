@@ -4,14 +4,16 @@ import { normalizeShape } from "../editor/geometry";
 import { setSelectedShapes } from "../features/selected/selectedSlice";
 import { setWhiteboardData } from "../features/whiteBoard/whiteBoardSlice";
 import type { AppDispatch, RootState } from "../store";
-import { EditorCanvasView } from "../components/editor/EditorCanvas";
+import { EditorCanvasView } from "../components/editor/EditorCanvasView";
 import { EditorToolbarView } from "../components/editor/EditorToolbar";
+import EditorMinimap from "../components/editor/EditorMinimap";
 import { InspectorPanelView } from "../components/editor/InspectorPanel";
 import { DesignLibraryPanelView } from "../components/editor/DesignLibraryPanel";
 import { setRightPanel } from "../features/editor/editorSlice";
 import { LayersPanelView } from "../components/editor/LayersPanel";
 import styles from "../components/editor/EditorWorkspace.module.css";
 import { useLocalEditorActions } from "./useLocalEditorActions";
+import { uploadBoardAsset, deleteBoardAsset } from "../services/assetRepository";
 
 const seedShapes = [
   normalizeShape({
@@ -107,8 +109,9 @@ const EditorHarness = () => {
         <div className={styles.panelSlot}><LayersPanelView actions={actions} /></div>
         <span />
         <section className={styles.canvasRegion} aria-label="Design editor">
-          <EditorCanvasView actions={actions} updateMyPresence={() => undefined} showCommentPins={false} />
+          <EditorCanvasView actions={actions} updateMyPresence={() => undefined} showCommentPins={false} mediaRepository={{ upload: uploadBoardAsset, remove: deleteBoardAsset }} />
           <EditorToolbarView actions={actions} />
+          {new URLSearchParams(window.location.search).has("minimap") && <EditorMinimap />}
         </section>
         <span />
         <div className={styles.panelSlot}>{rightPanel === "assets" ? <DesignLibraryPanelView actions={actions} /> : <InspectorPanelView actions={actions} />}</div>

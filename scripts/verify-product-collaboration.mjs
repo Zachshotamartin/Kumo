@@ -614,6 +614,40 @@ try {
   const persisted = await liveblocks.getStorageDocument(source.roomId, "json");
   assert(persisted.nodes?.[seedShape.id]?.x1 > seedShape.x1 + 20, "Offline shape edit did not persist after Liveblocks reconnected.");
 
+  // Exercise the production builder executor with real two-client Liveblocks
+  // storage/presence. Only inference/control replies are deterministic; no paid
+  // provider request or hosted flag is needed for this deployment gate.
+  let builderRunId = "";
+  const builderOperationId = randomUUID();
+  const builtShape = { id: "astra-canary-shape", type: "rectangle", name: "Astra canary card", x1: 600, y1: 400, x2: 760, y2: 500, width: 160, height: 100, zIndex: 10, level: 0, backgroundColor: "#8dc7a5" };
+  const builderOperation = { id: builderOperationId, capability: "canvas.create", args: [[builtShape]], summary: "Create canary card" };
+  const builderRun = (state, pending = []) => ({ id: builderRunId, board_id: source.id, state, effort: "low", steps: 1, spent_micros: 20000, pending, message: "" });
+  let releaseBuilderAck;
+  const builderAck = new Promise(resolve => { releaseBuilderAck = resolve; });
+  await ownerPage.route("**/api/builder", async route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { enabled: true, remainingMicros: 1000000 } });
+    const body = route.request().postDataJSON();
+    if (body.action === "create") { builderRunId = body.runId; return route.fulfill({ json: { run: builderRun("preparing") } }); }
+    if (body.action === "step") return route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify({ type: "run", run: builderRun("awaiting_apply", [builderOperation]) })}\n\n` });
+    if (body.action === "start") return route.fulfill({ json: { run: builderRun("awaiting_apply", [builderOperation]), operation: { status: "started" } } });
+    if (body.action === "ack") { await builderAck; return route.fulfill({ json: { run: builderRun("completed") } }); }
+    return route.fulfill({ json: { run: builderRun("stopped") } });
+  });
+  await ownerPage.getByRole("button", { name: "Build with Astra" }).click();
+  const builderPanel = ownerPage.getByRole("complementary", { name: "Astra builder" });
+  await builderPanel.getByLabel("Scope").selectOption("board");
+  await builderPanel.getByLabel("What should Astra do?").fill("Create the canary card.");
+  await builderPanel.getByRole("button", { name: "Run", exact: true }).click();
+  try {
+    await expect(collaboratorPage.locator('[data-shape-id="astra-canary-shape"]')).toBeVisible({ timeout: 20000 });
+    await expect(collaboratorPage.getByText("Astra · Create canary card", { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect.poll(async () => (await liveblocks.getStorageDocument(source.roomId, "json")).builderReceipts?.[builderOperationId], { timeout: 20000 }).toBeTruthy();
+  } finally { releaseBuilderAck(); }
+  await expect(builderPanel.getByRole("status")).toContainText("Completed");
+  await builderPanel.getByRole("button", { name: "Undo run edits" }).click();
+  await expect(collaboratorPage.locator('[data-shape-id="astra-canary-shape"]')).toHaveCount(0, { timeout: 20000 });
+  await expect(collaboratorShape).toBeVisible();
+
   await ownerContext.close();
   await collaboratorContext.close();
 } catch (error) {

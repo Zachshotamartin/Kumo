@@ -51,14 +51,18 @@ const requestWithDeadline = async (input: string, init: RequestInit): Promise<Re
   }
 };
 
+export const authenticatedIdToken = async () => {
+  const e2eToken = import.meta.env.VITE_E2E && /\/(social|share|builder)-e2e\.html$/.test(window.location.pathname)
+    ? "kumo-e2e-token"
+    : null;
+  return e2eToken ?? await auth.currentUser?.getIdToken();
+};
+
 export const authenticatedRequest = async (
   input: string,
   init: RequestInit = {}
 ): Promise<Response> => {
-  const e2eToken = import.meta.env.VITE_E2E && /\/(social|share)-e2e\.html$/.test(window.location.pathname)
-    ? "kumo-e2e-token"
-    : null;
-  const token = e2eToken ?? await auth.currentUser?.getIdToken();
+  const token = await authenticatedIdToken();
   if (!token) throw new Error("Authentication required.");
   const response = await requestWithDeadline(input, {
     ...init,

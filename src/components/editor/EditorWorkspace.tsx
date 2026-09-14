@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { getBuilderEnabled, subscribeBuilder } from "../../builder/bridge";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
   CaretLeft,
@@ -71,6 +72,8 @@ import BranchesPanel from "./BranchesPanel";
 import ProductPanel from "./ProductPanel";
 import AdvancedStudioPanel from "./AdvancedStudioPanel";
 
+const BuilderEditorBridge = lazy(() => import('../../builder/BuilderEditorBridge'));
+
 const emptyBoard = {
   shapes: [],
   id: null,
@@ -110,6 +113,7 @@ const clampPanelWidth = (side: PanelSide, width: number) =>
   Math.min(PANEL_LIMITS[side].max, Math.max(PANEL_LIMITS[side].min, width));
 
 const EditorWorkspace = () => {
+  const builderEnabled = useSyncExternalStore(subscribeBuilder, getBuilderEnabled);
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
   const user = useSelector((state: RootState) => state.auth);
@@ -600,6 +604,7 @@ const EditorWorkspace = () => {
         </div>
       </div>
 
+      {builderEnabled && <Suspense fallback={null}><BuilderEditorBridge /></Suspense>}
       {editor.followingUserId && (
         <div className={styles.followBanner} role="status">
           <span>Following {board.currentUsers.find((person) => person.uid === editor.followingUserId)?.label ?? "presenter"}</span>

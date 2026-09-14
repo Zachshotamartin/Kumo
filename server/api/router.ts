@@ -16,6 +16,7 @@ import telemetry from "./handlers/telemetry.js";
 import versions from "./handlers/versions.js";
 import platform from "./handlers/platform.js";
 import maintenance from "./handlers/maintenance.js";
+import builder from "./handlers/builder.js";
 import { applyApiSecurityHeaders } from "./_security.js";
 
 type ApiHandler = (request: VercelRequest, response: VercelResponse) => unknown;
@@ -29,6 +30,7 @@ export const apiHandlers: ReadonlyMap<string, ApiHandler> = new Map<string, ApiH
   ["board-preview", boardPreview],
   ["boards", boards],
   ["branches", branches],
+  ["builder", builder],
   ["collaborators", collaborators],
   ["coverage", coverage],
   ["friends", friends],

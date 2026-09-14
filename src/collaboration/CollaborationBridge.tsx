@@ -94,6 +94,7 @@ const CollaborationBridge = () => {
       activity: other.presence.activity,
       cursorChat: other.presence.cursorChat,
       textSelection: other.presence.textSelection,
+      builder: other.presence.builder,
     }))));
   }, [dispatch, others]);
 
