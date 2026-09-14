@@ -63,4 +63,22 @@ begin
   value := public.builder_transition('builder-test-c',c,'lease-c','reserve',limits||jsonb_build_object('stepId',gen_random_uuid(),'userCap',1000));
   if value->>'state'<>'budget_exhausted' then raise exception 'Insufficient budget did not stop the run'; end if;
 end $$;
+-- The flag is accepted only through the service-role transition. Unmetered
+-- accounting must never reduce public allowances, even when every cap is empty.
+do $$
+declare
+  owner_run uuid := gen_random_uuid();
+  step_id uuid := gen_random_uuid();
+  result jsonb;
+  public_before jsonb;
+begin
+  select jsonb_agg(to_jsonb(b) order by key) into public_before from public.builder_budget_buckets b;
+  perform public.builder_transition('builder-test-a',owner_run,'owner-lease','create','{"scope":"workspace","selectionIds":[],"effort":"high","continuation":[]}');
+  result := public.builder_transition('builder-test-a',owner_run,'owner-lease','reserve',jsonb_build_object('unmetered',true,'userCap',0,'runCap',0,'dayCap',0,'monthCap',0,'inputCost',900000,'stepId',step_id));
+  if result->'step'->>'output_limit' <> '16000' then raise exception 'Owner allowance was not exempted'; end if;
+  perform public.builder_transition('builder-test-a',owner_run,'owner-lease','settle',jsonb_build_object('stepId',step_id,'actualMicros',2000000,'state','completed'));
+  if (select spent_micros from public.builder_runs where id=owner_run)<>2000000 then raise exception 'Owner usage was not recorded'; end if;
+  if (select jsonb_agg(to_jsonb(b) order by key) from public.builder_budget_buckets b where key not like 'unmetered:%') is distinct from public_before then raise exception 'Owner usage changed the public budget'; end if;
+  if (select spent_micros from public.builder_budget_buckets where key='unmetered:user:builder-test-a')<>2000000 then raise exception 'Owner ledger is missing'; end if;
+end $$;
 rollback;

@@ -526,3 +526,17 @@ describe("EditorWorkspace", () => {
     expect(screen.getByLabelText("Board title")).toHaveValue("Untitled board");
   });
 });
+
+it('docks Kumo AI in the inspector column and restores native panels when selected', async () => {
+  const { setBuilderVisible, resetBuilderUI } = await import('../../builder/uiState');
+  renderWorkspace();
+  act(() => setBuilderVisible(true));
+  expect(screen.getByTestId('editor-grid').style.getPropertyValue('--properties-panel-width')).toBe('320px');
+  const resize = screen.getByRole('slider', { name: 'Resize properties panel' });
+  expect(resize).toHaveAttribute('aria-valuenow', '320');
+  fireEvent.keyDown(resize, { key: 'ArrowLeft' });
+  expect(resize).toHaveAttribute('aria-valuenow', '328');
+  fireEvent.click(screen.getByRole('button', { name: 'Comments' }));
+  await screen.findByText('Comments panel');
+  act(resetBuilderUI);
+});

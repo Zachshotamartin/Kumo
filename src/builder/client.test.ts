@@ -11,10 +11,10 @@ it('uses authenticated same-origin requests for run control', async () => {
   await builderUsage(); expect(mocks.fetch).toHaveBeenCalledWith('/api/builder?scope=usage');
   await builderRequest(session, 'get'); expect(mocks.fetch.mock.calls.at(-1)![1].method).toBe('POST');
   await createBuilderRun(session, 'Build', 'max', 'board', 'board', 'room', ['shape']);
-  expect(JSON.parse(mocks.fetch.mock.calls.at(-1)![1].body)).toEqual({ ...session, action: 'create', prompt: 'Build', effort: 'max', scope: 'board', boardId: 'board', roomId: 'room', selectionIds: ['shape'] });
+  expect(JSON.parse(mocks.fetch.mock.calls.at(-1)![1].body)).toEqual({ ...session, action: 'create', prompt: 'Build', effort: 'max', scope: 'board', boardId: 'board', roomId: 'room', selectionIds: ['shape'], conversation: [] });
 });
 it('streams progress and the final checkpoint without a 15-second body timeout', async () => {
-  const data = ': ping\ndata: {"type":"progress","message":"Working"}\n\ndata: {"type":"other"}\ndata: {"type":"run","run":{"id":"run","state":"completed"}}\n';
+  const data = ': ping\ndata: {"type":"text_delta","delta":"Hello"}\ndata: {"type":"progress","message":"Working"}\n\ndata: {"type":"other"}\ndata: {"type":"run","run":{"id":"run","state":"completed"}}\n';
   const request = vi.fn().mockResolvedValue(new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(data.slice(0, 22))); controller.enqueue(new TextEncoder().encode(data.slice(22))); controller.close(); } }), { headers: { 'content-type': 'text/event-stream' } }));
   vi.stubGlobal('fetch', request); const progress = vi.fn();
   expect(await builderStep(session, '{}', new AbortController().signal, progress)).toEqual({ id: 'run', state: 'completed' });
@@ -46,4 +46,16 @@ it('stores only executor metadata for reload recovery and handles unavailable st
   for (const value of ['{', '{}', '{"session":{"runId":"x"}}', '{"session":{"runId":"x","lease":"y"},"scope":"wrong"}', '{"session":{"runId":"x","lease":"y"},"scope":"board"}']) { sessionStorage.setItem('kumo:builder-session', value); expect(readBuilderRecovery()).toBeNull(); }
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Disabled'); }); expect(readBuilderRecovery()).toBeNull();
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Disabled'); }); expect(() => writeBuilderRecovery(recovery)).not.toThrow();
+});
+
+it('delivers text deltas before the run finishes, including split UTF-8 chunks', async () => {
+  let source!: ReadableStreamDefaultController<Uint8Array>;
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>({ start(controller) { source = controller; } }), { headers: { 'content-type': 'text/event-stream' } })));
+  const text = vi.fn();
+  const result = builderStep(session, '{}', new AbortController().signal, vi.fn(), text);
+  const bytes = new TextEncoder().encode('data: {"type":"text_delta","delta":"Hello…"}\n\n');
+  source.enqueue(bytes.slice(0, bytes.length - 5)); source.enqueue(bytes.slice(bytes.length - 5));
+  await vi.waitFor(() => expect(text).toHaveBeenCalledWith('Hello…'));
+  source.enqueue(new TextEncoder().encode('data: {"type":"text_delta"}\ndata: {"type":"run","run":{"state":"completed"}}\n')); source.close();
+  expect(await result).toEqual({ state: 'completed' });
 });

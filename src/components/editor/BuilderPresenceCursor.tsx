@@ -11,6 +11,6 @@ export default function BuilderPresenceCursor({ presence, viewport }: { presence
   const point = worldToScreen(presence, viewport);
   return <div className={styles.remoteCursor} style={{ left: point.x, top: point.y }}>
     <span className={styles.cursorArrow}><Cursor aria-hidden="true" weight="fill" /></span>
-    <span className={styles.cursorLabel}>Astra · {presence.label}</span>
+    <span className={styles.cursorLabel}>AI · {presence.label}</span>
   </div>;
 }

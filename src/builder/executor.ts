@@ -16,7 +16,8 @@ export interface ExecutionContext { runId: string; scope: string; selection: str
 export const nextPaint = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 export function builderContext() {
   const state = store.getState();
-  return JSON.stringify({ editor: getEditorBridge()?.inspect() ?? null, scope: state.whiteBoard.id ? 'board' : 'workspace', controls: inspectControls().slice(0, 60),
+  const canvas = document.querySelector('[data-testid="editor-canvas"]')?.getBoundingClientRect();
+  return JSON.stringify({ canvasSize: canvas ? { width: canvas.width, height: canvas.height } : null, editor: getEditorBridge()?.inspect() ?? null, scope: state.whiteBoard.id ? 'board' : 'workspace', controls: inspectControls().slice(0, 60),
     domains: Object.keys(repositories).concat(['canvas', 'editor', 'ui', 'workspace']) }).slice(0, 16000);
 }
 export async function executeOperation(operation: BuilderOperation, context: ExecutionContext): Promise<unknown> {

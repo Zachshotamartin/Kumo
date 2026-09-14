@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getBuilderEnabled, subscribeBuilder } from "../../builder/bridge";
+import { BuilderButton, BuilderDock } from "../../builder/BuilderControls";
+import { setBuilderVisible, useBuilderUI } from "../../builder/uiState";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import {
   CaretLeft,
@@ -50,6 +52,7 @@ import { AppDispatch, RootState } from "../../store";
 import EditorCanvas from "./EditorCanvas";
 import EditorMinimap from "./EditorMinimap";
 import EditorToolbar from "./EditorToolbar";
+import ToolbarOverflow from "./ToolbarOverflow";
 import InspectorPanel from "./InspectorPanel";
 import LayersPanel from "./LayersPanel";
 import styles from "./EditorWorkspace.module.css";
@@ -113,6 +116,7 @@ const clampPanelWidth = (side: PanelSide, width: number) =>
   Math.min(PANEL_LIMITS[side].max, Math.max(PANEL_LIMITS[side].min, width));
 
 const EditorWorkspace = () => {
+  const ai = useBuilderUI();
   const builderEnabled = useSyncExternalStore(subscribeBuilder, getBuilderEnabled);
   const dispatch = useDispatch<AppDispatch>();
   const board = useSelector((state: RootState) => state.whiteBoard);
@@ -135,7 +139,8 @@ const EditorWorkspace = () => {
   const [shareOpen, setShareOpen] = useState(() => new URL(window.location.href).searchParams.get("shareDialog") === "1");
   const [error, setError] = useState<string | null>(null);
   const [layersWidth, setLayersWidth] = useState(236);
-  const [propertiesWidth, setPropertiesWidth] = useState(268);
+  const [preferredPropertiesWidth, setPropertiesWidth] = useState(268);
+  const propertiesWidth = ai.visible ? Math.max(preferredPropertiesWidth, 320) : preferredPropertiesWidth;
   const [layersCollapsed, setLayersCollapsed] = useState(
     () => window.innerWidth < 720
   );
@@ -263,7 +268,7 @@ const EditorWorkspace = () => {
     if (side === "layers") {
       setLayersWidth((width) => clampPanelWidth(side, width + widthDirection * 8));
     } else {
-      setPropertiesWidth((width) => clampPanelWidth(side, width + widthDirection * 8));
+      setPropertiesWidth(clampPanelWidth(side, propertiesWidth + widthDirection * 8));
     }
   };
 
@@ -333,12 +338,12 @@ const EditorWorkspace = () => {
     setError(null);
     if (editor.saveError) dispatch(setSaveStatus({ status: "idle", error: null }));
   };
-  const propertiesVisible = !propertiesCollapsed || editor.rightPanel !== "properties";
+  const propertiesVisible = ai.visible || !propertiesCollapsed || editor.rightPanel !== "properties";
 
   return (
     <main className={styles.workspace}>
       <OfflineRecoveryBridge connectionStatus={connectionStatus} />
-      <header className={styles.topbar}>
+      <header className={`${styles.topbar} ${styles.responsiveTopbar}`}>
         <div className={styles.topbarStart}>
           <button type="button" className={styles.brandButton} onClick={goHome} aria-label="Back to boards">
             <KumoLogo className={styles.brandLogo} decorative />
@@ -359,6 +364,7 @@ const EditorWorkspace = () => {
           <BoardNavigation />
         </div>
         <div className={styles.topbarEnd}>
+          {user.isAuthenticated && <BuilderButton className={styles.secondaryTopbarButton} />}
           <CommandPalette />
           <span
             className={`${styles.saveStatus} ${editor.saveStatus === "error" || connectionStatus === "disconnected" ? styles.saveError : ""}`}
@@ -392,8 +398,9 @@ const EditorWorkspace = () => {
               </button>
             ))}
           </div>
+          <ToolbarOverflow>
           <button
-            type="button"
+            type="button" title="Present"
             className={styles.secondaryTopbarButton}
             onClick={() => dispatch(setPresentationMode(true))}
           >
@@ -401,7 +408,7 @@ const EditorWorkspace = () => {
             <span>Present</span>
           </button>
           <button
-            type="button"
+            type="button" title={myPresence.spotlight ? "Stop spotlight" : "Spotlight — let collaborators follow your view"}
             className={`${styles.secondaryTopbarButton} ${myPresence.spotlight ? styles.activeTopbarButton : ""}`}
             aria-pressed={myPresence.spotlight}
             onClick={toggleSpotlight}
@@ -410,70 +417,71 @@ const EditorWorkspace = () => {
             <span>{myPresence.spotlight ? "Stop spotlight" : "Spotlight"}</span>
           </button>
           <button
-            type="button"
+            type="button" title="Comments"
             className={styles.secondaryTopbarButton}
-            onClick={() => dispatch(setRightPanel("comments"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("comments")); }}
           >
             <ChatCenteredText aria-hidden="true" />
             <span>Comments</span>
             {unreadCommentCount > 0 && <b className={styles.notificationBadge}>{unreadCommentCount}</b>}
           </button>
           <button
-            type="button"
+            type="button" title="Assets"
             className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "assets" ? styles.activeTopbarButton : ""}`}
-            onClick={() => dispatch(setRightPanel("assets"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("assets")); }}
           >
             <DiamondsFour aria-hidden="true" />
             <span>Assets</span>
           </button>
           <button
-            type="button"
+            type="button" title="Prototype"
             className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "prototype" ? styles.activeTopbarButton : ""}`}
-            onClick={() => dispatch(setRightPanel("prototype"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("prototype")); }}
           >
             <FlowArrow aria-hidden="true" />
             <span>Prototype</span>
           </button>
           <button
-            type="button"
+            type="button" title="Export"
             className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "export" ? styles.activeTopbarButton : ""}`}
-            onClick={() => dispatch(setRightPanel("export"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("export")); }}
           >
             <Export aria-hidden="true" />
             <span>Export</span>
           </button>
           <button
-            type="button"
+            type="button" title="Inspect"
             className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "inspect" ? styles.activeTopbarButton : ""}`}
-            onClick={() => dispatch(setRightPanel("inspect"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("inspect")); }}
           >
             <Code aria-hidden="true" />
             <span>Inspect</span>
           </button>
           <button
-            type="button"
+            type="button" title="Branches"
             className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "branches" ? styles.activeTopbarButton : ""}`}
-            onClick={() => dispatch(setRightPanel("branches"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("branches")); }}
           >
             <GitBranch aria-hidden="true" />
             <span>Branches</span>
           </button>
           <button
-            type="button"
+            type="button" title="Studio"
             className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "studio" ? styles.activeTopbarButton : ""}`}
-            onClick={() => dispatch(setRightPanel("studio"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("studio")); }}
           >
             <BezierCurve aria-hidden="true" />
             <span>Studio</span>
           </button>
           <button
-            type="button"
+            type="button" title="Tools"
             className={`${styles.secondaryTopbarButton} ${editor.rightPanel === "platform" ? styles.activeTopbarButton : ""}`}
-            onClick={() => dispatch(setRightPanel("platform"))}
+            onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("platform")); }}
           >
             <Toolbox aria-hidden="true" />
             <span>Tools</span>
           </button>
+          </ToolbarOverflow>
           <button type="button" className={`${styles.secondaryTopbarButton} ${styles.primaryTopbarButton}`} onClick={() => setShareOpen(true)}>
             <ShareNetwork aria-hidden="true" />
             <span>Share</span>
@@ -485,7 +493,7 @@ const EditorWorkspace = () => {
                 <button type="button" role="menuitem" onClick={() => { actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" }); setMenuOpen(false); }} disabled={board.role !== "owner"}>
                   <Globe aria-hidden="true" /> <span>Make {board.type === "public" ? "private" : "public"}</span>
                 </button>
-                <button type="button" role="menuitem" onClick={() => { dispatch(setRightPanel("history")); setMenuOpen(false); }}>
+                <button type="button" role="menuitem" onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("history")); setMenuOpen(false); }}>
                   <ClockCounterClockwise aria-hidden="true" /> <span>Version history</span>
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setConfirmDelete(true); setMenuOpen(false); if (board.id) void loadProductGraph(board.id).then(setDeleteGraph).catch(() => setDeleteGraph(null)); }} disabled={board.role !== "owner"}>
@@ -499,7 +507,7 @@ const EditorWorkspace = () => {
       </header>
 
       <div
-        className={`${styles.editorGrid} ${resizingPanel ? styles.resizingPanels : ""}`}
+        className={`${styles.editorGrid} ${ai.visible ? styles.aiOpen : ""} ${resizingPanel ? styles.resizingPanels : ""}`}
         data-testid="editor-grid"
         style={{
           "--layers-panel-width": layersCollapsed ? "0px" : `${layersWidth}px`,
@@ -541,6 +549,7 @@ const EditorWorkspace = () => {
             aria-label={`${propertiesVisible ? "Hide" : "Show"} properties panel`}
             aria-expanded={propertiesVisible}
             onClick={() => {
+              setBuilderVisible(false);
               if (editor.rightPanel !== "properties") {
                 dispatch(setRightPanel("properties"));
                 setPropertiesCollapsed(true);
@@ -580,7 +589,7 @@ const EditorWorkspace = () => {
         <div className={styles.panelSlot}>
           {propertiesVisible && (
             <>
-              {editor.rightPanel === "comments"
+              {ai.visible ? <BuilderDock /> : editor.rightPanel === "comments"
                 ? <CommentsPanel />
                 : editor.rightPanel === "history"
                   ? <VersionHistoryPanel key={`${board.id ?? "board"}:${board.activeBranchId ?? "main"}`} />

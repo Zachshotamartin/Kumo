@@ -76,11 +76,11 @@ export function keyControl(handle: string, key: string, modifiers: { shift: bool
 export async function pickBuilderFile(accept: string, handoff: Handoff) {
   const picker = document.createElement('input');
   picker.type = 'file'; picker.accept = accept;
-  picker.setAttribute('aria-label', 'Choose file for Astra');
+  picker.setAttribute('aria-label', 'Choose file for AI');
   picker.dataset.builder = '';
   document.body.append(picker);
   try {
-    await handoff('Choose a file for Astra, then continue.', picker);
+    await handoff('Choose a file for AI, then continue.', picker);
     const file = picker.files?.[0];
     if (!file) throw new Error('No file was selected.');
     const handle = `file:${crypto.randomUUID()}`;

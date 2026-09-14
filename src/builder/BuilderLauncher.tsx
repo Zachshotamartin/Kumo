@@ -1,13 +1,14 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { enableBuilder } from './bridge';
+import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
+import { enableBuilder, getBuilderEnabled, subscribeBuilder } from './bridge';
+import { resetBuilderUI, setBuilderVisible, useBuilderUI } from './uiState';
 import styles from './BuilderPanel.module.css';
 const BuilderPanel = lazy(() => import('./BuilderPanel'));
 export default function BuilderLauncher() {
-  const [loaded, setLoaded] = useState(false);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => () => enableBuilder(false), []);
-  return <>
-    <button data-builder="" className={styles.launcher} type="button" aria-expanded={visible} onClick={() => { enableBuilder(true); setLoaded(true); setVisible(value => !value); }}>Build with Astra</button>
-    {loaded && <Suspense fallback={<div data-builder="" className={styles.panel} role="status">Opening Astra…</div>}><BuilderPanel visible={visible} onClose={() => setVisible(false)} /></Suspense>}
-  </>;
+  const loaded = useSyncExternalStore(subscribeBuilder, getBuilderEnabled);
+  const { visible, dock } = useBuilderUI();
+  useEffect(() => () => { enableBuilder(false); resetBuilderUI(); }, []);
+  return loaded && <Suspense fallback={visible && dock ? createPortal(<div data-builder="" className={styles.panel} role="status">Opening AI…</div>, dock) : null}>
+    <BuilderPanel visible={visible && Boolean(dock)} container={dock ?? undefined} onClose={() => setBuilderVisible(false)} />
+  </Suspense>;
 }

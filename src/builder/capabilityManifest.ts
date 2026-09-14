@@ -67,20 +67,22 @@ export function validateCapability(id: string, args: unknown[]): Capability {
 }
 
 export function discoverCapabilities(domain: string) {
-  const capabilities = capabilityManifest.filter(capability => capability.domain === domain);
+  const capabilities = capabilityManifest.filter(capability => capability.domain === domain || capability.id === domain).map(capability => capability.id === 'canvas.create'
+    ? { ...capability, parameters: [parameter('shapes', { type: 'array', items: { $ref: '#/definitions/Shape' }, maxItems: 25 })] }
+    : capability);
   const required: Record<string, Schema> = {};
   function collect(value: unknown) {
     if (!value || typeof value !== 'object') return;
     const reference = (value as Schema).$ref;
     if (reference) {
       const name = reference.slice('#/definitions/'.length);
-      if (!required[name]) { required[name] = definitions[name]!; collect(required[name]); }
+      if (!required[name]) { required[name] = name === 'Shape' ? catalog.shape : definitions[name]!; collect(required[name]); }
     }
     Object.values(value).forEach(collect);
   }
   collect(capabilities);
   if (domain === 'canvas') collect(catalog.shape);
-  return { domains: [...new Set(capabilityManifest.map(capability => capability.domain))], capabilities, shape: domain === 'canvas' ? catalog.shape : undefined, definitions: required };
+  return { domains: [...new Set(capabilityManifest.map(capability => capability.domain))], capabilities, shape: domain === 'canvas' ? { $ref: '#/definitions/Shape' } : undefined, definitions: required };
 }
 
 export const validateShape = (value: unknown) => matchesSchema(value, catalog.shape);
