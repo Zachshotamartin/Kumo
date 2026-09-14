@@ -18,7 +18,8 @@ test('Astra builds through typed actions, preserves order and exposes all effort
     if (body.action === 'start') { started.push(body.operationId); await route.fulfill({ json: { run: run({ state: 'awaiting_apply' }), operation: { status: 'started' } } }); return; }
     await route.fulfill({ json: { run: run({ state: body.operationId === 'patch' ? 'completed' : 'awaiting_apply', spent_micros: 20000 }) } });
   });
-  await page.goto('/builder-e2e.html'); await page.getByRole('button', { name: 'Build with Astra' }).click();
+  await page.goto('/builder-e2e.html?minimap'); await page.getByRole('button', { name: 'Build with Astra' }).click();
+  await expect(page.getByRole('img', { name: 'Board minimap' })).toBeVisible();
   const panel = page.getByRole('complementary', { name: 'Astra builder' });
   await expect(panel.getByLabel('Reasoning effort').locator('option')).toHaveText(['low', 'medium', 'high', 'xhigh', 'max']);
   await panel.getByLabel('Reasoning effort').selectOption('medium');

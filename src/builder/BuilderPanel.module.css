@@ -1,5 +1,5 @@
-.launcher { position: fixed; right: 24px; top: 70px; z-index: 1000; border: 1px solid #5c6664; border-radius: 8px; background: #252b29; color: #edfff4; padding: 9px 14px; cursor: pointer; font: inherit; }
-.panel { position: fixed; right: 12px; top: 114px; bottom: 72px; width: min(360px, calc(100vw - 24px)); z-index: 1100; display: flex; flex-direction: column; background: #1b1f1e; color: #e7ece9; border: 1px solid #4e5954; border-radius: 12px; box-shadow: 0 12px 40px #0005; font-size: 13px; }
+.launcher { position: fixed; right: 24px; top: 70px; z-index: var(--kumo-z-popover); border: 1px solid #5c6664; border-radius: 8px; background: #252b29; color: #edfff4; padding: 9px 14px; cursor: pointer; font: inherit; }
+.panel { position: fixed; right: 12px; top: 114px; bottom: 72px; width: min(360px, calc(100vw - 24px)); z-index: var(--kumo-z-popover); display: flex; flex-direction: column; background: #1b1f1e; color: #e7ece9; border: 1px solid #4e5954; border-radius: 12px; box-shadow: 0 12px 40px #0005; font-size: 13px; }
 .header { padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #374039; }
 .header strong { font-size: 17px; }
 .body { padding: 16px; overflow: auto; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 14px; }
@@ -16,8 +16,8 @@
 .log { padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 8px; overflow-wrap: anywhere; }
 .notice { background: #303a30; border-left: 2px solid #a8c7aa; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .error { color: #ffc5b6; }
-.cursor { position: fixed; z-index: 1050; pointer-events: none; transition: left 180ms ease, top 180ms ease; color: #b9f2c5; filter: drop-shadow(0 1px 2px #000); }
+.cursor { position: fixed; z-index: var(--kumo-z-toolbar); pointer-events: none; transition: left 180ms ease, top 180ms ease; color: #b9f2c5; filter: drop-shadow(0 1px 2px #000); }
 .cursor span { display: block; padding: 5px 8px; margin: 0 0 0 14px; background: #23412d; color: #e4ffeb; border-radius: 5px; max-width: 200px; font-size: 11px; }
-.highlight { position: fixed; outline: 2px solid #b9f2c5; pointer-events: none; z-index: 1040; }
+.highlight { position: fixed; outline: 2px solid #b9f2c5; pointer-events: none; z-index: var(--kumo-z-toolbar); }
 @media (prefers-reduced-motion: reduce) { .cursor { transition: none; } }
 @media (max-height: 550px) { .panel { top: 58px; } .launcher { top: 12px; } }

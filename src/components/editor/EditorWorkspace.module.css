@@ -675,6 +675,8 @@
 
 .canvasRegion {
   position: relative;
+  /* Keep canvas handles, minimap, and tools below application panels/dialogs. */
+  isolation: isolate;
   grid-column: 3;
   min-width: 0;
   overflow: hidden;

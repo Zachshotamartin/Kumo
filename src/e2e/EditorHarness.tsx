@@ -6,6 +6,7 @@ import { setWhiteboardData } from "../features/whiteBoard/whiteBoardSlice";
 import type { AppDispatch, RootState } from "../store";
 import { EditorCanvasView } from "../components/editor/EditorCanvasView";
 import { EditorToolbarView } from "../components/editor/EditorToolbar";
+import EditorMinimap from "../components/editor/EditorMinimap";
 import { InspectorPanelView } from "../components/editor/InspectorPanel";
 import { DesignLibraryPanelView } from "../components/editor/DesignLibraryPanel";
 import { setRightPanel } from "../features/editor/editorSlice";
@@ -110,6 +111,7 @@ const EditorHarness = () => {
         <section className={styles.canvasRegion} aria-label="Design editor">
           <EditorCanvasView actions={actions} updateMyPresence={() => undefined} showCommentPins={false} mediaRepository={{ upload: uploadBoardAsset, remove: deleteBoardAsset }} />
           <EditorToolbarView actions={actions} />
+          {new URLSearchParams(window.location.search).has("minimap") && <EditorMinimap />}
         </section>
         <span />
         <div className={styles.panelSlot}>{rightPanel === "assets" ? <DesignLibraryPanelView actions={actions} /> : <InspectorPanelView actions={actions} />}</div>
