@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import HomePage from "./homePage";
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ vi.mock("firebase/auth", () => ({
   sendPasswordResetEmail: mocks.reset,
   sendEmailVerification: mocks.verifyEmail,
   signOut: mocks.signOut,
+  browserPopupRedirectResolver: "redirect-resolver",
 }));
 vi.mock("../../config/firebase", () => ({ auth: {}, firebaseApiKey: "public-key", provider: {} }));
 vi.mock("../../services/userRepository", () => ({ ensureUserProfile: mocks.profile }));
@@ -44,7 +46,7 @@ describe("HomePage authentication", () => {
     mocks.verifyEmail.mockResolvedValue(undefined);
     mocks.signOut.mockResolvedValue(undefined);
     mocks.googleRedirect.mockResolvedValue(undefined);
-    mocks.redirectResult.mockResolvedValue(null);
+    mocks.redirectResult.mockReset().mockResolvedValue(null);
     mocks.reset.mockResolvedValue(undefined);
     mocks.profile.mockResolvedValue(undefined);
     mocks.credential.mockResolvedValue(undefined);
@@ -53,6 +55,7 @@ describe("HomePage authentication", () => {
     mocks.prepareLocal.mockResolvedValue("https://accounts.example/authorize");
     mocks.usesLocal.mockReturnValue(false);
     window.history.replaceState({}, "", "/");
+    window.sessionStorage.clear();
   });
 
   const fillCredentials = (password = "passwordpassword") => {
@@ -60,14 +63,21 @@ describe("HomePage authentication", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
   };
 
-  it("signs in and provisions the application profile", async () => {
+  it("keeps the same mascot mounted while the interactive canvas loads", async () => {
+    render(<HomePage />);
+    const mascot = screen.getByLabelText("Animated Kumo mascot");
+    await screen.findByRole("application", { name: "Kumo design canvas" });
+    expect(screen.getByLabelText("Animated Kumo mascot")).toBe(mascot);
+  });
+
+  it("signs in and leaves profile initialization to the app auth observer", async () => {
     render(<HomePage />);
     expect(screen.getByText("Kumo", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByLabelText("Animated Kumo mascot")).toHaveLength(1);
     fillCredentials();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith({}, "user@example.com", "passwordpassword"));
-    expect(mocks.profile).toHaveBeenCalled();
+    expect(mocks.profile).not.toHaveBeenCalled();
   });
 
   it("registers a new account and maps Firebase validation errors", async () => {
@@ -141,10 +151,25 @@ describe("HomePage authentication", () => {
   it("uses redirect authentication", async () => {
     render(<HomePage />);
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
-    await waitFor(() => expect(mocks.googleRedirect).toHaveBeenCalledWith({}, {}));
+    await waitFor(() => expect(mocks.googleRedirect).toHaveBeenCalledWith({}, {}, "redirect-resolver"));
+    expect(window.sessionStorage.getItem("kumo:google-redirect-pending")).toBe("pending");
+  });
+
+  it("avoids loading Google's redirect helper for ordinary signed-out visits", async () => {
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled());
+    expect(mocks.redirectResult).not.toHaveBeenCalled();
+  });
+
+  it("lets Firebase handle redirect completion when session storage is unavailable", async () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("Storage blocked"); });
+    render(<HomePage />);
+    await waitFor(() => expect(mocks.redirectResult).toHaveBeenCalledWith({}, "redirect-resolver"));
+    getItem.mockRestore();
   });
 
   it("reports errors returned after a Google redirect", async () => {
+    window.sessionStorage.setItem("kumo:google-redirect-pending", "pending");
     mocks.redirectResult.mockRejectedValueOnce(new Error("Redirect was rejected"));
     render(<HomePage />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Redirect was rejected");
@@ -244,6 +269,21 @@ describe("HomePage authentication", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Authentication with Google failed."));
   });
 
+  it("keeps a local Google return on the loading screen until the credential exchange finishes", async () => {
+    let rejectCredential!: (reason: Error) => void;
+    mocks.hasLocal.mockReturnValue(true);
+    mocks.consumeLocal.mockReturnValue({ returnUrl: "/returned", credential: { providerId: "google.com" } });
+    mocks.credential.mockReturnValueOnce(new Promise((_, reject) => { rejectCredential = reject; }));
+    render(<StrictMode><HomePage /></StrictMode>);
+    expect(mocks.credential).toHaveBeenCalledOnce();
+    expect(mocks.consumeLocal).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    await act(async () => rejectCredential(new Error("Google sign-in expired.")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Google sign-in expired.");
+    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+  });
+
   it("consumes local Google results, including empty returns", async () => {
     mocks.hasLocal.mockReturnValue(true);
     mocks.consumeLocal.mockReturnValueOnce(null);
@@ -256,7 +296,7 @@ describe("HomePage authentication", () => {
     render(<HomePage />);
     await waitFor(() => expect(mocks.credential).toHaveBeenCalledWith({}, { providerId: "google.com" }));
     expect(window.location.pathname).toBe("/returned");
-    expect(mocks.profile).toHaveBeenCalled();
+    expect(mocks.profile).not.toHaveBeenCalled();
   });
 
   it("prepares local Google redirects and ignores redirect errors after unmount", async () => {
@@ -270,6 +310,7 @@ describe("HomePage authentication", () => {
     let rejectRedirect!: (reason: unknown) => void;
     mocks.hasLocal.mockReturnValue(false);
     mocks.redirectResult.mockImplementationOnce(() => new Promise((_, reject) => { rejectRedirect = reject; }));
+    window.sessionStorage.setItem("kumo:google-redirect-pending", "pending");
     const pending = render(<HomePage />);
     pending.unmount();
     rejectRedirect(new Error("Too late"));
@@ -289,6 +330,7 @@ describe("HomePage authentication", () => {
 
   it("uses the fallback message for non-Error redirect completion failures", async () => {
     mocks.redirectResult.mockRejectedValueOnce("redirect failed");
+    window.sessionStorage.setItem("kumo:google-redirect-pending", "pending");
     render(<HomePage />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Authentication with Google failed.");
   });

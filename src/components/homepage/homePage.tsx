@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ArrowRight, Eye, EyeSlash, GoogleLogo } from "@phosphor-icons/react";
 import styles from "./homePage.module.css";
 import ui from "../ui/Ui.module.css";
@@ -12,10 +12,14 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
+  browserPopupRedirectResolver,
 } from "firebase/auth";
-import { ensureUserProfile } from "../../services/userRepository";
+import { clearPendingGoogleRedirect, hasPendingGoogleRedirect, markPendingGoogleRedirect } from "../../config/googleRedirectState";
+import LoadingScreen from "../LoadingScreen";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
-import MarketingCanvas from "./MarketingCanvas";
+import MarketingCanvasPreview from "./MarketingCanvasPreview";
+import KumoLogo from "../brand/KumoLogo";
+import canvasStyles from "./MarketingCanvas.module.css";
 import {
   consumeLocalGoogleRedirect,
   hasLocalGoogleRedirectResult,
@@ -26,6 +30,8 @@ import {
 interface HomePageProps {
   authPending?: boolean;
 }
+
+const MarketingCanvas = lazy(() => import("./MarketingCanvas"));
 
 const HomePage = ({ authPending = false }: HomePageProps) => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
@@ -38,6 +44,8 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [redirectPending, setRedirectPending] = useState(() => hasLocalGoogleRedirectResult(window.location.href));
+  const redirectPromise = useRef<Promise<void> | null>(null);
 
   const selectMode = (nextMode: "signin" | "register") => {
     setMode(nextMode);
@@ -72,16 +80,23 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
         if (localResult) {
           window.history.replaceState({}, "", localResult.returnUrl);
           await signInWithCredential(auth, localResult.credential);
-          await ensureUserProfile();
         }
         return;
       }
-      await getRedirectResult(auth);
+      if (hasPendingGoogleRedirect()) {
+        clearPendingGoogleRedirect();
+        await getRedirectResult(auth, browserPopupRedirectResolver);
+      }
     };
-    void completeRedirect().catch((caught: unknown) => {
+    // Strict Mode replays effects; both subscriptions must wait for the same
+    // credential exchange after its URL fragment has been consumed.
+    redirectPromise.current ??= completeRedirect();
+    void redirectPromise.current.catch((caught: unknown) => {
       if (!active) return;
       window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
+    }).finally(() => {
+      if (active) setRedirectPending(false);
     });
     return () => { active = false; };
   }, []);
@@ -100,7 +115,6 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
           setMessage("Verify your email before opening Kumo. We sent a fresh verification link.");
           return;
         }
-        await ensureUserProfile();
       } else {
         if (password.length < 12) {
           setError("Use a password with at least twelve characters.");
@@ -149,7 +163,8 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
         );
         window.location.assign(redirectUrl);
       } else {
-        await signInWithRedirect(auth, provider);
+        markPendingGoogleRedirect();
+        await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
       }
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
@@ -176,6 +191,8 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
     }
   };
 
+  if (redirectPending) return <LoadingScreen />;
+
   const logoContext: KumoLogoContext = authPending || submitting
     ? "loading"
     : error
@@ -197,7 +214,14 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   return (
     <main className={styles.homePage}>
       <section className={styles.intro}>
-        <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} />
+        <div className={canvasStyles.marketingCanvas} data-context={logoContext}>
+          <Suspense fallback={<MarketingCanvasPreview logoContext={logoContext} logoStatus={logoStatus} />}>
+            <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} showLogo={false} />
+          </Suspense>
+          <div className={canvasStyles.heroVisual}>
+            <KumoLogo className={canvasStyles.brandLogo} context={logoContext} label="Animated Kumo mascot" startupAnimation="startup" animationScope="app-startup" />
+          </div>
+        </div>
       </section>
       <form className={styles.loginForm} aria-label="Authentication" onSubmit={handleLogin} aria-busy={controlsDisabled}>
         <div className={styles.modeSwitch} role="tablist" aria-label="Authentication mode">

@@ -1,15 +1,16 @@
 import "./App.css";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./config/firebase";
+import { clearPendingGoogleRedirect } from "./config/googleRedirectState";
 import { login, logout, setAuthenticatedProfile, setAuthInitialized } from "./features/auth/authSlice";
 import { ensureUserProfile } from "./services/userRepository";
 import { AppDispatch, RootState } from "./store";
 import { getBoard } from "./services/boardRepository";
 import { clearSelectedShapes } from "./features/selected/selectedSlice";
 import { setWhiteboardData } from "./features/whiteBoard/whiteBoardSlice";
-import KumoLogo from "./components/brand/KumoLogo";
+import LoadingScreen from "./components/LoadingScreen";
 import { startObservability } from "./platform/observability";
 
 const importWorkspace = () => import("./components/workSpace/workSpace");
@@ -20,35 +21,32 @@ const loadWorkspace = () => {
 };
 const WorkSpace = lazy(loadWorkspace);
 const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
-const HomePage = lazy(() => import("./components/homepage/homePage"));
+// Fetch the public page alongside Firebase restoration without blocking the
+// small startup shell or rendering the landing page for a restored session.
+const homePagePromise = import("./components/homepage/homePage");
+const HomePage = lazy(() => homePagePromise);
 const PrototypeShareView = lazy(() => import("./components/editor/PrototypeShareView"));
 const VersionShareView = lazy(() => import("./history/VersionShareView"));
 const OpenSessionView = lazy(() => import("./components/editor/OpenSessionView"));
 const LiveblocksRoot = lazy(() => import("./collaboration/LiveblocksRoot").then(({ LiveblocksRoot: Component }) => ({ default: Component })));
 
-const LoadingScreen = () => (
-  <div className="app-loading" role="status">
-    <KumoLogo className="app-loading-logo" context="loading" startupAnimation="startup" animationScope="app-startup" decorative />
-    <div className="app-loading-copy">
-      <span className="app-loading-word">Kumo</span>
-      <span className="app-loading-status">Opening your canvas</span>
-    </div>
-  </div>
-);
-
 function App() {
   const user = useSelector((state: RootState) => state.auth);
   const whiteBoard = useSelector((state: RootState) => state.whiteBoard);
   const dispatch = useDispatch<AppDispatch>();
+  const [profilePending, setProfilePending] = useState(false);
   const prototypeToken = new URL(window.location.href).searchParams.get("prototype");
   const versionToken = new URL(window.location.href).searchParams.get("versionToken");
   const versionId = new URL(window.location.href).searchParams.get("version");
   const openSessionToken = new URL(window.location.href).searchParams.get("openSession");
 
   useEffect(() => {
+    let generation = 0;
     const unsubscribe = onAuthStateChanged(
       auth,
       (firebaseUser) => {
+        const current = ++generation;
+        setProfilePending(false);
         if (!firebaseUser) {
           dispatch(logout());
           return;
@@ -61,6 +59,8 @@ function App() {
         // Start the core editor chunk before dashboard requests and preview work.
         // Opening a board should only wait for collaboration, never module scheduling.
         void loadWorkspace();
+        clearPendingGoogleRedirect();
+        setProfilePending(true);
         dispatch(
           login({
             uid: firebaseUser.uid,
@@ -68,14 +68,23 @@ function App() {
           })
         );
         void ensureUserProfile()
-          .then((profile) => dispatch(setAuthenticatedProfile(profile)))
+          .then((profile) => {
+            if (current === generation) dispatch(setAuthenticatedProfile(profile));
+          })
           .catch((error: unknown) => {
             console.error("Kumo could not initialize the authenticated profile.", error);
+          })
+          .finally(() => {
+            if (current === generation) setProfilePending(false);
           });
       },
-      () => dispatch(setAuthInitialized())
+      () => {
+        generation += 1;
+        setProfilePending(false);
+        dispatch(setAuthInitialized());
+      }
     );
-    return () => unsubscribe();
+    return () => { generation += 1; unsubscribe(); };
   }, [dispatch]);
 
   useEffect(() => {
@@ -120,8 +129,10 @@ function App() {
             <VersionShareView versionId={versionId} token={versionToken} />
           ) : prototypeToken ? (
             <PrototypeShareView token={prototypeToken} />
-          ) : !user.isInitialized || !user.isAuthenticated ? (
-            <HomePage authPending={!user.isInitialized} />
+          ) : !user.isInitialized || profilePending ? (
+            <LoadingScreen />
+          ) : !user.isAuthenticated ? (
+            <HomePage />
           ) : whiteBoard.id !== null ? (
             <LiveblocksRoot><WorkSpace /></LiveblocksRoot>
           ) : (

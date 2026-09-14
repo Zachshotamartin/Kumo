@@ -1,6 +1,6 @@
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 import store from "./store";
@@ -74,7 +74,7 @@ describe("App", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  it("renders the public landing page while Firebase restores the session", async () => {
+  it("keeps the loading screen visible while Firebase restores the session", async () => {
     mocks.observeAuth.mockImplementationOnce(() => undefined);
     const pendingStore = configureStore({
       reducer: { auth: authReducer, whiteBoard: whiteBoardReducer },
@@ -84,9 +84,38 @@ describe("App", () => {
         <App />
       </Provider>
     );
-    expect(await screen.findByRole("heading", { name: /every board can lead somewhere/i })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Sign in" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Checking your existing session");
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+
+  it("waits for account setup before mounting the dashboard", async () => {
+    let resolveProfile!: (profile: object) => void;
+    mocks.ensureProfile.mockReturnValueOnce(new Promise((resolve) => { resolveProfile = resolve; }));
+    mocks.observeAuth.mockImplementation((callback: (user: object) => void) => callback({ uid: "owner", email: "owner@example.com" }));
+    render(<Provider store={store}><App /></Provider>);
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    expect(screen.queryByText("Board dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    await act(async () => resolveProfile({ displayName: "Ada", username: "ada", avatarUrl: null }));
+    expect(await screen.findByText("Board dashboard")).toBeVisible();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
+  it("ignores account setup that finishes after sign-out or unmount", async () => {
+    let resolveProfile!: (profile: object) => void;
+    let notifyAuth!: (user: object | null) => void;
+    mocks.ensureProfile.mockImplementation(() => new Promise((resolve) => { resolveProfile = resolve; }));
+    mocks.observeAuth.mockImplementation((callback: typeof notifyAuth) => { notifyAuth = callback; callback({ uid: "owner" }); });
+    const app = render(<Provider store={store}><App /></Provider>);
+    act(() => notifyAuth(null));
+    await act(async () => resolveProfile({ displayName: "Old profile" }));
+    expect(store.getState().auth).toMatchObject({ isAuthenticated: false, displayName: null });
+    expect(await screen.findByRole("heading")).toBeVisible();
+    act(() => notifyAuth({ uid: "next-owner" }));
+    app.unmount();
+    await act(async () => resolveProfile({ displayName: "Unmounted profile" }));
+    expect(store.getState().auth.displayName).toBeNull();
   });
 
   it("renders the initialized application without an artificial startup delay", async () => {

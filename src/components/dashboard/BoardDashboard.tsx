@@ -15,6 +15,7 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import KumoLogo from "../brand/KumoLogo";
+import LoadingScreen from "../LoadingScreen";
 import { auth } from "../../config/firebase";
 import { logout } from "../../features/auth/authSlice";
 import { clearSelectedShapes } from "../../features/selected/selectedSlice";
@@ -151,6 +152,10 @@ const BoardDashboard = () => {
   const [globalResults, setGlobalResults] = useState<GlobalSearchResult[]>([]);
   const [recentVisits, setRecentVisits] = useState(() => recentBoardVisits(user.uid));
   const directLinkHandledRef = useRef(false);
+  const [openingDirectLink, setOpeningDirectLink] = useState(() => {
+    const params = new URL(window.location.href).searchParams;
+    return Boolean(params.get("board") || params.get("share"));
+  });
 
   const openBoard = useCallback(async (boardId: string) => {
     setError(null);
@@ -201,11 +206,10 @@ const BoardDashboard = () => {
   useEffect(() => {
     if (!user.uid) return;
     let active = true;
-    void Promise.all([listBoards(), listDeletedBoards()])
-      .then(([nextBoards, nextDeletedBoards]) => {
+    void listBoards()
+      .then((nextBoards) => {
         if (!active) return;
         setBoards(nextBoards);
-        setDeletedBoards(nextDeletedBoards);
         setLoading(false);
       })
       .catch(() => {
@@ -213,6 +217,11 @@ const BoardDashboard = () => {
         setError("We couldn't load your boards.");
         setLoading(false);
       });
+    void listDeletedBoards().then((nextDeletedBoards) => {
+      if (active) setDeletedBoards(nextDeletedBoards);
+    }).catch(() => {
+      if (active) setError("We couldn't load Trash. Refresh to retry.");
+    });
     return () => { active = false; };
   }, [user.uid]);
 
@@ -259,15 +268,18 @@ const BoardDashboard = () => {
       url.searchParams.delete("share");
       window.history.replaceState({}, "", url);
       return openBoard(boardId);
-    }).catch((caught) => setError(caughtMessage(caught, "This share link could not be opened.")));
+    }).catch((caught) => setError(caughtMessage(caught, "This share link could not be opened.")))
+      .finally(() => setOpeningDirectLink(false));
   }, [openBoard, user.uid]);
 
   useEffect(() => {
     if (!user.uid || directLinkHandledRef.current) return;
-    directLinkHandledRef.current = true;
     const boardId = new URL(window.location.href).searchParams.get("board");
     if (!boardId) return;
-    const timeout = window.setTimeout(() => void openBoard(boardId), 0);
+    const timeout = window.setTimeout(() => {
+      directLinkHandledRef.current = true;
+      void openBoard(boardId).finally(() => setOpeningDirectLink(false));
+    }, 0);
     return () => window.clearTimeout(timeout);
   }, [openBoard, user.uid]);
 
@@ -479,6 +491,8 @@ const BoardDashboard = () => {
     setSavedViews(next);
     persistDashboardPreference("kumo:saved-board-views", JSON.stringify(next));
   };
+
+  if (openingDirectLink) return <LoadingScreen />;
 
   return (
     <main className={styles.dashboard}>

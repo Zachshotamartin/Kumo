@@ -55,6 +55,7 @@ test("landing canvas uses production resize, marquee, grouping, clipboard, and h
 test("landing copy uses the editor's text editing and shortcuts stay out of the login form", async ({ page }) => {
   await page.goto("/");
   const canvas = page.getByRole("application", { name: "Kumo design canvas" });
+  await expect(canvas).toBeVisible();
   const headline = page.getByRole("heading", { level: 1, name: "Every board can lead somewhere." });
   const bounds = (await headline.boundingBox())!;
   await page.mouse.dblclick(bounds.x + 35, bounds.y + 20);

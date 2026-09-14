@@ -2,12 +2,16 @@ export {};
 
 const mocks = vi.hoisted(() => ({
   initializeApp: vi.fn((config) => ({ config })),
-  getAuth: vi.fn((app) => ({ app })),
+  initializeAuth: vi.fn((app) => ({ app })),
 }));
 
 vi.mock("firebase/app", () => ({ initializeApp: mocks.initializeApp }));
 vi.mock("firebase/auth", () => ({
-  getAuth: mocks.getAuth,
+  initializeAuth: mocks.initializeAuth,
+  indexedDBLocalPersistence: "indexeddb",
+  browserLocalPersistence: "local",
+  browserSessionPersistence: "session",
+  browserPopupRedirectResolver: "redirect",
   GoogleAuthProvider: class GoogleAuthProvider {},
 }));
 
@@ -30,5 +34,18 @@ describe("Firebase browser client", () => {
     const { resolveFirebaseApiKey } = await import("./firebase");
     expect(resolveFirebaseApiKey("AIzaConfiguredForThisEnvironment")).toBe("AIzaConfiguredForThisEnvironment");
     expect(resolveFirebaseApiKey(undefined)).toBe("");
+  });
+
+  it("restores persisted identities without opening the Google helper unless a redirect is pending", async () => {
+    sessionStorage.clear();
+    await import("./firebase");
+    expect(mocks.initializeAuth).toHaveBeenLastCalledWith(expect.anything(), {
+      persistence: ["indexeddb", "local", "session"], popupRedirectResolver: undefined,
+    });
+    vi.resetModules();
+    sessionStorage.setItem("kumo:google-redirect-pending", "pending");
+    await import("./firebase");
+    expect(mocks.initializeAuth).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ popupRedirectResolver: "redirect" }));
+    sessionStorage.clear();
   });
 });

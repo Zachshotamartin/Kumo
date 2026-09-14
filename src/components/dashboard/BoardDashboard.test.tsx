@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider } from "react-redux";
+import { StrictMode } from "react";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer, { login } from "../../features/auth/authSlice";
 import editorReducer from "../../features/editor/editorSlice";
@@ -110,7 +111,7 @@ const board = (id: string) => ({
   revision: 0, updatedAt: 1,
 });
 
-const renderDashboard = (authenticated = true) => {
+const renderDashboard = (authenticated = true, strict = false) => {
   const store = configureStore({
     reducer: {
       auth: authReducer,
@@ -121,7 +122,7 @@ const renderDashboard = (authenticated = true) => {
     },
   });
   if (authenticated) store.dispatch(login({ uid: "user", email: "user@example.com" }));
-  render(<Provider store={store}><BoardDashboard /></Provider>);
+  render(<Provider store={store}><BoardDashboard /></Provider>, { wrapper: strict ? StrictMode : undefined });
   return store;
 };
 
@@ -162,6 +163,44 @@ describe("BoardDashboard", () => {
     mocks.reorderBoardViews.mockResolvedValue({ reordered: true });
     mocks.updateNotification.mockResolvedValue({ updated: true });
     mocks.muteNotifications.mockResolvedValue({ muted: true });
+  });
+
+  it("loads active boards even when Trash fails", async () => {
+    mocks.listDeleted.mockRejectedValueOnce(new Error("Trash unavailable"));
+    renderDashboard();
+    expect(await screen.findByText("My map")).toBeVisible();
+    expect(screen.getByText("Shared map")).toBeVisible();
+    expect(screen.queryByText("We couldn't load your boards.")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("We couldn't load Trash. Refresh to retry.");
+  });
+
+  it("shows active boards while Trash is still loading", async () => {
+    mocks.listDeleted.mockReturnValueOnce(new Promise(() => undefined));
+    renderDashboard();
+    expect(await screen.findByText("My map")).toBeVisible();
+    expect(screen.queryByLabelText("Loading boards")).not.toBeInTheDocument();
+  });
+
+  it("ignores a Trash failure after leaving the dashboard", async () => {
+    let rejectTrash!: (reason: Error) => void;
+    mocks.listDeleted.mockReturnValueOnce(new Promise((_, reject) => { rejectTrash = reject; }));
+    renderDashboard();
+    cleanup();
+    await act(async () => rejectTrash(new Error("Trash unavailable")));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the dashboard hidden while a direct board link opens", async () => {
+    window.history.replaceState({}, "", "/?board=shared-link");
+    let resolveBoard!: (value: ReturnType<typeof board>) => void;
+    mocks.get.mockReturnValueOnce(new Promise((resolve) => { resolveBoard = resolve; }));
+    const store = renderDashboard(true, true);
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("shared-link"));
+    expect(mocks.get).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
+    expect(screen.queryByText("My map")).not.toBeInTheDocument();
+    await act(async () => resolveBoard(board("shared-link")));
+    expect(store.getState().whiteBoard.id).toBe("shared-link");
   });
 
   it("opens an access-controlled direct board link after authentication", async () => {

@@ -27,6 +27,7 @@ describe("KumoLogo", () => {
 
     expect(logo).toHaveAttribute("aria-label", "Animated Kumo mascot");
     await waitFor(() => expect(logo.configure).toHaveBeenCalledWith(KUMO_LOGO_CONFIG));
+    expect(logo.configure).toHaveBeenCalledOnce();
     expect(logo.playAnimation).toHaveBeenCalledWith("startup");
     expect(logo.configure.mock.invocationCallOrder[0]).toBeLessThan(
       logo.playAnimation!.mock.invocationCallOrder[0]!
@@ -39,6 +40,7 @@ describe("KumoLogo", () => {
     expect(logo.setContext).not.toHaveBeenCalled();
     expect(logo).toHaveAttribute("aria-hidden", "true");
     expect(logo).not.toHaveAttribute("aria-label");
+    expect(logo.configure).toHaveBeenCalledOnce();
   });
 
   it("falls back to a supported leg gesture until startup animations ship", async () => {
