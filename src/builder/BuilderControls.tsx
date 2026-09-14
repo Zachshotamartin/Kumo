@@ -6,7 +6,7 @@ export function BuilderButton({ className = '' }: { className?: string }) {
   const { visible, busy } = useBuilderUI();
   return <div className={styles.entry} data-builder="">
     <button className={`${className} ${styles.entryButton}`} type="button" aria-label="Kumo AI" aria-expanded={visible} aria-controls="kumo-ai-panel" title="Kumo AI — create, edit, and ask questions in a conversation" onClick={() => setBuilderVisible(!visible)}>
-      Kumo AI{busy && <i className={styles.activityDot} aria-label="AI is working" />}
+      Kumo AI{busy && <i className={styles.spinner} role="img" aria-label="AI is working" />}
     </button>
     {busy && <button className={`${className} ${styles.entryButton}`} type="button" aria-label="Stop AI" title="Stop AI — keep completed edits and cancel remaining work" onClick={stopBuilder}><Stop aria-hidden="true" /></button>}
   </div>;

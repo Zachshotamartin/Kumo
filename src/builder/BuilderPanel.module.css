@@ -3,7 +3,8 @@
 .entryButton:hover, .entryButton[aria-expanded="true"] { background: var(--kumo-surface-hover); }
 .entryButton[aria-expanded="true"] { border-color: var(--kumo-accent); }
 .entryButton:focus-visible, .panel :is(button, select, textarea, summary):focus-visible { outline: 2px solid var(--kumo-accent); outline-offset: 2px; }
-.activityDot { width: 5px; height: 5px; border-radius: 50%; background: var(--kumo-accent-hover); }
+.spinner { display: inline-block; width: 14px; height: 14px; box-sizing: border-box; flex: none; border: 2px solid var(--kumo-accent-soft); border-top-color: var(--kumo-accent-hover); border-right-color: var(--kumo-accent-hover); border-radius: 50%; animation: builder-spin .8s linear infinite; }
+@keyframes builder-spin { to { transform: rotate(360deg); } }
 .dock { min-width: 0; height: 100%; overflow: hidden; }
 .panel { height: 100%; min-height: 0; width: 100%; display: flex; flex-direction: column; background: var(--kumo-surface); color: var(--kumo-ink); font-family: var(--kumo-font); font-size: var(--kumo-text-sm); }
 .header { min-height: 44px; padding: 8px 12px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--kumo-line); }
@@ -24,7 +25,7 @@
 .actions summary, .options summary { width: fit-content; cursor: pointer; }
 .actions ol { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; overflow-wrap: anywhere; }
 .footer { flex: 0 1 auto; max-height: 65%; min-height: 0; overflow: auto; border-top: 1px solid var(--kumo-line); padding: 10px 12px calc(78px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
-.status { color: var(--kumo-muted); font-size: var(--kumo-text-xs); max-height: 54px; overflow: auto; }
+.status { display: flex; align-items: center; gap: 7px; color: var(--kumo-muted); font-size: var(--kumo-text-xs); max-height: 54px; overflow: auto; }
 .composerLabel { display: block; }
 .panel textarea, .panel select { width: 100%; box-sizing: border-box; border: 1px solid var(--kumo-line); background: var(--kumo-surface-subtle); color: var(--kumo-ink); border-radius: var(--kumo-radius-control); font: inherit; }
 .panel textarea { display: block; padding: 10px; min-height: 76px; max-height: 180px; resize: vertical; line-height: 1.5; }
@@ -48,7 +49,7 @@
 .cursor { position: fixed; z-index: var(--kumo-z-toolbar); pointer-events: none; transition: left 180ms ease, top 180ms ease; color: var(--kumo-accent-hover); }
 .cursor span { display: block; padding: 5px 8px; margin: 0 0 0 14px; background: var(--kumo-accent); color: var(--kumo-accent-ink); border-radius: var(--kumo-radius-control); max-width: 200px; font: 11px var(--kumo-font); }
 .highlight { position: fixed; outline: 2px solid var(--kumo-accent-hover); pointer-events: none; z-index: var(--kumo-z-toolbar); }
-@media (prefers-reduced-motion: reduce) { .cursor { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .cursor { transition: none; } .spinner { animation: none; } }
 
 .assistantMessage { padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--kumo-accent) 45%, var(--kumo-line)); border-radius: 3px 12px 12px; background: color-mix(in srgb, var(--kumo-accent) 16%, var(--kumo-surface)); }
 .assistantMessage .speaker { color: var(--kumo-accent-hover); }
