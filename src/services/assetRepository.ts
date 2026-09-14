@@ -70,25 +70,7 @@ export const resolveAssetUrl = async (assetId: string): Promise<string> => {
   return result.asset.url;
 };
 
-export const rewriteShapeAssetIds = (
-  shapes: import("../classes/shape").Shape[],
-  assetIds: Record<string, string>
-): import("../classes/shape").Shape[] => shapes.map((shape) => ({
-  ...shape,
-  ...(shape.assetId && assetIds[shape.assetId]
-    ? { assetId: assetIds[shape.assetId], backgroundImage: undefined }
-    : {}),
-  ...(shape.shapes
-    ? { shapes: rewriteShapeAssetIds(shape.shapes, assetIds) }
-    : {}),
-}));
-
-export const collectShapeAssetIds = (
-  shapes: import("../classes/shape").Shape[]
-): string[] => [...new Set(shapes.flatMap((shape): string[] => [
-  ...(shape.assetId ? [shape.assetId] : []),
-  ...(shape.shapes ? collectShapeAssetIds(shape.shapes) : []),
-]))];
+export { rewriteShapeAssetIds, collectShapeAssetIds } from '../editor/shapeAssets';
 
 export const cloneBoardAssets = async (
   boardId: string,

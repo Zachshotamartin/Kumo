@@ -145,6 +145,7 @@ const renderCanvas = (input: Shape | Shape[], options: {
             updateMyPresence={presence.update}
             showCommentPins={options.showCommentPins}
             applyCollaborativeText={options.applyCollaborativeText}
+            mediaRepository={{ upload: uploadBoardAsset, remove: deleteBoardAsset }}
           />
         : <EditorCanvas />}
     </Provider>

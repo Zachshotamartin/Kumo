@@ -47,11 +47,8 @@ import {
 import { replaceShapes, setWhiteboardData, WhiteBoardState } from "../features/whiteBoard/whiteBoardSlice";
 import { setSelectedShapes } from "../features/selected/selectedSlice";
 import type { updateBoardSettings } from "../services/boardRepository";
-import {
-  type cloneBoardAssets,
-  collectShapeAssetIds,
-  rewriteShapeAssetIds,
-} from "../services/assetRepository";
+import type { cloneBoardAssets } from "../services/assetRepository";
+import { collectShapeAssetIds, rewriteShapeAssetIds } from './shapeAssets';
 import { AppDispatch, RootState } from "../store";
 import { queueBoardMutation } from "../collaboration/offlineRecovery";
 import { resolveVariableModes } from "../platform/productCapabilities";
