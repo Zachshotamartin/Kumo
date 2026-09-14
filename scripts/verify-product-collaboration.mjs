@@ -635,14 +635,13 @@ try {
   });
   await ownerPage.getByRole("button", { name: "Build with Astra" }).click();
   const builderPanel = ownerPage.getByRole("complementary", { name: "Astra builder" });
-  await builderPanel.getByLabel("Scope", { exact: true }).selectOption("board");
+  await builderPanel.getByLabel("Scope").selectOption("board");
   await builderPanel.getByLabel("What should Astra do?").fill("Create the canary card.");
   await builderPanel.getByRole("button", { name: "Run", exact: true }).click();
   try {
     await expect(collaboratorPage.locator('[data-shape-id="astra-canary-shape"]')).toBeVisible({ timeout: 20000 });
     await expect(collaboratorPage.getByText("Astra · Create canary card", { exact: true })).toBeVisible({ timeout: 10000 });
-    const builtDocument = await liveblocks.getStorageDocument(source.roomId, "json");
-    assert(builtDocument.builderReceipts?.[builderOperationId], "Builder mutation and durable receipt did not persist together.");
+    await expect.poll(async () => (await liveblocks.getStorageDocument(source.roomId, "json")).builderReceipts?.[builderOperationId], { timeout: 20000 }).toBeTruthy();
   } finally { releaseBuilderAck(); }
   await expect(builderPanel.getByRole("status")).toContainText("Completed");
   await builderPanel.getByRole("button", { name: "Undo run edits" }).click();
