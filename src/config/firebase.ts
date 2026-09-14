@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { initializeAuth, GoogleAuthProvider, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver } from "firebase/auth";
 import { resolveFirebaseAuthDomain } from "./authDomain";
+import { hasPendingGoogleRedirect } from "./googleRedirectState";
 
 const browserLocation = typeof window === "undefined" ? undefined : window.location;
 
@@ -26,5 +27,10 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+  // Firebase otherwise eagerly opens Google's iframe on mobile and Safari,
+  // delaying even signed-out visits that have no redirect to complete.
+  popupRedirectResolver: hasPendingGoogleRedirect() ? browserPopupRedirectResolver : undefined,
+});
 export const provider = new GoogleAuthProvider();

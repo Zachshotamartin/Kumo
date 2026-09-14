@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 // Run the built application and its real Firebase SDK under the deployed CSP.
 // Only the external Google/Firebase responses and product backend are fixtures;
-// getAuth, signInWithRedirect, getRedirectResult, persistence and App are real.
+// initializeAuth, signInWithRedirect, getRedirectResult, persistence and App are real.
 test("Google redirect returns to an authenticated dashboard and survives reload", async ({ page }) => {
   const origin = "https://kumo.test";
   const config = JSON.parse(readFileSync("vercel.json", "utf8"));
@@ -17,7 +17,7 @@ test("Google redirect returns to an authenticated dashboard and survives reload"
     Object.assign(window, { kumoScreenHistory: screens });
     new MutationObserver(() => {
       const text = document.body?.innerText ?? "";
-      const current = text.includes("Continue with Google") ? "landing"
+      const current = text.includes("Continue with Google") || text.includes("Every board can lead somewhere.") ? "landing"
         : text.includes("Pick up where the idea moved.") ? "dashboard"
         : text.includes("Opening your canvas") ? "loading" : null;
       if (current && screens.at(-1) !== current) screens.push(current);
@@ -124,6 +124,8 @@ test("Google redirect returns to an authenticated dashboard and survives reload"
   });
 
   await page.goto(origin);
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  expect(loadedGoogleScripts).toEqual([]);
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page.getByRole("heading", { name: "Pick up where the idea moved." })).toBeVisible({ timeout: 15_000 });
   expect(exchanges).toBe(1);

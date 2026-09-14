@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ArrowRight, Eye, EyeSlash, GoogleLogo } from "@phosphor-icons/react";
 import styles from "./homePage.module.css";
 import ui from "../ui/Ui.module.css";
@@ -12,10 +12,12 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
+  browserPopupRedirectResolver,
 } from "firebase/auth";
+import { clearPendingGoogleRedirect, hasPendingGoogleRedirect, markPendingGoogleRedirect } from "../../config/googleRedirectState";
 import LoadingScreen from "../LoadingScreen";
 import { type KumoLogoContext } from "../brand/KumoLogoConfig";
-import MarketingCanvas from "./MarketingCanvas";
+import MarketingCanvasPreview from "./MarketingCanvasPreview";
 import {
   consumeLocalGoogleRedirect,
   hasLocalGoogleRedirectResult,
@@ -26,6 +28,8 @@ import {
 interface HomePageProps {
   authPending?: boolean;
 }
+
+const MarketingCanvas = lazy(() => import("./MarketingCanvas"));
 
 const HomePage = ({ authPending = false }: HomePageProps) => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
@@ -77,7 +81,10 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
         }
         return;
       }
-      await getRedirectResult(auth);
+      if (hasPendingGoogleRedirect()) {
+        clearPendingGoogleRedirect();
+        await getRedirectResult(auth, browserPopupRedirectResolver);
+      }
     };
     // Strict Mode replays effects; both subscriptions must wait for the same
     // credential exchange after its URL fragment has been consumed.
@@ -154,7 +161,8 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
         );
         window.location.assign(redirectUrl);
       } else {
-        await signInWithRedirect(auth, provider);
+        markPendingGoogleRedirect();
+        await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
       }
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");
@@ -204,7 +212,9 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   return (
     <main className={styles.homePage}>
       <section className={styles.intro}>
-        <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} />
+        <Suspense fallback={<MarketingCanvasPreview logoContext={logoContext} logoStatus={logoStatus} />}>
+          <MarketingCanvas logoContext={logoContext} logoStatus={logoStatus} />
+        </Suspense>
       </section>
       <form className={styles.loginForm} aria-label="Authentication" onSubmit={handleLogin} aria-busy={controlsDisabled}>
         <div className={styles.modeSwitch} role="tablist" aria-label="Authentication mode">

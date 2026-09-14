@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./config/firebase";
+import { clearPendingGoogleRedirect } from "./config/googleRedirectState";
 import { login, logout, setAuthenticatedProfile, setAuthInitialized } from "./features/auth/authSlice";
 import { ensureUserProfile } from "./services/userRepository";
 import { AppDispatch, RootState } from "./store";
@@ -20,7 +21,10 @@ const loadWorkspace = () => {
 };
 const WorkSpace = lazy(loadWorkspace);
 const MiddlePage = lazy(() => import("./components/middlePage/middlePage"));
-const HomePage = lazy(() => import("./components/homepage/homePage"));
+// Fetch the public page alongside Firebase restoration without blocking the
+// small startup shell or rendering the landing page for a restored session.
+const homePagePromise = import("./components/homepage/homePage");
+const HomePage = lazy(() => homePagePromise);
 const PrototypeShareView = lazy(() => import("./components/editor/PrototypeShareView"));
 const VersionShareView = lazy(() => import("./history/VersionShareView"));
 const OpenSessionView = lazy(() => import("./components/editor/OpenSessionView"));
@@ -55,6 +59,7 @@ function App() {
         // Start the core editor chunk before dashboard requests and preview work.
         // Opening a board should only wait for collaboration, never module scheduling.
         void loadWorkspace();
+        clearPendingGoogleRedirect();
         setProfilePending(true);
         dispatch(
           login({
