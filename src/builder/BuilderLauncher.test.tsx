@@ -17,8 +17,11 @@ it('keeps a visible stop control in the header while AI is working', async () =>
   const stop = vi.fn(); window.addEventListener('kumo:builder-stop', stop);
   const rendered = render(<><BuilderButton className="native-control" /><BuilderDock /><BuilderLauncher /></>);
   act(() => setBuilderBusy(true));
+  expect(screen.getByRole('img', { name: 'AI is working' })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Stop AI' })); expect(stop).toHaveBeenCalledOnce();
   expect(screen.getByRole('button', { name: 'Kumo AI' })).toHaveTextContent('Kumo AI');
+  act(() => setBuilderBusy(false));
+  expect(screen.queryByRole('img', { name: 'AI is working' })).not.toBeInTheDocument();
   window.removeEventListener('kumo:builder-stop', stop); rendered.unmount();
 });
 
