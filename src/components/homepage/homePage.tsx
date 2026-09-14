@@ -39,6 +39,7 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [redirectPending, setRedirectPending] = useState(() => hasLocalGoogleRedirectResult(window.location.href));
+  const redirectPromise = useRef<Promise<void> | null>(null);
 
   const selectMode = (nextMode: "signin" | "register") => {
     setMode(nextMode);
@@ -78,7 +79,10 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
       }
       await getRedirectResult(auth);
     };
-    void completeRedirect().catch((caught: unknown) => {
+    // Strict Mode replays effects; both subscriptions must wait for the same
+    // credential exchange after its URL fragment has been consumed.
+    redirectPromise.current ??= completeRedirect();
+    void redirectPromise.current.catch((caught: unknown) => {
       if (!active) return;
       window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
       setError(caught instanceof Error ? caught.message : "Authentication with Google failed.");

@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider } from "react-redux";
+import { StrictMode } from "react";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer, { login } from "../../features/auth/authSlice";
 import editorReducer from "../../features/editor/editorSlice";
@@ -110,7 +111,7 @@ const board = (id: string) => ({
   revision: 0, updatedAt: 1,
 });
 
-const renderDashboard = (authenticated = true) => {
+const renderDashboard = (authenticated = true, strict = false) => {
   const store = configureStore({
     reducer: {
       auth: authReducer,
@@ -121,7 +122,7 @@ const renderDashboard = (authenticated = true) => {
     },
   });
   if (authenticated) store.dispatch(login({ uid: "user", email: "user@example.com" }));
-  render(<Provider store={store}><BoardDashboard /></Provider>);
+  render(<Provider store={store}><BoardDashboard /></Provider>, { wrapper: strict ? StrictMode : undefined });
   return store;
 };
 
@@ -193,8 +194,9 @@ describe("BoardDashboard", () => {
     window.history.replaceState({}, "", "/?board=shared-link");
     let resolveBoard!: (value: ReturnType<typeof board>) => void;
     mocks.get.mockReturnValueOnce(new Promise((resolve) => { resolveBoard = resolve; }));
-    const store = renderDashboard();
+    const store = renderDashboard(true, true);
     await waitFor(() => expect(mocks.get).toHaveBeenCalledWith("shared-link"));
+    expect(mocks.get).toHaveBeenCalledOnce();
     expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
     expect(screen.queryByText("My map")).not.toBeInTheDocument();
     await act(async () => resolveBoard(board("shared-link")));

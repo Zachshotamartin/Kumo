@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import HomePage from "./homePage";
 
 const mocks = vi.hoisted(() => ({
@@ -249,7 +250,9 @@ describe("HomePage authentication", () => {
     mocks.hasLocal.mockReturnValue(true);
     mocks.consumeLocal.mockReturnValue({ returnUrl: "/returned", credential: { providerId: "google.com" } });
     mocks.credential.mockReturnValueOnce(new Promise((_, reject) => { rejectCredential = reject; }));
-    render(<HomePage />);
+    render(<StrictMode><HomePage /></StrictMode>);
+    expect(mocks.credential).toHaveBeenCalledOnce();
+    expect(mocks.consumeLocal).toHaveBeenCalledOnce();
     expect(screen.getByRole("status")).toHaveTextContent("Opening your canvas");
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
     await act(async () => rejectCredential(new Error("Google sign-in expired.")));
