@@ -36,7 +36,7 @@
     "@reduxjs/toolkit": "^2.5.0",
     "@supabase/supabase-js": "^2.112.3",
     "dompurify": "^3.4.14",
-    "firebase": "12.18.0",
+    "firebase": "12.19.0",
     "firebase-admin": "^14.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
