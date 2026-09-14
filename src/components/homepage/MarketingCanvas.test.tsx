@@ -35,7 +35,7 @@ describe("landing page production editor integration", () => {
     expect(canvas()).toBeVisible();
     expect(screen.getByRole("heading", { name: "Every board can lead somewhere." })).toBeVisible();
     draw();
-    expect(screen.getByRole("button", { name: "Undo", exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
   });
 
   it("uses the editor for drawing, resize, selection, undo, redo, text editing and reset without changing the application store", () => {
