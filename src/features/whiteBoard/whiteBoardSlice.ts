@@ -39,6 +39,7 @@ export interface WhiteBoardState {
     activity?: "moving" | "resizing" | "rotating" | "editing" | null;
     cursorChat?: string;
     textSelection?: { shapeId: string; start: number; end: number } | null;
+    builder?: { runId: string; x: number; y: number; shapeIds: string[]; label: string; expiresAt: number } | null;
   }[];
   schemaVersion: number;
   revision: number;

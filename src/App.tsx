@@ -12,6 +12,7 @@ import { clearSelectedShapes } from "./features/selected/selectedSlice";
 import { setWhiteboardData } from "./features/whiteBoard/whiteBoardSlice";
 import LoadingScreen from "./components/LoadingScreen";
 import { startObservability } from "./platform/observability";
+import BuilderLauncher from "./builder/BuilderLauncher";
 
 const importWorkspace = () => import("./components/workSpace/workSpace");
 let workspacePromise: ReturnType<typeof importWorkspace> | null = null;
@@ -140,6 +141,7 @@ function App() {
           )}
         </Suspense>
       </div>
+      {user.isAuthenticated && !profilePending && !openSessionToken && !prototypeToken && !versionToken && <BuilderLauncher />}
     </>
   );
 }

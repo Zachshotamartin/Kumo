@@ -63,8 +63,10 @@ class FakeDatabase {
     return this.take(table, operation);
   }
 
+  builderPruneError: Error | null = null;
   rpc(name: string) {
     this.calls.push({ table: name, operation: "rpc" });
+    if (name === 'prune_builder_content') return Promise.resolve({ data: null, error: this.builderPruneError });
     return Promise.resolve(this.rpcResults.shift() ?? { data: [], error: null });
   }
 
@@ -81,6 +83,10 @@ class FakeDatabase {
 const lifecycleBoard = (id = "board") => ({ id, liveblocks_room_id: `board:${id}`, legacy_rtdb_id: `legacy-${id}` });
 
 describe("reliability lifecycle maintenance", () => {
+  it('fails visibly when expired builder content cannot be pruned', async () => {
+    const database = new FakeDatabase(); database.builderPruneError = new Error('Builder pruning failed'); mocks.database = database;
+    await expect(runLifecycleMaintenance()).rejects.toThrow('Builder pruning failed');
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.deleteRoom.mockReset().mockResolvedValue(undefined);

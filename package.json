@@ -52,7 +52,7 @@
     "start": "vite",
     "build": "tsc --noEmit && vite build && node scripts/verify-production-artifacts.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && node scripts/generate-builder-capabilities.mjs --check",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

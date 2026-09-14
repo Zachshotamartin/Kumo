@@ -1,5 +1,7 @@
 /* eslint jsx-a11y/no-noninteractive-tabindex: ["error", { "roles": ["application"] }] -- The canvas application requires focus to own its editing shortcuts. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import BuilderPresenceCursor from './BuilderPresenceCursor';
+import { claimedShapeIds } from '../../collaboration/activityClaims';
 import { Cursor, LockSimple, X } from "@phosphor-icons/react";
 import { useUpdateMyPresence } from "@liveblocks/react";
 import { useDispatch, useSelector } from "react-redux";
@@ -279,7 +281,7 @@ export const EditorCanvasView = ({
   }, [canvasShapes, editor.hoveredShapeId, editor.measureMode, selectedShapes]);
 
   const remoteActivityFor = useCallback((shapeIds: string[]) => board.currentUsers.find((presence) =>
-    presence.uid !== user.uid && presence.activeShapeIds?.some((id) => shapeIds.includes(id))
+    presence.uid !== user.uid && claimedShapeIds(presence).some((id) => shapeIds.includes(id))
   ), [board.currentUsers, user.uid]);
 
   const ingestExternalFile = useCallback(async (file: File, point: Point) => {
@@ -1174,7 +1176,7 @@ export const EditorCanvasView = ({
     const interaction = interactionRef.current;
     if (!interaction || !["move", "resize", "rotate", "vector-point", "vector-handle"].includes(interaction.mode)) return;
     const contender = board.currentUsers
-      .filter((presence) => presence.activeShapeIds?.some((id) => interaction.selectedIds.includes(id)))
+      .filter((presence) => claimedShapeIds(presence).some((id) => interaction.selectedIds.includes(id)))
       .sort((left, right) => left.uid.localeCompare(right.uid))[0];
     if (!contender) return;
     // Presence can cross in flight when two people begin on the same frame.
@@ -1513,6 +1515,7 @@ export const EditorCanvasView = ({
     <div
       ref={canvasRef}
       className={styles.canvas}
+      data-testid="editor-canvas"
       tabIndex={0}
       style={{
         backgroundColor: board.backGroundColor,
@@ -1973,6 +1976,8 @@ export const EditorCanvasView = ({
             </div>
           );
         })}
+
+      {board.currentUsers.filter(person => person.builder).map(person => <BuilderPresenceCursor key={`astra-${person.builder!.runId}`} presence={person.builder!} viewport={editor.viewport} />)}
 
       {cursorChatMode && (() => {
         const point = worldToScreen(cursorChatAnchor, editor.viewport);

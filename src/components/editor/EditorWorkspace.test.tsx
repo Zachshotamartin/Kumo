@@ -8,6 +8,8 @@ import editorReducer, { setSaveStatus } from "../../features/editor/editorSlice"
 import selectedReducer from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import EditorWorkspace from "./EditorWorkspace";
+import { enableBuilder } from '../../builder/bridge';
+vi.mock('../../builder/BuilderEditorBridge', () => ({ default: () => <div>Astra connected</div> }));
 
 const mocks = vi.hoisted(() => ({
   commitBoardPatch: vi.fn(),
@@ -95,6 +97,11 @@ const renderWorkspace = (role: "owner" | "viewer" = "owner", options: WorkspaceO
 };
 
 describe("EditorWorkspace", () => {
+  it('loads the builder bridge only after Astra is opened', async () => {
+    renderWorkspace(); expect(screen.queryByText('Astra connected')).not.toBeInTheDocument();
+    act(() => enableBuilder(true)); expect(await screen.findByText('Astra connected')).toBeInTheDocument();
+    act(() => enableBuilder(false)); expect(screen.queryByText('Astra connected')).not.toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/");

@@ -15,6 +15,7 @@
 /build
 /dist
 /.vercel
+/supabase/.temp
 
 # misc
 .DS_Store

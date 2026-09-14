@@ -11,12 +11,14 @@ declare global {
       activity: "moving" | "resizing" | "rotating" | "editing" | null;
       cursorChat: string;
       textSelection: { shapeId: string; start: number; end: number } | null;
+      builder?: { runId: string; x: number; y: number; shapeIds: string[]; label: string; expiresAt: number } | null;
     };
     Storage: {
       schemaVersion: number;
       backgroundColor: string;
       nodes: LiveMap<string, LiveObject<LsonObject>>;
       textCharacters: LiveMap<string, LiveObject<LsonObject>>;
+      builderReceipts?: LiveMap<string, string>;
     };
     UserMeta: {
       id: string;

@@ -1,6 +1,6 @@
 # Astra live builder and sidebar clearance
 
-Status: implementation plan; sidebar clearance is implemented locally and all 9 inspector browser tests passed across Chromium, Firefox, and WebKit. Agent implementation is pending.
+Status: implemented on this branch; release validation is in progress. The generated registry covers 180 native editor/repository actions, plus 14 canvas, navigation, and observed-control capabilities. See [the operations guide](../astra-builder.md) for the delivered architecture and launch configuration. Real paid inference remains a launch gate because no server OpenAI credential or spending authorization was supplied.
 Branch: `feature/astra-live-builder`.
 Delivery: one PR containing the sidebar fix, the builder, its backend and migrations, tests, and documentation. Do not open or merge a separate sidebar-only PR.
 
