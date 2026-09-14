@@ -48,13 +48,16 @@ export function undoReceipts(shapes: Shape[], receipts: DocumentReceipt[]): Shap
   for (const receipt of [...receipts].reverse()) {
     const before = new Map(receipt.before.map(shape => [shape.id, shape]));
     const after = new Map(receipt.after.map(shape => [shape.id, shape]));
+    const restore = new Map([...before].filter(([id]) => !after.has(id) && !next.has(id)));
+    let restored: boolean;
+    do {
+      restored = false;
+      for (const [id, previous] of restore) if (!previous.parentId || next.has(previous.parentId)) { next.set(id, previous); restore.delete(id); restored = true; }
+    } while (restored);
     for (const [id, previous] of before) {
       const current = next.get(id);
       const applied = after.get(id);
-      if (!applied) {
-        if (!current && (!previous.parentId || next.has(previous.parentId))) next.set(id, previous);
-        continue;
-      }
+      if (!applied) continue;
       if (!current) continue;
       const delta = shapePatch(previous, applied);
       const record = current as unknown as Record<string, unknown>;
@@ -62,6 +65,7 @@ export function undoReceipts(shapes: Shape[], receipts: DocumentReceipt[]): Shap
       const final = storedShape(applied);
       for (const key of [...Object.keys(delta.update), ...delta.remove]) {
         if (!equalValue(record[key], final[key])) continue;
+        if (key === 'parentId' && previous.parentId && !next.has(previous.parentId)) continue;
         if (Object.hasOwn(old, key)) record[key] = old[key]; else delete record[key];
       }
     }

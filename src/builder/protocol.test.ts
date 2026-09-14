@@ -92,6 +92,9 @@ describe('collaborative builder document operations', () => {
     expect(undoReceipts([shape('parent')], [{ ...receipt, before: [shape('child', { parentId: 'parent' })], after: [] }])).toHaveLength(2);
     const parent = shape('parent'); const child = shape('child', { parentId: 'parent' });
     const creation = { ...receipt, before: [], after: [parent, child] };
+    expect(undoReceipts([], [{ ...receipt, before: [child, parent], after: [] }])).toEqual([parent, child]);
+    const reparented = { ...child, parentId: 'new-parent' };
+    expect(undoReceipts([shape('new-parent'), reparented], [{ ...receipt, before: [child], after: [reparented] }]).find(item => item.id === 'child')?.parentId).toBe('new-parent');
     expect(undoReceipts([parent, { ...child, name: 'Collaborator edit' }], [creation])).toHaveLength(2);
     expect(undoReceipts([parent, child], [creation])).toEqual([]);
     expect(undoReceipts([parent, child, shape('connector', { connectorStart: { shapeId: 'child' } } as Partial<Shape>)], [creation])).toHaveLength(3);

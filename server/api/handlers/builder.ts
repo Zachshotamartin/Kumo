@@ -100,7 +100,7 @@ export default async function builder(request: VercelRequest, response: VercelRe
       return response.status(200).json({ run: publicRun(run), operation: run.operation });
     }
     if (typeof body.context !== 'string' || body.context.length > 16000) return response.status(400).json({ error: 'Provide a bounded current Kumo context.' });
-    const { data: receipts, error: receiptError } = await database.from('builder_operations').select('operation,result').eq('run_id', run.id).eq('status', 'finished').order('created_at');
+    const { data: receipts, error: receiptError } = await database.from('builder_operations').select('operation,result').eq('run_id', run.id).eq('status', 'finished').order('created_at').order('position');
     if (receiptError) throw receiptError;
     const answered = new Set(run.continuation.filter(item => item.type === 'function_call_output').map(item => item.call_id));
     const results = new Map<string, unknown[]>();

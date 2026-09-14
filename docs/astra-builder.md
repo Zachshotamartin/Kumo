@@ -32,7 +32,7 @@ Configure these **server-only** Vercel variables (never `VITE_`):
 
 The numeric defaults are configuration proposals, not spending authorization. Keep the switch false until the owner accepts budgets and configures the credential. Do not send credentials in chat, logs, or the PR. Redeploy after changing runtime configuration. Disabling hosted inference blocks new create/step calls; already-running requests may finish or be stopped by their executor.
 
-Before enabling publicly, verify account access to `gpt-6-astra` and current pricing/usage fields, then run a tightly budgeted pilot at all five efforts: a roadmap, a selected-frame mockup, an existing-board restyle, connectors/layout, and a workspace navigation task. Assess editable output quality and latency. This paid pilot has not run because this workspace has no OpenAI credential. CI never makes paid inference requests.
+Before enabling publicly, verify account access to `gpt-6-astra` and current pricing/usage fields, then run a tightly budgeted pilot at all five efforts: a roadmap, a selected-frame mockup, an existing-board restyle, connectors/layout, and a workspace navigation task. Assess editable output quality and latency. The owner has configured a protected Vercel credential with the hosted flag false; this paid pilot has not been authorized or run. CI never makes paid inference requests.
 
 ## Spending, recovery, and operations
 
