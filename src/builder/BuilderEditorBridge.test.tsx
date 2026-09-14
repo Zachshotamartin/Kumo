@@ -100,6 +100,8 @@ it('bounds creation, enforces selection scope, and validates hierarchy before ap
   await expect(execute('canvas.create', [[rect('new')]], 'selection', ['parent'])).rejects.toThrow('selected container');
   await expect(execute('canvas.create', [[rect('new', { parentId: 'outside' })]], 'selection', ['parent'])).rejects.toThrow('selected container');
   await execute('canvas.create', [[rect('new', { parentId: 'parent' })]], 'selection', ['parent']);
+  await expect(execute('editor.addPage', [], 'selection', ['parent'])).rejects.toThrow('selected scope');
+  await expect(execute('editor.undo', [], 'selection', ['parent'])).rejects.toThrow('History');
   await execute('canvas.select', [['outside']]); await expect(execute('editor.nudgeSelected', [1, 1], 'selection', ['parent'])).rejects.toThrow('outside');
   await expect(execute('canvas.create', [[rect('same'), rect('same')]])).rejects.toThrow('unique');
   await expect(execute('canvas.create', [[rect('parent')]])).rejects.toThrow('unique');
@@ -138,6 +140,7 @@ it('records background changes, rejects scope/access violations and undoes only 
   expect(() => mocks.callbacks[1]!(mutationContext, '#000')).toThrow('access');
   await expect(execute('canvas.background', ['#000'], 'selection')).rejects.toThrow('scope');
   mocks.self.canWrite = false; await expect(execute('canvas.background', ['#000'])).rejects.toThrow('access'); mocks.self.canWrite = true;
+  mocks.status = 'disconnected'; await expect(execute('canvas.background', ['#000'])).rejects.toThrow('access'); mocks.status = 'connected';
   await execute('canvas.background', ['#123']); expect(root.get('backgroundColor')).toBe('#123');
   await execute('canvas.undoRun'); expect(root.get('backgroundColor')).toBe('#fff');
   await execute('canvas.background', ['#456']); root.set('backgroundColor', '#789'); await execute('canvas.undoRun'); expect(root.get('backgroundColor')).toBe('#789');
@@ -173,4 +176,10 @@ it('rejects adding or moving content into a locked parent', async () => {
   setup([rect('locked', { type: 'frame', locked: true }), rect('one')]);
   await expect(execute('canvas.create', [[rect('child', { parentId: 'locked' })]])).rejects.toThrow('destination');
   await expect(execute('canvas.patch', [[{ id: 'one', expected: { parentId: null }, patch: { parentId: 'locked' } }]])).rejects.toThrow('destination');
+});
+it('allows wrapping selected objects but refuses unrelated native document additions', async () => {
+  setup(); await execute('canvas.select', [['one']]);
+  await expect(execute('editor.createLibraryVariable', ['color-variable', 'Color', '#abc'], 'selection', ['one'])).rejects.toThrow('selected scope');
+  await execute('editor.frameSelected', [], 'selection', ['one']);
+  expect(root.get('nodes').get('one')!.get('parentId')).toBeTruthy();
 });

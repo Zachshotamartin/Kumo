@@ -49,6 +49,7 @@ export default function BuilderEditorBridge() {
       if (!before && live) throw new Error('An object with this ID already exists.');
       if (after?.parentId && (!before || before.parentId !== after.parentId) && isEffectivelyLocked(next, { ...after, locked: false })) throw new Error('Unlock the destination container before editing it.');
       if (active.scope === 'selection' && before && !withinSelection(previous, id, active.selection)) throw new Error('This object is outside the selected scope.');
+      if (active.scope === 'selection' && !before && !withinSelection(next, id, active.selection) && !active.selection.some(selectedId => withinSelection(next, selectedId, [id]))) throw new Error('New objects must belong to the selected scope.');
       if (before && isEffectivelyLocked(current, before) && !(after?.locked === false && equalValue({ ...before, locked: false }, after))) throw new Error('Unlock the object before editing it.');
       if (self.presence.activeShapeIds.includes(id) || others.some(other => other.presence.activeShapeIds.includes(id) || (other.presence.builder && other.presence.builder.expiresAt > Date.now() && other.presence.builder.shapeIds.includes(id)))) throw new Error('This object is being edited. Wait for its editor to finish.');
     }
@@ -79,14 +80,14 @@ export default function BuilderEditorBridge() {
   }, [room]);
   const mutateBackground = useMutation(({ storage, self }, color: string) => {
     const active = execution.current;
-    if (!active || active.cancelled || !self.canWrite) throw new Error('Builder edit access is unavailable.');
+    if (!active || active.cancelled || !self.canWrite || room.getStatus() !== 'connected') throw new Error('Builder edit access is unavailable.');
     if (active.scope === 'selection') throw new Error('A background change requires Current board scope.');
     let receipts = storage.get('builderReceipts');
     if (!receipts) { receipts = new LiveMap<string, string>(); storage.set('builderReceipts', receipts); }
     receipts.set(active.operation.id, JSON.stringify({ runId: active.runId, operationId: active.operation.id, before: [], after: [], beforeBackground: storage.get('backgroundColor'), afterBackground: color, timestamp: Date.now() }));
     while (receipts.size > 512) receipts.delete(receipts.keys().next().value!);
     storage.set('backgroundColor', color);
-  }, []);
+  }, [room]);
   const actions = useEditorActionsCore({ mutateShapes, mutateBackground, updateBoardSettings, cloneBoardAssets, history, canUndo, canRedo, selectionOverride: agentSelection });
   const commands = useRef(actions);
   useLayoutEffect(() => { commands.current = actions; }, [actions]);
@@ -111,6 +112,7 @@ export default function BuilderEditorBridge() {
         if (operation.capability === 'canvas.select') { dispatch(setSelectedShapes((first as string[]).filter(id => board.shapes.some(shape => shape.id === id)))); return { selected: first }; }
         if (operation.capability === 'canvas.view') { dispatch(setViewport(first as RootState['editor']['viewport'])); return { viewport: first }; }
         if (!capability.readOnly && !actions.canEdit) throw new Error('This action requires edit access.');
+        if (scope === 'selection' && ['editor.undo', 'editor.redo'].includes(operation.capability)) throw new Error('History navigation requires Current board scope.');
         const active: Execution = { operation, runId, scope, selection, cancelled: false };
         execution.current = active;
         const targetIds = capability.domain === 'editor' ? first as string[] : operation.capability === 'canvas.patch' || operation.capability === 'canvas.create' ? (first as Array<{ id: string }>).map(change => change.id) : selected;
