@@ -1762,21 +1762,20 @@ var Tt = {
 	y: 0
 }, Et = (e, t) => `${e}|${t ?? ""}`;
 function Dt() {
-	return new Map(Qe.map((e) => {
-		let t = /* @__PURE__ */ new Map();
-		for (let n of ut) {
-			if (!n.baseBody) continue;
-			let r = n.baseFace ? [null, ...me] : [null];
-			for (let i of r) t.set(Et(n.id, i?.id ?? null), wt(n, e.radii, i));
-		}
-		return [e.radii, t];
-	}));
+	// Calibration is expensive. Only allocate caches here; most embedded logos
+	// use custom geometry and never request any of these built-in combinations.
+	return new Map(Qe.map((e) => [e.radii, new Map()]));
 }
 var Ot = Dt();
 function kt(e, t, n) {
 	if (!e) return Tt;
 	let r = Ot.get(e);
-	return r ? r.get(Et(t, n)) ?? r.get(Et(t, null)) ?? Tt : Tt;
+	let state = X.get(t);
+	if (!r || !state?.baseBody) return Tt;
+	let expression = state.baseFace ? he.get(n) ?? null : null;
+	let key = Et(t, expression?.id ?? null);
+	if (!r.has(key)) r.set(key, wt(state, e, expression));
+	return r.get(key);
 }
 //#endregion
 //#region src/bot/engine.ts
