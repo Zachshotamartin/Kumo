@@ -28,6 +28,16 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("landing page production editor integration", () => {
+  it("opens the interactive canvas before layout measurement is available without ResizeObserver", () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ ...bounds, width: 0, height: 0 });
+    render(<MarketingCanvas logoContext="idle" logoStatus="Ready" />);
+    expect(canvas()).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Every board can lead somewhere." })).toBeVisible();
+    draw();
+    expect(screen.getByRole("button", { name: "Undo", exact: true })).toBeEnabled();
+  });
+
   it("uses the editor for drawing, resize, selection, undo, redo, text editing and reset without changing the application store", () => {
     const before = appStore.getState();
     const { container } = render(<MarketingCanvas logoContext="idle" logoStatus="Ready" />);
