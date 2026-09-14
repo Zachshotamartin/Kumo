@@ -2510,8 +2510,8 @@
   .boardNavigation { display: none; }
 }
 @media (max-width: 760px) {
-  .topbar { height: auto; min-height: 88px; flex-wrap: wrap; gap: 4px; padding-block: 6px; }
-  .topbarStart { flex-basis: 100%; }
+  .responsiveTopbar { height: auto; min-height: 88px; flex-wrap: wrap; gap: 4px; padding-block: 6px; }
+  .responsiveTopbar .topbarStart { flex-basis: 100%; }
   .topbarEnd { width: 100%; justify-content: flex-end; }
   .topbarEnd > :first-child { margin-right: auto; }
   .titleInput { flex: 1; max-width: none; }

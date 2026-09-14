@@ -343,7 +343,7 @@ const EditorWorkspace = () => {
   return (
     <main className={styles.workspace}>
       <OfflineRecoveryBridge connectionStatus={connectionStatus} />
-      <header className={styles.topbar}>
+      <header className={`${styles.topbar} ${styles.responsiveTopbar}`}>
         <div className={styles.topbarStart}>
           <button type="button" className={styles.brandButton} onClick={goHome} aria-label="Back to boards">
             <KumoLogo className={styles.brandLogo} decorative />
