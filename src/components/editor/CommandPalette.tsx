@@ -122,7 +122,7 @@ const CommandPalette = () => {
               <input
                 ref={inputRef}
                 value={query}
-                placeholder={referenceMode ? "Search keyboard shortcuts" : "Find a layer or run a command"}
+                placeholder={referenceMode ? "Search keyboard shortcuts" : "Search layers and commands"}
                 aria-label={referenceMode ? "Search keyboard shortcuts" : "Search objects and commands"}
                 onChange={(event) => { setQuery(event.target.value); setActive(0); }}
                 onKeyDown={(event) => {

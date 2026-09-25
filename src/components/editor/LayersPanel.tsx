@@ -257,6 +257,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
           type="button"
           className={styles.layerAction}
           aria-label={`${shape.hidden ? "Show" : "Hide"} ${name}`}
+          data-active={shape.hidden === true}
           title={shape.hidden ? "Show" : "Hide"}
           disabled={!actions.canEdit}
           onClick={() => toggleMember(shape, "hidden", !shape.hidden)}
@@ -267,6 +268,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
           type="button"
           className={styles.layerAction}
           aria-label={`${shape.locked ? "Unlock" : "Lock"} ${name}`}
+          data-active={shape.locked === true}
           title={shape.locked ? "Unlock" : "Lock"}
           disabled={!actions.canEdit}
           onClick={() => toggleMember(shape, "locked", !shape.locked)}
@@ -370,6 +372,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
               type="button"
               className={styles.layerAction}
               aria-label={`${unit.members.every((member) => member.hidden) ? "Show" : "Hide"} ${label}`}
+              data-active={unit.members.every((member) => member.hidden)}
               disabled={!actions.canEdit}
               onClick={() => toggleShapes(unit.ids, "hidden", !unit.members.every((member) => member.hidden))}
             >
@@ -379,6 +382,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
               type="button"
               className={styles.layerAction}
               aria-label={`${unit.members.every((member) => member.locked) ? "Unlock" : "Lock"} ${label}`}
+              data-active={unit.members.every((member) => member.locked)}
               disabled={!actions.canEdit}
               onClick={() => toggleShapes(unit.ids, "locked", !unit.members.every((member) => member.locked))}
             >
@@ -542,6 +546,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                   type="button"
                   className={styles.layerAction}
                   aria-label={`${allHidden ? "Show" : "Hide"} ${label}`}
+                  data-active={allHidden}
                   title={allHidden ? "Show" : "Hide"}
                   disabled={!actions.canEdit}
                   onClick={() => toggleShapes(unit.ids, "hidden", !allHidden)}
@@ -552,6 +557,7 @@ export const LayersPanelView = ({ actions }: { actions: EditorActions }) => {
                   type="button"
                   className={styles.layerAction}
                   aria-label={`${allLocked ? "Unlock" : "Lock"} ${label}`}
+                  data-active={allLocked}
                   title={allLocked ? "Unlock" : "Lock"}
                   disabled={!actions.canEdit}
                   onClick={() => toggleShapes(unit.ids, "locked", !allLocked)}

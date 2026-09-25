@@ -3,12 +3,12 @@
   min-height: var(--kumo-control-default);
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: var(--kumo-space-2);
+  padding: 0 var(--kumo-space-3-5);
   color: var(--kumo-text-secondary);
   font: inherit;
   font-size: var(--kumo-text-sm);
-  font-weight: var(--kumo-weight-bold);
+  font-weight: var(--kumo-weight-semibold);
   white-space: nowrap;
   background: var(--kumo-surface-hover);
   border: 1px solid var(--kumo-line-strong);
@@ -35,6 +35,7 @@
 
 .buttonPrimary {
   color: var(--kumo-accent-ink);
+  font-weight: var(--kumo-weight-bold);
   background: var(--kumo-accent-hover);
   border-color: var(--kumo-accent-hover);
 }
@@ -61,13 +62,14 @@
 
 .buttonGhost {
   color: var(--kumo-muted);
+  font-weight: var(--kumo-weight-medium);
   background: transparent;
   border-color: transparent;
 }
 
 .buttonCompact {
   min-height: var(--kumo-control-compact);
-  padding: 0 10px;
+  padding: 0 var(--kumo-space-2-5);
   font-size: var(--kumo-text-xs);
 }
 
@@ -98,7 +100,7 @@
 .control {
   width: 100%;
   min-height: var(--kumo-control-default);
-  padding: 0 12px;
+  padding: 0 var(--kumo-space-3);
   color: var(--kumo-ink);
   font: inherit;
   font-size: var(--kumo-text-sm);
@@ -119,20 +121,20 @@
 .control:disabled { color: var(--kumo-text-disabled); cursor: not-allowed; opacity: 0.7; }
 
 textarea.control {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: var(--kumo-space-2-5);
+  padding-bottom: var(--kumo-space-2-5);
   line-height: var(--kumo-leading-normal);
 }
 
 .field {
   display: grid;
-  gap: 7px;
+  gap: var(--kumo-space-2);
 }
 
 .fieldLabel {
   color: var(--kumo-text-secondary);
   font-size: var(--kumo-text-xs);
-  font-weight: var(--kumo-weight-bold);
+  font-weight: var(--kumo-weight-medium);
 }
 
 .fieldHelp {
@@ -146,7 +148,7 @@ textarea.control {
   min-height: var(--kumo-control-default);
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
-  padding: 0 10px;
+  padding: 0 var(--kumo-space-2-5);
   color: var(--kumo-muted);
   background: var(--kumo-surface-subtle);
   border: 1px solid var(--kumo-line);
@@ -163,7 +165,7 @@ textarea.control {
 .sectionHeading {
   display: flex;
   align-items: baseline;
-  gap: 9px;
+  gap: var(--kumo-space-2);
 }
 
 .sectionHeading h2 {
@@ -197,8 +199,8 @@ textarea.control {
   min-height: 156px;
   place-content: center;
   justify-items: center;
-  gap: 6px;
-  padding: 28px;
+  gap: var(--kumo-space-1-5);
+  padding: var(--kumo-space-8);
   color: var(--kumo-muted);
   text-align: center;
   background: rgb(37 38 41 / 0.55);
@@ -207,12 +209,12 @@ textarea.control {
 }
 
 .emptyState strong,
-.emptyState p { margin: 0; color: var(--kumo-text-secondary); font-size: var(--kumo-text-sm); font-weight: var(--kumo-weight-bold); }
+.emptyState p { margin: 0; color: var(--kumo-text-secondary); font-size: var(--kumo-text-sm); font-weight: var(--kumo-weight-semibold); }
 .emptyState span { font-size: var(--kumo-text-xs); line-height: var(--kumo-leading-normal); }
 
 .notice {
   margin: 0;
-  padding: 11px 13px;
+  padding: var(--kumo-space-3);
   color: var(--kumo-text-secondary);
   font-size: var(--kumo-text-xs);
   line-height: var(--kumo-leading-normal);
@@ -238,14 +240,14 @@ textarea.control {
   min-height: 48px;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px 0 14px;
+  padding: 0 var(--kumo-space-3) 0 var(--kumo-space-3-5);
   border-bottom: 1px solid var(--kumo-line);
 }
 
 .panelTitle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--kumo-space-2);
   font-size: var(--kumo-text-sm);
   font-weight: var(--kumo-weight-bold);
 }

@@ -6,7 +6,13 @@ import authReducer from "../../features/auth/authSlice";
 import editorReducer from "../../features/editor/editorSlice";
 import selectedReducer from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../store";
+import CanvasNotice from "./CanvasNotice";
 import EditorToolbar from "./EditorToolbar";
+
+/** Upload errors go to the canvas notice area, so these tests render it beside the toolbar. */
+const ConnectedNotice = () => <CanvasNotice message={useSelector((state: RootState) => state.editor.canvasNotice)} onDismiss={() => undefined} />;
 
 const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
@@ -195,7 +201,7 @@ describe("EditorToolbar image uploads", () => {
       if (tag === "video") Object.defineProperty(element, "src", { set: () => queueMicrotask(() => (element as HTMLVideoElement).onerror?.(new Event("error"))) });
       return element;
     }) as typeof document.createElement);
-    const view = render(<Provider store={makeStore()}><EditorToolbar /></Provider>);
+    const view = render(<Provider store={makeStore()}><EditorToolbar /><ConnectedNotice /></Provider>);
     const input = view.container.querySelector("input[type='file']") as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(["video"], "bad.webm", { type: "video/webm" })] } });
     expect(await screen.findByRole("alert")).toHaveTextContent("This video could not be read.");
@@ -209,7 +215,7 @@ describe("EditorToolbar image uploads", () => {
   });
 
   it("rejects a file whose type is outside the accepted media list", async () => {
-    const view = render(<Provider store={makeStore()}><EditorToolbar /></Provider>);
+    const view = render(<Provider store={makeStore()}><EditorToolbar /><ConnectedNotice /></Provider>);
     const input = view.container.querySelector("input[type='file']") as HTMLInputElement;
     expect(input.accept).toBe("image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm");
     fireEvent.change(input, { target: { files: [new File(["payload"], "payload.html", { type: "text/html" })] } });

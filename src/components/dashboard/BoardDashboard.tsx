@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BookmarkSimple,
   Graph,
   Bell,
   Compass,
@@ -126,6 +127,8 @@ const BoardDashboard = () => {
   const [deletedBoards, setDeletedBoards] = useState<BoardSummary[]>([]);
   const [publicBoards, setPublicBoards] = useState<BoardSummary[]>([]);
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +202,10 @@ const BoardDashboard = () => {
     if (!notification.action_url) return;
     navigateToUrl(notification.action_url);
   }, [navigateToUrl]);
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   useEffect(() => {
     const handlePopState = () => applyDashboardRoute(window.location.href);
@@ -499,7 +506,7 @@ const BoardDashboard = () => {
 
   return (
     <main className={styles.dashboard}>
-      <header className={styles.header}>
+      <header className={styles.header} data-search-open={view === "boards" && searchOpen ? "" : undefined}>
         <button type="button" className={styles.brand} aria-label="Kumo boards" onClick={showBoards}>
           <KumoLogo className={styles.brandLogo} decorative />
           <span className={styles.brandName}>Kumo</span>
@@ -519,24 +526,25 @@ const BoardDashboard = () => {
           <label className={`${ui.searchControl} ${styles.search}`}>
             <span className="sr-only">Search public boards</span>
             <MagnifyingGlass aria-hidden="true" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search public boards" />
+            <input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search public boards" />
             {query.trim() && globalResults.length > 0 && <div className={styles.globalSearchResults} role="listbox" aria-label="Search across Kumo">{globalResults.slice(0, 8).map((result) => <a key={`${result.kind}:${result.id}`} href={result.actionUrl} role="option" aria-selected="false" onClick={(event) => { event.preventDefault(); navigateToUrl(result.actionUrl); }}><strong>{result.label}</strong><small>{result.kind} · {result.detail}</small></a>)}</div>}
           </label>
         ) : <span className={styles.headerSpacer} />}
         <div className={styles.account}>
+          {view === "boards" && <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${styles.searchToggle}`} aria-label={searchOpen ? "Hide search" : "Show search"} aria-expanded={searchOpen} onClick={() => setSearchOpen((open) => !open)}><MagnifyingGlass aria-hidden="true" /></button>}
           <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${styles.profileButton}`} onClick={() => showProfile()} aria-label="Open your profile">
             <ProfileAvatar name={user.displayName || user.email || "Kumo user"} avatarUrl={user.avatarUrl} size={30} />
-            <span>{user.displayName || user.username || user.email}</span>
+            <span className={styles.profileName}>{user.displayName || user.username || user.email}</span>
             <UserCircle aria-hidden="true" />
           </button>
           <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} onClick={() => showSimpleView("settings")} aria-label="Open settings"><Gear aria-hidden="true" /></button>
-          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${styles.signOutButton}`} onClick={handleLogout} aria-label="Sign out"><SignOut aria-hidden="true" /><span>Sign out</span></button>
+          <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact} ${styles.signOutButton}`} onClick={handleLogout} aria-label="Sign out" title="Sign out"><SignOut aria-hidden="true" /><span>Sign out</span></button>
         </div>
       </header>
 
       <div className={ai.visible ? styles.withAI : undefined}>
       <div className={styles.content}>
-        {error && <div className={`${ui.notice} ${ui.noticeError}`} role="alert"><span>{error}</span>{requestedBoardId && <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => void requestBoardAccess(requestedBoardId, "viewer", "Please share this board with me.").then(() => { setError("Access request sent to the board owner."); setRequestedBoardId(null); }).catch((caught) => setError(caughtMessage(caught, "Access request failed.")))}>Request access</button>}</div>}
+        {error && <div className={`${ui.notice} ${ui.noticeError} ${styles.pageNotice}`} role="alert"><span>{error}</span>{requestedBoardId && <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => void requestBoardAccess(requestedBoardId, "viewer", "Please share this board with me.").then(() => { setError("Access request sent to the board owner."); setRequestedBoardId(null); }).catch((caught) => setError(caughtMessage(caught, "Access request failed.")))}>Request access</button>}</div>}
         {view === "friends" ? (
           <FriendsView onOpenProfile={showProfile} onIncomingCountChange={setIncomingCount} />
         ) : view === "profile" ? (
@@ -555,7 +563,7 @@ const BoardDashboard = () => {
         ) : view === "inbox" ? (
           <section className={styles.boardSection}>
             <div className={`${ui.sectionHeading} ${styles.sectionHeading}`}><h1>Inbox</h1><button type="button" className={`${ui.button} ${ui.buttonGhost}`} onClick={() => void markNotificationRead().then(() => setNotifications((current) => current.map((notification) => ({ ...notification, read_at: notification.read_at ?? new Date().toISOString() }))))}>Mark all read</button></div>
-            <div role="group" aria-label="Inbox filters">{(["all", "unread", "archived"] as const).map((filter) => <button type="button" key={filter} className={`${ui.button} ${ui.buttonGhost} ${inboxFilter === filter ? styles.navActive : ""}`} aria-pressed={inboxFilter === filter} onClick={() => setInboxFilter(filter)}>{filter}</button>)}</div>
+            <div role="group" aria-label="Inbox filters" className={styles.inboxFilters}>{(["all", "unread", "archived"] as const).map((filter) => <button type="button" key={filter} className={`${ui.button} ${ui.buttonGhost} ${inboxFilter === filter ? styles.navActive : ""}`} aria-pressed={inboxFilter === filter} onClick={() => setInboxFilter(filter)}>{filter}</button>)}</div>
             <div className={styles.notificationList}>{visibleNotifications.map((notification) => <article key={notification.id} className={!notification.read_at ? styles.unreadNotification : undefined}><button type="button" onClick={() => activateNotification(notification)} aria-label={`Open ${notification.title}`}><Bell aria-hidden="true" /><span><strong>{notification.title}</strong><small>{notification.body}</small></span><time>{new Date(notification.created_at).toLocaleDateString()}</time></button><div><button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} onClick={() => mutateNotification(notification, { read: !notification.read_at })}>Mark {notification.read_at ? "unread" : "read"}</button><button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} onClick={() => mutateNotification(notification, { archived: !notification.archived_at })}>{notification.archived_at ? "Restore" : "Archive"}</button>{notification.board_id && <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} onClick={() => toggleBoardMute(notification.board_id!)}>{mutedBoardIds.has(notification.board_id) ? "Unmute board" : "Mute board"}</button>}</div></article>)}</div>
             {!visibleNotifications.length && <div className={ui.emptyState}><p>{inboxFilter === "archived" ? "No archived notifications." : inboxFilter === "unread" ? "You have no unread notifications." : "Your inbox is clear."}</p></div>}
           </section>
@@ -588,18 +596,24 @@ const BoardDashboard = () => {
           </aside>
           <div className={styles.boardWorkspaceMain}>
           <section className={styles.workspaceControls} aria-label="Board organization">
-            <div role="group" aria-label="Board filters">{(["active", "favorites", "archived", "trash"] as const).map((filter) => <button type="button" key={filter} className={`${ui.button} ${ui.buttonGhost} ${boardFilter === filter ? styles.navActive : ""}`} aria-pressed={boardFilter === filter} onClick={() => setBoardFilter(filter)}>{filter}</button>)}</div>
-            <form onSubmit={(event) => { event.preventDefault(); if (!folderName.trim()) return; void createFolder(folderName).then(({ folder }) => { setFolders((current) => [...current, folder]); setFolderName(""); }); }}><Folder aria-hidden="true" /><input aria-label="New folder name" placeholder="New folder" value={folderName} onChange={(event) => setFolderName(event.target.value)} /><button type="submit" className={`${ui.button} ${ui.buttonGhost}`}>Add</button></form>
-            {folders.length > 0 && <span>{folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
-            <select aria-label="Sort boards" value={boardSort} onChange={(event) => { const next = event.target.value as BoardSort; setBoardSort(next); persistDashboardPreference("kumo:board-sort", next); }}><option value="updated">Recently updated</option><option value="title">Title</option></select>
-            <select aria-label="Board card density" value={boardDensity} onChange={(event) => { const next = event.target.value as BoardDensity; setBoardDensity(next); persistDashboardPreference("kumo:board-density", next); }}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
-            <form onSubmit={(event) => { event.preventDefault(); const name = savedViewName.trim(); if (!name) return; void saveBoardView({ name, filter: boardFilter, sort: boardSort, density: boardDensity }).then(({ view: saved }) => { const next = [...savedViews, saved].slice(-24); commitSavedViews(next); setSelectedSavedViewId(saved.id); setSavedViewName(""); }).catch((caught) => setError(caughtMessage(caught, "Saved view could not be synchronized."))); }}><input aria-label="Saved view name" placeholder="Save this view" value={savedViewName} onChange={(event) => setSavedViewName(event.target.value)} /><button type="submit" className={`${ui.button} ${ui.buttonGhost}`}>Save</button></form>
+            <div role="group" aria-label="Board filters" className={styles.boardFilters}>{(["active", "favorites", "archived", "trash"] as const).map((filter) => <button type="button" key={filter} className={`${ui.button} ${ui.buttonGhost} ${boardFilter === filter ? styles.navActive : ""}`} aria-pressed={boardFilter === filter} onClick={() => setBoardFilter(filter)}>{filter}</button>)}</div>
+            <div role="group" aria-label="Board display" className={styles.controlsEnd}>
+              <select aria-label="Sort boards" value={boardSort} onChange={(event) => { const next = event.target.value as BoardSort; setBoardSort(next); persistDashboardPreference("kumo:board-sort", next); }}><option value="updated">Recently updated</option><option value="title">Title</option></select>
+              <select aria-label="Board card density" value={boardDensity} onChange={(event) => { const next = event.target.value as BoardDensity; setBoardDensity(next); persistDashboardPreference("kumo:board-density", next); }}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
+            </div>
+            <div className={styles.controlsStart}>
+              <form onSubmit={(event) => { event.preventDefault(); if (!folderName.trim()) return; void createFolder(folderName).then(({ folder }) => { setFolders((current) => [...current, folder]); setFolderName(""); }); }}><Folder aria-hidden="true" /><input aria-label="New folder name" placeholder="Folder name" value={folderName} onChange={(event) => setFolderName(event.target.value)} /><button type="submit" className={`${ui.button} ${ui.buttonGhost}`}>Add</button></form>
+              {folders.length > 0 && <span className={styles.controlsCount}>{folders.length} folder{folders.length === 1 ? "" : "s"}</span>}
+            </div>
+            <div className={styles.controlsEnd}>
+            <form onSubmit={(event) => { event.preventDefault(); const name = savedViewName.trim(); if (!name) return; void saveBoardView({ name, filter: boardFilter, sort: boardSort, density: boardDensity }).then(({ view: saved }) => { const next = [...savedViews, saved].slice(-24); commitSavedViews(next); setSelectedSavedViewId(saved.id); setSavedViewName(""); }).catch((caught) => setError(caughtMessage(caught, "Saved view could not be synchronized."))); }}><BookmarkSimple aria-hidden="true" /><input aria-label="Saved view name" placeholder="View name" value={savedViewName} onChange={(event) => setSavedViewName(event.target.value)} /><button type="submit" className={`${ui.button} ${ui.buttonGhost}`}>Save</button></form>
             {savedViews.length > 0 && <>
               <select aria-label="Open saved board view" value={selectedSavedViewId} onChange={(event) => { setSelectedSavedViewId(event.target.value); const saved = savedViews.find((item) => item.id === event.target.value); if (!saved) return; setBoardFilter(saved.filter); setBoardSort(saved.sort); setBoardDensity(saved.density); }}><option value="" disabled>Saved views</option>{savedViews.map((saved) => <option key={saved.id} value={saved.id}>{saved.name}</option>)}</select>
               <button type="button" className={`${ui.button} ${ui.buttonGhost}`} disabled={selectedSavedViewIndex < 0} onClick={() => { const current = savedViews[selectedSavedViewIndex]!; const name = window.prompt("Rename saved view", current.name)?.trim(); if (!name) return; void renameBoardView(current.id, name).then(({ view: updated }) => commitSavedViews(savedViews.map((item) => item.id === updated.id ? updated : item))).catch((caught) => setError(caughtMessage(caught, "Saved view could not be renamed."))); }}>Rename view</button>
               <button type="button" className={`${ui.button} ${ui.buttonGhost}`} disabled={!selectedSavedViewId} onClick={() => { const id = selectedSavedViewId; void deleteBoardView(id).then(() => { commitSavedViews(savedViews.filter((item) => item.id !== id)); setSelectedSavedViewId(""); }).catch((caught) => setError(caughtMessage(caught, "Saved view could not be deleted."))); }}>Delete view</button>
               <button type="button" className={`${ui.button} ${ui.buttonGhost}`} disabled={selectedSavedViewIndex <= 0} onClick={() => { const next = [...savedViews]; [next[selectedSavedViewIndex - 1], next[selectedSavedViewIndex]] = [next[selectedSavedViewIndex]!, next[selectedSavedViewIndex - 1]!]; commitSavedViews(next); void reorderBoardViews(next.map((item) => item.id)).catch((caught) => { commitSavedViews(savedViews); setError(caughtMessage(caught, "Saved views could not be reordered.")); }); }}>Move view up</button>
             </>}
+            </div>
             {selectedBoardIds.size > 0 && <div className={styles.bulkBoardActions} role="toolbar" aria-label="Bulk board actions"><strong>{selectedBoardIds.size} selected</strong><button type="button" className={`${ui.button} ${ui.buttonGhost}`} onClick={() => bulkOrganize("favorite-board", { favorite: true })}>Favorite</button><button type="button" className={`${ui.button} ${ui.buttonGhost}`} onClick={() => bulkOrganize("archive-board")}>Archive</button><button type="button" className={`${ui.button} ${ui.buttonGhost}`} onClick={() => bulkOrganize("trash-board")}>Trash</button><select aria-label="Move selected boards" defaultValue="" onChange={(event) => { if (event.target.value) bulkOrganize("move-board", { folderId: event.target.value }); event.target.value = ""; }}><option value="" disabled>Move to folder</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select><button type="button" className={`${ui.button} ${ui.buttonGhost}`} onClick={() => setSelectedBoardIds(new Set())}>Clear</button></div>}
           </section>
 
@@ -636,7 +650,7 @@ const BoardDashboard = () => {
                   <KumoLogo className={styles.emptyLogo} context="attention" decorative />
                   <p>Start one board. Link the next.</p>
                   <span>Your first board is a clean, private canvas.</span>
-                  <button type="button" className={`${ui.button} ${ui.buttonPrimary} ${ui.buttonCompact}`} onClick={handleCreate}><Plus aria-hidden="true" /> Create a board</button>
+                  <button type="button" className={`${ui.button} ${ui.buttonPrimary}`} onClick={handleCreate}><Plus aria-hidden="true" /> Create a board</button>
                   {boardFilter === "active" && !boards.some((board) => board.ownerId === user.uid && !board.deletedAt) && <button type="button" className={`${ui.button} ${ui.buttonGhost} ${ui.buttonCompact}`} onClick={() => void createOnboardingBoard().then(openBoard).catch((caught) => setError(caughtMessage(caught, "The guided board could not be created.")))}>Open guided sample</button>}
                 </div>
               )}

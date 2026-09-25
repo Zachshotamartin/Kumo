@@ -11,9 +11,9 @@ kumo-logo {
   top: 8px;
   left: 8px;
   z-index: var(--kumo-z-skip-link);
-  padding: 10px 14px;
+  padding: var(--kumo-space-2-5) var(--kumo-space-3-5);
   color: #18191b;
-  font-weight: 700;
+  font-weight: var(--kumo-weight-bold);
   text-decoration: none;
   background: var(--kumo-ink);
   border: 2px solid var(--kumo-accent);
@@ -30,10 +30,10 @@ kumo-logo {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--kumo-space-4);
   overflow: hidden;
   color: var(--kumo-muted);
-  font: 600 var(--kumo-text-sm)/1 var(--kumo-font);
+  font: var(--kumo-weight-semibold) var(--kumo-text-sm)/1 var(--kumo-font);
   background-color: #1a1b1d;
   background-image:
     linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
@@ -56,14 +56,14 @@ kumo-logo {
 .app-loading-copy {
   display: grid;
   justify-items: center;
-  gap: 7px;
-  animation: loading-copy-in 420ms 120ms both ease-out;
+  gap: var(--kumo-space-2);
+  animation: loading-copy-in var(--kumo-motion-slow) var(--kumo-motion-fast) both var(--kumo-ease);
 }
 
 .app-loading-word {
   color: var(--kumo-ink);
   font-size: 20px;
-  font-weight: 800;
+  font-weight: var(--kumo-weight-heavy);
   letter-spacing: -0.045em;
 }
 
@@ -87,8 +87,8 @@ kumo-logo {
   min-height: 100dvh;
   place-content: center;
   justify-items: center;
-  gap: 16px;
-  padding: 24px;
+  gap: var(--kumo-space-4);
+  padding: var(--kumo-space-6);
   color: var(--kumo-ink);
   text-align: center;
   background: var(--kumo-surface);
@@ -98,7 +98,7 @@ kumo-logo {
 
 .fatal-error button {
   min-height: var(--kumo-control-default);
-  padding: 0 18px;
+  padding: 0 var(--kumo-space-4);
   color: var(--kumo-accent-ink);
   font-weight: var(--kumo-weight-bold);
   background: var(--kumo-accent-hover);

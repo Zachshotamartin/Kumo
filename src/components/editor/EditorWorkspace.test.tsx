@@ -4,7 +4,7 @@ import { Provider } from "react-redux";
 import type { Shape } from "../../classes/shape";
 import actionsReducer from "../../features/actions/actionsSlice";
 import authReducer, { login } from "../../features/auth/authSlice";
-import editorReducer, { setSaveStatus } from "../../features/editor/editorSlice";
+import editorReducer, { setRightPanel, setSaveStatus, showCanvasNotice } from "../../features/editor/editorSlice";
 import selectedReducer from "../../features/selected/selectedSlice";
 import whiteBoardReducer, { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import EditorWorkspace from "./EditorWorkspace";
@@ -211,12 +211,52 @@ describe("EditorWorkspace", () => {
     expect(screen.queryByText("Layers")).not.toBeInTheDocument();
     expect(grid.style.getPropertyValue("--layers-panel-width")).toBe("0px");
     fireEvent.click(screen.getByRole("button", { name: "Show layers panel" }));
-    expect(screen.getByText("Layers")).toBeInTheDocument();
+    expect(screen.getByText("Layers", { selector: "div" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Hide properties panel" }));
     expect(screen.queryByText("Inspector")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show properties panel" }));
     expect(screen.getByText("Inspector")).toBeInTheDocument();
+  });
+
+  it("opens side panels one at a time as bottom sheets on phones and tablets", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    const store = renderWorkspace();
+    expect(screen.queryByText("Layers", { selector: "div" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Inspector")).not.toBeInTheDocument();
+
+    act(() => store.dispatch(setRightPanel("comments")));
+    expect(screen.getByText("Comments panel")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show layers panel" }));
+    expect(screen.getByText("Layers", { selector: "div" })).toBeInTheDocument();
+    expect(screen.queryByText("Comments panel")).not.toBeInTheDocument();
+    expect(store.getState().editor.rightPanel).toBe("properties");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show properties panel" }));
+    expect(screen.getByText("Inspector")).toBeInTheDocument();
+    expect(screen.queryByText("Layers", { selector: "div" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show layers panel" }));
+    expect(screen.queryByText("Inspector")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close Layers" }));
+    expect(screen.queryByText("Layers", { selector: "div" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show properties panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close Properties" }));
+    expect(screen.queryByText("Inspector")).not.toBeInTheDocument();
+  });
+
+  it("offers Kumo AI from the board menu for narrow top bars", () => {
+    renderWorkspace();
+    fireEvent.click(screen.getByLabelText("Board menu"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Kumo AI" }));
+    expect(screen.getByTestId("ai-panel-dock")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close Kumo AI" }));
+    expect(screen.queryByTestId("ai-panel-dock")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Board menu"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Kumo AI" }));
+    fireEvent.click(screen.getByLabelText("Board menu"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Close Kumo AI" }));
+    expect(screen.queryByTestId("ai-panel-dock")).not.toBeInTheDocument();
   });
 
   it("uses stronger symmetric zoom controls", () => {
@@ -295,6 +335,14 @@ describe("EditorWorkspace", () => {
     fireEvent.click(screen.getByLabelText("Dismiss error"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(store.getState().editor.saveStatus).toBe("idle");
+
+    act(() => store.dispatch(showCanvasNotice("Kumo accepts PNG, JPEG, WebP, GIF and SVG images, and MP4 or WebM video.")));
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent("Kumo accepts PNG");
+    expect(screen.getByRole("region", { name: "Design editor" })).toContainElement(notice);
+    fireEvent.click(screen.getByLabelText("Dismiss error"));
+    expect(store.getState().editor.canvasNotice).toBeNull();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("opens selection deep links, ignores missing targets, and handles repeated links once", async () => {

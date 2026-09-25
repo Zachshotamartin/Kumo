@@ -36,7 +36,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 22px;
+  gap: var(--kumo-space-6);
   padding: clamp(34px, 5.5vw, 78px);
   color: var(--kumo-ink);
   background: var(--kumo-chrome);
@@ -46,18 +46,18 @@
 .modeSwitch {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3px;
-  padding: 3px;
+  gap: var(--kumo-space-1);
+  padding: var(--kumo-space-1);
   background: var(--kumo-canvas);
   border: 1px solid var(--kumo-line);
   border-radius: var(--kumo-radius-control);
 }
 
 .modeSwitch button {
-  min-height: 38px;
+  min-height: calc(var(--kumo-control-default) - 2 * var(--kumo-space-1) - 2px);
   color: var(--kumo-muted);
   font-size: var(--kumo-text-xs);
-  font-weight: var(--kumo-weight-bold);
+  font-weight: var(--kumo-weight-semibold);
   background: transparent;
   border: 0;
   border-radius: var(--kumo-radius-sm);
@@ -73,25 +73,19 @@
 .authPanel {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--kumo-space-6);
 }
 
-.loginForm h2 { max-width: 380px; margin: 0; color: var(--kumo-ink); font-size: clamp(28px, 3vw, 38px); line-height: 1.02; letter-spacing: -0.05em; }
-.formIntro { max-width: 42ch; margin: 9px 0 0; color: var(--kumo-muted); line-height: var(--kumo-leading-relaxed); }
-.loginFormRow, .loginFormColumn { display: grid; gap: 13px; }
-.inputContainer { display: grid; gap: 7px; }
-.inputContainer label { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); font-weight: var(--kumo-weight-bold); }
+.loginForm h2 { max-width: 380px; margin: 0; color: var(--kumo-ink); font-size: clamp(28px, 3vw, 38px); line-height: var(--kumo-leading-display); letter-spacing: -0.05em; }
+.formIntro { max-width: 42ch; margin: var(--kumo-space-2) 0 0; color: var(--kumo-muted); line-height: var(--kumo-leading-relaxed); }
+.loginFormRow, .loginFormColumn { display: grid; gap: var(--kumo-space-3); }
+.inputContainer { display: grid; gap: var(--kumo-space-2); }
+.inputContainer label { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); font-weight: var(--kumo-weight-medium); }
 .passwordControl { position: relative; }
-.passwordControl .input { padding-right: 44px; }
-.passwordToggle { position: absolute; top: 50%; right: 10px; display: grid; width: 30px; height: 30px; padding: 0; border: 0; color: var(--kumo-text-muted); background: transparent; place-items: center; transform: translateY(-50%); }
+.passwordControl .input { padding-right: var(--kumo-space-12); }
+.passwordToggle { position: absolute; top: 50%; right: 10px; display: grid; width: 30px; height: 30px; padding: 0; border: 0; color: var(--kumo-muted); background: transparent; place-items: center; transform: translateY(-50%); }
 .passwordToggle svg { width: 18px; height: 18px; }
 
-.input {
-  min-height: var(--kumo-control-comfortable);
-}
-
-.submit,
-.googleButton { min-height: var(--kumo-control-comfortable); }
 .submit { justify-content: space-between; }
 .googleButton { background: transparent; }
 .googleButton:disabled { cursor: wait; }
@@ -104,17 +98,35 @@
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 10px;
+  gap: var(--kumo-space-2-5);
   color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
 }
 
 .divider::before, .divider::after { height: 1px; background: var(--kumo-line); content: ""; }
 
-.feedback { margin-top: -8px; }
+.feedback { margin-top: calc(var(--kumo-space-2) * -1); }
 
-@media (max-width: 820px) {
+.fieldHelp {
+  margin: 0;
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-xs);
+  line-height: var(--kumo-leading-normal);
+}
+
+/* A field's own error sits directly under it, and the field is outlined to match. */
+.fieldError {
+  margin: 0;
+  color: var(--kumo-danger-ink);
+  font-size: var(--kumo-text-xs);
+  line-height: var(--kumo-leading-normal);
+}
+
+.input[aria-invalid="true"],
+.input[aria-invalid="true"]:focus { border-color: var(--kumo-danger); }
+
+@media (max-width: 900px) {
   .homePage { grid-template-columns: 1fr; }
-  .intro { min-height: 620px; }
-  .loginForm { min-height: 600px; padding: 54px 24px 70px; border-top: 1px solid var(--kumo-line); border-left: 0; }
+  .intro { min-height: 460px; }
+  .loginForm { min-height: 600px; padding: var(--kumo-space-12) var(--kumo-space-6) var(--kumo-space-16); border-top: 1px solid var(--kumo-line); border-left: 0; }
 }

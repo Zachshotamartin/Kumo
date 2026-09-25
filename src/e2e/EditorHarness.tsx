@@ -1,6 +1,6 @@
 import { BuilderButton, BuilderDock } from '../builder/BuilderControls';
 import { useBuilderUI } from '../builder/uiState';
-import { useEffect, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { normalizeShape } from "../editor/geometry";
 import { setSelectedShapes } from "../features/selected/selectedSlice";
@@ -11,7 +11,8 @@ import { EditorToolbarView } from "../components/editor/EditorToolbar";
 import EditorMinimap from "../components/editor/EditorMinimap";
 import { InspectorPanelView } from "../components/editor/InspectorPanel";
 import { DesignLibraryPanelView } from "../components/editor/DesignLibraryPanel";
-import { setRightPanel } from "../features/editor/editorSlice";
+import { setRightPanel, showCanvasNotice } from "../features/editor/editorSlice";
+import CanvasNotice from "../components/editor/CanvasNotice";
 import { LayersPanelView } from "../components/editor/LayersPanel";
 import styles from "../components/editor/EditorWorkspace.module.css";
 import { useLocalEditorActions } from "./useLocalEditorActions";
@@ -69,6 +70,9 @@ const EditorHarness = () => {
   const actions = useLocalEditorActions();
   const boardId = useSelector((state: RootState) => state.whiteBoard.id);
   const rightPanel = useSelector((state: RootState) => state.editor.rightPanel);
+  const canvasNotice = useSelector((state: RootState) => state.editor.canvasNotice);
+  // Like the editor, phones and tablets start with the side panels closed (they open as sheets).
+  const [compact] = useState(() => window.innerWidth <= 900);
 
   useEffect(() => {
     dispatch(setWhiteboardData({
@@ -99,7 +103,7 @@ const EditorHarness = () => {
           <button type="button" onClick={() => dispatch(setRightPanel("assets"))}>Assets</button>
           <button type="button" onClick={() => dispatch(setRightPanel("properties"))}>Properties</button>
         </div>}
-        {builderFixture && <BuilderButton />}<span className={styles.saveStatus}>Local test document</span>
+        {builderFixture && <BuilderButton />}<span className={styles.saveStatus} data-tone="idle" title="Local test document"><span className={styles.saveStatusLabel}>Local test document</span></span>
       </header>
       <div
         className={`${styles.editorGrid} ${ai.visible ? styles.aiOpen : ""}`}
@@ -110,15 +114,18 @@ const EditorHarness = () => {
           "--properties-resizer-width": "0px",
         } as CSSProperties}
       >
-        <div className={styles.panelSlot}><LayersPanelView actions={actions} /></div>
+        <div className={styles.panelSlot}>{!compact && <LayersPanelView actions={actions} />}</div>
         <span />
         <section className={styles.canvasRegion} aria-label="Design editor">
           <EditorCanvasView actions={actions} updateMyPresence={() => undefined} showCommentPins={false} mediaRepository={{ upload: uploadBoardAsset, remove: deleteBoardAsset }} />
-          <EditorToolbarView actions={actions} />
-          {new URLSearchParams(window.location.search).has("minimap") && <EditorMinimap />}
+          <CanvasNotice message={canvasNotice} onDismiss={() => dispatch(showCanvasNotice(null))} />
+          <div className={styles.canvasDock}>
+            {new URLSearchParams(window.location.search).has("minimap") && <EditorMinimap />}
+            <div className={styles.canvasDockRow}><EditorToolbarView actions={actions} /></div>
+          </div>
         </section>
         <span />
-        <div className={styles.panelSlot}>{ai.visible ? <BuilderDock /> : rightPanel === "assets" ? <DesignLibraryPanelView actions={actions} /> : <InspectorPanelView actions={actions} />}</div>
+        <div className={styles.panelSlot}>{compact && !ai.visible ? null : ai.visible ? <BuilderDock /> : rightPanel === "assets" ? <DesignLibraryPanelView actions={actions} /> : <InspectorPanelView actions={actions} />}</div>
       </div>
     </main>
   );

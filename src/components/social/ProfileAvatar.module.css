@@ -6,7 +6,7 @@
   place-items: center;
   color: #17181a;
   font-size: 0.82rem;
-  font-weight: 850;
+  font-weight: var(--kumo-weight-heavy);
   letter-spacing: -0.04em;
   background: #d49a54;
   border: 1px solid rgb(255 255 255 / 0.16);

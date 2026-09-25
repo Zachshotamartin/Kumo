@@ -48,6 +48,8 @@ describe("advanced canvas shape rendering", () => {
     rerender(<AdvancedShapeContent shape={shape("table", { columns: 2, rows: 2, tableCells: [["Name", "Status"], ["Kumo", "Ready"]] })} shapes={[]} zoom={1} />);
     expect(screen.getByRole("table")).toHaveTextContent("NameStatusKumoReady");
     expect(screen.getAllByRole("cell")).toHaveLength(4);
+    rerender(<AdvancedShapeContent shape={shape("table", { backgroundColor: "#dfe9f5", tableCells: [["Tinted"]] })} shapes={[]} zoom={1} />);
+    expect(screen.getByRole("table").style.getPropertyValue("--shape-fill")).toBe("#dfe9f5");
     rerender(<AdvancedShapeContent shape={shape("code", { codeLanguage: "typescript", text: "const ready = true;" })} shapes={[]} zoom={1} />);
     expect(screen.getByText("typescript")).toBeVisible();
     expect(screen.getByText("const ready = true;")).toBeVisible();

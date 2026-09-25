@@ -63,7 +63,7 @@ export const CommentsPanel = () => {
         ))}
       </div>
       <div className={styles.commentSearch}>
-        <label><MagnifyingGlass aria-hidden="true" /><input type="search" aria-label="Search comments" value={query} placeholder="Search feedback" onChange={(event) => setQuery(event.currentTarget.value)} /></label>
+        <label><MagnifyingGlass aria-hidden="true" /><input type="search" aria-label="Search comments" value={query} placeholder="Search comments" onChange={(event) => setQuery(event.currentTarget.value)} /></label>
         <select aria-label="Filter comments by assignee" value={assigneeId} onChange={(event) => setAssigneeId(event.currentTarget.value)}><option value="all">All assignees</option><option value="unassigned">Unassigned</option>{collaborators.map((person) => <option key={person.id} value={person.id}>{person.id === currentUserId ? "Assigned to me" : person.name}</option>)}</select>
       </div>
       {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.panelError}`} role="alert">{error}</p>}

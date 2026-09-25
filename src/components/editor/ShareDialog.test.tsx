@@ -363,7 +363,7 @@ describe("ShareDialog", () => {
     });
     mocks.inviteFriend.mockResolvedValueOnce({ pending: true, invitation: {}, url: "" });
     renderDialog();
-    const find = await screen.findByPlaceholderText("Find a friend");
+    const find = await screen.findByPlaceholderText("Search friends");
     fireEvent.change(find, { target: { value: " ALEX " } });
     fireEvent.change(screen.getByLabelText("Friend sharing role"), { target: { value: "viewer" } });
     fireEvent.click(screen.getByRole("button", { name: "Share as viewer" }));

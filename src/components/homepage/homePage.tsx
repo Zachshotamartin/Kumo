@@ -33,6 +33,9 @@ interface HomePageProps {
 
 const MarketingCanvas = lazy(() => import("./MarketingCanvas"));
 
+/** Fields that can carry their own error; anything else is reported once at the top of the form. */
+type AuthField = "email" | "password" | "confirm-password";
+
 const HomePage = ({ authPending = false }: HomePageProps) => {
   const [mode, setMode] = useState<"signin" | "register">("signin");
   const signinTabRef = useRef<HTMLButtonElement>(null);
@@ -42,7 +45,11 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState<{ field: AuthField; text: string } | null>(null);
   const [message, setMessage] = useState("");
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [redirectPending, setRedirectPending] = useState(() => hasLocalGoogleRedirectResult(window.location.href));
   const redirectPromise = useRef<Promise<void> | null>(null);
@@ -50,6 +57,7 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   const selectMode = (nextMode: "signin" | "register") => {
     setMode(nextMode);
     setError("");
+    setFieldError(null);
     setMessage("");
   };
 
@@ -101,10 +109,30 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
     return () => { active = false; };
   }, []);
 
+  const fieldErrorId = fieldError ? `${fieldError.field}-error` : undefined;
+  useEffect(() => {
+    if (!fieldError) return;
+    const field = { email: emailRef, password: passwordRef, "confirm-password": confirmPasswordRef }[fieldError.field];
+    field.current?.focus();
+  }, [fieldError]);
+
+  const clearFeedback = () => {
+    setError("");
+    setFieldError(null);
+    setMessage("");
+  };
+  const failField = (field: AuthField, text: string) => setFieldError({ field, text });
+  const passwordHelpId = mode === "register" ? "password-help" : undefined;
+  const invalidProps = (field: AuthField) => fieldError?.field === field
+    ? { "aria-invalid": true as const, "aria-describedby": fieldErrorId }
+    : { "aria-describedby": field === "password" ? passwordHelpId : undefined };
+  const fieldErrorText = (field: AuthField) => fieldError?.field === field
+    ? <p id={fieldErrorId} className={styles.fieldError} role="alert">{fieldError.text}</p>
+    : null;
+
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError("");
-    setMessage("");
+    clearFeedback();
     setSubmitting(true);
     try {
       if (mode === "signin") {
@@ -117,11 +145,11 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
         }
       } else {
         if (password.length < 12) {
-          setError("Use a password with at least twelve characters.");
+          failField("password", "Use a password with at least twelve characters.");
           return;
         }
         if (password !== confirmPassword) {
-          setError("Passwords do not match.");
+          failField("confirm-password", "Passwords do not match.");
           return;
         }
         const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -139,9 +167,9 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
       if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
         setError("The email or password is incorrect.");
       } else if (code === "auth/email-already-in-use") {
-        setError("An account already uses this email. Sign in instead.");
+        failField("email", "An account already uses this email. Sign in instead.");
       } else if (code === "auth/weak-password") {
-        setError("Use a password with at least six characters.");
+        failField("password", "Use a password with at least six characters.");
       } else {
         setError("Authentication failed. Please try again.");
       }
@@ -151,8 +179,7 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   };
 
   const handleGoogleLogin = async () => {
-    setError("");
-    setMessage("");
+    clearFeedback();
     setSubmitting(true);
     try {
       if (usesLocalGoogleRedirect(window.location)) {
@@ -174,10 +201,9 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
   };
 
   const handleResetPassword = async () => {
-    setError("");
-    setMessage("");
+    clearFeedback();
     if (!email.trim()) {
-      setError("Enter your email first, then request a reset link.");
+      failField("email", "Enter your email first, then request a reset link.");
       return;
     }
     setSubmitting(true);
@@ -185,7 +211,7 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
       await sendPasswordResetEmail(auth, email.trim());
       setMessage("Password reset email sent.");
     } catch {
-      setError("We couldn't send a reset email. Check the address and try again.");
+      failField("email", "We couldn't send a reset email. Check the address and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -193,9 +219,10 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
 
   if (redirectPending) return <LoadingScreen />;
 
+  const hasError = Boolean(error || fieldError);
   const logoContext: KumoLogoContext = authPending || submitting
     ? "loading"
-    : error
+    : hasError
       ? "error"
       : message
         ? "success"
@@ -205,7 +232,7 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
     ? "Checking your existing session"
     : submitting
     ? "Opening your workspace"
-    : error
+    : hasError
       ? "Something needs another look."
       : message
         ? "You are all set."
@@ -234,10 +261,13 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
             <h2>{mode === "signin" ? "Return to your boards" : "Start with a blank canvas"}</h2>
             <p className={styles.formIntro}>{mode === "signin" ? "Your connected workspace is ready." : "Make an account, then make the first move."}</p>
           </div>
+          {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.feedback}`} role="alert">{error}</p>}
+          {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.feedback}`} role="status">{message}</p>}
           <div className={styles.loginFormRow}>
             <div className={styles.inputContainer}>
               <label htmlFor="email">Email</label>
               <input
+                ref={emailRef}
                 id="email"
                 className={`${ui.control} ${styles.input}`}
                 type="email"
@@ -246,28 +276,34 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={controlsDisabled}
                 required
+                {...invalidProps("email")}
               />
+              {fieldErrorText("email")}
             </div>
             <div className={styles.inputContainer}>
               <label htmlFor="password">Password</label>
               <div className={styles.passwordControl}>
               <input
+                ref={passwordRef}
                 id="password"
                 className={`${ui.control} ${styles.input}`}
                 type={showPassword ? "text" : "password"}
-                placeholder={mode === "register" ? "At least 12 characters" : "Your password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={mode === "register" ? 12 : 6}
                 disabled={controlsDisabled}
                 required
+                {...invalidProps("password")}
               />
               <button type="button" className={styles.passwordToggle} aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)} disabled={controlsDisabled}>{showPassword ? <EyeSlash aria-hidden="true" /> : <Eye aria-hidden="true" />}</button>
               </div>
+              {mode === "register" && <p id="password-help" className={styles.fieldHelp}>Use at least 12 characters.</p>}
+              {fieldErrorText("password")}
             </div>
             {mode === "register" && <div className={styles.inputContainer}>
               <label htmlFor="confirm-password">Confirm password</label>
-              <input id="confirm-password" className={`${ui.control} ${styles.input}`} type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={12} disabled={controlsDisabled} required />
+              <input ref={confirmPasswordRef} id="confirm-password" className={`${ui.control} ${styles.input}`} type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={12} disabled={controlsDisabled} required {...invalidProps("confirm-password")} />
+              {fieldErrorText("confirm-password")}
             </div>}
           </div>
           <div className={styles.loginFormColumn}>
@@ -287,8 +323,6 @@ const HomePage = ({ authPending = false }: HomePageProps) => {
               <span>Continue with Google</span>
             </button>
           </div>
-          {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.feedback}`} role="alert">{error}</p>}
-          {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.feedback}`} role="status">{message}</p>}
         </div>
       </form>
     </main>

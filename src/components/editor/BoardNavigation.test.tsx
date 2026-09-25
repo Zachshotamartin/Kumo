@@ -44,9 +44,12 @@ describe("connected board navigation", () => {
 
   it("adds linked-board navigation events and exposes forward history", async () => {
     renderNavigation();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Board B" })).toBeInTheDocument());
+    // The trail lists the boards before this one; the title beside it names the current board.
+    expect(screen.getByRole("button", { name: "Board A" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Board B" })).not.toBeInTheDocument();
     act(() => window.dispatchEvent(new CustomEvent("kumo:board-navigate", { detail: { boardId: "board-c", title: "Board C", sourceShapeId: "portal-b" } })));
-    expect(screen.getByRole("button", { name: "Board C" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Board B" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Board C" })).not.toBeInTheDocument();
     const stored = JSON.parse(sessionStorage.getItem(storageKey) ?? "{}") as { entries: Array<Record<string, unknown>>; index: number };
     expect(stored.entries).toEqual([
       expect.objectContaining({ boardId: "board-a" }),
@@ -67,8 +70,7 @@ describe("connected board navigation", () => {
   it("recovers malformed persisted history and ignores invalid navigation events", async () => {
     sessionStorage.setItem(storageKey, "not-json");
     renderNavigation(null);
-    expect(screen.getByRole("button", { name: "Previous connected board" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next connected board" })).toBeDisabled();
+    expect(screen.queryByRole("navigation", { name: "Connected board history" })).not.toBeInTheDocument();
     act(() => window.dispatchEvent(new CustomEvent("kumo:board-navigate", { detail: {} })));
     expect(sessionStorage.getItem(storageKey)).toBe("not-json");
   });
@@ -76,13 +78,16 @@ describe("connected board navigation", () => {
   it("filters malformed entries and clamps persisted indexes", async () => {
     sessionStorage.setItem(storageKey, JSON.stringify({ entries: [null, {}, { boardId: "board-a", title: "Board A" }], index: 99 }));
     renderNavigation({ id: "board-a", title: "Board A" });
-    expect(await screen.findByRole("button", { name: "Board A" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Previous connected board" })).toBeDisabled();
+    expect(screen.queryByRole("navigation", { name: "Connected board history" })).not.toBeInTheDocument();
+    act(() => window.dispatchEvent(new CustomEvent("kumo:board-navigate", { detail: { boardId: "board-b", title: "Board B" } })));
+    expect(screen.getByRole("button", { name: "Board A" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next connected board" })).toBeDisabled();
 
     cleanup();
-    sessionStorage.setItem(storageKey, JSON.stringify({ entries: [{ boardId: "board-a", title: "Board A" }], index: -4 }));
+    sessionStorage.setItem(storageKey, JSON.stringify({ entries: [{ boardId: "board-a", title: "Board A" }, { boardId: "board-b", title: "Board B" }], index: -4 }));
     renderNavigation({ id: "board-a", title: "Board A" });
-    expect(screen.getByRole("button", { name: "Board A" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous connected board" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next connected board" })).toBeEnabled();
   });
 
   it("opens forward history without a source selection and supports trail buttons", async () => {
@@ -95,17 +100,19 @@ describe("connected board navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next connected board" }));
     await waitFor(() => expect(store.getState().whiteBoard.id).toBe("board-b"));
     expect(new URL(window.location.href).searchParams.get("selection")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Board B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Board A" }));
     await waitFor(() => expect(mockedGetBoard).toHaveBeenCalledTimes(2));
+    expect(mockedGetBoard).toHaveBeenLastCalledWith("board-a");
   });
 
   it("uses an untitled fallback, handles storage failures, and reports non-Error failures", async () => {
     sessionStorage.clear();
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("storage denied"); });
     const store = renderNavigation({ id: "untitled", title: null });
-    expect(await screen.findByRole("button", { name: "Untitled board" })).toBeInTheDocument();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     setItem.mockRestore();
     act(() => window.dispatchEvent(new CustomEvent("kumo:board-navigate", { detail: { boardId: "board-c", title: "Board C" } })));
+    expect(screen.getByRole("button", { name: "Untitled board" })).toBeInTheDocument();
     mockedGetBoard.mockRejectedValueOnce("offline");
     fireEvent.click(screen.getByRole("button", { name: "Previous connected board" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't open this board");

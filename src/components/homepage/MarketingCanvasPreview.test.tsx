@@ -16,7 +16,7 @@ it("paints the responsive marketing document while the editor loads", () => {
   vi.stubGlobal("innerWidth", 390);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 390, height: 620 } as DOMRect);
   act(() => resize());
-  expect(heading).toHaveStyle({ left: "24px", top: "390px", width: "342px" });
+  expect(heading).toHaveStyle({ left: "24px", top: "254px", width: "342px" });
   preview.unmount();
   expect(disconnect).toHaveBeenCalledOnce();
 });

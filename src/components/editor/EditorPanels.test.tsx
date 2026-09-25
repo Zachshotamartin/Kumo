@@ -311,6 +311,10 @@ describe("editor property panels", () => {
     expect(screen.getByRole("button", { name: "ellipse" })).toBeVisible();
     expect(screen.getByRole("button", { name: "image" })).toBeVisible();
     expect(screen.getByRole("button", { name: "board" })).toBeVisible();
+    // State toggles are flagged so the collapsed row keeps showing that a layer is hidden or locked.
+    expect(screen.getByRole("button", { name: "Show text" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Unlock text" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Hide ellipse" })).toHaveAttribute("data-active", "false");
     fireEvent.click(screen.getByRole("button", { name: "Show text" }));
     fireEvent.click(screen.getByRole("button", { name: "Unlock text" }));
     expect(actions.commitShapes).toHaveBeenCalledTimes(2);

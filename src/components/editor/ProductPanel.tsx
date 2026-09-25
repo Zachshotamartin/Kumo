@@ -45,6 +45,7 @@ import { useEditorActions } from "../../editor/useEditorActions";
 import { setRightPanel } from "../../features/editor/editorSlice";
 import { setSelectedShapes } from "../../features/selected/selectedSlice";
 import type { AppDispatch, RootState } from "../../store";
+import ui from "../ui/Ui.module.css";
 import styles from "./EditorWorkspace.module.css";
 import ProductCoveragePanel from "./ProductCoveragePanel";
 
@@ -147,6 +148,8 @@ const ProductPanel = () => {
         ))}
       </div>
       <div className={styles.inspectorBody}>
+        {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.panelNotice}`} role="alert">{error}</p>}
+        {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.panelNotice}`} role="status"><Check aria-hidden="true" /> {message}</p>}
         {tab === "coverage" && <ProductCoveragePanel key={board.id ?? "no-board"} />}
 
         {tab === "graph" && <section className={styles.inspectorSection}>
@@ -253,8 +256,6 @@ const ProductPanel = () => {
           {!syncEvents.length ? <p className={styles.fieldHint}>No offline sync activity has been recorded.</p> : <div className={styles.assetList}>{syncEvents.map((event, index) => <div className={styles.assetRow} key={`${event.id ?? event.at}:${index}`}><span>{event.status}<small>{new Date(event.at).toLocaleString()}{event.detail ? ` · ${event.detail}` : ""}</small></span></div>)}</div>}
         </section>}
 
-        {message && <p className={styles.successLine} role="status"><Check aria-hidden="true" /> {message}</p>}
-        {error && <p className={styles.fieldError} role="alert">{error}</p>}
       </div>
     </aside>
   );

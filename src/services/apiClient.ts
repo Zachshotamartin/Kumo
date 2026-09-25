@@ -14,6 +14,27 @@ export class ApiError extends Error {
 
 export const CLIENT_API_TIMEOUT_MS = 15_000;
 
+/** Shown when a response isn't Kumo's JSON — a proxy error page, a platform 5xx, or an HTML fallback route. */
+export const SERVER_UNREACHABLE_MESSAGE = "Kumo couldn't reach the server. Try again in a moment.";
+export const REQUEST_FAILED_MESSAGE = "Kumo couldn't complete that request. Try again.";
+
+const failureMessage = (status: number, body: ApiErrorBody | null) =>
+  body?.error ?? (status >= 500 || !body ? SERVER_UNREACHABLE_MESSAGE : REQUEST_FAILED_MESSAGE);
+
+export const errorFromResponse = async (response: Response) => {
+  const body = await response.json().catch(() => null) as ApiErrorBody | null;
+  return new ApiError(failureMessage(response.status, body), response.status, body);
+};
+
+/** Parses a successful response, turning a non-JSON body into a readable error instead of a SyntaxError. */
+export const readJson = async <T>(response: Response): Promise<T> => {
+  try {
+    return await response.json() as T;
+  } catch {
+    throw new ApiError(SERVER_UNREACHABLE_MESSAGE, response.status, null);
+  }
+};
+
 let volatileSessionId = "";
 
 export const clientSessionId = () => {
@@ -73,10 +94,7 @@ export const authenticatedRequest = async (
       ...init.headers,
     },
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as ApiErrorBody | null;
-    throw new ApiError(body?.error ?? `Request failed with status ${response.status}.`, response.status, body);
-  }
+  if (!response.ok) throw await errorFromResponse(response);
   return response;
 };
 
@@ -86,7 +104,7 @@ export const authenticatedFetch = async <T>(
 ): Promise<T> => {
   const response = await authenticatedRequest(input, init);
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  return readJson<T>(response);
 };
 
 export const publicFetch = async <T>(input: string, init: RequestInit = {}): Promise<T> => {
@@ -94,10 +112,7 @@ export const publicFetch = async <T>(input: string, init: RequestInit = {}): Pro
     ...init,
     headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers },
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as ApiErrorBody | null;
-    throw new ApiError(body?.error ?? `Request failed with status ${response.status}.`, response.status, body);
-  }
+  if (!response.ok) throw await errorFromResponse(response);
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  return readJson<T>(response);
 };

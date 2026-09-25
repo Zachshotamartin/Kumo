@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Shape } from "../../classes/shape";
 import { connectorPath, connectorRenderBounds } from "../../editor/advancedFeatures";
 import styles from "./EditorCanvas.module.css";
@@ -46,7 +47,12 @@ export const AdvancedShapeContent = ({ shape, shapes }: { shape: Shape; shapes: 
   if (shape.type === "sticky") return <div className={styles.stickyContent}>{shape.text || "Write an idea"}</div>;
   if (shape.type === "table") {
     const cells = shape.tableCells ?? Array.from({ length: shape.rows ?? 3 }, () => Array.from({ length: shape.columns ?? 3 }, () => ""));
-    return <div className={styles.tableContent} role="table" style={{ gridTemplateColumns: `repeat(${Math.max(1, shape.columns ?? cells[0]?.length ?? 1)}, minmax(0, 1fr))` }}>
+    // Cells tint themselves from the table's own fill; without this they ignore a recoloured table.
+    const tableStyle = {
+      gridTemplateColumns: `repeat(${Math.max(1, shape.columns ?? cells[0]?.length ?? 1)}, minmax(0, 1fr))`,
+      "--shape-fill": shape.backgroundColor,
+    } as CSSProperties;
+    return <div className={styles.tableContent} role="table" style={tableStyle}>
       {cells.flatMap((row, rowIndex) => row.map((cell, columnIndex) => <span key={`${rowIndex}:${columnIndex}`} role="cell" data-header={rowIndex === 0 ? "true" : undefined}>{cell || "\u00a0"}</span>))}
     </div>;
   }

@@ -4,7 +4,7 @@ const authMock = vi.hoisted(() => ({
 
 vi.mock("../config/firebase", () => ({ auth: authMock }));
 
-import { ApiError, authenticatedFetch, authenticatedRequest, clientSessionId, publicFetch } from "./apiClient";
+import { ApiError, REQUEST_FAILED_MESSAGE, SERVER_UNREACHABLE_MESSAGE, authenticatedFetch, authenticatedRequest, clientSessionId, publicFetch } from "./apiClient";
 
 describe("authenticatedFetch", () => {
   beforeEach(() => {
@@ -105,10 +105,20 @@ describe("authenticatedFetch", () => {
     }));
     await expect(authenticatedRequest("/api/test")).rejects.toMatchObject({
       name: "ApiError",
-      message: "Request failed with status 503.",
+      message: SERVER_UNREACHABLE_MESSAGE,
       status: 503,
       details: null,
     });
+  });
+
+  it("reports a readable error when a successful response is not JSON", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockRejectedValue(new SyntaxError("Unexpected token '<', \"<!doctype \"... is not valid JSON")),
+    }));
+    await expect(authenticatedFetch("/api/test")).rejects.toMatchObject({ name: "ApiError", message: SERVER_UNREACHABLE_MESSAGE, status: 200, details: null });
+    await expect(publicFetch("/public")).rejects.toMatchObject({ name: "ApiError", message: SERVER_UNREACHABLE_MESSAGE });
   });
 
   it("merges caller headers and propagates caller cancellation", async () => {
@@ -142,12 +152,14 @@ describe("authenticatedFetch", () => {
       .mockResolvedValueOnce({ ok: true, status: 204 })
       .mockResolvedValueOnce({ ok: false, status: 400, json: vi.fn().mockResolvedValue({ error: "Bad request" }) })
       .mockResolvedValueOnce({ ok: false, status: 500, json: vi.fn().mockResolvedValue({}) })
-      .mockResolvedValueOnce({ ok: false, status: 502, json: vi.fn().mockRejectedValue(new SyntaxError("invalid")) }));
+      .mockResolvedValueOnce({ ok: false, status: 502, json: vi.fn().mockRejectedValue(new SyntaxError("invalid")) })
+      .mockResolvedValueOnce({ ok: false, status: 422, json: vi.fn().mockResolvedValue({}) }));
     await expect(publicFetch("/public", { method: "POST", body: "{}", headers: { "X-Test": "yes" } })).resolves.toEqual({ public: true });
     expect(fetch).toHaveBeenNthCalledWith(1, "/public", expect.objectContaining({ headers: { "Content-Type": "application/json", "X-Test": "yes" } }));
     await expect(publicFetch("/public-empty")).resolves.toBeUndefined();
     await expect(publicFetch("/public-bad")).rejects.toMatchObject({ message: "Bad request", status: 400 });
-    await expect(publicFetch("/public-fallback")).rejects.toThrow("Request failed with status 500");
-    await expect(publicFetch("/public-invalid-error")).rejects.toMatchObject({ message: "Request failed with status 502.", details: null });
+    await expect(publicFetch("/public-fallback")).rejects.toThrow(SERVER_UNREACHABLE_MESSAGE);
+    await expect(publicFetch("/public-invalid-error")).rejects.toMatchObject({ message: SERVER_UNREACHABLE_MESSAGE, details: null });
+    await expect(publicFetch("/public-unexplained")).rejects.toMatchObject({ message: REQUEST_FAILED_MESSAGE, status: 422 });
   });
 });

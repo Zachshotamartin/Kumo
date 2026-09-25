@@ -83,7 +83,10 @@ describe("HomePage authentication", () => {
   it("registers a new account and maps Firebase validation errors", async () => {
     mocks.register.mockRejectedValueOnce({ code: "auth/email-already-in-use" });
     render(<HomePage />);
+    expect(screen.getByLabelText("Password")).not.toHaveAttribute("placeholder");
+    expect(screen.getByLabelText("Password")).not.toHaveAccessibleDescription();
     fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
+    expect(screen.getByLabelText("Password")).toHaveAccessibleDescription("Use at least 12 characters.");
     fillCredentials();
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "passwordpassword" } });
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
@@ -123,6 +126,10 @@ describe("HomePage authentication", () => {
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "different-password" } });
     fireEvent.submit(screen.getByRole("form", { name: "Authentication" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Passwords do not match");
+    expect(screen.getByLabelText("Confirm password")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Confirm password")).toHaveAccessibleDescription("Passwords do not match.");
+    expect(screen.getByLabelText("Confirm password")).toHaveFocus();
+    expect(screen.getByLabelText("Email")).not.toHaveAttribute("aria-invalid");
     expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
     fireEvent.click(screen.getByRole("button", { name: "Show password" }));
     expect(screen.getByLabelText("Password")).toHaveAttribute("type", "text");
@@ -134,6 +141,9 @@ describe("HomePage authentication", () => {
     render(<HomePage />);
     fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Enter your email first");
+    expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Email")).toHaveAccessibleDescription("Enter your email first, then request a reset link.");
+    expect(screen.getByLabelText("Email")).toHaveFocus();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Password reset email sent");

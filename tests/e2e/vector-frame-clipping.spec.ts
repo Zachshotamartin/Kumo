@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { chooseTool } from "./editorTools";
 
 test("a thick pen stroke inside a frame keeps its width and round caps", async ({ page }) => {
   await page.goto("/e2e.html");
@@ -10,9 +11,9 @@ test("a thick pen stroke inside a frame keeps its width and round caps", async (
     await page.mouse.move(box.x + x2, box.y + y2, { steps: 5 });
     await page.mouse.up();
   };
-  await page.getByRole("button", { name: "Frame tool (F)" }).click();
+  await chooseTool(page, "Frame tool (F)");
   await drag(300, 280, 580, 500);
-  await page.getByRole("button", { name: "Pen tool (P)" }).click();
+  await chooseTool(page, "Pen tool (P)");
   await drag(340, 350, 530, 350);
   const panel = page.getByRole("complementary", { name: "Properties" });
   await panel.getByRole("spinbutton", { name: "Stroke", exact: true }).fill("7");

@@ -28,6 +28,8 @@ interface EditorState {
   gridSize: number;
   saveStatus: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
+  /** A one-off message about the canvas itself, such as a rejected upload, shown in the canvas notice area. */
+  canvasNotice: string | null;
   localPreviewActive: boolean;
   rightPanel: EditorRightPanel;
   commentDraftAnchor: CommentAnchor | null;
@@ -54,6 +56,7 @@ const initialState: EditorState = {
   gridSize: 8,
   saveStatus: "idle",
   saveError: null,
+  canvasNotice: null,
   localPreviewActive: false,
   rightPanel: "properties",
   commentDraftAnchor: null,
@@ -80,6 +83,7 @@ const editorSlice = createSlice({
       state.editingShapeId = null;
       state.saveStatus = "idle";
       state.saveError = null;
+      state.canvasNotice = null;
       state.localPreviewActive = false;
       state.rightPanel = "properties";
       state.commentDraftAnchor = null;
@@ -143,6 +147,9 @@ const editorSlice = createSlice({
       state.saveStatus = action.payload.status;
       state.saveError = action.payload.error ?? null;
     },
+    showCanvasNotice: (state, action: PayloadAction<string | null>) => {
+      state.canvasNotice = action.payload;
+    },
     setRightPanel: (state, action: PayloadAction<EditorRightPanel>) => {
       state.rightPanel = action.payload;
       if (action.payload !== "comments") state.commentDraftAnchor = null;
@@ -194,6 +201,7 @@ export const {
   setSnapToGrid,
   setGridSize,
   setSaveStatus,
+  showCanvasNotice,
   setRightPanel,
   setCommentDraftAnchor,
   setSelectedThreadId,
