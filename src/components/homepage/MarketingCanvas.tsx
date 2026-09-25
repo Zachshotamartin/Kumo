@@ -12,7 +12,7 @@ import { createAppStore, type AppDispatch, type RootState } from "../../store";
 import { EditorCanvasView } from "../editor/EditorCanvasView";
 import KumoLogo from "../brand/KumoLogo";
 import type { KumoLogoContext } from "../brand/KumoLogoConfig";
-import { layoutMarketingShapes, MARKETING_STATUS_SHAPE_ID } from "./marketingCanvasModel";
+import { layoutMarketingShapes, MARKETING_MOBILE_MAX_WIDTH, MARKETING_STATUS_SHAPE_ID } from "./marketingCanvasModel";
 import styles from "./MarketingCanvas.module.css";
 
 interface MarketingCanvasProps { logoContext: KumoLogoContext; logoStatus: string; showLogo?: boolean }
@@ -61,7 +61,7 @@ const LandingEditor = ({ logoContext, logoStatus, showLogo = true }: MarketingCa
       const rect = root.getBoundingClientRect();
       const size = {
         width: rect.width || 1000, height: rect.height || 1000,
-        mobile: window.innerWidth <= 820,
+        mobile: window.innerWidth <= MARKETING_MOBILE_MAX_WIDTH,
       };
       const key = `${size.width}:${size.height}:${size.mobile}`;
       if (key === previousSize) return;

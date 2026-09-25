@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { KumoLogoContext } from "../brand/KumoLogoConfig";
-import { layoutMarketingShapes } from "./marketingCanvasModel";
+import { layoutMarketingShapes, MARKETING_MOBILE_MAX_WIDTH } from "./marketingCanvasModel";
 import styles from "./MarketingCanvas.module.css";
 
 // Paint the same document before the interactive editor module is available.
@@ -12,7 +12,7 @@ const MarketingCanvasPreview = ({ logoContext, logoStatus }: { logoContext: Kumo
     const root = rootRef.current!;
     const resize = () => {
       const rect = root.getBoundingClientRect();
-      setSize({ width: rect.width || 1000, height: rect.height || 1000, mobile: window.innerWidth <= 820 });
+      setSize({ width: rect.width || 1000, height: rect.height || 1000, mobile: window.innerWidth <= MARKETING_MOBILE_MAX_WIDTH });
     };
     resize();
     if (typeof ResizeObserver === "undefined") return;

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { chooseTool } from "./editorTools";
 
 test.describe("editor regression workflows", () => {
   test.describe.configure({ mode: "serial" });
@@ -52,7 +53,7 @@ test.describe("editor regression workflows", () => {
 
   test("draws a text box and opens it for typing immediately", async ({ page }) => {
     const canvas = page.getByRole("application", { name: "Kumo design canvas" });
-    await page.getByRole("button", { name: "Text tool (T)" }).click();
+    await chooseTool(page, "Text tool (T)");
     await canvas.click({ position: { x: 70, y: 300 } });
 
     const editor = page.getByRole("textbox", { name: "Edit text" });
@@ -63,7 +64,7 @@ test.describe("editor regression workflows", () => {
 
     await expect(page.getByText("A new linked thought", { exact: true })).toBeVisible();
     await expect(page.locator("[data-shape-id]")).toHaveCount(3);
-    await expect(page.getByRole("button", { name: "Text tool (T)" })).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("button", { name: "Select tool (V)" })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("draws connectors, freehand marks, structured blocks, and erases with the shared toolbar model", async ({ page }) => {
@@ -71,7 +72,7 @@ test.describe("editor regression workflows", () => {
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
     const draw = async (tool: string, start: { x: number; y: number }, end: { x: number; y: number }) => {
-      await page.getByRole("button", { name: tool }).click();
+      await chooseTool(page, tool);
       await page.mouse.move(box!.x + start.x, box!.y + start.y);
       await page.mouse.down();
       await page.mouse.move(box!.x + end.x, box!.y + end.y, { steps: 6 });
@@ -99,7 +100,7 @@ test.describe("editor regression workflows", () => {
     const sticky = page.locator('[data-shape-type="sticky"]');
     const stickyBox = await sticky.boundingBox();
     expect(stickyBox).not.toBeNull();
-    await page.getByRole("button", { name: "Eraser tool (E)" }).click();
+    await chooseTool(page, "Eraser tool (E)");
     await page.mouse.click(stickyBox!.x + stickyBox!.width / 2, stickyBox!.y + stickyBox!.height / 2);
     await expect(sticky).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
@@ -109,7 +110,7 @@ test.describe("editor regression workflows", () => {
     const canvas = page.getByRole("application", { name: "Kumo design canvas" });
     const canvasBox = await canvas.boundingBox();
     expect(canvasBox).not.toBeNull();
-    await page.getByRole("button", { name: "Text tool (T)" }).click();
+    await chooseTool(page, "Text tool (T)");
     await page.mouse.move(canvasBox!.x + 70, canvasBox!.y + 300);
     await page.mouse.down();
     await page.mouse.move(canvasBox!.x + 250, canvasBox!.y + 350, { steps: 5 });
@@ -282,9 +283,13 @@ test.describe("editor regression workflows", () => {
     const target = page.getByRole("listitem").filter({
       has: page.getByRole("button", { name: "Product note", exact: true }),
     });
-    const targetBox = await target.boundingBox();
+    const [sourceBox, targetBox] = await Promise.all([source.boundingBox(), target.boundingBox()]);
+    expect(sourceBox).not.toBeNull();
     expect(targetBox).not.toBeNull();
+    // Grab the layer by its type icon, as people do. Row actions appear over the right-hand end of
+    // a hovered row, so the centre of a long name is not a stable place to start a drag.
     await source.dragTo(target, {
+      sourcePosition: { x: 16, y: sourceBox!.height / 2 },
       targetPosition: { x: targetBox!.width / 2, y: targetBox!.height - 2 },
     });
 
@@ -377,7 +382,7 @@ test.describe("editor regression workflows", () => {
     const canvasBox = await canvas.boundingBox();
     expect(canvasBox).not.toBeNull();
 
-    await page.getByRole("button", { name: "Frame tool (F)" }).click();
+    await chooseTool(page, "Frame tool (F)");
     await page.mouse.move(canvasBox!.x + 80, canvasBox!.y + 80);
     await page.mouse.down();
     await page.mouse.move(canvasBox!.x + 650, canvasBox!.y + 240, { steps: 8 });
@@ -426,7 +431,7 @@ test.describe("editor regression workflows", () => {
     const canvas = page.getByRole("application", { name: "Kumo design canvas" });
     const canvasBox = await canvas.boundingBox();
     expect(canvasBox).not.toBeNull();
-    await page.getByRole("button", { name: "Frame tool (F)" }).click();
+    await chooseTool(page, "Frame tool (F)");
     await page.mouse.move(canvasBox!.x + 20, canvasBox!.y + 280);
     await page.mouse.down();
     await page.mouse.move(canvasBox!.x + 280, canvasBox!.y + 520, { steps: 8 });
@@ -570,7 +575,7 @@ test.describe("editor regression workflows", () => {
         buttons: 0,
       });
     };
-    await page.getByRole("button", { name: "Pen tool (P)" }).click();
+    await chooseTool(page, "Pen tool (P)");
     await pointerDrag(
       canvas,
       { clientX: canvasBox!.x + 120, clientY: canvasBox!.y + 320 },

@@ -1,4 +1,4 @@
-import { authenticatedFetch, authenticatedIdToken, clientSessionId } from '../services/apiClient';
+import { authenticatedFetch, authenticatedIdToken, clientSessionId, errorFromResponse, readJson } from '../services/apiClient';
 import type { BuilderRun, ConversationMessage, Effort } from './protocol';
 
 export interface BuilderSession { runId: string; lease: string }
@@ -14,8 +14,8 @@ export async function builderStep(session: BuilderSession, context: string, sign
   const token = await authenticatedIdToken();
   if (!token) throw new Error('Authentication required.');
   const response = await fetch('/api/builder', { method: 'POST', signal, headers: { Authorization: `Bearer ${token}`, 'X-Kumo-Session-Id': clientSessionId(), 'Content-Type': 'application/json' }, body: JSON.stringify({ ...session, action: 'step', context }) });
-  if (!response.ok) { const body = await response.json() as { error: string }; throw new Error(body.error); }
-  if (!response.headers.get('content-type')?.includes('text/event-stream')) return (await response.json() as { run: BuilderRun }).run;
+  if (!response.ok) throw await errorFromResponse(response);
+  if (!response.headers.get('content-type')?.includes('text/event-stream')) return (await readJson<{ run: BuilderRun }>(response)).run;
   if (!response.body) throw new Error('The builder stream is unavailable.');
   const reader = response.body.getReader();
   const decoder = new TextDecoder();

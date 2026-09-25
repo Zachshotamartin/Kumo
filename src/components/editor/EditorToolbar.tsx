@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
   ArrowCounterClockwise,
+  DotsThreeOutline,
   Trash,
 } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
@@ -14,8 +15,11 @@ import {
   unsupportedMediaMessage,
   type AcceptedVideoType,
 } from "../../editor/mediaTypes";
-import { EDITOR_TOOL_DEFINITIONS } from "../../editor/toolDefinitions";
+import { EDITOR_TOOL_DEFINITIONS, type EditorToolDefinition } from "../../editor/toolDefinitions";
+import { fitToolCount, toolbarAvailableWidth } from "../../editor/toolbarFit";
+import type { EditorTool } from "../../editor/types";
 import { useEditorActions, type EditorActions } from "../../editor/useEditorActions";
+import { showCanvasNotice } from "../../features/editor/editorSlice";
 import { setSelectedShapes, setSelectedTool } from "../../features/selected/selectedSlice";
 import { deleteBoardAsset, uploadBoardImage } from "../../services/assetRepository";
 import { AppDispatch, RootState } from "../../store";
@@ -46,6 +50,9 @@ const mediaDimensions = async (file: File) => {
   return dimensions;
 };
 
+/** Select and Hand stay on the toolbar however narrow the canvas gets. */
+const MINIMUM_VISIBLE_TOOLS = 2;
+
 export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
   const dispatch = useDispatch<AppDispatch>();
   const selectedTool = useSelector((state: RootState) => state.selected.selectedTool);
@@ -56,7 +63,11 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
   const activeRef = useRef(true);
   const boardIdRef = useRef(board.id);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const toolGroupRef = useRef<HTMLDivElement>(null);
+  const moreToolsRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(EDITOR_TOOL_DEFINITIONS.length);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     boardIdRef.current = board.id;
@@ -66,11 +77,55 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
     activeRef.current = false;
   }, []);
 
+  // Fit the toolbar to the canvas it sits in; tools that don't fit move into "More tools".
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current!;
+    const group = toolGroupRef.current!;
+    const measure = () => {
+      const available = toolbarAvailableWidth(toolbar);
+      const button = group.querySelector("button")!;
+      if (available <= 0 || !button.offsetWidth) return;
+      const gap = Number.parseFloat(getComputedStyle(group).columnGap) || 0;
+      setVisibleCount(fitToolCount({
+        available,
+        chrome: toolbar.offsetWidth - group.offsetWidth,
+        step: button.offsetWidth + gap,
+        gap,
+        total: EDITOR_TOOL_DEFINITIONS.length,
+        minimum: MINIMUM_VISIBLE_TOOLS,
+      }));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar.parentElement!);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!moreToolsRef.current?.contains(event.target as Node)) setMoreOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setMoreOpen(false);
+    window.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [moreOpen]);
+
+  const chooseTool = (tool: EditorTool) => {
+    if (tool === "image") imageInput.current!.click();
+    else dispatch(setSelectedTool(tool));
+  };
+
   const uploadImage = async (file: File) => {
     if (!board.id || !actions.canEdit) return;
     const uploadBoardId = board.id;
     setUploading(true);
-    setUploadError(null);
+    dispatch(showCanvasNotice(null));
     try {
       const dimensions = await mediaDimensions(file);
       const asset = await uploadBoardImage(uploadBoardId, file, {
@@ -104,7 +159,7 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
       dispatch(setSelectedTool("pointer"));
     } catch (error) {
       if (activeRef.current) {
-        setUploadError(error instanceof Error ? error.message : "We couldn't upload this image.");
+        dispatch(showCanvasNotice(error instanceof Error ? error.message : "We couldn't upload this image."));
       }
     } finally {
       if (activeRef.current) setUploading(false);
@@ -112,10 +167,16 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
     }
   };
 
+  const toolDisabled = (tool: EditorToolDefinition) => tool.id === "image" && (uploading || !actions.canEdit);
+  const shownTools = EDITOR_TOOL_DEFINITIONS.slice(0, visibleCount);
+  const moreTools = EDITOR_TOOL_DEFINITIONS.slice(visibleCount);
+  const selectedMoreTool = moreTools.find((tool) => tool.id === selectedTool);
+  const MoreIcon = selectedMoreTool?.Icon ?? DotsThreeOutline;
+
   return (
-    <div className={styles.toolbar} role="toolbar" aria-label="Editor tools">
-      <div className={styles.toolGroup}>
-        {EDITOR_TOOL_DEFINITIONS.map((tool) => {
+    <div ref={toolbarRef} className={styles.toolbar} role="toolbar" aria-label="Editor tools">
+      <div ref={toolGroupRef} className={styles.toolGroup}>
+        {shownTools.map((tool) => {
           const ToolIcon = tool.Icon;
           return (
             <button
@@ -125,15 +186,51 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
               aria-label={`${tool.label} tool (${tool.shortcut})`}
               aria-pressed={selectedTool === tool.id}
               title={`${tool.label} - ${tool.shortcut}`}
-              disabled={tool.id === "image" && (uploading || !actions.canEdit)}
-              onClick={() => tool.id === "image"
-                ? imageInput.current!.click()
-                : dispatch(setSelectedTool(tool.id))}
+              disabled={toolDisabled(tool)}
+              onClick={() => chooseTool(tool.id)}
             >
               <ToolIcon aria-hidden="true" weight={selectedTool === tool.id ? "fill" : "regular"} />
             </button>
           );
         })}
+        {moreTools.length > 0 && (
+          <div ref={moreToolsRef} className={styles.moreTools}>
+            <button
+              type="button"
+              className={selectedMoreTool ? styles.activeTool : undefined}
+              aria-label={selectedMoreTool ? `More tools (${selectedMoreTool.label} selected)` : "More tools"}
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              title="More tools"
+              onClick={() => setMoreOpen((open) => !open)}
+            >
+              <MoreIcon aria-hidden="true" weight={selectedMoreTool ? "fill" : "regular"} />
+            </button>
+            {moreOpen && (
+              <div className={styles.moreToolsMenu} role="menu" aria-label="More tools" data-columns={moreTools.length > 8 ? 2 : 1}>
+                {moreTools.map((tool) => {
+                  const ToolIcon = tool.Icon;
+                  return (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-label={`${tool.label} tool (${tool.shortcut})`}
+                      aria-checked={selectedTool === tool.id}
+                      title={`${tool.label} - ${tool.shortcut}`}
+                      disabled={toolDisabled(tool)}
+                      onClick={() => { setMoreOpen(false); chooseTool(tool.id); }}
+                    >
+                      <ToolIcon aria-hidden="true" weight={selectedTool === tool.id ? "fill" : "regular"} />
+                      <span>{tool.label}</span>
+                      <kbd>{tool.shortcut}</kbd>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <input
         ref={imageInput}
@@ -145,7 +242,6 @@ export const EditorToolbarView = ({ actions }: { actions: EditorActions }) => {
           if (file) void uploadImage(file);
         }}
       />
-      {uploadError && <span className={styles.toolbarError} role="alert">{uploadError}</span>}
       <span className={styles.toolbarDivider} aria-hidden="true" />
       <div className={styles.toolGroup}>
         <button

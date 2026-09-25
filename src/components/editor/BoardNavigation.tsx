@@ -96,12 +96,15 @@ export const BoardNavigation = () => {
     }
   }, [dispatch, navigation]);
 
-  const visible = navigation.entries.slice(Math.max(0, navigation.index - 2), navigation.index + 1);
+  // Nothing to go back or forward to: the title already names the only board.
+  if (navigation.entries.length < 2) return null;
+  // The boards before this one; the board title that follows the trail is the current board.
+  const previous = navigation.entries.slice(Math.max(0, navigation.index - 2), navigation.index);
   return <nav className={styles.boardNavigation} aria-label="Connected board history">
     <button type="button" aria-label="Previous connected board" disabled={busy || navigation.index <= 0} onClick={() => void openAt(navigation.index - 1)}><ArrowLeft aria-hidden="true" /></button>
     <button type="button" aria-label="Next connected board" disabled={busy || navigation.index >= navigation.entries.length - 1} onClick={() => void openAt(navigation.index + 1)}><ArrowRight aria-hidden="true" /></button>
     <span className={styles.boardTrail}>
-      {visible.map((entry, offset) => <span key={`${entry.boardId}:${offset}`}>{offset > 0 && <CaretRight aria-hidden="true" />}<button type="button" disabled={busy} onClick={() => void openAt(Math.max(0, navigation.index - visible.length + 1 + offset))}>{entry.title}</button></span>)}
+      {previous.map((entry, offset) => <span key={`${entry.boardId}:${offset}`}><button type="button" disabled={busy} onClick={() => void openAt(navigation.index - previous.length + offset)}>{entry.title}</button><CaretRight aria-hidden="true" /></span>)}
     </span>
     {error && <span className={styles.navigationError} role="alert">{error}</span>}
   </nav>;

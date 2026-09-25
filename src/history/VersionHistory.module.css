@@ -1,14 +1,14 @@
 .panel { border-left: 1px solid var(--kumo-line); }
 .header svg { width: 17px; height: 17px; }
-.preview { position: relative; min-height: 130px; overflow: hidden; margin: 10px; border: 1px solid #3b3c40; border-radius: 7px; }
+.preview { position: relative; min-height: 130px; overflow: hidden; margin: var(--kumo-space-2-5); border: 1px solid #3b3c40; border-radius: var(--kumo-radius-control); }
 .preview > span { position: absolute; box-sizing: border-box; transform-origin: center; }
 .preview em { position: absolute; inset: 0; display: grid; place-items: center; color: var(--kumo-muted); font-size: var(--kumo-text-2xs); font-style: normal; }
-.checkpointForm { display: grid; gap: 7px; margin: 0 10px 10px; padding: 9px; background: #222326; border: 1px solid #35363a; border-radius: 7px; }
+.checkpointForm { display: grid; gap: var(--kumo-space-2); margin: 0 var(--kumo-space-2-5) var(--kumo-space-2-5); padding: var(--kumo-space-2); background: #222326; border: 1px solid #35363a; border-radius: var(--kumo-radius-control); }
 .checkpointForm label span { text-transform: uppercase; letter-spacing: var(--kumo-tracking-label); }
 .checkpointForm textarea { min-height: 48px; }
 .checkpointForm svg { width: 14px; height: 14px; }
-.list { flex: 1; overflow: auto; padding: 0 10px 10px; }
-.list > button { display: grid; width: 100%; grid-template-columns: 1fr auto; gap: 3px 8px; padding: 9px; color: #d4d2cc; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px; }
+.list { flex: 1; overflow: auto; padding: 0 var(--kumo-space-2-5) var(--kumo-space-2-5); }
+.list > button { display: grid; width: 100%; grid-template-columns: 1fr auto; gap: var(--kumo-space-1) var(--kumo-space-2); padding: var(--kumo-space-2); color: #d4d2cc; text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--kumo-radius-sm); }
 .list > button:hover { background: #242529; }
 .list > button[aria-pressed="true"] { background: rgb(184 122 46 / .1); border-color: rgb(184 122 46 / .48); }
 .list strong { overflow: hidden; font-size: var(--kumo-text-xs); text-overflow: ellipsis; white-space: nowrap; }
@@ -16,11 +16,11 @@
 .list small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 .list small { grid-column: 1 / -1; }
 .list > p { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); text-align: center; }
-.restoreBar { display: flex; min-height: 48px; align-items: center; justify-content: flex-end; gap: 7px; padding: 7px 10px; border-top: 1px solid #35363a; }
+.restoreBar { display: flex; min-height: 48px; align-items: center; justify-content: flex-end; gap: var(--kumo-space-2); padding: var(--kumo-space-2) var(--kumo-space-2-5); border-top: 1px solid #35363a; }
 .restoreBar span { margin-right: auto; color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
-.error { margin: 0 10px 8px; }
-.message { margin: 0 10px 8px; }
-.versionActions { display: flex; justify-content: flex-end; gap: 4px; margin: -4px 10px 10px; }
-.comparison { display: grid; gap: 4px; max-height: 110px; overflow: auto; margin: 0 10px 8px; padding: 8px; border: 1px solid #35363a; border-radius: 7px; background: #1d1e20; }
+.error { margin: 0 var(--kumo-space-2-5) var(--kumo-space-2); }
+.message { margin: 0 var(--kumo-space-2-5) var(--kumo-space-2); }
+.versionActions { display: flex; justify-content: flex-end; gap: var(--kumo-space-1); margin: calc(var(--kumo-space-1) * -1) var(--kumo-space-2-5) var(--kumo-space-2-5); }
+.comparison { display: grid; gap: var(--kumo-space-1); max-height: 110px; overflow: auto; margin: 0 var(--kumo-space-2-5) var(--kumo-space-2); padding: var(--kumo-space-2); border: 1px solid #35363a; border-radius: var(--kumo-radius-control); background: #1d1e20; }
 .comparison span { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 .comparison b { color: #d6a15f; text-transform: capitalize; }

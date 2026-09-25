@@ -1,9 +1,21 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { installSocialApiFixture } from "./socialFixture";
 
 const wcagTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-const analyze = (page: Parameters<typeof AxeBuilder>[0]["page"]) => new AxeBuilder({ page }).withTags(wcagTags).analyze();
+
+/**
+ * Axe measures contrast on whatever frame it catches, so a card halfway through its entrance fade
+ * reports the faded colour. Let finite animations finish first; looping ones (skeleton pulses,
+ * spinners) never do and are skipped.
+ */
+const settleAnimations = (page: Page) => page.waitForFunction(() => document.getAnimations().every((animation) =>
+  animation.playState !== "running" || animation.effect?.getTiming().iterations === Infinity));
+
+const analyze = async (page: Page) => {
+  await settleAnimations(page);
+  return new AxeBuilder({ page }).withTags(wcagTags).analyze();
+};
 
 test("authentication screen has no WCAG 2.2 A/AA violations", async ({ page }) => {
   await page.goto("/");

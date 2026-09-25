@@ -20,8 +20,8 @@
   height: 52px;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px;
+  gap: var(--kumo-space-3);
+  padding: 0 var(--kumo-space-3);
   background: #191a1c;
   border-bottom: 1px solid var(--line);
 }
@@ -37,16 +37,16 @@
 .topbarStart {
   min-width: 0;
   flex: 1 1 360px;
-  gap: 8px;
+  gap: var(--kumo-space-2);
 }
 
 .boardNavigation {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 2px;
-  margin-inline-start: 4px;
-  color: var(--kumo-text-muted, #9b9da3);
+  flex: 0 1 auto;
+  gap: var(--kumo-space-0-5);
+  color: var(--kumo-muted);
 }
 
 .boardNavigation > button {
@@ -55,7 +55,7 @@
   height: 26px;
   place-items: center;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--kumo-radius-sm);
   background: transparent;
   color: inherit;
 }
@@ -78,6 +78,7 @@
   display: flex;
   min-width: 0;
   align-items: center;
+  gap: var(--kumo-space-0-5);
 }
 
 .boardTrail svg {
@@ -89,7 +90,7 @@
   max-width: 110px;
   overflow: hidden;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--kumo-radius-xs);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -107,32 +108,32 @@
 }
 
 .workshopTimer {
-  padding: 16px;
+  padding: var(--kumo-space-4);
   border: 1px solid #3b3d42;
-  border-radius: 8px;
+  border-radius: var(--kumo-radius-md);
   background: #17181a;
   color: #f6d365;
-  font: 700 34px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: var(--kumo-weight-bold) 34px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: .06em;
   text-align: center;
 }
 
-.paintEditor { display: grid; gap: var(--kumo-space-2); padding: var(--kumo-space-2); background: var(--kumo-surface-input); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
+.paintEditor { display: grid; gap: var(--kumo-space-2); padding: var(--kumo-space-2); background: var(--kumo-surface-subtle); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-control); }
 
 .topbarEnd {
   position: relative;
   min-width: 0;
   flex: 0 1 auto;
-  gap: 10px;
+  gap: var(--kumo-space-2-5);
 }
 
 .brandButton {
-  gap: 8px;
+  gap: var(--kumo-space-2);
   min-height: 36px;
-  padding: 0 8px;
+  padding: 0 var(--kumo-space-2);
   color: var(--ink);
-  font-weight: 700;
+  font-weight: var(--kumo-weight-heavy);
   background: transparent;
   border: 0;
   border-radius: var(--kumo-radius-control);
@@ -152,13 +153,15 @@
 }
 
 .titleInput {
-  min-width: 80px;
-  max-width: min(36vw, 440px);
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  max-width: 440px;
   height: 34px;
-  padding: 0 8px;
+  text-overflow: ellipsis;
+  padding: 0 var(--kumo-space-2);
   color: #d6d4ce;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--kumo-weight-semibold);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--kumo-radius-control);
@@ -174,9 +177,12 @@
 }
 
 .saveStatus {
+  flex: none;
+  margin-inline: var(--kumo-space-1-5);
   color: var(--muted);
   font-size: var(--kumo-text-xs);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .saveError {
@@ -188,14 +194,14 @@
   display: grid;
   width: 26px;
   height: 26px;
-  margin-left: -5px;
+  margin-left: calc(var(--kumo-space-1) * -1);
   place-items: center;
   color: #17181a;
   font-size: var(--kumo-text-2xs);
-  font-weight: 800;
+  font-weight: var(--kumo-weight-heavy);
   background: #9caa92;
   border: 2px solid #17181a;
-  border-radius: 8px;
+  border-radius: var(--kumo-radius-md);
 }
 
 .selfPresence {
@@ -216,11 +222,11 @@
   display: inline-flex;
   min-height: 34px;
   align-items: center;
-  gap: 6px;
-  padding: 0 9px;
+  gap: var(--kumo-space-1-5);
+  padding: 0 var(--kumo-space-2);
   color: #c4c2bc;
   font-size: var(--kumo-text-2xs);
-  font-weight: 650;
+  font-weight: var(--kumo-weight-semibold);
   background: transparent;
   border: 1px solid #393a3e;
   border-radius: var(--kumo-radius-control);
@@ -242,11 +248,11 @@
   min-width: 15px;
   height: 15px;
   place-items: center;
-  padding: 0 3px;
+  padding: 0 var(--kumo-space-1);
   color: #17181a;
   font-size: var(--kumo-text-2xs);
   background: #d79a4d;
-  border-radius: 5px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .followBanner {
@@ -256,26 +262,26 @@
   z-index: var(--kumo-z-toast);
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 8px 10px 8px 13px;
+  gap: var(--kumo-space-3-5);
+  padding: var(--kumo-space-2) var(--kumo-space-2-5) var(--kumo-space-2) var(--kumo-space-3);
   color: #e6e4de;
   font-size: var(--kumo-text-2xs);
   background: #28292c;
   border: 1px solid #4a4b50;
-  border-radius: 7px;
-  box-shadow: 0 10px 28px rgb(0 0 0 / .32);
+  border-radius: var(--kumo-radius-control);
+  box-shadow: var(--kumo-shadow-panel);
   transform: translateX(-50%);
 }
 
 .followBanner button {
   min-height: 26px;
-  padding: 0 8px;
+  padding: 0 var(--kumo-space-2);
   color: #17181a;
   font-size: var(--kumo-text-2xs);
-  font-weight: 700;
+  font-weight: var(--kumo-weight-bold);
   background: #d79a4d;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .primaryTopbarButton {
@@ -322,11 +328,11 @@
   right: 0;
   display: grid;
   width: 188px;
-  padding: 6px;
+  padding: var(--kumo-space-1-5);
   background: #222326;
   border: 1px solid #3e3f43;
-  border-radius: 9px;
-  box-shadow: 0 18px 44px rgb(4 5 6 / 0.44);
+  border-radius: var(--kumo-radius-md);
+  box-shadow: var(--kumo-shadow-floating);
   z-index: var(--kumo-z-popover);
 }
 
@@ -334,18 +340,27 @@
   display: flex;
   min-height: 36px;
   align-items: center;
-  gap: 9px;
-  padding: 0 9px;
+  gap: var(--kumo-space-2);
+  padding: 0 var(--kumo-space-2);
   color: var(--ink);
   font-size: var(--kumo-text-xs);
   font-weight: var(--kumo-weight-semibold);
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .boardMenu button svg { width: 16px; height: 16px; color: #92938e; }
+
+.menuSeparator {
+  height: 1px;
+  margin: var(--kumo-space-1) var(--kumo-space-1-5);
+  background: var(--line);
+}
+
+/* Menu items that stand in for top bar buttons hidden on phones. */
+.boardMenu .compactOnly { display: none; }
 
 .boardMenu button:hover:not(:disabled),
 .boardMenu button:focus-visible {
@@ -379,7 +394,7 @@
   display: grid;
   min-height: 100%;
   place-items: center;
-  color: var(--editor-muted);
+  color: var(--kumo-muted);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -405,7 +420,7 @@
   inset: 0 2px;
   content: "";
   background: var(--line);
-  transition: background 120ms ease;
+  transition: background var(--kumo-motion-fast) var(--kumo-ease);
 }
 
 .panelResizer:hover::after,
@@ -440,10 +455,10 @@
   min-height: 45px;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
+  padding: 0 var(--kumo-space-3-5);
   color: #d8d6d0;
   font-size: var(--kumo-text-xs);
-  font-weight: 700;
+  font-weight: var(--kumo-weight-bold);
   letter-spacing: 0.03em;
   border-bottom: 1px solid var(--line);
 }
@@ -497,8 +512,8 @@
   min-height: 36px;
   grid-template-columns: 22px minmax(0, 1fr) repeat(4, 24px);
   align-items: center;
-  margin: 2px 6px;
-  border-radius: 5px;
+  margin: var(--kumo-space-0-5) var(--kumo-space-1-5);
+  border-radius: var(--kumo-radius-sm);
 }
 
 .layerUnit {
@@ -514,7 +529,7 @@
   height: 2px;
   content: "";
   background: var(--accent);
-  border-radius: 999px;
+  border-radius: var(--kumo-radius-pill);
   box-shadow: 0 0 0 1px rgb(184 122 46 / 0.18);
 }
 
@@ -525,19 +540,49 @@
   background: #25262a;
 }
 
+/*
+ * With a fine pointer, a layer's name gets the full row and its four actions appear only while the
+ * row is hovered or holds focus — at a 220px panel, reserving them permanently left names about
+ * 50px. The actions stay in the accessibility tree (opacity, not visibility) so keyboard and
+ * screen-reader users still reach them, and a hidden or locked layer keeps that icon showing,
+ * because it is state rather than an action. Touch keeps the always-visible layout.
+ */
+@media (hover: hover) and (pointer: fine) {
+  /* Explicit columns let the name overlap the action cells; auto-placement would wrap them instead. */
+  .layerRow > * { grid-row: 1; }
+  .layerRow > :nth-child(1) { grid-column: 1; }
+  .layerRow > :nth-child(2) { grid-column: 2 / -1; }
+  .layerRow > :nth-child(3) { grid-column: 3; }
+  .layerRow > :nth-child(4) { grid-column: 4; }
+  .layerRow > :nth-child(5) { grid-column: 5; }
+  .layerRow > :nth-child(6) { grid-column: 6; }
+  .layerRow > :nth-child(n + 3) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--kumo-motion-fast) var(--kumo-ease);
+  }
+
+  .layerRow:is(:hover, :focus-within, :has([data-active="true"])) > :nth-child(2) { grid-column: 2; }
+  .layerRow:is(:hover, :focus-within) > :nth-child(n + 3),
+  .layerRow > [data-active="true"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .selectedLayer {
   background: rgb(184 122 46 / 0.14);
 }
 
 .groupLayerRow {
-  margin-top: 5px;
+  margin-top: var(--kumo-space-1);
   background: #202125;
 }
 
 .nestedLayerRow {
-  margin-left: 17px;
+  margin-left: var(--kumo-space-4);
   border-left: 1px solid #37383d;
-  border-radius: 0 5px 5px 0;
+  border-radius: 0 var(--kumo-radius-sm) var(--kumo-radius-sm) 0;
 }
 
 .layerIndent,
@@ -556,8 +601,8 @@
   min-width: 0;
   min-height: 34px;
   align-items: center;
-  gap: 9px;
-  padding: 0 8px;
+  gap: var(--kumo-space-2);
+  padding: 0 var(--kumo-space-2);
   color: #cfcec9;
   text-align: left;
   background: transparent;
@@ -605,20 +650,20 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
-  padding: 0 4px 0 8px;
+  gap: var(--kumo-space-2);
+  padding: 0 var(--kumo-space-1) 0 var(--kumo-space-2);
 }
 
 .layerRename input {
   width: 100%;
   min-width: 0;
   height: 25px;
-  padding: 0 5px;
+  padding: 0 var(--kumo-space-1);
   color: #e9e7e1;
   font: inherit;
   background: #17181b;
   border: 1px solid var(--accent);
-  border-radius: 3px;
+  border-radius: var(--kumo-radius-xs);
   outline: none;
 }
 
@@ -631,7 +676,7 @@
   color: #77787d;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--kumo-radius-xs);
 }
 
 .layerAction:disabled {
@@ -649,14 +694,14 @@
   display: grid;
   min-height: 220px;
   place-content: center;
-  padding: 26px;
+  padding: var(--kumo-space-6);
   color: #8c8d91;
   text-align: center;
 }
 
 .emptyPanel p {
   max-width: 150px;
-  margin: 10px 0 5px;
+  margin: var(--kumo-space-2-5) 0 var(--kumo-space-1);
   color: #bebdb8;
   font-size: var(--kumo-text-sm);
   line-height: 1.45;
@@ -683,16 +728,50 @@
   overflow: hidden;
 }
 
-.minimap {
+/* The bottom of the canvas: the minimap stacked above one row holding the tools and zoom.
+   Sized to the canvas, so nothing here can run under a panel or over another control. */
+.canvasDock {
   position: absolute;
-  right: 12px;
-  bottom: 68px;
-  z-index: 13000;
+  right: var(--kumo-space-3);
+  bottom: var(--kumo-space-4);
+  left: calc(20px + var(--kumo-space-3));
+  z-index: 14000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--kumo-space-2);
+  pointer-events: none;
+  container: canvas-dock / inline-size;
+}
+
+.canvasDock > * { pointer-events: auto; }
+
+/* Tools centred on the canvas, zoom at the right; the side columns keep room for the zoom on both sides. */
+.canvasDockRow {
+  display: grid;
+  align-self: stretch;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  column-gap: var(--kumo-space-3);
+  pointer-events: none;
+}
+
+.canvasDockRow > * { pointer-events: auto; }
+
+/* Unless every tool fits centred with the zoom beside it, the zoom moves up and the tools get the whole width. */
+@container canvas-dock (max-width: 1110px) {
+  .canvasDockRow { grid-template-columns: minmax(0, 1fr); row-gap: var(--kumo-space-2); }
+  .canvasDockRow > .zoomControl { grid-row: 1; grid-column: 1; }
+  .canvasDockRow > .toolbar { grid-row: 2; grid-column: 1; justify-self: center; }
+}
+
+.minimap {
+  flex: none;
   width: 176px;
   height: 116px;
   border: 1px solid #46484d;
-  border-radius: 8px;
-  box-shadow: 0 12px 30px rgb(0 0 0 / 0.28);
+  border-radius: var(--kumo-radius-md);
+  box-shadow: var(--kumo-shadow-panel);
   cursor: crosshair;
 }
 
@@ -701,9 +780,10 @@
 .minimapShape:hover { fill: var(--accent); }
 .minimapViewport { fill: rgb(184 122 46 / 0.08); stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
 
+/* Below the 20px rulers, never on them. */
 .panelToggle {
   position: absolute;
-  top: 10px;
+  top: calc(20px + var(--kumo-space-2));
   z-index: 14000;
   display: grid;
   width: 28px;
@@ -728,27 +808,24 @@
   outline-offset: 2px;
 }
 
-.layersToggle { left: 10px; }
-.propertiesToggle { right: 10px; }
+.layersToggle { left: calc(20px + var(--kumo-space-2)); }
+.propertiesToggle { right: var(--kumo-space-2); }
 
 .toolbar {
-  position: absolute;
-  bottom: 18px;
-  left: 50%;
-  z-index: 14000;
+  position: relative;
+  grid-column: 2;
   display: flex;
   align-items: center;
-  padding: 5px;
-  transform: translateX(-50%);
+  padding: var(--kumo-space-1);
   background: #202124;
   border: 1px solid #414246;
-  border-radius: 10px;
-  box-shadow: 0 18px 44px rgb(6 7 8 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.035);
+  border-radius: var(--kumo-radius-lg);
+  box-shadow: var(--kumo-shadow-panel);
 }
 
 .toolGroup {
   display: flex;
-  gap: 2px;
+  gap: var(--kumo-space-0-5);
 }
 
 .toolbar button,
@@ -792,36 +869,62 @@
 .toolbarDivider {
   width: 1px;
   height: 24px;
-  margin: 0 5px;
+  margin: 0 var(--kumo-space-1);
   background: #3c3e42;
 }
 
-.toolbarError {
+/* Tools that didn't fit, above the toolbar's right end (where "More tools" sits), never past its edges. */
+.moreToolsMenu {
   position: absolute;
   right: 0;
-  bottom: calc(100% + 9px);
-  width: max-content;
-  max-width: min(320px, 80vw);
-  padding: 8px 10px;
-  color: #f2bcae;
-  font-size: var(--kumo-text-2xs);
-  line-height: 1.4;
-  background: #422720;
-  border: 1px solid #8d4f40;
-  border-radius: 6px;
-}
-
-.zoomControl {
-  position: absolute;
-  right: 14px;
-  bottom: 18px;
-  z-index: 14000;
-  display: flex;
-  padding: 4px;
+  bottom: calc(100% + var(--kumo-space-3));
+  display: grid;
+  width: min(208px, 100%);
+  max-height: min(420px, 60dvh);
+  overflow-y: auto;
+  padding: var(--kumo-space-1);
   background: #202124;
   border: 1px solid #414246;
-  border-radius: 9px;
-  box-shadow: 0 14px 32px rgb(0 0 0 / 0.24);
+  border-radius: var(--kumo-radius-md);
+  box-shadow: var(--kumo-shadow-floating);
+}
+
+/* A long list goes to two columns so it fits a phone screen without scrolling. */
+.moreToolsMenu[data-columns="2"] {
+  width: min(300px, 100%);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--kumo-space-1);
+}
+
+.moreToolsMenu[data-columns="2"] kbd { display: none; }
+
+.toolbar .moreToolsMenu button {
+  display: grid;
+  width: 100%;
+  height: auto;
+  min-height: var(--kumo-control-compact);
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  place-items: center start;
+  gap: var(--kumo-space-2);
+  padding: 0 var(--kumo-space-2);
+  font-size: var(--kumo-text-xs);
+  text-align: left;
+}
+
+.moreToolsMenu span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.moreToolsMenu button[aria-checked="true"] { color: var(--kumo-accent-hover); }
+.moreToolsMenu kbd { justify-self: end; color: var(--kumo-muted); font: inherit; font-size: var(--kumo-text-2xs); }
+
+.zoomControl {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  padding: var(--kumo-space-1);
+  background: #202124;
+  border: 1px solid #414246;
+  border-radius: var(--kumo-radius-md);
+  box-shadow: var(--kumo-shadow-panel);
 }
 
 .zoomControl .zoomValue {
@@ -834,8 +937,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  gap: 12px;
-  padding: 14px;
+  gap: var(--kumo-space-3);
+  padding: var(--kumo-space-3-5);
   border-bottom: 1px solid var(--line);
 }
 
@@ -843,7 +946,7 @@
   margin: 0;
   color: #a4a4a0;
   font-size: var(--kumo-text-2xs);
-  font-weight: 700;
+  font-weight: var(--kumo-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -860,8 +963,8 @@
   min-height: var(--kumo-control-compact);
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0 10px;
+  gap: var(--kumo-space-1-5);
+  padding: 0 var(--kumo-space-2-5);
   color: var(--kumo-text-secondary);
   font: inherit;
   font-size: var(--kumo-text-2xs);
@@ -915,7 +1018,7 @@
 
 .inspectorStack {
   display: grid;
-  gap: 8px;
+  gap: var(--kumo-space-2);
 }
 
 .inspectorStack > .colorField,
@@ -927,7 +1030,7 @@
 .buttonGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--kumo-space-2);
 }
 
 .field,
@@ -936,7 +1039,7 @@
   display: grid;
   min-width: 0;
   align-items: center;
-  gap: 7px;
+  gap: var(--kumo-space-2);
   color: #8f9094;
   font-size: var(--kumo-text-2xs);
 }
@@ -944,7 +1047,7 @@
 .field {
   grid-template-columns: minmax(16px, max-content) minmax(0, 1fr);
   min-height: 32px;
-  padding: 0 8px;
+  padding: 0 var(--kumo-space-2);
   background: #252629;
   border: 1px solid transparent;
   border-radius: var(--kumo-radius-control);
@@ -964,6 +1067,7 @@
 }
 
 .field input,
+.field select,
 .fullField input,
 .fullField select,
 .colorControl input:not([type="color"]) {
@@ -984,13 +1088,20 @@
   text-align: right;
 }
 
+/* Values sit on the right of a .field, opposite the label; selects follow the inputs beside them. */
+.field select {
+  text-align: right;
+  text-align-last: right;
+  cursor: pointer;
+}
+
 .fullField {
   min-width: 0;
 }
 
 .fullField input,
 .fullField select {
-  padding: 0 8px;
+  padding: 0 var(--kumo-space-2);
   background: #252629;
   border: 1px solid transparent;
   border-radius: var(--kumo-radius-control);
@@ -1007,18 +1118,18 @@
 
 .assetList {
   display: grid;
-  gap: 8px;
+  gap: var(--kumo-space-2);
 }
 
 .pagesSection {
-  padding-bottom: 6px;
+  padding-bottom: 0;
   border-bottom: 1px solid #3b3d41;
 }
 
 .pageList {
   display: grid;
-  gap: 2px;
-  padding: 4px 6px;
+  gap: var(--kumo-space-0-5);
+  padding: var(--kumo-space-2) var(--kumo-space-1-5);
 }
 
 .pageRow {
@@ -1026,8 +1137,8 @@
   grid-template-columns: minmax(0, 1fr) 24px 24px;
   min-height: 28px;
   align-items: center;
-  gap: 2px;
-  border-radius: 4px;
+  gap: var(--kumo-space-0-5);
+  border-radius: var(--kumo-radius-xs);
 }
 
 .pageRow > button:first-child,
@@ -1035,12 +1146,12 @@
   width: 100%;
   min-width: 0;
   height: 26px;
-  padding: 0 7px;
+  padding: 0 var(--kumo-space-2);
   overflow: hidden;
   color: #aeb0b4;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--kumo-radius-xs);
   outline: 0;
   font-size: var(--kumo-text-2xs);
   text-align: left;
@@ -1073,11 +1184,11 @@
   min-height: 34px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 5px 6px 5px 9px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-1) var(--kumo-space-1-5) var(--kumo-space-1) var(--kumo-space-2);
   background: #252629;
   border: 1px solid #3b3d41;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
   font-size: var(--kumo-text-2xs);
 }
 
@@ -1085,7 +1196,7 @@
   display: inline-flex;
   min-width: 0;
   align-items: center;
-  gap: 7px;
+  gap: var(--kumo-space-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1103,14 +1214,14 @@
   height: 13px;
   flex: 0 0 auto;
   border: 1px solid #55585d;
-  border-radius: 3px;
+  border-radius: var(--kumo-radius-xs);
 }
 
 .assetRow > div,
 .assetActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--kumo-space-2);
 }
 
 .assetActions {
@@ -1132,28 +1243,28 @@
   width: 100%;
   align-items: center;
   justify-content: flex-start;
-  gap: 7px;
+  gap: var(--kumo-space-2);
 }
 
 .interactionRow {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) 32px;
   align-items: center;
-  gap: 7px;
-  padding: 8px 0;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2) 0;
   border-bottom: 1px solid #393b3f;
   font-size: var(--kumo-text-2xs);
 }
 
 .interactionRow > span {
   display: grid;
-  gap: 2px;
+  gap: var(--kumo-space-0-5);
   color: #a8aaae;
 }
 
 .interactionRow b {
   color: #f1eee8;
-  font-weight: 650;
+  font-weight: var(--kumo-weight-semibold);
   text-transform: capitalize;
 }
 
@@ -1167,46 +1278,56 @@
 
 .interactionForm {
   display: grid;
-  gap: 12px;
-  padding-top: 12px;
+  gap: var(--kumo-space-3);
+  padding-top: var(--kumo-space-3);
   border-top: 1px solid #393b3f;
 }
 
+/* Every tab stays visible: the strip wraps instead of hiding tabs past the panel edge. */
 .productTabs {
   display: flex;
-  gap: 2px;
-  padding: 6px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--ui-border);
-  background: var(--ui-surface-muted);
-  scrollbar-width: thin;
+  flex-wrap: wrap;
+  gap: var(--kumo-space-0-5);
+  padding: var(--kumo-space-1-5);
+  border-bottom: 1px solid var(--kumo-line);
+  background: var(--kumo-surface-subtle);
 }
+
+/* A panel-wide message, inset like the sections below it. */
+.inspectorBody > .panelNotice {
+  display: flex;
+  align-items: center;
+  gap: var(--kumo-space-1-5);
+  margin: var(--kumo-space-3) var(--kumo-space-3-5) 0;
+}
+
+.panelNotice svg { flex: none; width: 14px; height: 14px; }
 
 .productTabs button {
   min-width: max-content;
-  padding: 6px 8px;
-  color: var(--ui-text-muted);
-  font: 600 var(--kumo-text-2xs)/1 var(--ui-font-sans);
+  padding: var(--kumo-space-1-5) var(--kumo-space-2);
+  color: var(--kumo-muted);
+  font: var(--kumo-weight-semibold) var(--kumo-text-2xs)/1 var(--kumo-font);
   text-transform: capitalize;
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .productTabs button[aria-selected="true"] {
-  color: var(--ui-text);
-  background: var(--ui-surface-raised);
+  color: var(--kumo-ink);
+  background: var(--kumo-surface-raised);
 }
 
 .coverageHero {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--kumo-space-3);
+  padding: var(--kumo-space-3);
   color: #b8dfc2;
   background: rgb(63 139 88 / 12%);
   border: 1px solid rgb(83 168 111 / 30%);
-  border-radius: 8px;
+  border-radius: var(--kumo-radius-md);
 }
 
 .coverageHero[data-blocked="true"] {
@@ -1216,7 +1337,7 @@
 }
 
 .coverageHero strong {
-  font: 700 30px/1 var(--ui-font-sans);
+  font: var(--kumo-weight-bold) 30px/1 var(--kumo-font);
   letter-spacing: -0.04em;
 }
 
@@ -1226,25 +1347,25 @@
 }
 
 .coverageHero small {
-  margin-top: 3px;
-  color: var(--ui-text-subtle);
+  margin-top: var(--kumo-space-1);
+  color: var(--kumo-text-subtle);
   font-size: var(--kumo-text-2xs);
 }
 
 .coverageBars {
   display: grid;
-  gap: 7px;
+  gap: var(--kumo-space-2);
 }
 
 .coverageBars > div,
 .coverageBars span {
   display: grid;
-  gap: 4px;
+  gap: var(--kumo-space-1);
 }
 
 .coverageBars span {
   grid-template-columns: 1fr auto;
-  color: var(--ui-text-muted);
+  color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
   text-transform: capitalize;
 }
@@ -1257,23 +1378,23 @@
 
 .coverageSections {
   display: flex;
-  gap: 4px;
+  gap: var(--kumo-space-1);
   overflow-x: auto;
 }
 
 .coverageSections button {
   min-width: max-content;
-  padding: 5px 7px;
-  color: var(--ui-text-muted);
+  padding: var(--kumo-space-1) var(--kumo-space-2);
+  color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
   text-transform: capitalize;
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 5px;
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-sm);
 }
 
 .coverageSections button[aria-selected="true"] {
-  color: var(--ui-text);
+  color: var(--kumo-ink);
   border-color: #b87a2e;
 }
 
@@ -1282,28 +1403,28 @@
   align-items: center;
   justify-content: center;
   min-height: var(--kumo-control-compact);
-  padding: 0 8px;
-  color: var(--ui-text-muted);
+  padding: 0 var(--kumo-space-2);
+  color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
   text-decoration: none;
-  background: var(--ui-surface-raised);
-  border: 1px solid var(--ui-border);
-  border-radius: 5px;
+  background: var(--kumo-surface-raised);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-sm);
 }
 
 .coverageFindingList {
   display: grid;
-  gap: 8px;
+  gap: var(--kumo-space-2);
 }
 
 .coverageFinding {
   display: grid;
-  gap: 7px;
-  padding: 9px;
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
   border-left: 3px solid #84878d;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .coverageFinding[data-severity="critical"] {
@@ -1320,13 +1441,13 @@
 
 .coverageFinding p {
   margin: 0;
-  color: var(--ui-text-subtle);
+  color: var(--kumo-text-subtle);
   font-size: var(--kumo-text-2xs);
 }
 
 .coverageFinding > div {
   display: flex;
-  gap: 5px;
+  gap: var(--kumo-space-1);
 }
 
 .coverageFindingJump {
@@ -1341,7 +1462,7 @@
 }
 
 .coverageFindingJump small {
-  color: var(--ui-text-subtle);
+  color: var(--kumo-text-subtle);
   font-size: var(--kumo-text-2xs);
 }
 
@@ -1356,17 +1477,17 @@
   display: grid;
   grid-template-columns: minmax(90px, 1fr) repeat(4, 54px);
   align-items: center;
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--kumo-line);
 }
 
 .coverageMatrix b,
 .coverageMatrix span,
 .coverageMatrix button {
-  padding: 6px;
+  padding: var(--kumo-space-1-5);
 }
 
 .coverageMatrix button {
-  color: var(--ui-text-subtle);
+  color: var(--kumo-text-subtle);
   background: transparent;
   border: 0;
 }
@@ -1384,25 +1505,25 @@
 }
 
 .coverageCode {
-  margin-top: 8px;
-  color: var(--ui-text-subtle);
+  margin-top: var(--kumo-space-2);
+  color: var(--kumo-text-subtle);
   font-size: var(--kumo-text-2xs);
 }
 
 .coverageCode pre {
   max-height: 180px;
-  padding: 8px;
+  padding: var(--kumo-space-2);
   overflow: auto;
-  color: var(--ui-text);
+  color: var(--kumo-ink);
   white-space: pre-wrap;
-  background: var(--ui-surface-raised);
-  border: 1px solid var(--ui-border);
+  background: var(--kumo-surface-raised);
+  border: 1px solid var(--kumo-line);
 }
 
 .coverageGraph {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: var(--kumo-space-1-5);
 }
 
 .coverageGraph button {
@@ -1410,34 +1531,34 @@
   justify-items: start;
   height: auto;
   min-height: 48px;
-  padding: 7px;
+  padding: var(--kumo-space-2);
   text-align: left;
 }
 
 .coverageGraph small {
-  color: var(--ui-text-subtle);
+  color: var(--kumo-text-subtle);
   font-size: var(--kumo-text-2xs);
 }
 
 .assetRow small,
 .assetApply small {
   display: block;
-  margin-top: 2px;
-  color: var(--ui-text-subtle);
+  margin-top: var(--kumo-space-0-5);
+  color: var(--kumo-text-subtle);
   font-size: var(--kumo-text-2xs);
-  font-weight: 500;
+  font-weight: var(--kumo-weight-medium);
 }
 
 .successLine {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2);
   color: #9ed3b0;
   font-size: var(--kumo-text-2xs);
   background: rgb(58 127 83 / 14%);
   border: 1px solid rgb(87 170 115 / 30%);
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .successLine svg {
@@ -1448,32 +1569,32 @@
 
 .selectionTypography {
   display: grid;
-  gap: 8px;
-  padding: 9px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2);
   background: rgb(184 122 46 / 8%);
   border: 1px solid rgb(184 122 46 / 30%);
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .branchReview {
   grid-column: 1 / -1;
   display: grid;
-  gap: 7px;
-  margin-top: 8px;
-  padding: 9px;
-  color: var(--ui-text-muted);
+  gap: var(--kumo-space-2);
+  margin-top: var(--kumo-space-2);
+  padding: var(--kumo-space-2);
+  color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 6px;
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-sm);
 }
 
 .branchDiffPreview {
   width: 100%;
   min-height: 120px;
   max-height: 220px;
-  border: 1px solid var(--ui-border, #34363a);
-  border-radius: 8px;
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-md);
   background: #161719;
 }
 
@@ -1490,11 +1611,31 @@
   stroke-dasharray: 5 3;
 }
 
+/* Every share section after the top cards opens the same way: 20px, a hairline, 20px. */
 .governedShare {
   display: grid;
-  gap: 9px;
-  padding: 12px 0;
-  border-top: 1px solid var(--ui-border);
+  gap: var(--kumo-space-3);
+  margin-top: var(--kumo-space-5);
+  padding-top: var(--kumo-space-5);
+  border-top: 1px solid var(--kumo-line);
+}
+
+.governedShare .shareLinkRow,
+.governedShare .shareFeedback,
+.friendShare .shareFeedback { margin-top: 0; }
+
+.shareFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--kumo-space-3);
+}
+
+.shareFieldWide { grid-column: 1 / -1; }
+
+.shareFeedback {
+  display: grid;
+  gap: var(--kumo-space-2);
+  margin-top: var(--kumo-space-3);
 }
 
 .governedShare h3,
@@ -1503,36 +1644,36 @@
 }
 
 .deleteImpact {
-  padding: 9px;
+  padding: var(--kumo-space-2);
   color: #e8bd86;
   background: rgb(184 122 46 / 10%);
   border: 1px solid rgb(184 122 46 / 30%);
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .boardGraphMap {
   width: 100%;
   min-height: 180px;
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 7px;
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-control);
 }
 
-.boardGraphMap line { stroke: var(--ui-border-strong); stroke-width: 1.5; }
+.boardGraphMap line { stroke: var(--kumo-line-strong); stroke-width: 1.5; }
 .boardGraphMap line[data-broken="true"] { stroke: var(--kumo-danger); stroke-dasharray: 4 3; }
-.boardGraphMap circle { fill: var(--ui-surface-raised); stroke: var(--kumo-text-subtle); stroke-width: 2; }
+.boardGraphMap circle { fill: var(--kumo-surface-raised); stroke: var(--kumo-text-subtle); stroke-width: 2; }
 .boardGraphMap g[data-current="true"] circle { fill: var(--kumo-accent); stroke: var(--kumo-ink); }
 .boardGraphMap g[data-inaccessible="true"] circle { fill: var(--kumo-danger-surface); stroke: var(--kumo-danger); }
-.boardGraphMap text { fill: var(--kumo-text-secondary); font: 500 var(--kumo-text-2xs)/1 var(--kumo-font); }
+.boardGraphMap text { fill: var(--kumo-text-secondary); font: var(--kumo-weight-medium) var(--kumo-text-2xs)/1 var(--kumo-font); }
 
 .gradientStop,
 .effectRow {
   display: grid;
-  gap: 7px;
-  padding: 8px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2);
   background: #252629;
   border: 1px solid #3b3d41;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .presentationOverlay,
@@ -1560,7 +1701,7 @@
   width: min(72%, 680px);
   max-height: 82%;
   overflow: hidden;
-  box-shadow: 0 20px 80px rgb(0 0 0 / 55%);
+  box-shadow: var(--kumo-shadow-dialog);
 }
 
 .prototypeOverlayCard > button:last-child {
@@ -1576,7 +1717,7 @@
   z-index: 2;
   max-width: 360px;
   margin: 0;
-  padding: 10px 12px;
+  padding: var(--kumo-space-2-5) var(--kumo-space-3);
   color: #ffe6df;
   font-size: var(--kumo-text-xs);
   background: #44241e;
@@ -1586,13 +1727,13 @@
 .exportGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: var(--kumo-space-2);
 }
 
 .exportGrid button {
   display: grid;
   min-height: 68px;
-  gap: 5px;
+  gap: var(--kumo-space-1);
   place-content: center;
 }
 
@@ -1604,11 +1745,11 @@
 }
 
 .exportStatus {
-  padding: 9px;
+  padding: var(--kumo-space-2);
   color: #c8c9cc;
   background: #252629;
   border: 1px solid #3c3e42;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
   font-size: var(--kumo-text-2xs);
 }
 
@@ -1628,22 +1769,22 @@
   min-width: 112px;
   height: 30px;
   align-items: center;
-  gap: 6px;
-  padding: 0 7px;
+  gap: var(--kumo-space-1-5);
+  padding: 0 var(--kumo-space-2);
   color: #aeb0b4;
   background: #292a2d;
   border: 1px solid #414348;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
   font-size: var(--kumo-text-2xs);
 }
 
 .commandButton kbd {
   margin-left: auto;
-  padding: 1px 4px;
+  padding: 1px var(--kumo-space-1);
   color: #777a7f;
   background: #1d1e20;
   border: 1px solid #393b3f;
-  border-radius: 3px;
+  border-radius: var(--kumo-radius-xs);
   font: inherit;
 }
 
@@ -1664,16 +1805,16 @@
   overflow: hidden;
   background: #252629;
   border: 1px solid #4a4c51;
-  border-radius: 10px;
-  box-shadow: 0 24px 90px rgb(0 0 0 / 0.6);
+  border-radius: var(--kumo-radius-lg);
+  box-shadow: var(--kumo-shadow-dialog);
 }
 
 .commandSearch {
   display: grid;
   grid-template-columns: 22px 1fr 20px;
   align-items: center;
-  gap: 8px;
-  padding: 11px 13px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-3);
   border-bottom: 1px solid #414348;
 }
 
@@ -1688,7 +1829,7 @@
 
 .commandResults {
   max-height: min(460px, 55vh);
-  padding: 6px;
+  padding: var(--kumo-space-1-5);
   overflow: auto;
 }
 
@@ -1698,11 +1839,11 @@
   min-height: 38px;
   align-items: center;
   justify-content: space-between;
-  padding: 0 9px;
+  padding: 0 var(--kumo-space-2);
   color: #dedbd5;
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--kumo-radius-sm);
   text-align: left;
 }
 
@@ -1715,15 +1856,15 @@
 }
 
 .commandResults p {
-  padding: 24px;
+  padding: var(--kumo-space-6);
   color: #8e9095;
   text-align: center;
 }
 
 .commandPalette footer {
   display: flex;
-  gap: 14px;
-  padding: 8px 13px;
+  gap: var(--kumo-space-3-5);
+  padding: var(--kumo-space-2) var(--kumo-space-3);
   color: #777a7f;
   border-top: 1px solid #414348;
   font-size: var(--kumo-text-2xs);
@@ -1733,7 +1874,7 @@
   overflow: hidden;
   background: #1c1d1f;
   border: 1px solid #3b3d41;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .codeBlock > header {
@@ -1741,7 +1882,7 @@
   min-height: var(--kumo-control-compact);
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px 0 9px;
+  padding: 0 var(--kumo-space-1-5) 0 var(--kumo-space-2);
   color: #929499;
   border-bottom: 1px solid #35373b;
   font-size: var(--kumo-text-2xs);
@@ -1751,7 +1892,7 @@
 .codeBlock pre {
   max-height: 280px;
   margin: 0;
-  padding: 10px;
+  padding: var(--kumo-space-2-5);
   overflow: auto;
   color: #d8d3ca;
   font: var(--kumo-text-2xs)/1.55 var(--kumo-mono);
@@ -1761,15 +1902,15 @@
 .inspectGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: var(--kumo-space-1);
   margin: 0;
 }
 
 .inspectGrid div {
-  padding: 6px;
+  padding: var(--kumo-space-1-5);
   background: #252629;
   border: 1px solid #3b3d41;
-  border-radius: 4px;
+  border-radius: var(--kumo-radius-xs);
 }
 
 .inspectGrid dt {
@@ -1778,7 +1919,7 @@
 }
 
 .inspectGrid dd {
-  margin: 2px 0 0;
+  margin: var(--kumo-space-0-5) 0 0;
   color: #e6e2da;
   font: var(--kumo-text-2xs) var(--kumo-mono);
 }
@@ -1788,8 +1929,8 @@
   width: 100%;
   grid-template-columns: 16px 1fr 14px;
   align-items: center;
-  gap: 7px;
-  padding: 6px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-1-5);
   color: #c8c9cc;
   background: transparent;
   border: 0;
@@ -1801,14 +1942,14 @@
   width: 14px;
   height: 14px;
   border: 1px solid #5a5c61;
-  border-radius: 3px;
+  border-radius: var(--kumo-radius-xs);
 }
 
 .typeToken {
-  padding: 7px;
+  padding: var(--kumo-space-2);
   color: #aaa9a6;
   background: #252629;
-  border-radius: 4px;
+  border-radius: var(--kumo-radius-xs);
   font: var(--kumo-text-2xs)/1.45 var(--kumo-mono);
 }
 
@@ -1817,13 +1958,13 @@
   max-width: 140px;
   height: 22px;
   align-items: center;
-  gap: 4px;
-  padding: 0 7px;
+  gap: var(--kumo-space-1);
+  padding: 0 var(--kumo-space-2);
   overflow: hidden;
   color: #d9b37e;
   background: #3a3029;
   border: 1px solid #654d39;
-  border-radius: 999px;
+  border-radius: var(--kumo-radius-pill);
   font-size: var(--kumo-text-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1831,47 +1972,47 @@
 
 .activeBranchCard {
   display: grid;
-  gap: 7px;
-  padding: 10px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2-5);
   color: #b5b6b9;
   background: #322d29;
   border: 1px solid #5b4939;
-  border-radius: 7px;
+  border-radius: var(--kumo-radius-control);
   font-size: var(--kumo-text-2xs);
 }
 
 .activeBranchCard strong {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--kumo-space-1-5);
   color: #f0d2a8;
   font-size: var(--kumo-text-2xs);
 }
 
 .branchList {
   display: grid;
-  gap: 7px;
+  gap: var(--kumo-space-2);
 }
 
 .branchRow {
   display: grid;
-  gap: 7px;
-  padding: 8px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2);
   background: #252629;
   border: 1px solid #3b3d41;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .branchRow > div {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--kumo-space-2);
 }
 
 .branchRow > div:first-child > span {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: var(--kumo-space-0-5);
 }
 
 .branchRow strong {
@@ -1904,8 +2045,8 @@
   display: grid;
   grid-template-columns: 36px 1fr auto 36px;
   align-items: center;
-  gap: 10px;
-  padding: 0 9px;
+  gap: var(--kumo-space-2-5);
+  padding: 0 var(--kumo-space-2);
   background: #222326;
   border-bottom: 1px solid #383a3e;
   font-size: var(--kumo-text-xs);
@@ -1914,7 +2055,7 @@
 .presentationOverlay > header > span:nth-of-type(2) {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--kumo-space-1);
   color: #8f9297;
   font-size: var(--kumo-text-2xs);
 }
@@ -1923,7 +2064,7 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  padding: 40px;
+  padding: var(--kumo-space-10);
   place-items: center;
   overflow: auto;
   background: #121315;
@@ -1934,7 +2075,7 @@
   width: min(1180px, 90vw);
   max-height: calc(100vh - 124px);
   overflow: hidden;
-  box-shadow: 0 22px 80px rgb(0 0 0 / 0.5);
+  box-shadow: var(--kumo-shadow-dialog);
 }
 
 .presentationShape {
@@ -1952,7 +2093,7 @@
 }
 
 .presentationEmpty {
-  gap: 18px;
+  gap: var(--kumo-space-4);
   place-content: center;
   justify-items: center;
 }
@@ -1964,10 +2105,10 @@
 
 .colorControl {
   display: grid;
-  height: 34px;
+  height: var(--kumo-control-compact);
   grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
-  padding: 0 7px;
+  padding: 0 var(--kumo-space-2);
   background: #252629;
   border: 1px solid transparent;
   border-radius: var(--kumo-radius-control);
@@ -2026,7 +2167,7 @@
 
 .buttonGrid button {
   min-width: 0;
-  padding: 6px 8px;
+  padding: var(--kumo-space-1-5) var(--kumo-space-2);
   overflow-wrap: anywhere;
   border-radius: var(--kumo-radius-control);
   font-size: var(--kumo-text-2xs);
@@ -2038,8 +2179,8 @@
 
 .toggleRow {
   display: flex;
-  gap: 8px;
-  min-height: 38px;
+  gap: var(--kumo-space-2);
+  min-height: var(--kumo-control-compact);
   align-items: center;
   justify-content: space-between;
   color: #c8c7c2;
@@ -2053,11 +2194,36 @@
   accent-color: var(--accent);
 }
 
+/* Canvas settings: every label outside its control, in the toggle rows' type, on one 32px rhythm. */
+.canvasSettings .colorField,
+.canvasSettings .field {
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  color: #c8c7c2;
+  font-size: var(--kumo-text-xs);
+}
+
+.canvasSettings .field {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.canvasSettings .field input {
+  height: var(--kumo-control-compact);
+  padding: 0 var(--kumo-space-2);
+  text-align: left;
+  background: #252629;
+  border: 1px solid transparent;
+  border-radius: var(--kumo-radius-control);
+}
+
+.canvasSettings .field input:focus { border-color: var(--accent); }
+
 .tip {
   display: grid;
-  gap: 6px;
-  margin: 14px;
-  padding: 12px;
+  gap: var(--kumo-space-1-5);
+  margin: var(--kumo-space-3-5);
+  padding: var(--kumo-space-3);
   color: #9b9c9f;
   font-size: var(--kumo-text-2xs);
   line-height: 1.5;
@@ -2065,24 +2231,32 @@
   border-left: 2px solid var(--accent);
 }
 
+.branchList:empty { display: none; }
+
 .tip strong {
   color: #d8d7d2;
 }
 
-.errorToast {
-  position: fixed;
-  right: 18px;
-  bottom: 70px;
-  z-index: var(--kumo-z-toast);
+/* Top of the canvas, below the ruler and the panel toggles: clear of the tools at the bottom
+   and inside the canvas at any width. */
+.canvasNotice {
+  position: absolute;
+  top: calc(20px + 28px + 2 * var(--kumo-space-2));
+  /* Centred in the area right of the 20px vertical ruler. */
+  left: calc(50% + 10px);
+  z-index: 14100;
   display: flex;
-  max-width: 380px;
+  width: max-content;
+  max-width: min(420px, calc(100% - 20px - 2 * var(--kumo-space-3)));
   align-items: center;
-  gap: 14px;
+  gap: var(--kumo-space-3);
   margin: 0;
   border-radius: var(--kumo-radius-control);
+  box-shadow: var(--kumo-shadow-panel);
+  transform: translateX(-50%);
 }
 
-.errorToast button {
+.canvasNotice button {
   display: grid;
   place-items: center;
   color: inherit;
@@ -2090,7 +2264,7 @@
   border: 0;
 }
 
-.errorToast button svg { width: 16px; height: 16px; }
+.canvasNotice button svg { width: 16px; height: 16px; }
 
 .dialogBackdrop {
   position: fixed;
@@ -2098,19 +2272,19 @@
   display: grid;
   inset: 0;
   place-items: center;
-  padding: 20px;
+  padding: var(--kumo-space-5);
   background: rgb(8 9 10 / 0.76);
   backdrop-filter: blur(8px);
 }
 
 .dialog {
   width: min(440px, 100%);
-  padding: 26px;
+  padding: var(--kumo-space-6);
   color: var(--kumo-ink);
   background: var(--kumo-surface-subtle);
   border: 1px solid var(--kumo-line-strong);
   border-radius: var(--kumo-radius-panel);
-  box-shadow: 0 28px 70px rgb(0 0 0 / 0.48);
+  box-shadow: var(--kumo-shadow-dialog);
 }
 
 .shareDialog {
@@ -2123,7 +2297,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--kumo-space-5);
 }
 
 .closeButton {
@@ -2136,15 +2310,15 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 126px auto;
   align-items: end;
-  gap: 8px;
-  margin-top: 22px;
+  gap: var(--kumo-space-2);
+  margin-top: var(--kumo-space-5);
 }
 
 .friendShare {
   display: grid;
-  gap: 9px;
-  margin-top: 22px;
-  padding: 12px;
+  gap: var(--kumo-space-2);
+  margin-top: var(--kumo-space-5);
+  padding: var(--kumo-space-3);
   background: #28292c;
   border: 1px solid #3c3e42;
   border-radius: var(--kumo-radius-control);
@@ -2154,13 +2328,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--kumo-space-3);
 }
 
 .friendShareHeading > span {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--kumo-space-2);
   color: var(--kumo-text-secondary);
   font-size: var(--kumo-text-xs);
 }
@@ -2176,13 +2350,13 @@
   min-width: min(330px, 62%);
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--kumo-space-1-5);
 }
 
 .friendShareHeading label {
   display: grid;
   width: min(190px, 100%);
-  height: 32px;
+  height: var(--kumo-control-compact);
   grid-template-columns: 25px minmax(0, 1fr);
   align-items: center;
   color: #77787c;
@@ -2197,31 +2371,31 @@
 }
 
 .friendShareHeading label svg { width: 14px; height: 14px; justify-self: center; }
-.friendShareHeading input { min-width: 0; color: var(--kumo-ink); font: inherit; font-size: var(--kumo-text-xs); background: transparent; border: 0; outline: 0; }
+.friendShareHeading input { min-width: 0; color: var(--kumo-ink); font: inherit; font-size: var(--kumo-text-sm); background: transparent; border: 0; outline: 0; }
 .friendShareControls select {
-  height: 32px;
-  padding: 0 7px;
+  height: var(--kumo-control-compact);
+  padding: 0 var(--kumo-space-2);
   color: #d4d2cc;
   font: inherit;
-  font-size: var(--kumo-text-2xs);
+  font-size: var(--kumo-text-xs);
   background: #202124;
   border: 1px solid #414348;
   border-radius: var(--kumo-radius-control);
 }
 
-.friendShareList { display: grid; gap: 4px; }
+.friendShareList { display: grid; gap: var(--kumo-space-1); }
 
 .friendShareRow {
   display: grid;
   min-height: 42px;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 9px;
-  padding: 4px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-1);
   border-top: 1px solid #36373b;
 }
 
-.friendShareRow > span { display: grid; min-width: 0; gap: 2px; }
+.friendShareRow > span { display: grid; min-width: 0; gap: var(--kumo-space-0-5); }
 .friendShareRow strong,
 .friendShareRow small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .friendShareRow strong { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); }
@@ -2234,7 +2408,7 @@
 .friendShareRow button:disabled { cursor: wait; opacity: 0.55; }
 
 .friendShareEmpty {
-  padding: 9px 4px 2px;
+  padding: var(--kumo-space-2) var(--kumo-space-1) var(--kumo-space-0-5);
   color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
   line-height: var(--kumo-leading-normal);
@@ -2260,18 +2434,25 @@
 
 .shareLinkRow {
   justify-content: space-between;
-  gap: 16px;
-  margin-top: 20px;
-  padding: 11px 12px;
+  gap: var(--kumo-space-4);
+  margin-top: var(--kumo-space-5);
+  padding: var(--kumo-space-3);
   background: #28292c;
   border: 1px solid #3c3e42;
   border-radius: var(--kumo-radius-control);
 }
 
-.shareLinkRow > span { min-width: 0; gap: 8px; }
-.shareLinkRow > span > svg { width: 17px; height: 17px; color: var(--accent-strong); }
+/* Icon, then the title over its description, so long descriptions and URLs wrap under the title. */
+.shareLinkRow > span {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--kumo-space-0-5) var(--kumo-space-2);
+}
+.shareLinkRow > span > svg { grid-row: span 2; width: 17px; height: 17px; color: var(--accent-strong); }
 .shareLinkRow b { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); }
-.shareLinkRow small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
+.shareLinkRow small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); overflow-wrap: anywhere; }
 .shareLinkRow button {
   flex: 0 0 auto;
 }
@@ -2281,49 +2462,46 @@
   grid-column: 1 / -1;
   flex-direction: row;
   align-items: flex-start;
-  gap: 9px;
-  margin-top: 3px;
-  padding: 9px 10px;
+  gap: var(--kumo-space-2);
+  margin-top: var(--kumo-space-1);
+  padding: var(--kumo-space-2) var(--kumo-space-2-5);
   background: rgb(184 122 46 / .08);
   border-left: 2px solid var(--accent);
 }
 .linkedShareOption input { width: 15px; height: 15px; margin-top: 1px; accent-color: var(--accent); }
-.linkedShareOption > span { display: grid; gap: 2px; }
+.linkedShareOption > span { display: grid; gap: var(--kumo-space-0-5); }
 .linkedShareOption strong { color: var(--kumo-text-secondary); font-size: var(--kumo-text-xs); }
 .linkedShareOption small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); line-height: var(--kumo-leading-normal); }
 
 .shareWarning {
   align-items: flex-start;
-  gap: 9px;
-  margin-top: 12px;
-  padding: 10px 11px;
+  gap: var(--kumo-space-2);
+  margin-top: var(--kumo-space-3);
+  padding: var(--kumo-space-2-5) var(--kumo-space-3);
   color: #d6b184;
   background: #342a20;
   border: 1px solid #59432d;
   border-radius: var(--kumo-radius-control);
 }
 .shareWarning > svg { width: 17px; height: 17px; flex: 0 0 auto; }
-.shareWarning > span { display: grid; gap: 3px; }
+.shareWarning > span { display: grid; gap: var(--kumo-space-1); }
 .shareWarning strong { color: #eed0aa; font-size: var(--kumo-text-xs); }
 .shareWarning small { color: var(--kumo-warning-ink); font-size: var(--kumo-text-2xs); line-height: var(--kumo-leading-normal); }
 
-.accessNote,
-.dialogError,
-.dialogMessage {
-  margin: 18px 0 0;
+.accessNote {
+  margin: var(--kumo-space-4) 0 0;
+  color: #b1b0ab;
+  background: #28292d;
+  border-color: #5d5e63;
 }
 
-.accessNote { color: #b1b0ab; background: #28292d; border-color: #5d5e63; }
-.dialogError { color: #ffd8cf; background: #44241e; border-color: #d65f43; }
-.dialogMessage { color: #d9f2e5; background: #20382d; border-color: #5b9a7b; }
-
 .memberList {
-  margin-top: 24px;
-  border-top: 1px solid #383a3e;
+  margin-top: var(--kumo-space-5);
+  border-top: 1px solid var(--kumo-line);
 }
 
 .memberList h3 {
-  margin: 18px 0 8px;
+  margin: var(--kumo-space-5) 0 var(--kumo-space-2);
   color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
   letter-spacing: 0.05em;
@@ -2335,12 +2513,12 @@
   min-height: 50px;
   grid-template-columns: 34px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
+  gap: var(--kumo-space-2-5);
 }
 
 .memberIdentity {
   display: grid;
-  gap: 2px;
+  gap: var(--kumo-space-0-5);
   min-width: 0;
 }
 
@@ -2356,10 +2534,12 @@
 .memberRole { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); white-space: nowrap; }
 .memberRow button { min-height: 32px; color: #e69b87; background: transparent; border: 0; border-radius: var(--kumo-radius-control); }
 .memberRow button:hover, .memberRow button:focus-visible { background: #3b2824; outline: none; }
-.memberLoading { min-height: 52px; gap: 8px; color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
+.memberLoading { min-height: 52px; gap: var(--kumo-space-2); color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 .memberLoading svg { width: 15px; height: 15px; }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  .shareFields { grid-template-columns: minmax(0, 1fr); }
+  .shareLinkRow { flex-direction: column; align-items: stretch; gap: var(--kumo-space-3); }
   .inviteForm { grid-template-columns: 1fr; }
   .friendShareHeading { align-items: stretch; flex-direction: column; }
   .friendShareControls { width: 100%; min-width: 0; justify-content: flex-start; }
@@ -2371,13 +2551,13 @@
 .dialogEyebrow {
   color: var(--accent-strong);
   font-size: var(--kumo-text-2xs);
-  font-weight: 800;
+  font-weight: var(--kumo-weight-heavy);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .dialog h2 {
-  margin: 9px 0;
+  margin: var(--kumo-space-2) 0;
   font-size: var(--kumo-text-2xl);
   letter-spacing: -0.03em;
 }
@@ -2391,52 +2571,60 @@
 .dialogActions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 22px;
+  gap: var(--kumo-space-2);
+  margin-top: var(--kumo-space-6);
 }
 
 .dialogActions .destructive {
   color: var(--kumo-danger-ink);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .editorGrid {
     grid-template-columns: 0 0 minmax(0, 1fr) 0 0;
   }
 
-  .panelSlot,
-  .panelResizer,
-  .panelToggle {
+  .panelResizer {
     display: none;
   }
 
   .brandWord,
   .breadcrumb,
-  .presenceStack,
-  .saveStatus {
+  .presenceStack {
     display: none;
   }
 
-  .titleInput {
-    max-width: 45vw;
+  .saveStatus {
+    width: 8px;
+    height: 8px;
+    margin-inline: var(--kumo-space-1);
+    border-radius: 50%;
+    background: var(--kumo-success);
   }
 
-  .toolbar {
-    bottom: 54px;
-    max-width: calc(100vw - 24px);
-    overflow-x: auto;
+  .saveStatus[data-tone="busy"] { background: var(--kumo-accent); }
+  .saveStatus[data-tone="error"] { background: var(--kumo-danger); }
+
+  .saveStatusLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
-  .zoomControl {
-    top: 10px;
-    right: 10px;
-    bottom: auto;
-  }
+  .minimap { display: none; }
+}
+
+/* Phones pinch to zoom, so the toolbar gets the whole width. */
+@media (max-width: 640px) {
+  .canvasDockRow .zoomControl { display: none; }
 }
 
 @media (max-width: 1500px) {
   .topbarEnd {
-    gap: 5px;
+    gap: var(--kumo-space-1);
   }
 
   .secondaryTopbarButton {
@@ -2463,67 +2651,126 @@
   }
 }
 
-@media (min-width: 761px) and (max-width: 1100px) {
-  .zoomControl {
-    top: 10px;
-    right: 10px;
-    bottom: auto;
-  }
-}
 
-@media (min-width: 761px) and (max-width: 900px) {
-  .toolbar {
-    transform: translateX(calc(-50% - 34px));
-  }
-}
 
 /* AI shares the inspector column and leaves the canvas unobstructed. */
 .aiOpen > .panelSlot:last-child { border-left: 1px solid var(--kumo-line); }
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .aiOpen { grid-template-columns: 0 0 minmax(0, 1fr) var(--properties-resizer-width) var(--properties-panel-width); }
   .aiOpen > .panelSlot:first-child, .aiOpen > .panelResizer:nth-child(2) { display: none; }
   .topbarEnd { overflow-x: auto; scrollbar-width: thin; min-height: 44px; }
   .topbarStart { flex: 1 1 180px; }
 }
-@media (max-width: 760px) {
-  .aiOpen { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(150px, 1fr) minmax(260px, 55%); }
-  .aiOpen > .canvasRegion { grid-column: 1; grid-row: 1; }
-  .aiOpen > .panelSlot:last-child { display: block; grid-column: 1; grid-row: 2; min-height: 0; border-top: 1px solid var(--kumo-line); }
+/* The grab handle and close button a panel gets as a bottom sheet. The panel's own header
+   names it, so the title here is for screen readers only. Wide screens show panels in columns. */
+.sheetBar {
+  position: relative;
+  display: none;
+  flex: none;
+  min-height: 32px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 var(--kumo-space-1);
+}
+
+.sheetBar::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  content: "";
+  background: #4a4b50;
+  border-radius: var(--kumo-radius-2xs);
+  transform: translate(-50%, -50%);
+}
+
+.sheetBar strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.sheetBar button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--kumo-radius-control);
+}
+
+.sheetBar button:hover,
+.sheetBar button:focus-visible { color: var(--ink); background: #2c2d30; outline: none; }
+.sheetBar button svg { width: 18px; height: 18px; }
+
+/* Below 900px the canvas keeps the full screen and each panel opens as a bottom sheet over it.
+   A slot only has content while its panel is open, so an empty one stays out of the way. */
+@media (max-width: 900px) {
+  .editorGrid > .panelSlot {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--kumo-z-popover);
+    display: flex;
+    height: min(72dvh, 620px);
+    flex-direction: column;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    border-radius: var(--kumo-radius-panel) var(--kumo-radius-panel) 0 0;
+    box-shadow: var(--kumo-shadow-dialog);
+  }
+
+  .editorGrid > .panelSlot:empty { display: none; }
+  .editorGrid > .panelSlot > :not(.sheetBar) { height: auto; min-height: 0; flex: 1; }
+  .editorGrid > .panelSlot > .sheetBar { display: flex; height: auto; }
+
+  /* Kumo AI is a conversation, so it gets nearly the whole screen rather than a split. */
+  .aiOpen > .panelSlot:last-child { height: calc(100dvh - 60px); border-left: 0; }
 }
 
 .toolbarWide { display: flex; align-items: center; gap: inherit; }
 .toolbarOverflow { display: none; position: relative; flex: none; }
-.toolbarTrigger { background: transparent; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 9px; color: var(--ink); font-size: var(--kumo-text-xs); white-space: nowrap; cursor: pointer; list-style: none; border: 1px solid var(--line); border-radius: var(--kumo-radius-control); }
+.toolbarTrigger { background: transparent; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: var(--kumo-space-1-5); min-height: 34px; padding: 0 var(--kumo-space-2); color: var(--ink); font-size: var(--kumo-text-xs); white-space: nowrap; cursor: pointer; list-style: none; border: 1px solid var(--line); border-radius: var(--kumo-radius-control); }
 .toolbarTrigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .toolbarTrigger[aria-expanded="true"] { background: var(--panel-raised); border-color: var(--accent); }
-.toolbarDropdown { position: absolute; top: calc(100% + 8px); right: 0; display: grid; width: 220px; max-height: min(480px, calc(100dvh - 100px)); overflow-y: auto; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--kumo-radius-control); box-shadow: var(--kumo-shadow-floating); }
-.toolbarDropdown .secondaryTopbarButton { width: 100%; justify-content: flex-start; padding: 0 10px; border-color: transparent; }
+.toolbarDropdown { position: absolute; top: calc(100% + 8px); right: 0; display: grid; width: 220px; max-height: min(480px, calc(100dvh - 100px)); overflow-y: auto; padding: var(--kumo-space-1-5); background: var(--panel); border: 1px solid var(--line); border-radius: var(--kumo-radius-control); box-shadow: var(--kumo-shadow-floating); }
+.toolbarDropdown .secondaryTopbarButton { width: 100%; justify-content: flex-start; padding: 0 var(--kumo-space-2-5); border-color: transparent; }
 .toolbarDropdown .secondaryTopbarButton > span { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
 .toolbarDropdown .notificationBadge { position: static; margin-left: auto; }
-@media (max-width: 1400px) {
+@media (max-width: 1760px) {
   .toolbarWide { display: none; }
   .toolbarOverflow { display: block; }
   .topbarEnd { flex: none; overflow: visible; }
   .boardTrail { max-width: 150px; }
 }
-@media (max-width: 1050px) {
+@media (max-width: 1200px) {
   .boardNavigation { display: none; }
 }
-@media (max-width: 760px) {
-  .responsiveTopbar { height: auto; min-height: 88px; flex-wrap: wrap; gap: 4px; padding-block: 6px; }
-  .responsiveTopbar .topbarStart { flex-basis: 100%; }
-  .topbarEnd { width: 100%; justify-content: flex-end; }
-  .topbarEnd > :first-child { margin-right: auto; }
-  .titleInput { flex: 1; max-width: none; }
-  .editorGrid { height: calc(100dvh - 88px); }
+@media (max-width: 900px) {
+  .responsiveTopbar { gap: var(--kumo-space-2); padding-inline: var(--kumo-space-2); }
+  .responsiveTopbar .topbarStart { flex: 1 1 auto; gap: var(--kumo-space-1); }
+  .topbarEnd { gap: var(--kumo-space-1); }
+  .titleInput { min-width: 6rem; max-width: none; }
+  .toolbarTrigger { width: 34px; padding: 0; }
+  .toolbarTrigger > svg:last-child { display: none; }
+  .toolbarTrigger > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
+@media (max-width: 640px) {
+  .topbarEnd > [data-builder] { display: none; }
+  .boardMenu .compactOnly { display: flex; }
+}
+
+@media (max-width: 400px) {
+  .titleInput { min-width: 4.5rem; }
 }
 
 /* Let wrapped header controls consume their real height on small screens. */
 .workspace { display: flex; flex-direction: column; height: 100dvh; }
 .topbar { flex: none; }
 .editorGrid { flex: 1; height: auto; min-height: 0; }
-@media (max-width: 760px) {
-  .topbarEnd { flex-wrap: wrap; }
+@media (max-width: 900px) {
   .commandButton { min-width: 34px; width: 34px; padding: 0; justify-content: center; }
   .commandButton > :is(span, kbd) { display: none; }
 }

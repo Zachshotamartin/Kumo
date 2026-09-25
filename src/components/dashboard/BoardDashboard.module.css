@@ -15,22 +15,24 @@
   z-index: var(--kumo-z-header);
   display: grid;
   min-height: 66px;
-  grid-template-columns: auto auto minmax(220px, 520px) minmax(210px, 1fr);
+  grid-template-columns: auto auto minmax(180px, 520px) minmax(max-content, 1fr);
+  grid-template-areas: "brand nav search account";
   align-items: center;
-  gap: 24px;
-  padding: 0 28px;
+  gap: var(--kumo-space-6);
+  padding: 0 var(--kumo-space-8);
   background: rgb(26 27 29 / 0.92);
   border-bottom: 1px solid var(--kumo-line);
   backdrop-filter: blur(18px);
 }
 
 .brand {
+  grid-area: brand;
   display: flex;
   width: fit-content;
   align-items: center;
-  gap: 9px;
+  gap: var(--kumo-space-2);
   color: var(--kumo-ink);
-  font-weight: 800;
+  font-weight: var(--kumo-weight-heavy);
   letter-spacing: -0.03em;
   text-decoration: none;
   background: transparent;
@@ -46,16 +48,17 @@
 .brandName { font-size: var(--kumo-text-lg); }
 
 .primaryNav {
+  grid-area: nav;
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding-left: 8px;
+  gap: var(--kumo-space-1);
+  padding-left: var(--kumo-space-2);
   border-left: 1px solid #38393d;
 }
 
 .primaryNav button {
   position: relative;
-  gap: 7px;
+  gap: var(--kumo-space-2);
 }
 
 .primaryNav button:hover,
@@ -73,7 +76,7 @@
   height: 2px;
   content: "";
   background: var(--kumo-accent);
-  border-radius: 2px;
+  border-radius: var(--kumo-radius-2xs);
 }
 
 .navBadge {
@@ -81,17 +84,19 @@
   min-width: 18px;
   height: 18px;
   place-items: center;
-  padding: 0 5px;
+  padding: 0 var(--kumo-space-1);
   color: var(--kumo-accent-ink);
   font-size: var(--kumo-text-2xs);
   font-variant-numeric: tabular-nums;
   background: var(--kumo-accent-hover);
-  border-radius: 9px;
+  border-radius: var(--kumo-radius-md);
 }
 
-.headerSpacer { min-width: 0; }
+.headerSpacer { grid-area: search; min-width: 0; }
 
-.search { position: relative; }
+.search { position: relative; grid-area: search; min-width: 0; }
+.searchToggle { display: none; }
+.searchToggle[aria-expanded="true"] { color: var(--kumo-ink); background: var(--kumo-surface-raised); }
 .search > svg { width: 17px; height: 17px; }
 
 .globalSearchResults {
@@ -102,20 +107,20 @@
   left: 0;
   display: grid;
   overflow: hidden;
-  padding: 5px;
+  padding: var(--kumo-space-1);
   border: 1px solid #383a3e;
-  border-radius: 9px;
+  border-radius: var(--kumo-radius-md);
   background: #1b1c1e;
-  box-shadow: 0 18px 46px rgb(0 0 0 / .34);
+  box-shadow: var(--kumo-shadow-floating);
 }
 
 .globalSearchResults a {
   display: grid;
-  gap: 2px;
-  padding: 8px 9px;
+  gap: var(--kumo-space-0-5);
+  padding: var(--kumo-space-2);
   color: #d8d5ce;
   text-decoration: none;
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .globalSearchResults a:hover { background: #27282b; }
@@ -123,11 +128,12 @@
 .globalSearchResults small { color: var(--kumo-muted); font-size: var(--kumo-text-2xs); }
 
 .account {
+  grid-area: account;
   display: flex;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--kumo-space-3);
   color: var(--kumo-muted);
   font-size: var(--kumo-text-xs);
 }
@@ -146,11 +152,11 @@
 
 .profileButton,
 .signOutButton {
-  padding: 0 8px;
+  padding: 0 var(--kumo-space-2);
 }
 
 .profileButton { min-width: 0; }
-.profileButton > span { max-width: 150px; }
+.profileName { max-width: 150px; }
 .profileButton > svg,
 .signOutButton svg { width: 16px; height: 16px; }
 
@@ -168,22 +174,25 @@
   padding: clamp(54px, 7vw, 92px) 0 96px;
 }
 
+/* A page-level message is its own row, clear of the heading below it. */
+.content > .pageNotice { margin-bottom: var(--kumo-space-8); }
+
 .hero {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 30px;
-  margin-bottom: 68px;
+  gap: var(--kumo-space-8);
+  margin-bottom: var(--kumo-space-16);
 }
 
 .eyebrow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 13px;
+  gap: var(--kumo-space-2);
+  margin: 0 0 var(--kumo-space-3);
   color: var(--kumo-accent-hover);
   font-size: var(--kumo-text-2xs);
-  font-weight: 800;
+  font-weight: var(--kumo-weight-heavy);
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
@@ -194,13 +203,13 @@
   max-width: 760px;
   margin: 0;
   font-size: clamp(42px, 5.8vw, 76px);
-  line-height: 0.98;
+  line-height: var(--kumo-leading-display);
   letter-spacing: -0.06em;
   text-wrap: balance;
 }
 
 .hero p:last-child {
-  margin: 18px 0 0;
+  margin: var(--kumo-space-4) 0 0;
   max-width: 640px;
   color: var(--kumo-muted);
   font-size: var(--kumo-text-lg);
@@ -208,58 +217,71 @@
 }
 
 .createButton {
-  min-height: var(--kumo-control-comfortable);
+  min-height: var(--kumo-control-default);
   flex: 0 0 auto;
-  padding: 0 18px;
+  padding: 0 var(--kumo-space-4);
 }
 
 .createButton svg { width: 18px; height: 18px; }
 
 .boardSection {
-  margin-top: 48px;
+  margin-top: var(--kumo-space-12);
 }
 
-.sectionHeading { margin-bottom: 14px; }
+.sectionHeading { margin-bottom: var(--kumo-space-3-5); }
 
 .boardGrid,
 .skeletonGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 22px 16px;
+  gap: var(--kumo-space-6) var(--kumo-space-4);
 }
 
 .compactGrid {
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px 10px;
+  gap: var(--kumo-space-3-5) var(--kumo-space-2-5);
 }
 
 .boardCard {
   position: relative;
   min-width: 0;
-  animation: board-enter 380ms both ease-out;
+  animation: board-enter var(--kumo-motion-slow) both var(--kumo-ease);
 }
 
+/* A 32px checkbox target in the preview's corner. Where hover exists it stays out of the preview
+   until the card is hovered, focused or already selected. */
 .boardSelection {
   position: absolute;
   z-index: 2;
-  top: 8px;
-  left: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 7px;
-  font-size: var(--kumo-text-2xs);
+  top: var(--kumo-space-2);
+  left: var(--kumo-space-2);
+  display: grid;
+  width: var(--kumo-control-compact);
+  height: var(--kumo-control-compact);
+  place-items: center;
+  cursor: pointer;
   background: rgb(20 21 24 / 0.88);
-  border-radius: 6px;
+  border-radius: var(--kumo-radius-sm);
+  transition: opacity var(--kumo-motion-fast) var(--kumo-ease);
+}
+
+.boardSelection input { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--kumo-accent); }
+.boardSelection span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (hover: hover) {
+  .boardSelection { opacity: 0; }
+  .boardCard:hover .boardSelection,
+  .boardCard:focus-within .boardSelection,
+  .boardSelection:has(input:checked) { opacity: 1; }
 }
 
 .boardContextMenu { position: relative; }
-.boardContextMenu summary { display: grid; width: 32px; height: 32px; cursor: pointer; place-items: center; list-style: none; border-radius: 6px; }
+.boardContextMenu summary { display: grid; width: 32px; height: 32px; cursor: pointer; place-items: center; list-style: none; border-radius: var(--kumo-radius-sm); }
 .boardContextMenu summary::-webkit-details-marker { display: none; }
-.boardContextMenu[open] summary { color: var(--ui-accent); background: var(--ui-surface-raised); }
-.boardContextMenu > div { position: absolute; z-index: 5; top: 36px; right: 0; display: grid; min-width: 150px; padding: 6px; background: var(--ui-surface-raised); border: 1px solid var(--ui-border); border-radius: 8px; box-shadow: 0 18px 40px rgb(0 0 0 / 0.28); }
-.boardContextMenu button { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--ui-text); text-align: left; background: transparent; border: 0; border-radius: 5px; }
-.boardContextMenu button:hover { background: var(--ui-surface-muted); }
+.boardContextMenu[open] summary { color: var(--kumo-accent-hover); background: var(--kumo-surface-raised); }
+.boardContextMenu > div { position: absolute; z-index: 5; top: 36px; right: 0; display: grid; min-width: 150px; padding: var(--kumo-space-1-5); background: var(--kumo-surface-raised); border: 1px solid var(--kumo-line); border-radius: var(--kumo-radius-md); box-shadow: var(--kumo-shadow-floating); }
+.boardContextMenu button { display: flex; align-items: center; gap: var(--kumo-space-2); padding: var(--kumo-space-2); color: var(--kumo-ink); font-size: var(--kumo-text-sm); text-align: left; background: transparent; border: 0; border-radius: var(--kumo-radius-sm); }
+.boardContextMenu button:hover { background: var(--kumo-surface-subtle); }
 
 .boardPreview {
   position: relative;
@@ -271,8 +293,8 @@
   background: var(--kumo-canvas);
   border: 1px solid #38393d;
   border-radius: var(--kumo-radius-panel);
-  box-shadow: 0 16px 38px rgb(0 0 0 / 0.12);
-  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  box-shadow: var(--kumo-shadow-panel);
+  transition: border-color var(--kumo-motion-fast) var(--kumo-ease), transform var(--kumo-motion-fast) var(--kumo-ease), box-shadow var(--kumo-motion-fast) var(--kumo-ease);
 }
 
 .boardPreview:hover,
@@ -280,7 +302,7 @@
   border-color: var(--kumo-accent);
   outline: 3px solid rgb(184 122 46 / 0.15);
   outline-offset: 2px;
-  box-shadow: 0 20px 46px rgb(0 0 0 / 0.22);
+  box-shadow: var(--kumo-shadow-floating);
   transform: translateY(-2px);
 }
 
@@ -294,7 +316,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 220ms ease, filter 220ms ease;
+  transition: transform var(--kumo-motion-standard) var(--kumo-ease), filter var(--kumo-motion-standard) var(--kumo-ease);
 }
 
 .boardPreview:hover .previewImage,
@@ -316,18 +338,21 @@
 .previewPlaceholder svg {
   width: 42px;
   height: 42px;
-  padding: 9px;
+  padding: var(--kumo-space-2);
   background: var(--kumo-surface-hover);
   border: 1px solid var(--kumo-line-strong);
   border-radius: 50%;
 }
 
+/* Title and meta take the free width; every action sits together at the right edge. */
 .boardMeta {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 11px 3px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-columns: auto;
+  grid-auto-flow: column;
+  align-items: start;
+  gap: var(--kumo-space-1);
+  padding: var(--kumo-space-3) var(--kumo-space-1) 0;
 }
 
 .boardMeta h3 {
@@ -340,24 +365,71 @@
 }
 
 .boardMeta p {
-  margin: 3px 0 0;
+  margin: var(--kumo-space-1) 0 0;
   color: var(--kumo-muted);
   font-size: var(--kumo-text-2xs);
 }
 
+/* Two aligned rows: what's shown (filters · sort and density), then organizing (folders · saved views). */
 .workspaceControls {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 24px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--ui-border);
+  gap: var(--kumo-space-2) var(--kumo-space-4);
+  margin-bottom: var(--kumo-space-6);
+  padding: var(--kumo-space-2-5) 0;
+  border-bottom: 1px solid var(--kumo-line);
 }
+
+.boardFilters button,
+.inboxFilters button { text-transform: capitalize; }
+
+/* The icon before each inline field is its visible label; the field carries the accessible name. */
+.workspaceControls form > svg { flex: none; width: 16px; height: 16px; color: var(--kumo-muted); }
+
+.workspaceControls form button {
+  min-height: var(--kumo-control-compact);
+  padding-inline: var(--kumo-space-2-5);
+}
+
+/* A segmented control the same height as the fields around it, so every row shares one left edge. */
+.workspaceControls .boardFilters {
+  justify-self: start;
+  gap: var(--kumo-space-0-5);
+  padding: var(--kumo-space-0-5);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-sm);
+}
+
+.boardFilters button {
+  min-height: 26px;
+  padding-inline: var(--kumo-space-2-5);
+  border-radius: var(--kumo-radius-xs);
+}
+
+.boardFilters [aria-pressed="true"],
+.inboxFilters [aria-pressed="true"] {
+  color: var(--kumo-ink);
+  background: var(--kumo-surface-raised);
+}
+
+.controlsStart,
+.controlsEnd {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kumo-space-2);
+}
+
+.controlsEnd { justify-content: flex-end; }
+.controlsCount { color: var(--kumo-muted); font-size: var(--kumo-text-xs); }
 
 .boardWorkspaceLayout {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
-  gap: 24px;
+  gap: var(--kumo-space-6);
   align-items: start;
 }
 
@@ -366,58 +438,61 @@
 .folderSidebar {
   position: sticky;
   top: 88px;
-  padding: 12px 8px;
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 9px;
+  padding: var(--kumo-space-3) var(--kumo-space-2);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-md);
 }
 
-.folderSidebar h2 { margin: 0 8px 9px; font-size: var(--kumo-text-sm); }
-.folderSidebar > div { display: grid; gap: 3px; }
-.folderSidebar button { display: flex; align-items: center; gap: 7px; width: 100%; padding: 8px 10px; overflow: hidden; color: var(--ui-text-muted); text-align: left; text-overflow: ellipsis; white-space: nowrap; background: transparent; border: 0; border-radius: 6px; }
-.folderSidebar button:hover, .folderSidebar .folderActive { color: var(--ui-text); background: var(--ui-surface-raised); }
+.folderSidebar h2 { margin: 0 var(--kumo-space-2) var(--kumo-space-2); font-size: var(--kumo-text-sm); }
+.folderSidebar > div { display: grid; gap: var(--kumo-space-1); }
+.folderSidebar button { display: flex; align-items: center; gap: var(--kumo-space-2); width: 100%; padding: var(--kumo-space-2) var(--kumo-space-2-5); overflow: hidden; color: var(--kumo-muted); font-size: var(--kumo-text-sm); text-align: left; text-overflow: ellipsis; white-space: nowrap; background: transparent; border: 0; border-radius: var(--kumo-radius-sm); }
+.folderSidebar button:hover, .folderSidebar .folderActive { color: var(--kumo-ink); background: var(--kumo-surface-raised); }
 
 .workspaceControls .bulkBoardActions {
-  flex-basis: 100%;
-  padding-top: 8px;
-  border-top: 1px solid var(--ui-border);
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--kumo-space-1);
+  padding-top: var(--kumo-space-2);
+  border-top: 1px solid var(--kumo-line);
 }
 
-.workspaceControls { flex-wrap: wrap; }
-
-.workspaceControls > div,
+.boardFilters,
 .workspaceControls form {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--kumo-space-1);
 }
 
-.workspaceControls form {
-  margin-left: auto;
-}
 
+
+/* These controls had borders and fills written but never rendered (their variables were undefined),
+   so they were never given a size. Compact, on the type scale, and padded like every other field. */
 .workspaceControls input {
-  min-height: 34px;
-  color: var(--ui-text);
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 6px;
+  min-height: var(--kumo-control-compact);
+  padding-inline: var(--kumo-space-2-5);
+  color: var(--kumo-ink);
+  font-size: var(--kumo-text-sm);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-sm);
 }
 
 .workspaceControls select {
-  min-height: 34px;
-  padding-inline: 8px;
-  color: var(--ui-text);
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 6px;
+  min-height: var(--kumo-control-compact);
+  padding-inline: var(--kumo-space-2);
+  color: var(--kumo-ink);
+  font-size: var(--kumo-text-sm);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-sm);
 }
 
-.workspaceControls form ~ form {
-  margin-left: 0;
-}
-
-@media (max-width: 860px) {
+@media (max-width: 900px) {
+  .workspaceControls { grid-template-columns: minmax(0, 1fr); }
+  .controlsEnd { justify-content: flex-start; }
   .boardWorkspaceLayout { grid-template-columns: 1fr; }
   .folderSidebar { position: static; }
   .folderSidebar > div { display: flex; overflow-x: auto; }
@@ -427,8 +502,8 @@
 .boardOrganization {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 6px 8px;
+  gap: var(--kumo-space-1);
+  padding: var(--kumo-space-2) 0 var(--kumo-space-2);
 }
 
 .boardOrganization button {
@@ -436,48 +511,52 @@
   width: 30px;
   height: 30px;
   place-items: center;
-  color: var(--ui-text-muted);
+  color: var(--kumo-muted);
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--kumo-radius-sm);
 }
 
 .boardOrganization button:hover,
 .boardOrganization button[aria-pressed="true"] {
-  color: var(--ui-accent);
-  background: var(--ui-surface-raised);
+  color: var(--kumo-accent-hover);
+  background: var(--kumo-surface-raised);
 }
 
 .boardOrganization select {
   min-width: 0;
+  min-height: 30px;
   margin-left: auto;
-  color: var(--ui-text-muted);
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 5px;
+  padding-inline: var(--kumo-space-1-5);
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-xs);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-sm);
 }
 
 .notificationList {
   display: grid;
-  gap: 6px;
+  gap: var(--kumo-space-1-5);
 }
 
 .notificationList > article {
   display: grid;
-  gap: 8px;
-  padding: 10px;
-  background: var(--ui-surface-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: 8px;
+  gap: var(--kumo-space-2);
+  padding: var(--kumo-space-2-5);
+  background: var(--kumo-surface-subtle);
+  border: 1px solid var(--kumo-line);
+  border-radius: var(--kumo-radius-md);
 }
 
 .notificationList > article > button {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  gap: var(--kumo-space-3);
   align-items: center;
-  padding: 3px;
-  color: var(--ui-text-muted);
+  padding: var(--kumo-space-1);
+  color: var(--kumo-muted);
+  font-size: var(--kumo-text-sm);
   text-align: left;
   background: transparent;
   border: 0;
@@ -486,8 +565,8 @@
 .notificationList > article > div {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding-left: 31px;
+  gap: var(--kumo-space-1-5);
+  padding-left: var(--kumo-space-8);
 }
 
 .notificationList strong,
@@ -496,16 +575,16 @@
 }
 
 .unreadNotification {
-  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border)) !important;
+  border-color: color-mix(in srgb, var(--kumo-accent-hover) 55%, var(--kumo-line)) !important;
 }
 
 .templatePreview {
   display: grid;
   min-height: 180px;
   place-items: center;
-  color: var(--ui-accent);
-  background: var(--ui-grid-background);
-  border-bottom: 1px solid var(--ui-border);
+  color: var(--kumo-accent-hover);
+  background: var(--kumo-grid-background);
+  border-bottom: 1px solid var(--kumo-line);
 }
 
 .templatePreview svg {
@@ -531,9 +610,9 @@
   min-height: 210px;
 }
 
-.emptyState button { margin-top: 16px; }
+.emptyState button { margin-top: var(--kumo-space-4); }
 
-.emptyLogo { width: 76px; margin-bottom: 14px; }
+.emptyLogo { width: 76px; margin-bottom: var(--kumo-space-3-5); }
 
 .skeletonGrid span {
   aspect-ratio: 1.55;
@@ -552,50 +631,71 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-@media (max-width: 1000px) {
-  .header { grid-template-columns: auto auto minmax(180px, 1fr) auto; gap: 14px; }
-  .profileButton > span { display: none; }
-  .boardGrid,
-  .skeletonGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* The header has a defined shape at every width, so its controls never overlap or run off the screen.
+   One row needs about 1430px with a profile name showing and 1230px without it. */
+@media (max-width: 1440px) {
+  .profileName,
+  .profileButton > svg,
+  .signOutButton span { display: none; }
+  .profileButton { padding: 0 var(--kumo-space-0-5); }
+  .signOutButton { width: var(--kumo-control-compact); justify-content: center; padding: 0; }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1280px) {
   .header {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      "brand spacer account"
+      "brand search account"
       "nav nav nav";
-    gap: 12px;
-    padding: 10px 14px;
+    gap: var(--kumo-space-1-5) var(--kumo-space-4);
+    padding: var(--kumo-space-2-5) var(--kumo-space-6) 0;
   }
-
-  .brand { grid-area: brand; }
+  .search { width: min(100%, 520px); justify-self: center; }
+  /* Left-aligned and scrollable: a centred row that overflows pushes its first tabs out of reach. */
   .primaryNav {
-    grid-area: nav;
-    width: 100%;
     min-width: 0;
-    justify-self: stretch;
-    justify-content: center;
+    margin-inline: calc(-1 * var(--kumo-space-2-5));
+    padding: 0 0 var(--kumo-space-1-5);
     overflow-x: auto;
-    padding: 0;
     border-left: 0;
     scrollbar-width: none;
   }
   .primaryNav::-webkit-scrollbar { display: none; }
-  .account { grid-area: account; }
-  .search,
+  .primaryNav button { flex: 0 0 auto; }
+}
+
+@media (max-width: 1200px) {
+  .boardGrid,
+  .skeletonGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .header {
+    grid-template-areas:
+      "brand . account"
+      "nav nav nav";
+    column-gap: var(--kumo-space-3);
+    padding-inline: var(--kumo-space-3-5);
+  }
+  .header[data-search-open] {
+    grid-template-areas:
+      "brand . account"
+      "search search search"
+      "nav nav nav";
+  }
+  .header:not([data-search-open]) .search,
   .headerSpacer { display: none; }
-  .account { gap: 2px; }
-  .signOutButton span { display: none; }
-  .signOutButton { width: 38px; justify-content: center; padding: 0; }
+  .search { width: 100%; }
+  .searchToggle { display: inline-flex; width: var(--kumo-control-compact); justify-content: center; padding: 0; }
+  .account { gap: var(--kumo-space-0-5); }
   .brandName { display: none; }
-  .content { width: min(100% - 28px, 1340px); padding-top: 42px; }
+  .content { width: min(100% - 28px, 1340px); padding-top: var(--kumo-space-10); }
   .hero { align-items: flex-start; flex-direction: column; }
   .boardGrid,
   .skeletonGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 460px) {
+@media (max-width: 640px) {
   .boardGrid,
   .skeletonGrid { grid-template-columns: 1fr; }
 }

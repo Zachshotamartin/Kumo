@@ -2,7 +2,7 @@ import { builderRequest, builderStatus, builderStep, builderUsage, createBuilder
 import { readBuilderRecovery, writeBuilderRecovery } from './recovery';
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), token: vi.fn(), user: { currentUser: null as null | { getIdToken: () => Promise<string> } } }));
 vi.mock('../config/firebase', () => ({ auth: mocks.user }));
-vi.mock('../services/apiClient', () => ({ authenticatedFetch: mocks.fetch, authenticatedIdToken: () => mocks.user.currentUser?.getIdToken(), clientSessionId: () => 'session' }));
+vi.mock('../services/apiClient', async (importOriginal) => ({ ...await importOriginal<typeof import('../services/apiClient')>(), authenticatedFetch: mocks.fetch, authenticatedIdToken: () => mocks.user.currentUser?.getIdToken(), clientSessionId: () => 'session' }));
 const session = { runId: 'run', lease: 'lease' };
 beforeEach(() => { vi.clearAllMocks(); mocks.user.currentUser = { getIdToken: mocks.token }; mocks.token.mockResolvedValue('token'); sessionStorage.clear(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -33,6 +33,14 @@ it('surfaces auth, API and stream failures without retrying paid requests', asyn
     request.mockResolvedValueOnce(response); await expect(builderStep(session, '{}', new AbortController().signal, vi.fn())).rejects.toThrow();
   }
   expect(request).toHaveBeenCalledTimes(5);
+});
+it('turns HTML error pages into a readable message instead of a JSON parse error', async () => {
+  const request = vi.fn(); vi.stubGlobal('fetch', request);
+  const page = '<!doctype html><title>Bad gateway</title>';
+  request.mockResolvedValueOnce(new Response(page, { status: 502, headers: { 'content-type': 'text/html' } }));
+  await expect(builderStep(session, '{}', new AbortController().signal, vi.fn())).rejects.toThrow("Kumo couldn't reach the server. Try again in a moment.");
+  request.mockResolvedValueOnce(new Response(page, { status: 200, headers: { 'content-type': 'text/html' } }));
+  await expect(builderStep(session, '{}', new AbortController().signal, vi.fn())).rejects.toThrow("Kumo couldn't reach the server. Try again in a moment.");
 });
 it('redacts secrets before reporting tool results and bounds large results', () => {
   expect(summarizeResult({ password: 'secret', nested: { apiKey: 'secret', name: 'Safe' } })).toEqual({ password: '[redacted]', nested: { apiKey: '[redacted]', name: 'Safe' } });

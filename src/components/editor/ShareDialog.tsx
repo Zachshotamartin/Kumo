@@ -30,6 +30,11 @@ interface ShareDialogProps {
   onClose: () => void;
 }
 
+/** Where a result message belongs, so it appears under the part of the dialog that produced it. */
+type ShareSection = "dialog" | "friends" | "invite" | "link" | "session" | "requests" | "people";
+
+const failureText = (caught: unknown, fallback: string) => caught instanceof Error ? caught.message : fallback;
+
 const directBoardUrl = (boardId: string) => {
   const url = new URL(window.location.href);
   url.searchParams.set("board", boardId);
@@ -51,6 +56,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
   const [removingUid, setRemovingUid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [feedbackSection, setFeedbackSection] = useState<ShareSection>("dialog");
   const [collaborators, setCollaborators] = useState<BoardCollaborator[]>([]);
   const [friends, setFriends] = useState<SocialProfile[]>([]);
   const [invitingFriendUid, setInvitingFriendUid] = useState<string | null>(null);
@@ -89,7 +95,9 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
       setPlan(overview?.plan ?? null);
       setPendingInvitations(overview?.invitations ?? []);
     }).catch((caught) => {
-      if (active) setError(caught instanceof Error ? caught.message : "We couldn't load board access.");
+      if (!active) return;
+      setFeedbackSection("people");
+      setError(failureText(caught, "We couldn't load board access."));
     }).finally(() => {
       if (active) setLoadingAccess(false);
     });
@@ -168,26 +176,40 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
     `${recipient} can now ${role === "editor" ? "edit" : "view"} ${sharedCount === 1 ? "this board" : `${sharedCount} connected boards`}.` +
     (inaccessibleCount ? ` ${inaccessibleCount} private ${inaccessibleCount === 1 ? "destination still needs" : "destinations still need"} its owner.` : "");
 
+  const clearFeedback = () => {
+    setError(null);
+    setMessage(null);
+  };
+  const fail = (section: ShareSection, text: string) => {
+    setFeedbackSection(section);
+    setMessage(null);
+    setError(text);
+  };
+  const report = (section: ShareSection, text: string) => {
+    setFeedbackSection(section);
+    setError(null);
+    setMessage(text);
+  };
+
   const invite = async (event: React.FormEvent) => {
     event.preventDefault();
     const invitedEmail = email.trim();
     setSubmitting(true);
-    setError(null);
-    setMessage(null);
+    clearFeedback();
     try {
       const result = await inviteBoardCollaborator(board.id!, invitedEmail, role, shareConnectedBoards);
       if ("pending" in result) {
         setPendingInvitations((current) => [result.invitation, ...current.filter((item) => item.id !== result.invitation.id)]);
         setPendingLink(result.url);
         setEmail("");
-        setMessage(`Invitation created for ${invitedEmail}. Copy the secure link to send it.`);
+        report("invite", `Invitation created for ${invitedEmail}. Copy the secure link to send it.`);
         return;
       }
       recordInvite(result, invitedEmail);
       setEmail("");
-      setMessage(inviteMessage(invitedEmail, result.sharedBoards.length, result.unavailableBoards.length));
+      report("invite", inviteMessage(invitedEmail, result.sharedBoards.length, result.unavailableBoards.length));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "We couldn't invite this person.");
+      fail("invite", failureText(caught, "We couldn't invite this person."));
     } finally {
       setSubmitting(false);
     }
@@ -195,31 +217,29 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
 
   const inviteFriend = async (friend: SocialProfile) => {
     setInvitingFriendUid(friend.id);
-    setError(null);
-    setMessage(null);
+    clearFeedback();
     try {
       const result = await inviteBoardFriend(board.id!, friend.id, role, shareConnectedBoards);
       if ("pending" in result) throw new Error("Friend invitations must resolve to an existing profile.");
       recordInvite(result, friend.displayName);
-      setMessage(inviteMessage(friend.displayName, result.sharedBoards.length, result.unavailableBoards.length));
+      report("friends", inviteMessage(friend.displayName, result.sharedBoards.length, result.unavailableBoards.length));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "We couldn't share with this friend.");
+      fail("friends", failureText(caught, "We couldn't share with this friend."));
     } finally {
       setInvitingFriendUid(null);
     }
   };
 
   const removeMember = async (memberUid: string) => {
-    setError(null);
-    setMessage(null);
+    clearFeedback();
     setRemovingUid(memberUid);
     try {
       await removeBoardCollaborator(board.id!, memberUid, shareConnectedBoards);
       dispatch(removeShare(memberUid));
       setCollaborators((current) => current.filter((person) => person.id !== memberUid));
-      setMessage("Access removed.");
+      report("people", "Access removed.");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "We couldn't remove this person.");
+      fail("people", failureText(caught, "We couldn't remove this person."));
     } finally {
       setRemovingUid(null);
     }
@@ -231,16 +251,22 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      setError("Your browser blocked clipboard access.");
+      fail("dialog", "Your browser blocked clipboard access.");
     }
   };
 
-  const runAction = <T,>(operation: Promise<T>, onSuccess: (result: T) => void, fallback: string) => {
+  const runAction = <T,>(section: ShareSection, operation: Promise<T>, onSuccess: (result: T) => void, fallback: string) => {
     setError(null);
-    void operation.then(onSuccess).catch((caught) => {
-      setError(caught instanceof Error ? caught.message : fallback);
-    });
+    void operation.then(onSuccess).catch((caught) => fail(section, failureText(caught, fallback)));
   };
+
+  /** The error or confirmation for one part of the dialog, rendered where that part ends. */
+  const feedback = (section: ShareSection) => feedbackSection === section && (error || message) ? (
+    <div className={styles.shareFeedback}>
+      {error && <p className={`${ui.notice} ${ui.noticeError}`} role="alert">{error}</p>}
+      {message && <p className={`${ui.notice} ${ui.noticeSuccess}`} role="status">{message}</p>}
+    </div>
+  ) : null;
 
   return (
     <div className={styles.dialogBackdrop} onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -257,6 +283,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
           <span><Link aria-hidden="true" /><b>Direct board link</b><small>Only people with access can open it.</small></span>
           <button type="button" className={`${ui.button} ${ui.buttonCompact}`} disabled={!board.id} onClick={copyLink}>{copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied ? "Copied" : "Copy link"}</button>
         </div>
+        {feedback("dialog")}
 
         {isOwner ? (
           <>
@@ -267,7 +294,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
                 <label>
                   <span className="sr-only">Find a friend to share with</span>
                   <MagnifyingGlass aria-hidden="true" />
-                  <input value={friendQuery} onChange={(event) => setFriendQuery(event.target.value)} placeholder="Find a friend" />
+                  <input value={friendQuery} onChange={(event) => setFriendQuery(event.target.value)} placeholder="Search friends" />
                 </label>
                 <select aria-label="Friend sharing role" value={role} onChange={(event) => setRole(event.target.value as "editor" | "viewer")}>
                   <option value="editor">Can edit</option>
@@ -290,6 +317,7 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
             ) : (
               <p className={styles.friendShareEmpty}>{friends.length ? "Everyone matching this search already has access." : "Add friends from your dashboard to share here without entering an email."}</p>
             )}
+            {feedback("friends")}
           </section>
           <form className={styles.inviteForm} onSubmit={invite}>
             <label className={ui.field}>
@@ -314,66 +342,73 @@ const ShareDialog = ({ onClose }: ShareDialogProps) => {
               </label>
             )}
           </form>
-          {pendingInvitations.length > 0 && <section className={styles.governedShare} aria-labelledby="pending-invitations-title"><h3 id="pending-invitations-title">Pending invitations</h3>{pendingInvitations.map((invitation) => <div className={styles.memberRow} key={invitation.id}><ProfileAvatar name={invitation.email} avatarUrl={null} size={30} /><span className={styles.memberIdentity}><strong>{invitation.email}</strong><small>{invitation.role === "editor" ? "Can edit" : "Can view"} · expires {new Date(invitation.expires_at).toLocaleDateString()}</small></span><button type="button" disabled={!board.id} onClick={() => runAction(refreshBoardInvitation(board.id!, invitation.id), (result) => { setPendingLink(result.url); setMessage("Fresh invitation link created."); }, "Invitation link refresh failed.")}>Refresh link</button><button type="button" disabled={!board.id} onClick={() => runAction(cancelBoardInvitation(board.id!, invitation.id), () => setPendingInvitations((current) => current.filter((item) => item.id !== invitation.id)), "Invitation cancellation failed.")}>Cancel</button></div>)}</section>}
-          {pendingLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Invitation link</b><small>Copy this secure link and send it to the recipient.</small></span><button type="button" onClick={() => runAction(navigator.clipboard.writeText(pendingLink), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
+          {plan?.truncated && <p className={`${ui.notice} ${ui.noticeError} ${styles.shareFeedback}`} role="alert">The linked-board graph exceeded the safe sharing limit. Kumo will only allow direct-board sharing until the graph is smaller.</p>}
+          {externalPrivateBoards.length > 0 && (
+            <div className={styles.shareWarning}>
+              <Warning aria-hidden="true" />
+              <span><strong>{externalPrivateBoards.length} private linked {externalPrivateBoards.length === 1 ? "board has" : "boards have"} another owner.</strong><small>Those owners must share {externalPrivateBoards.map((candidate) => candidate.title).join(", ")} separately.</small></span>
+            </div>
+          )}
+          {feedback("invite")}
+          {pendingInvitations.length > 0 && <section className={styles.governedShare} aria-labelledby="pending-invitations-title"><h3 id="pending-invitations-title">Pending invitations</h3>{pendingInvitations.map((invitation) => <div className={styles.memberRow} key={invitation.id}><ProfileAvatar name={invitation.email} avatarUrl={null} size={30} /><span className={styles.memberIdentity}><strong>{invitation.email}</strong><small>{invitation.role === "editor" ? "Can edit" : "Can view"} · expires {new Date(invitation.expires_at).toLocaleDateString()}</small></span><button type="button" disabled={!board.id} onClick={() => runAction("invite", refreshBoardInvitation(board.id!, invitation.id), (result) => { setPendingLink(result.url); report("invite", "Fresh invitation link created."); }, "Invitation link refresh failed.")}>Refresh link</button><button type="button" disabled={!board.id} onClick={() => runAction("invite", cancelBoardInvitation(board.id!, invitation.id), () => setPendingInvitations((current) => current.filter((item) => item.id !== invitation.id)), "Invitation cancellation failed.")}>Cancel</button></div>)}</section>}
+          {pendingLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Invitation link</b><small>Copy this secure link and send it to the recipient.</small></span><button type="button" onClick={() => runAction("invite", navigator.clipboard.writeText(pendingLink), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
           <section className={styles.governedShare} aria-labelledby="governed-link-title">
             <h3 id="governed-link-title">Governed share link</h3>
             <p>Create an expiring link, optionally restricted to one email domain.</p>
-            <div className={styles.fieldGrid}><label className={styles.field}><span>Expires in days</span><input type="number" min={1} max={365} value={linkExpiryDays} onChange={(event) => setLinkExpiryDays(event.target.value)} /></label><label className={styles.field}><span>Email domain</span><input placeholder="example.com" value={allowedDomain} onChange={(event) => setAllowedDomain(event.target.value)} /></label></div>
+            <div className={styles.shareFields}>
+              <label className={ui.field}><span className={ui.fieldLabel}>Expires in days</span><input className={ui.control} type="number" min={1} max={365} value={linkExpiryDays} onChange={(event) => setLinkExpiryDays(event.target.value)} /></label>
+              <label className={ui.field}><span className={ui.fieldLabel}>Email domain</span><input className={ui.control} placeholder="example.com" value={allowedDomain} onChange={(event) => setAllowedDomain(event.target.value)} /></label>
+            </div>
             <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => {
               const expiresAt = new Date(Date.now() + Math.max(1, Number(linkExpiryDays) || 7) * 86_400_000).toISOString();
               void createShareLink(board.id!, { role, allowedDomain: allowedDomain || undefined, expiresAt }).then(({ token }) => {
                 const url = new URL(window.location.origin);
                 url.searchParams.set("share", token);
                 setGeneratedLink(url.toString());
-              }).catch((caught) => setError(caught instanceof Error ? caught.message : "Share link creation failed."));
+              }).catch((caught) => fail("link", failureText(caught, "Share link creation failed.")));
             }} disabled={!board.id}>Create secure link</button>
-            {generatedLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Secure link ready</b><small>{generatedLink}</small></span><button type="button" onClick={() => runAction(navigator.clipboard.writeText(generatedLink), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
-            {shareLinks.filter((link) => !link.revoked_at).map((link) => <div className={styles.shareLinkRow} key={link.id}><span><LockSimple aria-hidden="true" /><b>{link.role === "editor" ? "Editing" : "Viewing"} link</b><small>{link.allowed_domain ? `@${link.allowed_domain} · ` : ""}{link.expires_at ? `Expires ${new Date(link.expires_at).toLocaleDateString()}` : "No expiry"}{link.last_used_at ? ` · Used ${new Date(link.last_used_at).toLocaleDateString()}` : " · Never used"}</small></span><button type="button" onClick={() => runAction(revokeShareLink(link.id), () => setShareLinks((current) => current.map((item) => item.id === link.id ? { ...item, revoked_at: new Date().toISOString() } : item)), "Share link revocation failed.")}>Revoke</button></div>)}
+            {feedback("link")}
+            {generatedLink && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Secure link ready</b><small>{generatedLink}</small></span><button type="button" onClick={() => runAction("link", navigator.clipboard.writeText(generatedLink), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
+            {shareLinks.filter((link) => !link.revoked_at).map((link) => <div className={styles.shareLinkRow} key={link.id}><span><LockSimple aria-hidden="true" /><b>{link.role === "editor" ? "Editing" : "Viewing"} link</b><small>{link.allowed_domain ? `@${link.allowed_domain} · ` : ""}{link.expires_at ? `Expires ${new Date(link.expires_at).toLocaleDateString()}` : "No expiry"}{link.last_used_at ? ` · Used ${new Date(link.last_used_at).toLocaleDateString()}` : " · Never used"}</small></span><button type="button" onClick={() => runAction("link", revokeShareLink(link.id), () => setShareLinks((current) => current.map((item) => item.id === link.id ? { ...item, revoked_at: new Date().toISOString() } : item)), "Share link revocation failed.")}>Revoke</button></div>)}
           </section>
           <section className={styles.governedShare} aria-labelledby="open-session-title">
             <h3 id="open-session-title">Temporary open session</h3>
             <p>Invite guests without Kumo accounts. Sessions expire automatically, cannot open linked boards or branches, and editor sessions require a password.</p>
-            <div className={styles.fieldGrid}><label className={styles.field}><span>Guest role</span><select value={openSessionRole} onChange={(event) => setOpenSessionRole(event.target.value as "viewer" | "editor")}><option value="viewer">Can view</option><option value="editor">Can edit</option></select></label><label className={styles.field}><span>Expires in hours</span><input type="number" min={1} max={168} value={openSessionHours} onChange={(event) => setOpenSessionHours(event.target.value)} /></label></div>
-            <label className={styles.field}><span>Password{openSessionRole === "editor" ? " (required)" : " (optional)"}</span><input type="password" minLength={openSessionRole === "editor" ? 8 : undefined} value={openSessionPassword} onChange={(event) => setOpenSessionPassword(event.target.value)} /></label>
+            <div className={styles.shareFields}>
+              <label className={ui.field}><span className={ui.fieldLabel}>Guest role</span><select className={ui.control} value={openSessionRole} onChange={(event) => setOpenSessionRole(event.target.value as "viewer" | "editor")}><option value="viewer">Can view</option><option value="editor">Can edit</option></select></label>
+              <label className={ui.field}><span className={ui.fieldLabel}>Expires in hours</span><input className={ui.control} type="number" min={1} max={168} value={openSessionHours} onChange={(event) => setOpenSessionHours(event.target.value)} /></label>
+              <label className={`${ui.field} ${styles.shareFieldWide}`}><span className={ui.fieldLabel}>Password{openSessionRole === "editor" ? " (required)" : " (optional)"}</span><input className={ui.control} type="password" minLength={openSessionRole === "editor" ? 8 : undefined} value={openSessionPassword} onChange={(event) => setOpenSessionPassword(event.target.value)} /></label>
+            </div>
             <button type="button" className={`${ui.button} ${ui.buttonCompact}`} onClick={() => {
               const expiresAt = new Date(Date.now() + Math.min(168, Math.max(1, Number(openSessionHours) || 24)) * 3_600_000).toISOString();
               void createOpenSession(board.id!, { role: openSessionRole, password: openSessionPassword || undefined, expiresAt }).then((result) => {
                 setOpenSessions((current) => [result.session, ...current]);
                 setOpenSessionUrl(result.url);
                 setOpenSessionPassword("");
-              }).catch((caught) => setError(caught instanceof Error ? caught.message : "Open session creation failed."));
+              }).catch((caught) => fail("session", failureText(caught, "Open session creation failed.")));
             }} disabled={!board.id || (openSessionRole === "editor" && openSessionPassword.length < 8)}>Create open session</button>
-            {openSessionUrl && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Guest link ready</b><small>The password is never included in the URL.</small></span><button type="button" onClick={() => runAction(navigator.clipboard.writeText(openSessionUrl), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
-            {openSessions.filter((session) => !session.revoked_at && new Date(session.expires_at).getTime() > renderedAt).map((session) => <div className={styles.shareLinkRow} key={session.id}><span><LockSimple aria-hidden="true" /><b>{session.role === "editor" ? "Guest editing" : "Guest viewing"}</b><small>Expires {new Date(session.expires_at).toLocaleString()} · {session.use_count ?? 0} joins</small></span><button type="button" disabled={!board.id} onClick={() => runAction(revokeOpenSession(board.id!, session.id), () => setOpenSessions((current) => current.map((item) => item.id === session.id ? { ...item, revoked_at: new Date().toISOString() } : item)), "Open session revocation failed.")}>Revoke</button></div>)}
+            {feedback("session")}
+            {openSessionUrl && <div className={styles.shareLinkRow}><span><Link aria-hidden="true" /><b>Guest link ready</b><small>The password is never included in the URL.</small></span><button type="button" onClick={() => runAction("session", navigator.clipboard.writeText(openSessionUrl), () => undefined, "Clipboard access failed.")}>Copy</button></div>}
+            {openSessions.filter((session) => !session.revoked_at && new Date(session.expires_at).getTime() > renderedAt).map((session) => <div className={styles.shareLinkRow} key={session.id}><span><LockSimple aria-hidden="true" /><b>{session.role === "editor" ? "Guest editing" : "Guest viewing"}</b><small>Expires {new Date(session.expires_at).toLocaleString()} · {session.use_count ?? 0} joins</small></span><button type="button" disabled={!board.id} onClick={() => runAction("session", revokeOpenSession(board.id!, session.id), () => setOpenSessions((current) => current.map((item) => item.id === session.id ? { ...item, revoked_at: new Date().toISOString() } : item)), "Open session revocation failed.")}>Revoke</button></div>)}
           </section>
-          {accessRequests.some((request) => request.status === "pending") && <section className={styles.governedShare}><h3>Access requests</h3>{accessRequests.filter((request) => request.status === "pending").map((request) => <div className={styles.memberRow} key={request.id}><ProfileAvatar name={request.profiles?.display_name ?? request.requester_id} avatarUrl={request.profiles?.avatar_url ?? null} size={30} /><span className={styles.memberIdentity}><strong>{request.profiles?.display_name ?? "Kumo user"}</strong><small>{request.requested_role} · {request.message || "No message"}</small></span><button type="button" onClick={() => runAction(resolveAccessRequest(request.id, "approved"), () => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "approved" } : item)), "Access request approval failed.")}>Approve</button><button type="button" onClick={() => runAction(resolveAccessRequest(request.id, "denied"), () => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "denied" } : item)), "Access request denial failed.")}>Deny</button></div>)}</section>}
+          {accessRequests.some((request) => request.status === "pending") && <section className={styles.governedShare}><h3>Access requests</h3>{accessRequests.filter((request) => request.status === "pending").map((request) => <div className={styles.memberRow} key={request.id}><ProfileAvatar name={request.profiles?.display_name ?? request.requester_id} avatarUrl={request.profiles?.avatar_url ?? null} size={30} /><span className={styles.memberIdentity}><strong>{request.profiles?.display_name ?? "Kumo user"}</strong><small>{request.requested_role} · {request.message || "No message"}</small></span><button type="button" onClick={() => runAction("requests", resolveAccessRequest(request.id, "approved"), () => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "approved" } : item)), "Access request approval failed.")}>Approve</button><button type="button" onClick={() => runAction("requests", resolveAccessRequest(request.id, "denied"), () => setAccessRequests((current) => current.map((item) => item.id === request.id ? { ...item, status: "denied" } : item)), "Access request denial failed.")}>Deny</button></div>)}{feedback("requests")}</section>}
           </>
         ) : (
-          <div className={styles.accessNote}><p className={ui.notice}>Only the board owner can invite or remove collaborators.</p><button type="button" className={`${ui.button} ${ui.buttonDanger}`} disabled={!board.id} onClick={() => runAction(leaveSharedBoard(board.id!), () => { dispatch(setWhiteboardData({ id: null, roomId: null, shapes: [] })); onClose(); }, "Leaving the board failed.")}><SignOut aria-hidden="true" /> Leave board</button></div>
+          <div className={styles.accessNote}><p className={ui.notice}>Only the board owner can invite or remove collaborators.</p><button type="button" className={`${ui.button} ${ui.buttonDanger}`} disabled={!board.id} onClick={() => runAction("dialog", leaveSharedBoard(board.id!), () => { dispatch(setWhiteboardData({ id: null, roomId: null, shapes: [] })); onClose(); }, "Leaving the board failed.")}><SignOut aria-hidden="true" /> Leave board</button></div>
         )}
-
-        {externalPrivateBoards.length > 0 && (
-          <div className={styles.shareWarning}>
-            <Warning aria-hidden="true" />
-            <span><strong>{externalPrivateBoards.length} private linked {externalPrivateBoards.length === 1 ? "board has" : "boards have"} another owner.</strong><small>Those owners must share {externalPrivateBoards.map((candidate) => candidate.title).join(", ")} separately.</small></span>
-          </div>
-        )}
-        {plan?.truncated && <p className={`${ui.notice} ${ui.noticeError} ${styles.dialogError}`} role="alert">The linked-board graph exceeded the safe sharing limit. Kumo will only allow direct-board sharing until the graph is smaller.</p>}
-        {error && <p className={`${ui.notice} ${ui.noticeError} ${styles.dialogError}`} role="alert">{error}</p>}
-        {message && <p className={`${ui.notice} ${ui.noticeSuccess} ${styles.dialogMessage}`} role="status">{message}</p>}
 
         <div className={styles.memberList}>
           <h3>People with access</h3>
+          {feedback("people")}
           {collaborators.map((person) => (
             <div className={styles.memberRow} key={person.id}>
               <ProfileAvatar name={person.name || person.email || "Collaborator"} avatarUrl={person.avatar || null} size={30} />
               <span className={styles.memberIdentity}><strong>{person.name || person.email || "Collaborator"}</strong><small>{person.email || (person.role === "owner" ? "Board owner" : "Member")}</small></span>
               {isOwner && person.role !== "owner" ? <select className={styles.memberRole} aria-label={`Role for ${person.name || person.email}`} value={person.role} disabled={!board.id} onChange={(event) => {
                 const nextRole = event.target.value as "editor" | "viewer";
-                void updateBoardCollaboratorRole(board.id!, person.id, nextRole, shareConnectedBoards).then(() => setCollaborators((current) => current.map((item) => item.id === person.id ? { ...item, role: nextRole } : item))).catch((caught) => setError(caught instanceof Error ? caught.message : "Role update failed."));
+                void updateBoardCollaboratorRole(board.id!, person.id, nextRole, shareConnectedBoards).then(() => setCollaborators((current) => current.map((item) => item.id === person.id ? { ...item, role: nextRole } : item))).catch((caught) => fail("people", failureText(caught, "Role update failed.")));
               }}><option value="editor">Can edit</option><option value="viewer">Can view</option></select> : <span className={styles.memberRole}>{person.role === "owner" ? "Owner" : person.role === "viewer" ? "Can view" : "Can edit"}</span>}
-              {isOwner && person.role !== "owner" && <><button type="button" disabled={!board.id} onClick={() => runAction(transferBoardOwnership(board.id!, person.id), () => { setMessage(`${person.name || person.email} is now the owner.`); setCollaborators((current) => current.map((item) => item.id === person.id ? { ...item, role: "owner" } : item.role === "owner" ? { ...item, role: "editor" } : item)); }, "Ownership transfer failed.")}>Make owner</button><button type="button" disabled={!board.id || Boolean(removingUid)} aria-label={`Remove ${person.name || person.email}`} onClick={() => removeMember(person.id)}>{removingUid === person.id ? "Removing" : "Remove"}</button></>}
+              {isOwner && person.role !== "owner" && <><button type="button" disabled={!board.id} onClick={() => runAction("people", transferBoardOwnership(board.id!, person.id), () => { report("people", `${person.name || person.email} is now the owner.`); setCollaborators((current) => current.map((item) => item.id === person.id ? { ...item, role: "owner" } : item.role === "owner" ? { ...item, role: "editor" } : item)); }, "Ownership transfer failed.")}>Make owner</button><button type="button" disabled={!board.id || Boolean(removingUid)} aria-label={`Remove ${person.name || person.email}`} onClick={() => removeMember(person.id)}>{removingUid === person.id ? "Removing" : "Remove"}</button></>}
             </div>
           ))}
           {loadingAccess && <div className={styles.memberLoading}><LockSimple aria-hidden="true" />Loading access</div>}

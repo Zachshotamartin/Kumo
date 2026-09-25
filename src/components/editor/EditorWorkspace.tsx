@@ -23,6 +23,7 @@ import {
   Toolbox,
   Presentation,
   SignOut,
+  Sparkle,
   Trash,
   X,
 } from "@phosphor-icons/react";
@@ -44,12 +45,14 @@ import {
   setRightPanel,
   setSaveStatus,
   setViewport,
+  showCanvasNotice,
 } from "../../features/editor/editorSlice";
 import { clearSelectedShapes, setSelectedShapes } from "../../features/selected/selectedSlice";
 import { setWhiteboardData } from "../../features/whiteBoard/whiteBoardSlice";
 import { deleteBoard } from "../../services/boardRepository";
 import { AppDispatch, RootState } from "../../store";
 import EditorCanvas from "./EditorCanvas";
+import CanvasNotice from "./CanvasNotice";
 import EditorMinimap from "./EditorMinimap";
 import EditorToolbar from "./EditorToolbar";
 import ToolbarOverflow from "./ToolbarOverflow";
@@ -74,6 +77,7 @@ import InspectPanel from "./InspectPanel";
 import BranchesPanel from "./BranchesPanel";
 import ProductPanel from "./ProductPanel";
 import AdvancedStudioPanel from "./AdvancedStudioPanel";
+import type { EditorRightPanel } from "../../editor/types";
 
 const BuilderEditorBridge = lazy(() => import('../../builder/BuilderEditorBridge'));
 
@@ -115,6 +119,31 @@ const PANEL_LIMITS: Record<PanelSide, { min: number; max: number }> = {
 const clampPanelWidth = (side: PanelSide, width: number) =>
   Math.min(PANEL_LIMITS[side].max, Math.max(PANEL_LIMITS[side].min, width));
 
+/** At this width and below, side panels open one at a time as bottom sheets over the canvas. */
+const COMPACT_LAYOUT_MAX_WIDTH = 900;
+const isCompactLayout = () => window.innerWidth <= COMPACT_LAYOUT_MAX_WIDTH;
+
+const RIGHT_PANEL_TITLES: Record<EditorRightPanel, string> = {
+  properties: "Properties",
+  comments: "Comments",
+  history: "Version history",
+  assets: "Assets",
+  prototype: "Prototype",
+  export: "Export",
+  inspect: "Inspect",
+  branches: "Branches",
+  platform: "Tools",
+  studio: "Studio",
+};
+
+/** The handle and close button a panel gets when it opens as a bottom sheet. Hidden on wide screens. */
+const SheetBar = ({ title, onClose }: { title: string; onClose: () => void }) => (
+  <div className={styles.sheetBar}>
+    <strong>{title}</strong>
+    <button type="button" aria-label={`Close ${title}`} onClick={onClose}><X aria-hidden="true" /></button>
+  </div>
+);
+
 const EditorWorkspace = () => {
   const ai = useBuilderUI();
   const builderEnabled = useSyncExternalStore(subscribeBuilder, getBuilderEnabled);
@@ -141,9 +170,7 @@ const EditorWorkspace = () => {
   const [layersWidth, setLayersWidth] = useState(236);
   const [preferredPropertiesWidth, setPropertiesWidth] = useState(268);
   const propertiesWidth = ai.visible ? Math.max(preferredPropertiesWidth, 320) : preferredPropertiesWidth;
-  const [layersCollapsed, setLayersCollapsed] = useState(
-    () => window.innerWidth < 720
-  );
+  const [layersCollapsed, setLayersCollapsed] = useState(isCompactLayout);
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(
     () => window.innerWidth < 960
   );
@@ -337,8 +364,31 @@ const EditorWorkspace = () => {
   const dismissError = () => {
     setError(null);
     if (editor.saveError) dispatch(setSaveStatus({ status: "idle", error: null }));
+    if (editor.canvasNotice) dispatch(showCanvasNotice(null));
   };
   const propertiesVisible = ai.visible || !propertiesCollapsed || editor.rightPanel !== "properties";
+  const closeRightPanel = () => {
+    setBuilderVisible(false);
+    if (editor.rightPanel !== "properties") dispatch(setRightPanel("properties"));
+    setPropertiesCollapsed(true);
+  };
+  const saveLabel = connectionStatus === "reconnecting"
+    ? "Reconnecting"
+    : connectionStatus === "disconnected"
+    ? "Offline"
+    : connectionStatus === "connecting" || connectionStatus === "initial"
+    ? "Connecting"
+    : syncStatus === "synchronizing" || editor.saveStatus === "saving"
+    ? "Saving"
+    : editor.saveStatus === "error"
+    ? "Save failed"
+    : editor.saveStatus === "saved"
+    ? "Saved"
+    : "Ready";
+  // Phones show the status as a dot, so its colour carries the meaning.
+  const saveTone = editor.saveStatus === "error" || connectionStatus === "disconnected"
+    ? "error"
+    : saveLabel === "Ready" || saveLabel === "Saved" ? "idle" : "busy";
 
   return (
     <main className={styles.workspace}>
@@ -350,6 +400,7 @@ const EditorWorkspace = () => {
             <span className={styles.brandWord}>Kumo</span>
           </button>
           <span className={styles.breadcrumb} aria-hidden="true">/</span>
+          <BoardNavigation />
           <input
             className={styles.titleInput}
             value={title}
@@ -361,28 +412,17 @@ const EditorWorkspace = () => {
             onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
           />
           {board.activeBranchName && <span className={styles.branchBadge}><GitBranch aria-hidden="true" />{board.activeBranchName}</span>}
-          <BoardNavigation />
         </div>
         <div className={styles.topbarEnd}>
           {user.isAuthenticated && <BuilderButton className={styles.secondaryTopbarButton} />}
           <CommandPalette />
           <span
-            className={`${styles.saveStatus} ${editor.saveStatus === "error" || connectionStatus === "disconnected" ? styles.saveError : ""}`}
+            className={`${styles.saveStatus} ${saveTone === "error" ? styles.saveError : ""}`}
+            data-tone={saveTone}
+            title={saveLabel}
             role="status"
           >
-            {connectionStatus === "reconnecting"
-              ? "Reconnecting"
-              : connectionStatus === "disconnected"
-              ? "Offline"
-              : connectionStatus === "connecting" || connectionStatus === "initial"
-              ? "Connecting"
-              : syncStatus === "synchronizing" || editor.saveStatus === "saving"
-              ? "Saving"
-              : editor.saveStatus === "error"
-              ? "Save failed"
-              : editor.saveStatus === "saved"
-              ? "Saved"
-              : "Ready"}
+            <span className={styles.saveStatusLabel}>{saveLabel}</span>
           </span>
           <div className={styles.presenceStack} aria-label={`${board.currentUsers.length + 1} people on this board`}>
             <span className={styles.selfPresence} title="You are here">{(user.email ?? "Y").slice(0, 1).toUpperCase()}</span>
@@ -490,12 +530,16 @@ const EditorWorkspace = () => {
             <button ref={boardMenuButtonRef} type="button" className={styles.menuButton} aria-label="Board menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><DotsThree aria-hidden="true" weight="bold" /></button>
             {menuOpen && (
               <div className={styles.boardMenu} role="menu">
+                {user.isAuthenticated && <button type="button" role="menuitem" className={styles.compactOnly} onClick={() => { setBuilderVisible(!ai.visible); setMenuOpen(false); }}>
+                  <Sparkle aria-hidden="true" /> <span>{ai.visible ? "Close Kumo AI" : "Kumo AI"}</span>
+                </button>}
                 <button type="button" role="menuitem" onClick={() => { actions.commitBoardPatch({ type: board.type === "public" ? "private" : "public" }); setMenuOpen(false); }} disabled={board.role !== "owner"}>
                   <Globe aria-hidden="true" /> <span>Make {board.type === "public" ? "private" : "public"}</span>
                 </button>
                 <button type="button" role="menuitem" onClick={() => { setBuilderVisible(false); dispatch(setRightPanel("history")); setMenuOpen(false); }}>
                   <ClockCounterClockwise aria-hidden="true" /> <span>Version history</span>
                 </button>
+                <span className={styles.menuSeparator} role="separator" />
                 <button type="button" role="menuitem" onClick={() => { setConfirmDelete(true); setMenuOpen(false); if (board.id) void loadProductGraph(board.id).then(setDeleteGraph).catch(() => setDeleteGraph(null)); }} disabled={board.role !== "owner"}>
                   <Trash aria-hidden="true" /> <span>Delete board</span>
                 </button>
@@ -516,7 +560,7 @@ const EditorWorkspace = () => {
           "--properties-resizer-width": propertiesVisible ? "6px" : "0px",
         } as CSSProperties}
       >
-        <div className={styles.panelSlot}>{!layersCollapsed && <LayersPanel />}</div>
+        <div className={styles.panelSlot}>{!layersCollapsed && <><SheetBar title="Layers" onClose={() => setLayersCollapsed(true)} /><LayersPanel /></>}</div>
         <div
           className={styles.panelResizer}
           role="slider"
@@ -532,14 +576,34 @@ const EditorWorkspace = () => {
         />
         <section ref={canvasRegionRef} className={styles.canvasRegion} aria-label="Design editor">
           <EditorCanvas />
-          <EditorMinimap />
-          <EditorToolbar />
+          <CanvasNotice message={error ?? editor.saveError ?? editor.canvasNotice} onDismiss={dismissError} />
+          <div className={styles.canvasDock}>
+            <EditorMinimap />
+            <div className={styles.canvasDockRow}>
+              <EditorToolbar />
+              <div className={styles.zoomControl} aria-label="Zoom controls">
+                <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / ZOOM_STEP_FACTOR)}><Minus aria-hidden="true" /></button>
+                <button
+                  type="button"
+                  className={styles.zoomValue}
+                  aria-label={`Reset zoom (${Math.round(editor.viewport.zoom * 100)}%)`}
+                  onClick={() => setZoomAroundCanvasCenter(1)}
+                >
+                  {Math.round(editor.viewport.zoom * 100)}%
+                </button>
+                <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * ZOOM_STEP_FACTOR)}><Plus aria-hidden="true" /></button>
+              </div>
+            </div>
+          </div>
           <button
             type="button"
             className={`${styles.panelToggle} ${styles.layersToggle}`}
             aria-label={`${layersCollapsed ? "Show" : "Hide"} layers panel`}
             aria-expanded={!layersCollapsed}
-            onClick={() => setLayersCollapsed((collapsed) => !collapsed)}
+            onClick={() => {
+              if (layersCollapsed && isCompactLayout()) closeRightPanel();
+              setLayersCollapsed((collapsed) => !collapsed);
+            }}
           >
             {layersCollapsed ? <CaretRight aria-hidden="true" /> : <CaretLeft aria-hidden="true" />}
           </button>
@@ -554,24 +618,13 @@ const EditorWorkspace = () => {
                 dispatch(setRightPanel("properties"));
                 setPropertiesCollapsed(true);
               } else {
+                if (propertiesCollapsed && isCompactLayout()) setLayersCollapsed(true);
                 setPropertiesCollapsed((collapsed) => !collapsed);
               }
             }}
           >
             {propertiesVisible ? <CaretRight aria-hidden="true" /> : <CaretLeft aria-hidden="true" />}
           </button>
-          <div className={styles.zoomControl} aria-label="Zoom controls">
-            <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom / ZOOM_STEP_FACTOR)}><Minus aria-hidden="true" /></button>
-            <button
-              type="button"
-              className={styles.zoomValue}
-              aria-label={`Reset zoom (${Math.round(editor.viewport.zoom * 100)}%)`}
-              onClick={() => setZoomAroundCanvasCenter(1)}
-            >
-              {Math.round(editor.viewport.zoom * 100)}%
-            </button>
-            <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCanvasCenter(editor.viewport.zoom * ZOOM_STEP_FACTOR)}><Plus aria-hidden="true" /></button>
-          </div>
         </section>
         <div
           className={styles.panelResizer}
@@ -589,6 +642,7 @@ const EditorWorkspace = () => {
         <div className={styles.panelSlot}>
           {propertiesVisible && (
             <>
+              <SheetBar title={ai.visible ? "Kumo AI" : RIGHT_PANEL_TITLES[editor.rightPanel]} onClose={closeRightPanel} />
               {ai.visible ? <BuilderDock /> : editor.rightPanel === "comments"
                 ? <CommentsPanel />
                 : editor.rightPanel === "history"
@@ -618,13 +672,6 @@ const EditorWorkspace = () => {
         <div className={styles.followBanner} role="status">
           <span>Following {board.currentUsers.find((person) => person.uid === editor.followingUserId)?.label ?? "presenter"}</span>
           <button type="button" onClick={() => dispatch(setFollowingUserId(null))}>Stop following</button>
-        </div>
-      )}
-
-      {(error || editor.saveError) && (
-        <div className={`${ui.notice} ${ui.noticeError} ${styles.errorToast}`} role="alert">
-          <span>{error ?? editor.saveError}</span>
-          <button type="button" aria-label="Dismiss error" onClick={dismissError}><X aria-hidden="true" /></button>
         </div>
       )}
 

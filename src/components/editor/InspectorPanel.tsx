@@ -631,7 +631,7 @@ export const InspectorPanelView = ({ actions }: { actions: EditorActions }) => {
       <div className={styles.inspectorBody}>
         {selected.length === 0 && (
           <>
-            <section className={styles.inspectorSection}>
+            <section className={`${styles.inspectorSection} ${styles.canvasSettings}`}>
               <h2>Canvas</h2>
               <ColorField label="Background" value={board.backGroundColor} onCommit={(backGroundColor) => actions.commitBoardPatch({ backGroundColor })} />
               <label className={styles.toggleRow}>

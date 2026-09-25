@@ -298,6 +298,23 @@ describe("BoardDashboard", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Open Shared map" }).querySelector("img")).toHaveAttribute("src", "blob:generated-preview"));
   });
 
+  it("opens and closes the compact search row from the header", async () => {
+    renderDashboard();
+    await screen.findByText("My map");
+    const header = screen.getByRole("banner");
+    expect(header).not.toHaveAttribute("data-search-open");
+    fireEvent.click(screen.getByRole("button", { name: "Show search" }));
+    expect(header).toHaveAttribute("data-search-open");
+    expect(screen.getByRole("button", { name: "Hide search" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByPlaceholderText("Search public boards")).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Hide search" }));
+    expect(header).not.toHaveAttribute("data-search-open");
+    fireEvent.click(screen.getByRole("button", { name: "Show search" }));
+    fireEvent.click(screen.getByRole("button", { name: "Friends" }));
+    expect(header).not.toHaveAttribute("data-search-open");
+    expect(screen.queryByRole("button", { name: "Hide search" })).not.toBeInTheDocument();
+  });
+
   it("searches public boards, copies external results, and signs out", async () => {
     mocks.globalSearch.mockResolvedValueOnce([{ id: "global", kind: "board", label: "Global board", detail: "Everywhere", actionUrl: "/?board=global" }]);
     const store = renderDashboard();

@@ -40,8 +40,6 @@
   --kumo-warning-surface: #342a20;
 
   /* Typography */
-  --kumo-radius-control: 7px;
-  --kumo-radius-panel: 12px;
   --kumo-font: "Inter Variable", sans-serif;
   --kumo-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --kumo-text-2xs: 0.6875rem;
@@ -51,26 +49,81 @@
   --kumo-text-lg: 1rem;
   --kumo-text-xl: 1.125rem;
   --kumo-text-2xl: 1.375rem;
+  /* Display type (36px and up) needs less leading than running text, but never below 1.0,
+     or a descender on one line meets the cap height of the next. */
+  --kumo-leading-display: 1.05;
   --kumo-leading-tight: 1.15;
   --kumo-leading-normal: 1.45;
   --kumo-leading-relaxed: 1.6;
+  --kumo-weight-regular: 400;
+  /* Labels and quiet controls use medium, interactive controls semibold, and bold is kept for
+     primary actions and headings so it still reads as emphasis. Heavy is for the wordmark,
+     eyebrows, and avatar initials. */
   --kumo-weight-medium: 550;
   --kumo-weight-semibold: 650;
   --kumo-weight-bold: 750;
+  --kumo-weight-heavy: 800;
   --kumo-tracking-label: 0.08em;
 
-  /* Geometry, motion, and elevation */
+  /* Spacing: steps are named for multiples of 4px (space-3 is 12px). Half steps exist below
+     16px because dense editor chrome needs 2, 6, 10 and 14. Every padding, margin and gap
+     uses this scale; 1px hairline nudges and fluid clamp() or calc() values are the only
+     literals left. */
+  --kumo-space-0-5: 2px;
+  --kumo-space-1: 4px;
+  --kumo-space-1-5: 6px;
+  --kumo-space-2: 8px;
+  --kumo-space-2-5: 10px;
+  --kumo-space-3: 12px;
+  --kumo-space-3-5: 14px;
+  --kumo-space-4: 16px;
+  --kumo-space-5: 20px;
+  --kumo-space-6: 24px;
+  --kumo-space-8: 32px;
+  --kumo-space-10: 40px;
+  --kumo-space-12: 48px;
+  --kumo-space-16: 64px;
+
+  /* Radius */
+  --kumo-radius-2xs: 2px;
   --kumo-radius-xs: 4px;
   --kumo-radius-sm: 6px;
+  --kumo-radius-control: 7px;
+  --kumo-radius-md: 8px;
+  --kumo-radius-lg: 10px;
+  --kumo-radius-panel: 12px;
+  --kumo-radius-pill: 999px;
+
+  /* Controls */
   --kumo-control-compact: 32px;
   --kumo-control-default: 40px;
   --kumo-control-comfortable: 46px;
+
+  /* Motion: fast for hover and press feedback, standard for things that move, slow for
+     things that arrive. Looping ambient animations (spinners, skeletons) keep their own
+     durations. */
   --kumo-motion-fast: 140ms;
   --kumo-motion-standard: 200ms;
+  --kumo-motion-slow: 400ms;
   --kumo-ease: cubic-bezier(0.2, 0.75, 0.25, 1);
   --kumo-focus-ring: 0 0 0 3px var(--kumo-accent-soft);
-  --kumo-shadow-panel: 0 18px 44px rgb(6 7 8 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.035);
-  --kumo-shadow-floating: 0 18px 46px rgb(6 7 8 / 0.44);
+
+  /* Elevation: three tiers far enough apart to read as three planes. Panel is chrome resting on
+     the canvas (toolbars, minimap, zoom); floating is anything anchored to a trigger (menus,
+     popovers, search results); dialog is modal and sits above everything. */
+  --kumo-shadow-panel: 0 6px 18px rgb(6 7 8 / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.035);
+  --kumo-shadow-floating: 0 16px 40px rgb(6 7 8 / 0.42);
+  --kumo-shadow-dialog: 0 28px 80px rgb(6 7 8 / 0.56);
+
+  /* The dotted-grid canvas surface behind the landing composition and template previews. */
+  --kumo-grid-background:
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px) 0 0 / 30px 30px,
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--kumo-canvas);
+
+  /* Breakpoints: 640 (phone), 900 (tablet), 1200 (small laptop), 1500 (wide). Custom properties
+     cannot be used inside @media, so every query in src/ uses one of these four values. */
+
   --kumo-z-header: 20;
   --kumo-z-toolbar: 30;
   --kumo-z-popover: 40;
