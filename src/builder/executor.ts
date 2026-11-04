@@ -53,17 +53,25 @@ export async function executeOperation(operation: BuilderOperation, context: Exe
   }
   if (operation.capability === 'workspace.open') {
     const id = first as string;
-    const board = id ? await getBoard(id) : null;
+    const open = store.getState().whiteBoard;
+    // A board summary has no shapes, and the same room never remounts to refill them,
+    // so reloading the open board would blank its canvas until the page reloads.
+    const reopening = Boolean(id && open.roomId) && id === open.id;
+    const board = id && !reopening ? await getBoard(id) : null;
+    const roomId = reopening ? open.roomId : board?.roomId ?? null;
     context.signal.throwIfAborted();
-    await context.navigate(id, board?.roomId ?? null);
-    dispatchBoard(board);
-    const url = new URL(location.href);
-    if (id) url.searchParams.set('board', id); else url.searchParams.delete('board');
-    history.pushState({}, '', url);
+    await context.navigate(id, roomId);
+    if (!reopening) {
+      dispatchBoard(board);
+      const url = new URL(location.href);
+      if (id) url.searchParams.set('board', id); else url.searchParams.delete('board');
+      history.pushState({}, '', url);
+    }
     // Room entry may suspend; never send another paid step with stale context.
+    const connected = () => getEditorBridge()?.boardId === id && getEditorBridge()?.roomId === roomId;
     const deadline = Date.now() + 20000;
-    while (id && (getEditorBridge()?.boardId !== id || getEditorBridge()?.roomId !== board!.roomId) && Date.now() < deadline) { context.signal.throwIfAborted(); await new Promise(resolve => setTimeout(resolve, 100)); }
-    if (id && (getEditorBridge()?.boardId !== id || getEditorBridge()?.roomId !== board!.roomId)) throw new Error('Board connection timed out. Applied work has been kept.');
+    while (id && !connected() && Date.now() < deadline) { context.signal.throwIfAborted(); await new Promise(resolve => setTimeout(resolve, 100)); }
+    if (id && !connected()) throw new Error('Board connection timed out. Applied work has been kept.');
     return { opened: id };
   }
   const module = await repositories[domain]!();

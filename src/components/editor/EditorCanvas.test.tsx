@@ -1183,6 +1183,29 @@ describe("EditorCanvas transform interactions", () => {
     vi.useRealTimers();
   });
 
+  it("drags guides to move them and drops them on a ruler to remove them", () => {
+    const other = rectangle();
+    const vertical: Shape = { ...rectangle(), id: "vertical", type: "guide", guideAxis: "vertical", x1: 40, x2: 40, locked: true };
+    const horizontal: Shape = { ...rectangle(), id: "horizontal", type: "guide", guideAxis: "horizontal", y1: 70, y2: 70, locked: true };
+    renderCanvas([other, vertical, horizontal]);
+    const committed = () => editorActions.commitShapes.mock.calls.at(-1)![0] as Shape[];
+    const drag = (name: RegExp, from: [number, number], to: [number, number]) => {
+      const button = screen.getByRole("button", { name });
+      fireEvent.pointerDown(button, { pointerId: 30, button: 0, clientX: from[0], clientY: from[1] });
+      fireEvent.pointerUp(button, { pointerId: 30, clientX: to[0], clientY: to[1] });
+    };
+    drag(/Vertical guide at 40/, [40, 300], [90, 300]);
+    expect(committed()).toEqual([
+      expect.objectContaining({ id: other.id, x1: other.x1 }),
+      expect.objectContaining({ id: "vertical", x1: 90, x2: 90 }),
+      expect.objectContaining({ id: "horizontal", y1: 70 }),
+    ]);
+    drag(/Horizontal guide at 70/, [400, 70], [400, 120]);
+    expect(committed().find((shape) => shape.id === "horizontal")).toMatchObject({ y1: 120, y2: 120 });
+    drag(/Horizontal guide at 70/, [400, 70], [400, 10]);
+    expect(committed().map((shape) => shape.id)).toEqual([other.id, "vertical"]);
+  });
+
   it("covers measurement guard states, text-content guards, and horizontal guide events", () => {
     const text = textShape();
     const guide: Shape = { ...rectangle(), id: "horizontal", type: "guide", guideAxis: "horizontal", y1: 70, y2: 70 };
