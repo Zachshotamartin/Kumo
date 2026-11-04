@@ -438,27 +438,68 @@
   border-bottom: 1px solid #424448;
 }
 
+/* A 9px grab area around a 1px line. It sits above the rulers so a click on the
+   ruler at a guide picks that guide up instead of stacking a duplicate on it. */
 .persistentGuide {
   position: absolute;
-  z-index: 10030;
+  z-index: 10045;
   padding: 0;
-  background: #48a8ff;
+  background: transparent;
   border: 0;
   pointer-events: auto;
+  touch-action: none;
+}
+
+.persistentGuide::before {
+  position: absolute;
+  background: #48a8ff;
+  content: "";
+  transition: box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.persistentGuide:hover::before,
+.persistentGuide:focus-visible::before,
+.persistentGuide[data-dragging]::before {
+  box-shadow: 0 0 0 1px rgb(72 168 255 / 0.45);
+}
+
+.persistentGuide:focus-visible {
+  outline: none;
+}
+
+/* Released here, the guide is removed. */
+.persistentGuide[data-removing]::before {
+  opacity: 0.35;
 }
 
 .verticalGuide {
   top: 0;
   bottom: 0;
-  width: 1px;
+  width: 9px;
+  margin-left: -4px;
   cursor: ew-resize;
+}
+
+.verticalGuide::before {
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
 }
 
 .horizontalGuide {
   right: 0;
   left: 0;
-  height: 1px;
+  height: 9px;
+  margin-top: -4px;
   cursor: ns-resize;
+}
+
+.horizontalGuide::before {
+  top: 4px;
+  right: 0;
+  left: 0;
+  height: 1px;
 }
 
 .measurement {

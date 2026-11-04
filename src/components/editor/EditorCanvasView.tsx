@@ -1,6 +1,7 @@
 /* eslint jsx-a11y/no-noninteractive-tabindex: ["error", { "roles": ["application"] }] -- The canvas application requires focus to own its editing shortcuts. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BuilderPresenceCursor from './BuilderPresenceCursor';
+import CanvasGuides from './CanvasGuides';
 import { claimedShapeIds } from '../../collaboration/activityClaims';
 import { Cursor, LockSimple, X } from "@phosphor-icons/react";
 import { useDispatch, useSelector } from "react-redux";
@@ -495,6 +496,17 @@ export const EditorCanvasView = ({
     });
     actions.commitShapes([...board.shapes, guide]);
   }, [actions, activePageId, board.shapes, pointerWorld]);
+
+  const canvasBounds = useCallback(() => canvasRef.current?.getBoundingClientRect(), []);
+  const moveGuide = useCallback((id: string, value: number) => {
+    actions.commitShapes(board.shapes.map((shape) => {
+      if (shape.id !== id) return shape;
+      return shape.guideAxis === "vertical" ? { ...shape, x1: value, x2: value } : { ...shape, y1: value, y2: value };
+    }));
+  }, [actions, board.shapes]);
+  const removeGuide = useCallback((id: string) => {
+    actions.commitShapes(board.shapes.filter((shape) => shape.id !== id));
+  }, [actions, board.shapes]);
 
   const pointerScreen = useCallback(
     (event: Pick<React.PointerEvent<HTMLDivElement>, "clientX" | "clientY">): Point => {
@@ -1855,23 +1867,16 @@ export const EditorCanvasView = ({
         </>
       )}
 
-      {canvasShapes.filter((shape) => shape.type === "guide" && shape.guideAxis).map((guide) => {
-        const vertical = guide.guideAxis === "vertical";
-        const position = vertical
-          ? (guide.x1 - editor.viewport.x) * editor.viewport.zoom
-          : (guide.y1 - editor.viewport.y) * editor.viewport.zoom;
-        return (
-          <button
-            type="button"
-            key={guide.id}
-            className={`${styles.persistentGuide} ${vertical ? styles.verticalGuide : styles.horizontalGuide}`}
-            style={vertical ? { left: position } : { top: position }}
-            aria-label={`${vertical ? "Vertical" : "Horizontal"} guide at ${Math.round(vertical ? guide.x1 : guide.y1)}. Double-click to remove.`}
-            onPointerDown={(event) => event.stopPropagation()}
-            onDoubleClick={() => actions.commitShapes(board.shapes.filter((shape) => shape.id !== guide.id))}
-          />
-        );
-      })}
+      <CanvasGuides
+        guides={canvasShapes.filter((shape) => shape.type === "guide" && shape.guideAxis)}
+        viewport={editor.viewport}
+        canEdit={actions.canEdit}
+        rulers={editor.showRulers}
+        bounds={canvasBounds}
+        toWorld={pointerWorld}
+        onMove={moveGuide}
+        onRemove={removeGuide}
+      />
 
       {measurements.map((measurement) => {
         const start = worldToScreen(measurement.start, editor.viewport);
