@@ -129,6 +129,32 @@ it('navigates through authorized board loading and waits for the new room', asyn
   vi.useRealTimers();
 });
 
+it('keeps the open board live when the model reopens it', async () => {
+  const shape = { id: 'one', type: 'rectangle', x1: 0, y1: 0, x2: 100, y2: 100, width: 100, height: 100, level: 0, zIndex: 0 };
+  store.dispatch(setWhiteboardData({ id: 'board', roomId: 'board:board', shapes: [shape], backGroundColor: '#123456', revision: 3 }));
+  // The board summary carries no shapes; the open room is their only source.
+  mocks.invoke.mockResolvedValue({ id: 'board', roomId: 'board:board', role: 'owner', shapes: [], backGroundColor: '#252629', revision: 0 });
+  const dispose = registerEditorBridge({ boardId: 'board', roomId: 'board:board', execute: vi.fn(), inspect: vi.fn(), stop: vi.fn() });
+  const pushState = vi.spyOn(history, 'pushState');
+  const ctx = context();
+  expect(await executeOperation(operation('workspace.open', ['board']), ctx)).toEqual({ opened: 'board' });
+  // The room does not remount for the same board, so nothing would refill a cleared shape list.
+  expect(store.getState().whiteBoard).toMatchObject({ id: 'board', roomId: 'board:board', backGroundColor: '#123456', revision: 3 });
+  expect(store.getState().whiteBoard.shapes.map(item => item.id)).toEqual(['one']);
+  expect(ctx.navigate).toHaveBeenCalledWith('board', 'board:board');
+  expect(pushState).not.toHaveBeenCalled();
+  dispose();
+
+  // Reopening from a branch stays on the branch instead of dropping the user onto the main board.
+  store.dispatch(setWhiteboardData({ roomId: 'branch-room' }));
+  const branch = registerEditorBridge({ boardId: 'board', roomId: 'branch-room', execute: vi.fn(), inspect: vi.fn(), stop: vi.fn() });
+  expect(await executeOperation(operation('workspace.open', ['board']), ctx)).toEqual({ opened: 'board' });
+  expect(store.getState().whiteBoard.roomId).toBe('branch-room');
+  expect(ctx.navigate).toHaveBeenLastCalledWith('board', 'branch-room');
+  pushState.mockRestore();
+  branch();
+});
+
 it('gives the model the actual canvas size so fitting accounts for sidebars', () => {
   const canvas = document.createElement('div'); canvas.dataset.testid = 'editor-canvas'; document.body.append(canvas);
   vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ width: 620, height: 900 } as DOMRect);
